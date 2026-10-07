@@ -238,7 +238,7 @@ const PayrollEmployeeList = () => {
                         variant="ghost" 
                         size="icon" 
                         asChild 
-                        className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-brand-primary"
                       >
                         <Link to="/payroll">
                           <ChevronLeft className="h-6 w-6" />
@@ -254,7 +254,7 @@ const PayrollEmployeeList = () => {
 
               {/* Title: Adds left padding when hovered */}
               <div className="transition-all duration-300 ease-in-out group-hover:pl-2">
-                <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">Employee Masterlist</h1>
+                <h1 className="text-2xl md:text-3xl font-bold text-brand-primary leading-tight">Employee Masterlist</h1>
                 <span className="text-sm text-slate-500 mt-1 block">Manage employee records and daily compensation rates</span>
               </div>
             </div>
@@ -285,26 +285,26 @@ const PayrollEmployeeList = () => {
         {/* Dashboard-Style Widgets Row */}
         <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
           {/* Card 1: Total Employees */}
-          <Card className="shadow-sm border-t-5 border-[#2A174E] bg-white py-0 h-full min-w-0">
+          <Card className="shadow-sm border-t-5 border-brand-primary bg-white py-0 h-full min-w-0">
             <CardContent className="px-5 py-5 flex justify-between h-full">
               <div className="flex flex-col justify-between">
                 <div>
                   <div className="flex items-center gap-1.5 mb-2">
-                    <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider">Total Employees</p>
+                    <p className="text-xs font-bold text-brand-primary uppercase tracking-wider">Total Employees</p>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#2A174E]/60 hover:text-[#2A174E] cursor-help" />
+                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-brand-primary/60 hover:text-brand-primary cursor-help" />
                       </TooltipTrigger>
                       <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
                         Total count of active employees registered in the database.
                       </TooltipContent>
                     </Tooltip>
                   </div>
-                  <p className="text-4xl font-bold text-[#2A174E]">{employees.length}</p>
+                  <p className="text-4xl font-bold text-brand-primary">{employees.length}</p>
                 </div>
-                <p className="text-xs text-[#2A174E]/70 italic mt-4">Active masterlist records</p>
+                <p className="text-xs text-brand-primary/70 italic mt-4">Active masterlist records</p>
               </div>
-              <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+              <div className="bg-brand-primary/10 text-brand-primary p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <PeopleAltIcon className="h-6 w-6" />
               </div>
             </CardContent>
@@ -354,7 +354,7 @@ const PayrollEmployeeList = () => {
                 placeholder="Search by name or employee number..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-10 border-slate-200 focus-visible:ring-[#2A174E] w-full"
+                className="pl-10 border-slate-200 focus-visible:ring-brand-primary w-full"
               />
             </div>
             
@@ -417,7 +417,7 @@ const PayrollEmployeeList = () => {
             ) : (
               <>
                 <Table className="min-w-[1000px] md:min-w-full">
-                  <TableHeader className="bg-[#2B174F]">
+                  <TableHeader className="bg-brand-primary">
                     <TableRow className="hover:bg-transparent border-b-slate-200">
                       <TableHead className="font-semibold text-white uppercase text-xs w-12 text-center py-4">#</TableHead>
                       <TableHead className="font-semibold text-white uppercase text-xs py-4 px-6">Emp</TableHead>
@@ -442,11 +442,11 @@ const PayrollEmployeeList = () => {
                             
                             <TableCell className="px-6 py-4">
                               <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 rounded-full bg-[#f0ebfa] text-[#4a2b8c] font-bold text-xs flex items-center justify-center shrink-0 uppercase tracking-widest">
+                                <div className="w-9 h-9 rounded-full bg-brand-primary-light text-[#4a2b8c] font-bold text-xs flex items-center justify-center shrink-0 uppercase tracking-widest">
                                   {emp.user_FirstName?.[0]}{emp.user_LastName?.[0]}
                                 </div>
                                 <div className="flex flex-col">
-                                  <span className="font-bold text-[#2A174E] text-sm">
+                                  <span className="font-bold text-brand-primary text-sm">
                                     {emp.user_FirstName} {emp.user_LastName}
                                   </span>
                                   <span className="text-xs text-slate-500 font-mono">
@@ -468,7 +468,7 @@ const PayrollEmployeeList = () => {
                                     <TooltipTrigger asChild>
                                       <button 
                                         onClick={() => toggleAccountVisibility(emp.user_Id)}
-                                        className="text-slate-400 hover:text-[#2A174E] transition-colors"
+                                        className="text-slate-400 hover:text-brand-primary transition-colors"
                                       >
                                         {visibleAccounts.has(emp.user_Id) 
                                           ? <VisibilityOffIcon sx={{ fontSize: 16 }} /> 
@@ -485,9 +485,34 @@ const PayrollEmployeeList = () => {
 
                             <TableCell className="text-slate-600 text-sm py-4">
                               <div className="flex flex-col">
-                                <span className="font-semibold text-slate-700">
-                                  {emp.positionTitle || emp.position || emp.user_Role || "—"}
-                                </span>
+                                {(() => {
+                                  const positionName = emp.positionTitle || emp.position || emp.user_Role || "—";
+                                  const isTruncated = positionName !== "—" && positionName.length > 20;
+
+                                  if (isTruncated) {
+                                    return (
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <span 
+                                            className="font-semibold text-slate-700 cursor-help inline-block w-fit"
+                                            title={positionName}
+                                          >
+                                            {positionName.slice(0, 20)}...
+                                          </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
+                                          {positionName}
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    );
+                                  }
+
+                                  return (
+                                    <span className="font-semibold text-slate-700">
+                                      {positionName}
+                                    </span>
+                                  );
+                                })()}
                                 {(emp.positionDepartment || emp.department) && (
                                   <span className="text-[10px] text-slate-400 uppercase font-bold">
                                     {emp.positionDepartment || emp.department}
@@ -508,7 +533,7 @@ const PayrollEmployeeList = () => {
 
                             <TableCell className="py-4">
                               <div className="flex items-center gap-2">
-                                <span className={`font-bold text-sm ${hasChanged ? (rateWentUp ? "text-green-700" : "text-red-600") : "text-[#2A174E]"}`}>
+                                <span className={`font-bold text-sm ${hasChanged ? (rateWentUp ? "text-green-700" : "text-red-600") : "text-brand-primary"}`}>
                                   ₱{parseFloat(emp.dailyRate || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
                                 </span>
                                 {hasChanged && (

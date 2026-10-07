@@ -1,4 +1,4 @@
-const { sequelize } = require("../config/sequelize.js");
+const { sequelize, SystemSettings } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
 const fs = require('fs');
 const path = require('path');
@@ -129,6 +129,12 @@ exports.registerUser = async (req, res) => {
       });
     }
 
+    const { validatePassword } = require("../utils/passwordValidator");
+    const pwdValidation = validatePassword(user_Password);
+    if (!pwdValidation.isValid) {
+      return res.status(400).json({ error: pwdValidation.message });
+    }
+
     if (account_Number) {
       if (!/^\d+$/.test(account_Number)) {
         return res.status(400).json({ error: "Account Number must contain numbers only." });
@@ -220,6 +226,12 @@ exports.registerUser = async (req, res) => {
     const dailyRate = parseFloat(req.body.dailyRate) || 0;
     const shares = await computeMonthlyShares(dailyRate);
 
+    const settings = await SystemSettings.findOne();
+    let assignedShiftId = parseInt(req.body.user_ShiftId) || 1;
+    if (!settings?.enableNightShift && assignedShiftId === 2) {
+      assignedShiftId = 1;
+    }
+
     // Use a transaction for atomic insertion across normalized tables
     const transaction = await sequelize.transaction();
     try {
@@ -260,7 +272,7 @@ exports.registerUser = async (req, res) => {
             user_Address: req.body.user_Address || null,
             user_DOB: req.body.user_DOB || null,
             user_Gender: req.body.user_Gender || null,
-            user_ShiftId: parseInt(req.body.user_ShiftId) || 1,
+            user_ShiftId: assignedShiftId,
             dailyRate,
             civil_status: req.body.civil_status || "Single",
             is_solo_parent: req.body.is_solo_parent === "true" || req.body.is_solo_parent === true,
@@ -325,6 +337,22 @@ exports.registerUser = async (req, res) => {
             user_FingerprintTemplate: encryptedTemplate,
             now: nowStr
           },
+          type: QueryTypes.INSERT,
+          transaction
+        }
+      );
+
+      // 5. Initialize Leave_Balance for the current year
+      const currentYear = now.getFullYear();
+      const isSoloParentBool = req.body.is_solo_parent === "true" || req.body.is_solo_parent === true;
+      const soloParentCredit = isSoloParentBool ? 7 : 0;
+      await sequelize.query(
+        `INSERT INTO "Leave_Balance" 
+         ("user_Id", "year", "VL_balance", "SL_balance", "SoloParent_balance", "VL_used", "SL_used", "SoloParent_used", "createdAt", "updatedAt")
+         VALUES (:user_Id, :currentYear, 7, 7, :soloParentCredit, 0, 0, 0, :now, :now)
+         ON CONFLICT ("user_Id", "year") DO NOTHING`,
+        {
+          replacements: { user_Id, currentYear, soloParentCredit, now: nowStr },
           type: QueryTypes.INSERT,
           transaction
         }
@@ -523,12 +551,13 @@ exports.deleteUser = async (req, res) => {
 
     // 1. Get current hardware info to handle MachipId prefixing and slot deletion
     const hardwareResult = await sequelize.query(
-      `SELECT "user_MachipId", "user_FingerprintId" FROM "User_Hardware" WHERE "user_Id" = :user_Id`,
+      `SELECT "user_MachipId", "user_FingerprintId", "user_FingerprintId2" FROM "User_Hardware" WHERE "user_Id" = :user_Id`,
       { replacements: { user_Id }, type: QueryTypes.SELECT }
     );
     
     const currentMachipId = hardwareResult.length > 0 ? hardwareResult[0].user_MachipId : null;
     const currentFpSlot = hardwareResult.length > 0 ? hardwareResult[0].user_FingerprintId : null;
+    const currentFpSlot2 = hardwareResult.length > 0 ? hardwareResult[0].user_FingerprintId2 : null;
     // Append unique suffix to MachipId to free it up for others
     const archivedMachipId = currentMachipId ? `${currentMachipId}-ARCHIVED-${user_Id}` : null;
 
@@ -546,6 +575,8 @@ exports.deleteUser = async (req, res) => {
              "user_MachipId" = :archivedMachipId, 
              "user_FingerprintId" = NULL, 
              "user_FingerprintTemplate" = NULL,
+             "user_FingerprintId2" = NULL,
+             "user_FingerprintTemplate2" = NULL,
              "updatedAt" = :now
          WHERE "user_Id" = :user_Id`,
         { replacements: { user_Id, now: nowStr, archivedMachipId }, type: QueryTypes.UPDATE },
@@ -553,6 +584,9 @@ exports.deleteUser = async (req, res) => {
 
       if (currentFpSlot) {
         queueSlotDeletion(currentFpSlot);
+      }
+      if (currentFpSlot2) {
+        queueSlotDeletion(currentFpSlot2);
       }
 
       const user = await sequelize.query(`SELECT * FROM "User" WHERE "user_Id" = :user_Id`, { replacements: { user_Id }, type: QueryTypes.SELECT });
@@ -964,7 +998,7 @@ exports.updateUser = async (req, res) => {
         `SELECT h."user_Id" 
          FROM "User_Hardware" h
          JOIN "User" u ON h."user_Id" = u."user_Id"
-         WHERE h."user_FingerprintId" = :user_FingerprintId AND u."deletedAt" IS NULL AND u."user_Id" != :targetId`,
+         WHERE (h."user_FingerprintId" = :user_FingerprintId OR h."user_FingerprintId2" = :user_FingerprintId) AND u."deletedAt" IS NULL AND u."user_Id" != :targetId`,
         { replacements: { user_FingerprintId, targetId: parseInt(user_Id) }, type: QueryTypes.SELECT }
       );
 
@@ -1047,6 +1081,12 @@ exports.updateUser = async (req, res) => {
         }
       }
 
+      const settings = await SystemSettings.findOne();
+      let resolvedShiftId = isMaster ? (parseInt(req.body.user_ShiftId) || oldUser.user_ShiftId || 1) : oldUser.user_ShiftId;
+      if (!settings?.enableNightShift && resolvedShiftId === 2) {
+        resolvedShiftId = 1;
+      }
+
       // Build replacements object with explicit types
       const replacements = {
         targetId: parseInt(user_Id),
@@ -1062,7 +1102,7 @@ exports.updateUser = async (req, res) => {
         address: req.body.user_Address !== undefined ? (req.body.user_Address || null) : oldUser.user_Address,
         dob: req.body.user_DOB !== undefined ? (req.body.user_DOB || null) : oldUser.user_DOB,
         gender: req.body.user_Gender !== undefined ? (req.body.user_Gender || null) : oldUser.user_Gender,
-        shiftId: isMaster ? (parseInt(req.body.user_ShiftId) || oldUser.user_ShiftId || 1) : oldUser.user_ShiftId,
+        shiftId: resolvedShiftId,
         accountNumber: account_Number !== undefined ? (encrypt(account_Number) || null) : oldUser.account_Number,
         bankCompany: req.body.bank_Company !== undefined ? (req.body.bank_Company || null) : oldUser.bank_Company,
         bankAccountName: req.body.bank_AccountName !== undefined ? (req.body.bank_AccountName || null) : oldUser.bank_AccountName,
@@ -1147,6 +1187,12 @@ exports.updateUser = async (req, res) => {
       }
 
       if (user_Password && user_Password.trim() !== "") {
+        const { validatePassword } = require("../utils/passwordValidator");
+        const pwdValidation = validatePassword(user_Password);
+        if (!pwdValidation.isValid) {
+          await transaction.rollback();
+          return res.status(400).json({ error: pwdValidation.message });
+        }
         const salt = await bcrypt.genSalt(10);
         replacements.hashedPass = await bcrypt.hash(user_Password, salt);
         sql += `, "user_Password" = :hashedPass`;
@@ -1224,6 +1270,23 @@ exports.updateUser = async (req, res) => {
       }
       
       await sequelize.query(hardwareSql, { replacements, type: QueryTypes.INSERT, transaction });
+
+      // 5. If employee is updated to Solo Parent, credit 7 days of annual Solo Parent leave if unused/uninitialized
+      if (replacements.is_solo_parent) {
+        const currentYear = now.getFullYear();
+        await sequelize.query(
+          `INSERT INTO "Leave_Balance" 
+           ("user_Id", "year", "VL_balance", "SL_balance", "SoloParent_balance", "VL_used", "SL_used", "SoloParent_used", "createdAt", "updatedAt")
+           VALUES (:targetId, :currentYear, 7, 7, 7, 0, 0, 0, :updatedAt, :updatedAt)
+           ON CONFLICT ("user_Id", "year") DO UPDATE SET
+             "SoloParent_balance" = CASE 
+               WHEN "Leave_Balance"."SoloParent_balance" = 0 AND "Leave_Balance"."SoloParent_used" = 0 THEN 7 
+               ELSE "Leave_Balance"."SoloParent_balance" 
+             END,
+             "updatedAt" = EXCLUDED."updatedAt"`,
+          { replacements: { targetId: user_Id, currentYear, updatedAt: nowStr }, type: QueryTypes.INSERT, transaction }
+        );
+      }
 
       await transaction.commit();
     } catch (err) {
@@ -1310,7 +1373,7 @@ exports.getMasterlist = async (req, res) => {
          d."sss_Share", d."philhealth_Share", d."hdmf_Share", d."tax_Share",
          d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
          d."advances_Amnt", d."globe_Deduction", d."eastwest_Loan", d."multiPurposeSavings",
-         h."user_MachipId", h."user_FingerprintId",
+         h."user_MachipId", h."user_FingerprintId", h."user_FingerprintId2",
          r."roleName"          AS "user_Role",
          es."statusName"       AS "employmentStatus"
        FROM "User" u
@@ -1326,6 +1389,25 @@ exports.getMasterlist = async (req, res) => {
       { type: QueryTypes.SELECT },
     );
 
+    let activeLoans = [];
+    try {
+      activeLoans = await sequelize.query(
+        `SELECT "id", "userId", "deductionType", "notes", "totalAmount", "remainingBalance", "deductionPerCutoff", "status"
+         FROM "Loan_Deductions"
+         WHERE "status" ILIKE 'active'`,
+        { type: QueryTypes.SELECT }
+      );
+    } catch (loanErr) {
+      console.warn("[MASTERLIST LOANS FETCH WARN]:", loanErr.message);
+    }
+
+    const loansByEmp = {};
+    for (const loan of activeLoans) {
+      const uid = loan.userId;
+      if (!loansByEmp[uid]) loansByEmp[uid] = [];
+      loansByEmp[uid].push(loan);
+    }
+
     const decryptedEmployees = employees.map(emp => {
       try {
         if (emp.account_Number) {
@@ -1334,6 +1416,42 @@ exports.getMasterlist = async (req, res) => {
       } catch (decErr) {
         console.warn(`[MASTERLIST] Decryption failed for user ${emp.user_Id}:`, decErr.message);
       }
+
+      const empActiveLoans = loansByEmp[emp.user_Id] || [];
+      emp.activeLoansList = empActiveLoans;
+
+      let activeSSS = 0;
+      let activeHDMF = 0;
+      let activeCalamity = 0;
+      let activeEastWest = 0;
+      let activeAdvances = 0;
+      let activeMultiPurpose = 0;
+
+      for (const al of empActiveLoans) {
+        const perCutoff = parseFloat(al.deductionPerCutoff || 0);
+        const type = (al.deductionType || "").toLowerCase();
+        if (type === "sss_loan" || type === "sss_conso") {
+          activeSSS += perCutoff;
+        } else if (type === "hdmf_loan") {
+          activeHDMF += perCutoff;
+        } else if (type === "calamity" || type === "sss_calamity" || type === "hdmf_calamity" || type === "sss_emergency") {
+          activeCalamity += perCutoff;
+        } else if (type === "eastwest") {
+          activeEastWest += perCutoff;
+        } else if (type === "cash_advance") {
+          activeAdvances += perCutoff;
+        } else if (type === "multipurpose") {
+          activeMultiPurpose += perCutoff;
+        }
+      }
+
+      if (activeSSS > 0) emp.SSS_Loan = activeSSS;
+      if (activeHDMF > 0) emp.HDMF_Loan = activeHDMF;
+      if (activeCalamity > 0) emp.calamityLoan_Amnt = activeCalamity;
+      if (activeEastWest > 0) emp.eastwest_Loan = activeEastWest;
+      if (activeAdvances > 0) emp.advances_Amnt = activeAdvances;
+      if (activeMultiPurpose > 0) emp.multiPurposeSavings = activeMultiPurpose;
+
       return emp;
     });
 
@@ -1528,7 +1646,7 @@ exports.updateDailyRate = async (req, res) => {
          u."dailyRate", u."previousDailyRate", u."rateUpdatedAt",
          d."sss_Share", d."philhealth_Share", d."hdmf_Share", d."tax_Share",
          d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
-         d."advances_Amnt", d."globe_Deduction", d."multiPurposeSavings"
+         d."advances_Amnt", d."globe_Deduction", d."eastwest_Loan", d."multiPurposeSavings"
        FROM "User" u
        LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
        WHERE u."user_Id" = :user_Id`,
@@ -1536,6 +1654,34 @@ exports.updateDailyRate = async (req, res) => {
     );
 
     const updated = updatedResult[0];
+    try {
+      const activeLoans = await sequelize.query(
+        `SELECT "id", "userId", "deductionType", "notes", "totalAmount", "remainingBalance", "deductionPerCutoff", "status"
+         FROM "Loan_Deductions"
+         WHERE "userId" = :user_Id AND "status" ILIKE 'active'`,
+        { replacements: { user_Id }, type: QueryTypes.SELECT }
+      );
+      updated.activeLoansList = activeLoans;
+      let activeSSS = 0, activeHDMF = 0, activeCalamity = 0, activeEastWest = 0, activeAdvances = 0, activeMultiPurpose = 0;
+      for (const al of activeLoans) {
+        const perCutoff = parseFloat(al.deductionPerCutoff || 0);
+        const type = (al.deductionType || "").toLowerCase();
+        if (type === "sss_loan" || type === "sss_conso") activeSSS += perCutoff;
+        else if (type === "hdmf_loan") activeHDMF += perCutoff;
+        else if (type === "calamity" || type === "sss_calamity" || type === "hdmf_calamity" || type === "sss_emergency") activeCalamity += perCutoff;
+        else if (type === "eastwest") activeEastWest += perCutoff;
+        else if (type === "cash_advance") activeAdvances += perCutoff;
+        else if (type === "multipurpose") activeMultiPurpose += perCutoff;
+      }
+      if (activeSSS > 0) updated.SSS_Loan = activeSSS;
+      if (activeHDMF > 0) updated.HDMF_Loan = activeHDMF;
+      if (activeCalamity > 0) updated.calamityLoan_Amnt = activeCalamity;
+      if (activeEastWest > 0) updated.eastwest_Loan = activeEastWest;
+      if (activeAdvances > 0) updated.advances_Amnt = activeAdvances;
+      if (activeMultiPurpose > 0) updated.multiPurposeSavings = activeMultiPurpose;
+    } catch (loanErr) {
+      console.warn("[UPDATE DAILY RATE LOANS WARN]:", loanErr.message);
+    }
     const newRateData = { dailyRate: updated.dailyRate, previousDailyRate: updated.previousDailyRate };
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
     await logAudit(req, currentAdminId, "User Management", "UPDATE_DAILY_RATE", "User", user_Id, oldRateData, newRateData);
@@ -1570,7 +1716,7 @@ exports.checkFingerprint = async (req, res) => {
   const { slot } = req.params;
   try {
     const results = await sequelize.query(
-      `SELECT "user_Id" FROM "User_Hardware" WHERE "user_FingerprintId" = :slot LIMIT 1`,
+      `SELECT "user_Id" FROM "User_Hardware" WHERE ("user_FingerprintId" = :slot OR "user_FingerprintId2" = :slot) LIMIT 1`,
       { replacements: { slot: parseInt(slot) }, type: QueryTypes.SELECT }
     );
     if (results.length > 0) {
@@ -1599,7 +1745,32 @@ exports.batchRegisterUsers = async (req, res) => {
       return res.status(400).json({ error: "CSV file is empty or missing data." });
     }
 
-    const headers = lines[0].split(',').map(h => h.trim());
+    // Helper to parse CSV lines safely supporting quotes and commas
+    const parseCsvLine = (line) => {
+      const result = [];
+      let current = '';
+      let inQuotes = false;
+      for (let idx = 0; idx < line.length; idx++) {
+        const char = line[idx];
+        if (char === '"') {
+          if (inQuotes && line[idx + 1] === '"') {
+            current += '"';
+            idx++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (char === ',' && !inQuotes) {
+          result.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      result.push(current.trim());
+      return result;
+    };
+
+    const headers = parseCsvLine(lines[0]);
     const usersData = [];
 
     // Map headers to indices
@@ -1613,9 +1784,23 @@ exports.batchRegisterUsers = async (req, res) => {
       }
     }
 
-    // Role and Status Maps
-    const roleMap = { "Admin Manager": 1, "Supervisor": 2, "Employee": 3, "Admin Accountant": 4 };
-    const statusMap = { "Regular": 1, "Probationary": 2 };
+    // Role and Status Maps (case-insensitive)
+    const roleMap = {
+      "admin manager": 1,
+      "supervisor": 2,
+      "employee": 3,
+      "admin accountant": 4,
+      "admin": 1
+    };
+    const statusMap = {
+      "regular": 1,
+      "probationary": 2,
+      "active": 1,
+      "resigned": 3,
+      "terminated": 4,
+      "separated": 5,
+      "retired": 6
+    };
 
     // Bank Normalization Map
     const bankMap = {
@@ -1640,10 +1825,15 @@ exports.batchRegisterUsers = async (req, res) => {
 
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
+    const currentYear = now.getFullYear();
 
     for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].split(',').map(c => c.trim());
-      if (cols.length < headers.length) continue;
+      const cols = parseCsvLine(lines[i]);
+      if (cols.length < headers.length) {
+        results.failed++;
+        results.errors.push(`Row ${i + 1}: Column count mismatch (expected ${headers.length}, got ${cols.length})`);
+        continue;
+      }
 
       const userData = {};
       headers.forEach((h, idx) => {
@@ -1654,6 +1844,12 @@ exports.batchRegisterUsers = async (req, res) => {
         // Validation
         if (!userData.user_FirstName || !userData.user_LastName || !userData.user_Email || !userData.user_Password) {
           throw new Error("Missing required data in row " + (i + 1));
+        }
+
+        const { validatePassword } = require("../utils/passwordValidator");
+        const pwdVal = validatePassword(userData.user_Password);
+        if (!pwdVal.isValid) {
+          throw new Error(`Row ${i + 1} password invalid: ${pwdVal.message}`);
         }
 
         // Check if email exists
@@ -1673,8 +1869,31 @@ exports.batchRegisterUsers = async (req, res) => {
         );
         const nextId = (maxIdResult.maxId ? parseInt(maxIdResult.maxId) : 0) + 1;
 
-        const roleId = roleMap[userData.user_Role] || 3;
-        const statusId = statusMap[userData.user_EmploymentStatus] || 1;
+        const roleKey = (userData.user_Role || "").toLowerCase().trim();
+        const statusKey = (userData.user_EmploymentStatus || "").toLowerCase().trim();
+        const roleId = roleMap[roleKey] || 3;
+        const statusId = statusMap[statusKey] || 1;
+
+        // Normalize Tax Status (DB is VARCHAR(5)): map "Single" -> "S", "Married" -> "M"
+        let normalizedTax = (userData.taxStatus || "S").trim().toUpperCase();
+        if (normalizedTax.startsWith("M")) normalizedTax = "M";
+        else if (normalizedTax.startsWith("S")) normalizedTax = "S";
+        else normalizedTax = normalizedTax.substring(0, 5);
+
+        // Normalize solo parent boolean
+        const soloParentStr = String(userData.is_solo_parent || "").toLowerCase().trim();
+        const isSoloParentBool = soloParentStr === "true" || soloParentStr === "1" || soloParentStr === "yes";
+
+        // Normalize hire date format (YYYY-MM-DD)
+        let normalizedHireDate = userData.hireDate ? userData.hireDate.trim() : null;
+        if (normalizedHireDate && !/^\d{4}-\d{2}-\d{2}$/.test(normalizedHireDate)) {
+          const parsedDate = new Date(normalizedHireDate);
+          if (!isNaN(parsedDate.getTime())) {
+            normalizedHireDate = parsedDate.toISOString().split('T')[0];
+          } else {
+            normalizedHireDate = null;
+          }
+        }
 
         // Bank Normalization
         let normalizedBank = userData.bank_Company || "UnionBank of the Philippines";
@@ -1725,11 +1944,11 @@ exports.batchRegisterUsers = async (req, res) => {
                 statusId,
                 department: userData.department || null,
                 position: userData.position || null,
-                hireDate: userData.hireDate || null,
-                taxStatus: userData.taxStatus || "S",
+                hireDate: normalizedHireDate,
+                taxStatus: normalizedTax,
                 user_Gender: userData.user_Gender || null,
                 civil_status: userData.civil_status || "Single",
-                is_solo_parent: userData.is_solo_parent === "true" || userData.is_solo_parent === true,
+                is_solo_parent: isSoloParentBool,
                 now: nowStr
               },
               type: QueryTypes.INSERT,
@@ -1768,6 +1987,20 @@ exports.batchRegisterUsers = async (req, res) => {
             { replacements: { user_Id: nextId, now: nowStr }, type: QueryTypes.INSERT, transaction: trans }
           );
 
+          // 5. Initialize Leave_Balance for the current year
+          const soloParentCredit = isSoloParentBool ? 7 : 0;
+          await sequelize.query(
+            `INSERT INTO "Leave_Balance" 
+             ("user_Id", "year", "VL_balance", "SL_balance", "SoloParent_balance", "VL_used", "SL_used", "SoloParent_used", "createdAt", "updatedAt")
+             VALUES (:user_Id, :currentYear, 7, 7, :soloParentCredit, 0, 0, 0, :now, :now)
+             ON CONFLICT ("user_Id", "year") DO NOTHING`,
+            {
+              replacements: { user_Id: nextId, currentYear, soloParentCredit, now: nowStr },
+              type: QueryTypes.INSERT,
+              transaction: trans
+            }
+          );
+
           await trans.commit();
           console.log(`[DATABASE SUCCESS] Batch Row ${i + 1}: User ${userData.user_FirstName} ${userData.user_LastName} (ID: ${nextId}) has been successfully saved to the database.`);
           results.success++;
@@ -1795,7 +2028,30 @@ exports.batchRegisterUsers = async (req, res) => {
     // Clean up uploaded file
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
 
-    res.status(200).json({
+    // Audit log batch upload action
+    await logAudit(
+      req,
+      req.user?.user_Id || 1,
+      "User Management",
+      "BATCH_REGISTER_USERS",
+      "User",
+      null,
+      null,
+      { success: results.success, failed: results.failed, total: lines.length - 1, errors: results.errors.slice(0, 5) }
+    );
+
+    // If completely failed, return 400 Bad Request
+    if (results.success === 0 && results.failed > 0) {
+      return res.status(400).json({
+        error: `Batch upload failed: all ${results.failed} records failed validation.`,
+        message: `Processed ${lines.length - 1} rows. 0 succeeded, ${results.failed} failed.`,
+        results
+      });
+    }
+
+    // Return 207 Multi-Status if partial, 200 OK if completely successful
+    const statusCode = results.failed > 0 ? 207 : 200;
+    res.status(statusCode).json({
       message: `Processed ${lines.length - 1} rows. ${results.success} succeeded, ${results.failed} failed.`,
       results
     });
@@ -1825,12 +2081,22 @@ exports.getUnassignedHardwareUsers = async (req, res) => {
         WHERE "user_MachipId" IS NOT NULL AND "user_MachipId" != '' AND "user_MachipId" NOT LIKE 'MACHIP-%'
       )`;
     } else if (type === 'fingerprint') {
-      sql += ` AND u."user_Id" NOT IN (
-        SELECT "user_Id" FROM "User_Hardware" 
-        WHERE "user_FingerprintId" IS NOT NULL 
-          AND "user_FingerprintTemplate" IS NOT NULL 
-          AND TRIM("user_FingerprintTemplate") != ''
-      )`;
+      sql = `
+        SELECT u."user_Id", u."user_FirstName", u."user_LastName",
+               uh."user_FingerprintId", uh."user_FingerprintId2",
+               (uh."user_FingerprintId" IS NOT NULL AND TRIM(COALESCE(uh."user_FingerprintTemplate", '')) != '') AS "hasSlot1",
+               (uh."user_FingerprintId2" IS NOT NULL AND TRIM(COALESCE(uh."user_FingerprintTemplate2", '')) != '') AS "hasSlot2"
+        FROM "User" u
+        LEFT JOIN "User_Hardware" uh ON u."user_Id" = uh."user_Id"
+        WHERE u."deletedAt" IS NULL
+        AND u."user_Id" != 999
+        AND (
+          uh."user_FingerprintId" IS NULL 
+          OR TRIM(COALESCE(uh."user_FingerprintTemplate", '')) = ''
+          OR uh."user_FingerprintId2" IS NULL 
+          OR TRIM(COALESCE(uh."user_FingerprintTemplate2", '')) = ''
+        )
+      `;
     }
 
     sql += ` ORDER BY u."user_LastName" ASC`;

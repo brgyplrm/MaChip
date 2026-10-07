@@ -28,7 +28,7 @@ const FileViewerModal = ({ isOpen, onClose, fileUrl, fileName }) => {
           <div className="flex items-center gap-2 mr-10">
             <Button variant="outline" size="sm" asChild className="h-8 px-3 text-slate-700 bg-white hover:bg-slate-100 border-slate-200 shadow-xs font-semibold">
               <a href={fullUrl} download target="_blank" rel="noopener noreferrer">
-                <DownloadIcon className="h-4 w-4 mr-1.5 text-[#2A174E]" /> Download
+                <DownloadIcon className="h-4 w-4 mr-1.5 text-brand-primary" /> Download
               </a>
             </Button>
           </div>

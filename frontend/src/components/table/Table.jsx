@@ -93,7 +93,7 @@ const List = ({ userId }) => {
                   style={{ padding: "40px", color: "gray" }}
                 >
                   <div className="flex flex-col items-center gap-2">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#2A174E]"></div>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-brand-primary"></div>
                     <span>Loading history...</span>
                   </div>
                 </TableCell>

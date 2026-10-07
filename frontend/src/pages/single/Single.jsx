@@ -181,7 +181,7 @@ const Single = () => {
                           variant="ghost" 
                           size="icon" 
                           onClick={() => navigate(-1)}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E] hover:bg-slate-200/60 rounded-full h-10 w-10"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-brand-primary hover:bg-slate-200/60 rounded-full h-10 w-10"
                         >
                           <ChevronLeft className="h-6 w-6" />
                         </Button>
@@ -201,7 +201,7 @@ const Single = () => {
                       <Button 
                         asChild 
                         variant="ghost" 
-                        className="absolute top-4 right-4 z-20 text-[#2A174E] hover:text-[#7A52B5] hover:bg-white/10 h-8 w-8 p-0 rounded-full"
+                        className="absolute top-4 right-4 z-20 text-brand-primary hover:text-[#7A52B5] hover:bg-white/10 h-8 w-8 p-0 rounded-full"
                       >
                         <Link to={`/users/edit/${userId}`}>
                           <EditOutlinedIcon className="h-4 w-4" />
@@ -219,7 +219,7 @@ const Single = () => {
                         <div className="absolute inset-0 bg-white [mask-image:url('data:image/svg+xml,%3Csvg%20viewBox=%220%200%20200%20150%22%20preserveAspectRatio=%22none%22%20xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cpath%20d=%22M0,76%20C40,66%2060,86%20100,76%20C140,66%20160,56%20200,56%20L200,150%20L0,150%20Z%22%20fill=%22black%22/%3E%3C/svg%3E')] [mask-size:100%_100%] [mask-repeat:no-repeat]"></div>
 
                         {/* Layer 3: Blue Wave (The top-most wave) */}
-                        <div className="absolute inset-0 bg-[#2A174E] [mask-image:url('data:image/svg+xml,%3Csvg%20viewBox=%220%200%20200%20150%22%20preserveAspectRatio=%22none%22%20xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cpath%20d=%22M0,80%20C40,70%2060,90%20100,80%20C140,70%20160,60%20200,60%20L200,150%20L0,150%20Z%22%20fill=%22black%22/%3E%3C/svg%3E')] [mask-size:100%_100%] [mask-repeat:no-repeat]"></div>
+                        <div className="absolute inset-0 bg-brand-primary [mask-image:url('data:image/svg+xml,%3Csvg%20viewBox=%220%200%20200%20150%22%20preserveAspectRatio=%22none%22%20xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cpath%20d=%22M0,80%20C40,70%2060,90%20100,80%20C140,70%20160,60%20200,60%20L200,150%20L0,150%20Z%22%20fill=%22black%22/%3E%3C/svg%3E')] [mask-size:100%_100%] [mask-repeat:no-repeat]"></div>
                       </div>
                     </div>
 
@@ -229,8 +229,8 @@ const Single = () => {
                         <div className="w-16 h-16 bg-white mx-auto mb-2 flex items-center justify-center font-bold text-[8px] text-gray-400 overflow-hidden">
                           <img src="/images.png" alt="Logo" />
                         </div>
-                        <h1 className="text-[10px] font-bold text-[#2A174E] uppercase tracking-wider">MAC-J Int'l. Forwarding Ltd., Co.</h1>
-                        <h2 className="text-[9px] font-bold text-[#2A174E] uppercase">JCG CUSTOMS BROKERAGE</h2>
+                        <h1 className="text-[10px] font-bold text-brand-primary uppercase tracking-wider">MAC-J Int'l. Forwarding Ltd., Co.</h1>
+                        <h2 className="text-[9px] font-bold text-brand-primary uppercase">JCG CUSTOMS BROKERAGE</h2>
                       </div>
 
                       {/* Profile Image */}
@@ -249,7 +249,7 @@ const Single = () => {
                             />
                           ) : null}
                           <div 
-                            className={`w-full h-full bg-[#2A174E] items-center justify-center text-white text-3xl font-bold tracking-wider select-none ${user.user_ProfilePic ? "hidden" : "flex"}`}
+                            className={`w-full h-full bg-brand-primary items-center justify-center text-white text-3xl font-bold tracking-wider select-none ${user.user_ProfilePic ? "hidden" : "flex"}`}
                           >
                             {((user.user_FirstName?.trim().charAt(0) || "") + (user.user_LastName?.trim().charAt(0) || "")).toUpperCase() || "U"}
                           </div>
@@ -277,7 +277,7 @@ const Single = () => {
                     <div className="bg-white p-3 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center text-xs">
                       <span className="font-bold text-slate-400 uppercase tracking-tighter">MaChip ID</span>
                       <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-[#2A174E] tracking-wider">
+                        <span className="font-mono font-bold text-brand-primary tracking-wider">
                           {user.user_MachipId
                             ? (isMachipRevealed ? user.user_MachipId : "••••••••••••")
                             : "NONE"}
@@ -288,7 +288,7 @@ const Single = () => {
                               <button
                                 type="button"
                                 onClick={handleToggleMachip}
-                                className="text-slate-400 hover:text-[#2A174E] transition-colors p-0.5 rounded focus:outline-none"
+                                className="text-slate-400 hover:text-brand-primary transition-colors p-0.5 rounded focus:outline-none"
                               >
                                 {isMachipRevealed ? (
                                   <VisibilityOffIcon sx={{ fontSize: 16 }} />
@@ -327,7 +327,7 @@ const Single = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Government Contributions Table */}
           <Card className="border-0 shadow-sm bg-white overflow-hidden py-0">
-            <div className="bg-[#2A174E] p-4">
+            <div className="bg-brand-primary p-4">
               <h2 className="text-white font-bold text-sm uppercase tracking-wider flex items-center gap-2">
                 <PaymentsIcon className="h-4 w-4 text-blue-200" /> Government Contributions (Monthly)
               </h2>
@@ -372,19 +372,19 @@ const Single = () => {
                             <td className="p-4 font-medium text-slate-700">SSS Contribution</td>
                             <td className="p-4 text-right text-slate-600">{format(sss_ee)}</td>
                             <td className="p-4 text-right text-slate-600">{format(sss_er)}</td>
-                            <td className="p-4 text-right font-bold text-[#2A174E]">{format(sss_ee + sss_er)}</td>
+                            <td className="p-4 text-right font-bold text-brand-primary">{format(sss_ee + sss_er)}</td>
                           </tr>
                           <tr className="hover:bg-slate-50/50 transition-colors">
                             <td className="p-4 font-medium text-slate-700">PhilHealth</td>
                             <td className="p-4 text-right text-slate-600">{format(ph_ee)}</td>
                             <td className="p-4 text-right text-slate-600">{format(ph_er)}</td>
-                            <td className="p-4 text-right font-bold text-[#2A174E]">{format(ph_ee + ph_er)}</td>
+                            <td className="p-4 text-right font-bold text-brand-primary">{format(ph_ee + ph_er)}</td>
                           </tr>
                           <tr className="hover:bg-slate-50/50 transition-colors">
                             <td className="p-4 font-medium text-slate-700">HDMF (Pag-IBIG)</td>
                             <td className="p-4 text-right text-slate-600">{format(hdmf_ee)}</td>
                             <td className="p-4 text-right text-slate-600">{format(hdmf_er)}</td>
-                            <td className="p-4 text-right font-bold text-[#2A174E]">{format(hdmf_ee + hdmf_er)}</td>
+                            <td className="p-4 text-right font-bold text-brand-primary">{format(hdmf_ee + hdmf_er)}</td>
                           </tr>
                           <tr className="bg-slate-50 font-bold border-t-2 border-slate-100">
                             <td className="p-4 text-slate-800">Total Government</td>
@@ -403,7 +403,7 @@ const Single = () => {
 
           {/* Additional Professional Details Card */}
           <Card className="border-0 shadow-sm bg-white overflow-hidden py-0">
-            <div className="bg-[#2A174E] p-4">
+            <div className="bg-brand-primary p-4">
               <h2 className="text-white font-bold text-sm uppercase tracking-wider flex items-center gap-2">
                 <WorkIcon className="h-4 w-4 text-blue-200" /> Professional Details
               </h2>
@@ -439,7 +439,7 @@ const Single = () => {
                   </div>
                   <div className="flex flex-col col-span-2">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Account Number</span>
-                    <span className="font-mono font-bold text-[#2A174E] tracking-widest">
+                    <span className="font-mono font-bold text-brand-primary tracking-widest">
                       {user.account_Number || "N/A"}
                     </span>
                   </div>
@@ -452,7 +452,7 @@ const Single = () => {
         {/* Bottom Section: Activity Log Table */}
         <Card className="border-0 shadow-sm bg-white py-0">
           <CardContent className="p-6">
-            <h2 className="text-lg font-bold text-[#2A174E] mb-6">Last Activity Log</h2>
+            <h2 className="text-lg font-bold text-brand-primary mb-6">Last Activity Log</h2>
             <div className="overflow-x-auto">
               <div className="min-w-[800px]">
                 <Table userId={userId} />
@@ -479,7 +479,7 @@ const Single = () => {
                 <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-3">
                   <LockOutlinedIcon className="h-6 w-6" />
                 </div>
-                <h2 className="text-xl font-bold text-[#2A174E]">Security Verification Required</h2>
+                <h2 className="text-xl font-bold text-brand-primary">Security Verification Required</h2>
                 <p className="text-xs text-slate-500 mt-2">
                   Please enter your admin password to reveal the hardware MaChip RFID credential.
                 </p>
@@ -499,7 +499,7 @@ const Single = () => {
                         setAdminPassword(e.target.value);
                         if (passwordError) setPasswordError("");
                       }}
-                      className={`h-11 border-slate-200 pr-10 focus-visible:ring-[#2A174E] ${passwordError ? "border-red-500" : ""}`}
+                      className={`h-11 border-slate-200 pr-10 focus-visible:ring-brand-primary ${passwordError ? "border-red-500" : ""}`}
                       autoFocus
                     />
                     <button
@@ -538,7 +538,7 @@ const Single = () => {
                   <Button
                     type="submit"
                     disabled={verifyingPassword}
-                    className="flex-1 h-11 bg-[#2A174E] hover:bg-[#1a0e30] text-white font-medium"
+                    className="flex-1 h-11 bg-brand-primary hover:bg-brand-primary-hover text-white font-medium"
                   >
                     {verifyingPassword ? "Verifying..." : "Verify & View"}
                   </Button>

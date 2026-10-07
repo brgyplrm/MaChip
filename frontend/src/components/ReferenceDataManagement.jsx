@@ -387,7 +387,7 @@ const ReferenceDataManagement = () => {
   return (
     <div className="space-y-6 w-full animate-in fade-in duration-200">
       {/* Top Header Card */}
-      <div className="bg-[#2A1B4E] text-white rounded-xl p-6 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="bg-brand-primary text-white rounded-xl p-6 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div className="flex items-start space-x-4">
           <div className="p-3 bg-white/10 rounded-lg border border-white/10">
             <Layers className="w-6 h-6 text-purple-200" />
@@ -443,7 +443,7 @@ const ReferenceDataManagement = () => {
           {/* Selector Card */}
           <Card className="border-slate-200 shadow-sm">
             <CardHeader className="bg-slate-50/50 border-b border-slate-100">
-              <CardTitle className="text-lg font-bold text-[#2A174E] flex items-center gap-2">
+              <CardTitle className="text-lg font-bold text-brand-primary flex items-center gap-2">
                 <Layers className="h-5 w-5 text-indigo-600" /> Agency Selector
               </CardTitle>
               <CardDescription>Select the statutory agency table to manage.</CardDescription>
@@ -502,7 +502,7 @@ const ReferenceDataManagement = () => {
           {/* Upload Card */}
           <Card className="border-slate-200 shadow-sm">
             <CardHeader className="bg-slate-50/50 border-b border-slate-100">
-              <CardTitle className="text-lg font-bold text-[#2A174E] flex items-center gap-2">
+              <CardTitle className="text-lg font-bold text-brand-primary flex items-center gap-2">
                 <Upload className="h-5 w-5 text-indigo-600" /> Upload CSV Table
               </CardTitle>
               <CardDescription>Upload a fresh CSV spreadsheet of official brackets.</CardDescription>
@@ -626,7 +626,7 @@ const ReferenceDataManagement = () => {
           <CardHeader className="bg-slate-50/50 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex flex-col sm:flex-row sm:items-center gap-4">
               <div>
-                <CardTitle className="text-lg font-bold text-[#2A174E] flex items-center gap-2">
+                <CardTitle className="text-lg font-bold text-brand-primary flex items-center gap-2">
                   <Table className="h-5 w-5 text-indigo-600" /> Brackets Preview
                 </CardTitle>
                 <CardDescription>
@@ -809,7 +809,7 @@ const ReferenceDataManagement = () => {
         {/* Upload Audit Trail & Version History Management */}
         <Card className="border-slate-200 shadow-sm">
           <CardHeader className="bg-slate-50/50 border-b border-slate-100">
-            <CardTitle className="text-lg font-bold text-[#2A174E] flex items-center gap-2">
+            <CardTitle className="text-lg font-bold text-brand-primary flex items-center gap-2">
               <History className="h-5 w-5 text-indigo-600" /> Version History
             </CardTitle>
             <CardDescription>Click any row to inspect brackets in preview without changing its active status.</CardDescription>
@@ -975,7 +975,7 @@ const ReferenceDataManagement = () => {
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <form onSubmit={handleVerifyAndPasswordUpload} className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150 border border-slate-100 text-left">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center space-x-2 text-[#2A1B4E]">
+              <div className="flex items-center space-x-2 text-brand-primary">
                 <Shield className="w-5 h-5" />
                 <h3 className="text-base font-bold text-slate-900">Admin Security Authorization</h3>
               </div>
@@ -1113,7 +1113,7 @@ const ReferenceDataManagement = () => {
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <form onSubmit={handleVerifyAndExecuteToggle} className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150 border border-slate-100 text-left">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center space-x-2 text-[#2A1B4E]">
+              <div className="flex items-center space-x-2 text-brand-primary">
                 <Shield className="w-5 h-5" />
                 <h3 className="text-base font-bold text-slate-900">Admin Security Authorization</h3>
               </div>

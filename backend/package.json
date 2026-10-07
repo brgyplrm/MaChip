@@ -5,6 +5,7 @@
   "main": "app.js",
   "scripts": {
     "start": "nodemon src/app.js",
+    "dev": "nodemon src/app.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "db:reset": "node db_reset.js",
     "db:manager": "node seeds/seed_updated_AGAIN/manage_seeds.js",

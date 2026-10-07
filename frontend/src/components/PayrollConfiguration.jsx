@@ -183,6 +183,12 @@ export default function PayrollConfiguration({ data, onUpdate }) {
       doubleSpecialDayRestDayRate: sanitize(localData.laborRates.doubleSpecialDayRestDay),
       nightDiffRate: 1 + (sanitize(localData.otNightRates.nsdRate) / 100),
       overtimeRate: 1 + (sanitize(localData.otNightRates.ordinaryOT) / 100),
+      payrollCutoffBufferDays: localData.batchRules?.cutoffBufferDays ?? localData.payrollCutoffBufferDays ?? 2,
+      payrollProcessingDeadlineDays: localData.batchRules?.deadlineDays ?? localData.payrollProcessingDeadlineDays ?? 3,
+      payrollAutoRelease: localData.batchRules?.autoRelease ?? localData.payrollAutoRelease ?? false,
+      payrollRemindersEnabled: localData.batchRules?.remindersEnabled ?? localData.payrollRemindersEnabled ?? true,
+      payrollWeekendRule: localData.batchRules?.weekendRule ?? localData.payrollWeekendRule ?? 'PRECEDING_FRIDAY',
+      payrollGracePeriodDays: localData.batchRules?.gracePeriodDays ?? localData.payrollGracePeriodDays ?? 7,
       payrollRates: {
         ...localData,
         laborRates: Object.fromEntries(Object.entries(localData.laborRates).map(([k, v]) => [k, sanitize(v)])),
@@ -304,7 +310,7 @@ export default function PayrollConfiguration({ data, onUpdate }) {
       <main className="space-y-4">
         
         {/* Top Header Card */}
-        <div className="bg-[#2A1B4E] text-white rounded-xl p-6 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="bg-brand-primary text-white rounded-xl p-6 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex items-start space-x-4">
             <div className="p-3 bg-white/10 rounded-lg border border-white/10">
               <Landmark className="w-6 h-6 text-purple-200" />
@@ -408,7 +414,7 @@ export default function PayrollConfiguration({ data, onUpdate }) {
               value={localData.metadata?.cutoffScheme || "semi-monthly"}
               onChange={(e) => updateField('metadata', 'cutoffScheme', e.target.value)}
               disabled={!isEditing}
-              className={`font-bold text-[#2A1B4E] bg-slate-50 border border-slate-200 rounded px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-purple-500 transition ${isEditing ? 'cursor-pointer' : 'cursor-default opacity-80'}`}
+              className={`font-bold text-brand-primary bg-slate-50 border border-slate-200 rounded px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-purple-500 transition ${isEditing ? 'cursor-pointer' : 'cursor-default opacity-80'}`}
             >
               <option value="semi-monthly">Semi-Monthly (1–15, 16–end)</option>
               <option value="weekly">Weekly Cutoff Interval</option>
@@ -437,7 +443,7 @@ export default function PayrollConfiguration({ data, onUpdate }) {
                   onClick={() => setActiveTab(tab.id)}
                   className={`flex items-center space-x-2 px-4 mx-1 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-all duration-200 ${
                     isActive 
-                      ? 'bg-[#2A1B4E] text-white shadow-sm' 
+                      ? 'bg-brand-primary text-white shadow-sm' 
                       : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
                   }`}
                 >
@@ -469,11 +475,23 @@ export default function PayrollConfiguration({ data, onUpdate }) {
             {activeTab === 'leave-caps' && <LeaveCapsView />}
             {activeTab === 'batch-rules' && (
               <BatchRulesView 
-                data={localData.batchRules || { gracePeriodDays: localData.payrollGracePeriodDays || 7 }} 
+                data={{
+                  gracePeriodDays: localData.batchRules?.gracePeriodDays ?? localData.payrollGracePeriodDays ?? 7,
+                  cutoffBufferDays: localData.batchRules?.cutoffBufferDays ?? localData.payrollCutoffBufferDays ?? 2,
+                  deadlineDays: localData.batchRules?.deadlineDays ?? localData.payrollProcessingDeadlineDays ?? 3,
+                  autoRelease: localData.batchRules?.autoRelease ?? localData.payrollAutoRelease ?? false,
+                  remindersEnabled: localData.batchRules?.remindersEnabled ?? localData.payrollRemindersEnabled ?? true,
+                  weekendRule: localData.batchRules?.weekendRule ?? localData.payrollWeekendRule ?? 'PRECEDING_FRIDAY',
+                }} 
                 isEditing={isEditing} 
                 onChange={(f, v) => {
                   updateField('batchRules', f, v);
-                  setLocalData(prev => ({ ...prev, payrollGracePeriodDays: v }));
+                  if (f === 'gracePeriodDays') setLocalData(prev => ({ ...prev, payrollGracePeriodDays: v }));
+                  if (f === 'cutoffBufferDays') setLocalData(prev => ({ ...prev, payrollCutoffBufferDays: v }));
+                  if (f === 'deadlineDays') setLocalData(prev => ({ ...prev, payrollProcessingDeadlineDays: v }));
+                  if (f === 'autoRelease') setLocalData(prev => ({ ...prev, payrollAutoRelease: v }));
+                  if (f === 'remindersEnabled') setLocalData(prev => ({ ...prev, payrollRemindersEnabled: v }));
+                  if (f === 'weekendRule') setLocalData(prev => ({ ...prev, payrollWeekendRule: v }));
                 }} 
               />
             )}
@@ -529,7 +547,7 @@ export default function PayrollConfiguration({ data, onUpdate }) {
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <form onSubmit={handleVerifyAndExecuteSave} className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150 border border-slate-100 text-left">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center space-x-2 text-[#2A1B4E]">
+              <div className="flex items-center space-x-2 text-brand-primary">
                 <Shield className="w-5 h-5" />
                 <h3 className="text-base font-bold text-slate-900">Admin Security Authorization</h3>
               </div>
@@ -743,7 +761,7 @@ function LaborRatesView({ data, isEditing, onChange }) {
 
       {/* Auto-Compiled Compound Matrices */}
       <div className="border border-blue-100 rounded-xl overflow-hidden shadow-xs bg-white">
-        <div className="bg-[#2A1B4E] text-white px-5 py-3.5 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+        <div className="bg-brand-primary text-white px-5 py-3.5 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
           <div className="flex items-center space-x-2">
             <Info className="w-4 h-4 text-purple-200" />
             <span className="text-sm font-semibold tracking-wide">Auto-Compiled Compound Matrices (Read-Only Preview)</span>
@@ -753,7 +771,7 @@ function LaborRatesView({ data, isEditing, onChange }) {
             <button
               onClick={() => setViewFormat('table')}
               className={`flex items-center space-x-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-                viewFormat === 'table' ? 'bg-white text-[#2A1B4E] shadow-xs' : 'text-purple-200 hover:text-white'
+                viewFormat === 'table' ? 'bg-white text-brand-primary shadow-xs' : 'text-purple-200 hover:text-white'
               }`}
             >
               <LayoutList className="w-3.5 h-3.5" />
@@ -762,7 +780,7 @@ function LaborRatesView({ data, isEditing, onChange }) {
             <button
               onClick={() => setViewFormat('card')}
               className={`flex items-center space-x-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-                viewFormat === 'card' ? 'bg-white text-[#2A1B4E] shadow-xs' : 'text-purple-200 hover:text-white'
+                viewFormat === 'card' ? 'bg-white text-brand-primary shadow-xs' : 'text-purple-200 hover:text-white'
               }`}
             >
               <Grid className="w-3.5 h-3.5" />
@@ -954,7 +972,7 @@ function OvertimeNightShiftView({ data, laborRates, isEditing, onChange }) {
 
       {/* Dynamic Compound Reference Table */}
       <div className="border border-slate-100 rounded-xl overflow-hidden shadow-xs bg-white">
-        <div className="bg-[#2A1B4E] text-white px-5 py-3.5 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+        <div className="bg-brand-primary text-white px-5 py-3.5 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
           <div className="flex items-center space-x-2">
             <Info className="w-4 h-4 text-purple-200" />
             <span className="text-sm font-semibold tracking-wide">Auto-Compiled Compound Coefficient Matrix (Read-Only)</span>
@@ -964,7 +982,7 @@ function OvertimeNightShiftView({ data, laborRates, isEditing, onChange }) {
             <button
               onClick={() => setViewFormat('table')}
               className={`flex items-center space-x-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-                viewFormat === 'table' ? 'bg-white text-[#2A1B4E] shadow-xs' : 'text-purple-200 hover:text-white'
+                viewFormat === 'table' ? 'bg-white text-brand-primary shadow-xs' : 'text-purple-200 hover:text-white'
               }`}
             >
               <LayoutList className="w-3.5 h-3.5" />
@@ -973,7 +991,7 @@ function OvertimeNightShiftView({ data, laborRates, isEditing, onChange }) {
             <button
               onClick={() => setViewFormat('card')}
               className={`flex items-center space-x-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-                viewFormat === 'card' ? 'bg-white text-[#2A1B4E] shadow-xs' : 'text-purple-200 hover:text-white'
+                viewFormat === 'card' ? 'bg-white text-brand-primary shadow-xs' : 'text-purple-200 hover:text-white'
               }`}
             >
               <Grid className="w-3.5 h-3.5" />
@@ -1024,9 +1042,9 @@ function OvertimeNightShiftView({ data, laborRates, isEditing, onChange }) {
           <div className="p-5 bg-slate-50/50 max-h-[500px] overflow-y-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {matrixData.map((row, idx) => {
               const borderAccent = 
-                row.type === "Night Shift" ? "border-t-blue-500" :
-                row.type === "Overtime (OT)" ? "border-t-orange-500" :
-                "border-t-purple-500";
+                row.type === "Night Shift" ? "border-t-status-info" :
+                row.type === "Overtime (OT)" ? "border-t-accent-gold" :
+                "border-t-brand-primary";
 
               return (
                 <div key={idx} className={`bg-white border border-slate-100 border-t-2 ${borderAccent} p-4 rounded-xl shadow-xs flex flex-col justify-between space-y-3`}>
@@ -1146,8 +1164,8 @@ function LeaveCapsView() {
       </div>
 
       {/* SIL */}
-      <div className="border-l-4 border-purple-500 bg-purple-50/20 p-4 rounded-r-xl space-y-4">
-        <h4 className="text-sm font-bold text-purple-900">Service Incentive Leave (SIL)</h4>
+      <div className="border-l-4 border-brand-primary bg-brand-primary/5 p-4 rounded-r-xl space-y-4">
+        <h4 className="text-sm font-bold text-brand-primary">Service Incentive Leave (SIL)</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormInput label="Paid Annual Allowance (Days/Year)" value="5" />
           <FormInput label="Service Tenure Trigger (Months)" value="12" />
@@ -1155,8 +1173,8 @@ function LeaveCapsView() {
       </div>
 
       {/* Maternity Leave */}
-      <div className="border-l-4 border-pink-500 bg-pink-50/10 p-4 rounded-r-xl space-y-4">
-        <h4 className="text-sm font-bold text-pink-900">Expanded Maternity Leave (RA 11210)</h4>
+      <div className="border-l-4 border-accent-gold bg-accent-gold/5 p-4 rounded-r-xl space-y-4">
+        <h4 className="text-sm font-bold text-accent-gold">Expanded Maternity Leave (RA 11210)</h4>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <FormInput label="Standard Live Birth (Days)" value="105" />
           <FormInput label="Solo Parent (Days)" value="120" />
@@ -1165,8 +1183,8 @@ function LeaveCapsView() {
       </div>
 
       {/* Paternity Leave */}
-      <div className="border-l-4 border-blue-500 bg-blue-50/10 p-4 rounded-r-xl space-y-4">
-        <h4 className="text-sm font-bold text-blue-900">Paternity Leave (RA 8187)</h4>
+      <div className="border-l-4 border-status-info bg-status-info/5 p-4 rounded-r-xl space-y-4">
+        <h4 className="text-sm font-bold text-status-info">Paternity Leave (RA 8187)</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormInput label="Paid Core Allowance (Days)" value="7" />
           <FormInput label="Max Deliveries Cap" value="4" subtext="First deliveries only" />
@@ -1297,72 +1315,167 @@ function FormSwitch({ label, description, defaultChecked }) {
 ========================================================================= */}
 function BatchRulesView({ data, isEditing, onChange }) {
   const graceDays = data?.gracePeriodDays ?? 7;
+  const bufferDays = data?.cutoffBufferDays ?? 2;
+  const deadlineDays = data?.deadlineDays ?? 3;
+  const autoRelease = Boolean(data?.autoRelease);
+  const remindersEnabled = Boolean(data?.remindersEnabled ?? true);
+  const weekendRule = data?.weekendRule || "PRECEDING_FRIDAY";
 
   return (
     <div className="space-y-6 text-left">
       <div className="border-b border-slate-100 pb-4">
         <h3 className="text-base font-bold text-slate-800">Payroll Batch & Cutoff Processing Rules</h3>
-        <p className="text-xs text-slate-500 mt-1">Configure post-cutoff grace period accessibility for Process Batch button and archival settings.</p>
+        <p className="text-xs text-slate-500 mt-1">Configure attendance cutoff buffers, rollover timing, release deadlines, and proactive reminder notifications.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Card 1: Attendance Cutoff Buffer */}
+        <div className="bg-slate-50 border border-slate-200 p-5 rounded-xl space-y-4">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-indigo-100 text-indigo-700 rounded-lg">
+              <Clock className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-slate-800">Attendance Cutoff Buffer</h4>
+              <p className="text-xs text-slate-500">Days before cutoff end where attendance evaluation stops and rollover begins.</p>
+            </div>
+          </div>
+
+          <div className="space-y-2 pt-2">
+            <label className="text-xs font-semibold text-slate-700 block">Cutoff Buffer (Days)</label>
+            <div className="flex items-center space-x-3">
+              <input
+                type="number"
+                min="0"
+                max="5"
+                value={bufferDays}
+                disabled={!isEditing}
+                onChange={(e) => onChange('cutoffBufferDays', parseInt(e.target.value) || 0)}
+                className={`w-28 px-3 py-2 bg-white border border-slate-300 rounded-lg font-mono font-bold text-sm text-indigo-900 ${isEditing ? 'cursor-pointer' : 'cursor-not-allowed opacity-80'}`}
+              />
+              <span className="text-xs font-medium text-slate-600">{bufferDays} Days ({bufferDays === 2 ? "Standard 2-Day Buffer" : `${bufferDays} Days Pre-Cutoff`})</span>
+            </div>
+            <p className="text-[11px] text-slate-400 italic">For 1st-15th period, attendance evaluation stops on day {15 - bufferDays}. Activity on buffer tail days automatically rolls over into the next period.</p>
+          </div>
+        </div>
+
+        {/* Card 2: Release Deadline Limit */}
         <div className="bg-slate-50 border border-slate-200 p-5 rounded-xl space-y-4">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-purple-100 text-purple-700 rounded-lg">
               <Clock className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="text-sm font-bold text-slate-800">Process Batch Grace Window</h4>
-              <p className="text-xs text-slate-500">Number of days after cutoff end date that Process Batch remains open.</p>
+              <h4 className="text-sm font-bold text-slate-800">Post-Cutoff Release Deadline</h4>
+              <p className="text-xs text-slate-500">Number of days after cutoff before a draft period is flagged overdue or auto-released.</p>
             </div>
           </div>
 
           <div className="space-y-2 pt-2">
-            <label className="text-xs font-semibold text-slate-700 block">Grace Period Length (Days)</label>
+            <label className="text-xs font-semibold text-slate-700 block">Release Deadline Limit (Days)</label>
             <div className="flex items-center space-x-3">
               <input
                 type="number"
                 min="1"
-                max="30"
-                value={graceDays}
+                max="14"
+                value={deadlineDays}
                 disabled={!isEditing}
-                onChange={(e) => onChange('gracePeriodDays', parseInt(e.target.value) || 7)}
+                onChange={(e) => onChange('deadlineDays', parseInt(e.target.value) || 3)}
                 className={`w-28 px-3 py-2 bg-white border border-slate-300 rounded-lg font-mono font-bold text-sm text-purple-900 ${isEditing ? 'cursor-pointer' : 'cursor-not-allowed opacity-80'}`}
               />
-              <span className="text-xs font-medium text-slate-600">Days ({graceDays === 7 ? "1 Week Default" : `${graceDays} Days`})</span>
+              <span className="text-xs font-medium text-slate-600">{deadlineDays} Days ({deadlineDays === 3 ? "Standard 3-Day Limit" : `${deadlineDays} Days Post-Cutoff`})</span>
             </div>
-            <p className="text-[11px] text-slate-400 italic">Default is 7 days (1 week). During this time, administrators can process late payroll batches without locking issues.</p>
+            <p className="text-[11px] text-slate-400 italic">During this window, warning alerts countdown to finalization. After this, overdue alerts or auto-release trigger.</p>
           </div>
         </div>
 
+        {/* Card 3: Auto-Release Policy */}
         <div className="bg-slate-50 border border-slate-200 p-5 rounded-xl space-y-4">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-emerald-100 text-emerald-700 rounded-lg">
               <FileText className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="text-sm font-bold text-slate-800">Automated Archival & Security</h4>
-              <p className="text-xs text-slate-500">Security mandates for batch payslips & report zip generation.</p>
+              <h4 className="text-sm font-bold text-slate-800">Automated Batch Release</h4>
+              <p className="text-xs text-slate-500">Automatically lock and disburse payroll when release deadline expires.</p>
             </div>
           </div>
 
-          <div className="space-y-2 text-xs text-slate-600 pt-2 font-mono">
-            <div className="flex justify-between border-b border-slate-200 pb-1.5">
-              <span>PDF File Naming:</span>
-              <span className="font-bold text-emerald-700">Payslip_[LastName]_[ID].pdf</span>
+          <div className="space-y-2 pt-2">
+            <label className="text-xs font-semibold text-slate-700 block">Auto-Release Status</label>
+            <div className="flex items-center space-x-3">
+              <select
+                value={autoRelease ? "true" : "false"}
+                disabled={!isEditing}
+                onChange={(e) => onChange('autoRelease', e.target.value === "true")}
+                className={`w-48 px-3 py-2 bg-white border border-slate-300 rounded-lg font-semibold text-sm ${isEditing ? 'cursor-pointer' : 'cursor-not-allowed opacity-80'}`}
+              >
+                <option value="false">Manual Finalization Only</option>
+                <option value="true">Enable Auto-Release</option>
+              </select>
             </div>
-            <div className="flex justify-between border-b border-slate-200 pb-1.5">
-              <span>PDF Open Password:</span>
-              <span className="font-bold text-amber-700">[CutoffDays][Month][LastName][ID]</span>
+            <p className="text-[11px] text-slate-400 italic">When enabled, any draft period that passes the deadline without manual action is automatically calculated and archived.</p>
+          </div>
+        </div>
+
+        {/* Card 4: Proactive Reminders */}
+        <div className="bg-slate-50 border border-slate-200 p-5 rounded-xl space-y-4">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-blue-100 text-blue-700 rounded-lg">
+              <Bell className="w-5 h-5" />
             </div>
-            <div className="flex justify-between border-b border-slate-200 pb-1.5">
-              <span>Batch Storage Directory:</span>
-              <span className="font-bold text-purple-700">Editable in Settings</span>
+            <div>
+              <h4 className="text-sm font-bold text-slate-800">Proactive Reminder Alerts</h4>
+              <p className="text-xs text-slate-500">Contextual notices for T-2 preparation, T-0 cutoff day, and overdue countdowns.</p>
             </div>
-            <div className="flex justify-between pb-1.5">
-              <span>Audit Trail Policy:</span>
-              <span className="font-bold text-blue-700">Mandatory (Paranoid Mode)</span>
+          </div>
+
+          <div className="space-y-2 pt-2">
+            <label className="text-xs font-semibold text-slate-700 block">Reminder Banners & Prompts</label>
+            <div className="flex items-center space-x-3">
+              <select
+                value={remindersEnabled ? "true" : "false"}
+                disabled={!isEditing}
+                onChange={(e) => onChange('remindersEnabled', e.target.value === "true")}
+                className={`w-48 px-3 py-2 bg-white border border-slate-300 rounded-lg font-semibold text-sm ${isEditing ? 'cursor-pointer' : 'cursor-not-allowed opacity-80'}`}
+              >
+                <option value="true">Enabled (Recommended)</option>
+                <option value="false">Disabled</option>
+              </select>
             </div>
+            <p className="text-[11px] text-slate-400 italic">Displays clean notification banners on the Dashboard and Payroll Management pages around critical cutoff dates.</p>
+          </div>
+        </div>
+
+        {/* Card 5: Weekend Payday Adjustment */}
+        <div className="bg-slate-50 border border-slate-200 p-5 rounded-xl space-y-4 md:col-span-2">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-amber-100 text-amber-700 rounded-lg">
+              <Calendar className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-slate-800">Weekend Payday Adjustment (Sunday / Saturday Rule)</h4>
+              <p className="text-xs text-slate-500">Determine how payroll release shifts when the 15th or End-of-Month falls on a Sunday or Saturday.</p>
+            </div>
+          </div>
+
+          <div className="space-y-2 pt-2">
+            <label className="text-xs font-semibold text-slate-700 block">Weekend Adjustment Policy</label>
+            <div className="flex items-center space-x-3">
+              <select
+                value={weekendRule}
+                disabled={!isEditing}
+                onChange={(e) => onChange('weekendRule', e.target.value)}
+                className={`w-80 px-3 py-2 bg-white border border-slate-300 rounded-lg font-semibold text-sm ${isEditing ? 'cursor-pointer' : 'cursor-not-allowed opacity-80'}`}
+              >
+                <option value="PRECEDING_FRIDAY">Shift to Preceding Friday (Recommended)</option>
+                <option value="NEXT_MONDAY">Shift to Next Monday</option>
+                <option value="EXACT_DATE">Exact Date (No Weekend Adjustment)</option>
+              </select>
+            </div>
+            <p className="text-[11px] text-slate-400 italic">
+              When set to Preceding Friday, if the 15th falls on Sunday, payday releases on Friday the 13th, and the preceding Thursday is set as the audit & manual batch verification day.
+            </p>
           </div>
         </div>
       </div>

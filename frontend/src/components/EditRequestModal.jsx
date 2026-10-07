@@ -28,6 +28,7 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
   const [formData, setFormData] = useState({});
   const [loading, setLoading] = useState(false);
   const [modificationReason, setModificationReason] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
     if (request) {
@@ -76,11 +77,14 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
         loanApprovalDate: approvalDate,
         amortizationStartMonth: startMonth,
         calamityArea: request.LR_calamityArea || "",
+        deductionFrequency: request.LR_deductionFrequency || "semi-monthly",
       });
     }
   }, [request]);
 
   if (!isOpen || !request) return null;
+
+  const typeId = Number(request.emp_reqTypeId);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -160,12 +164,14 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
         onUpdate();
         onClose();
         setModificationReason(""); 
+        setErrorMessage("");
       } else {
-        const error = await response.json();
-        alert(error.error || "Failed to update request");
+        const error = await response.json().catch(() => ({}));
+        setErrorMessage(error.error || "Failed to update request");
       }
     } catch (err) {
       console.error("Error updating request:", err);
+      setErrorMessage("Network error: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -176,7 +182,7 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
         <div className="p-6 border-b flex justify-between items-center bg-slate-50">
           <div>
-            <h2 className="text-xl font-bold text-[#2A174E]">Edit Request #REQ-{request.emp_reqId}</h2>
+            <h2 className="text-xl font-bold text-brand-primary">Edit Request #REQ-{request.emp_reqId}</h2>
             <p className="text-sm text-slate-500">{request.reqTypeName} for {request.userName}</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
@@ -185,10 +191,15 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-6 custom-scrollbar">
+          {errorMessage && (
+            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-sm rounded-lg font-medium">
+              {errorMessage}
+            </div>
+          )}
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Conditional fields based on type */}
-            {request.emp_reqTypeId === 1 && (
+            {typeId === 1 && (
               <>
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-slate-700">OT Date</label>
@@ -209,7 +220,7 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
               </>
             )}
 
-            {[3, 4, 6, 8, 9, 10, 11, 12].includes(request.emp_reqTypeId) && (
+            {[3, 4, 6, 8, 9, 10, 11, 12].includes(typeId) && (
               <>
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-slate-700">Start Date</label>
@@ -241,7 +252,7 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
               </>
             )}
 
-            {request.emp_reqTypeId === 5 && (
+            {typeId === 5 && (
               <>
                 <div className="space-y-2 sm:col-span-2">
                   <label className="text-sm font-bold text-slate-700">Log Date</label>
@@ -258,7 +269,7 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
               </>
             )}
 
-            {request.emp_reqTypeId === 7 && (
+            {typeId === 7 && (
                <>
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-slate-700">Date</label>
@@ -292,7 +303,7 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
                </>
             )}
 
-            {[13, 14].includes(request.emp_reqTypeId) && (
+            {[13, 14].includes(typeId) && (
               <>
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-slate-700">Agency</label>
@@ -338,7 +349,7 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
                     </SelectContent>
                   </Select>
                 </div>
-                {request.emp_reqTypeId === 14 && (
+                {typeId === 14 && (
                   <>
                     <div className="space-y-2">
                       <label className="text-sm font-bold text-slate-700">Amount / Principal</label>
@@ -371,6 +382,21 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
                       ) : (
                         <Input type="number" name="monthsToPay" value={formData.monthsToPay} onChange={handleInputChange} required />
                       )}
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-bold text-slate-700">Deduction Frequency</label>
+                      <Select 
+                        value={formData.deductionFrequency || "semi-monthly"} 
+                        onValueChange={(val) => handleSelectChange('deductionFrequency', val)}
+                      >
+                        <SelectTrigger className="w-full h-10 border-slate-200">
+                          <SelectValue placeholder="Select Frequency" />
+                        </SelectTrigger>
+                        <SelectContent className="z-[110]">
+                          <SelectItem value="semi-monthly">Semi-Monthly (Split 15th & 30th)</SelectItem>
+                          <SelectItem value="monthly">Monthly (15th Only)</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                     {formData.agency === "SSS" && (
                       <>
@@ -458,7 +484,7 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
 
           <div className="pt-4 border-t flex justify-end gap-3">
             <Button type="button" variant="outline" onClick={onClose} disabled={loading} className="px-6 border-slate-300">Cancel</Button>
-            <Button type="submit" className="bg-[#2A174E] text-white hover:bg-[#1a0e30] px-8 shadow-md" disabled={loading}>
+            <Button type="submit" className="bg-brand-primary text-white hover:bg-brand-primary-hover px-8 shadow-md" disabled={loading}>
               {loading ? "Updating..." : "Save Changes"}
             </Button>
           </div>

@@ -306,7 +306,7 @@ const Cashadvances = () => {
             
             <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-6">
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                <h1 className="text-2xl font-bold text-[#2A174E] m-0">Cash Advance Management</h1>
+                <h1 className="text-2xl font-bold text-brand-primary m-0">Cash Advance Management</h1>
                 <div className="flex items-center gap-2">
                   <FilterListIcon className="text-slate-400 h-5 w-5" />
                   <Select value={selectedYear.toString()} onValueChange={(val) => setSelectedYear(parseInt(val))}>
@@ -334,17 +334,17 @@ const Cashadvances = () => {
               </div>
 
               <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
-                <Button variant="outline" onClick={downloadTemplate} className="w-full sm:w-auto border-[#2A174E] text-[#2A174E]">
+                <Button variant="outline" onClick={downloadTemplate} className="w-full sm:w-auto border-brand-primary text-brand-primary">
                   <DownloadIcon className="mr-2 h-4 w-4" /> Template
                 </Button>
                 <div className="w-full sm:w-auto relative">
                   <input type="file" accept=".csv" onChange={handleFileChange} id="csv-upload" className="hidden" />
-                  <label htmlFor="csv-upload" className="flex items-center justify-center w-full sm:w-auto h-10 px-4 border border-dashed border-[#2A174E] text-[#2A174E] rounded-md cursor-pointer hover:bg-slate-50 font-medium text-sm transition-colors">
+                  <label htmlFor="csv-upload" className="flex items-center justify-center w-full sm:w-auto h-10 px-4 border border-dashed border-brand-primary text-brand-primary rounded-md cursor-pointer hover:bg-slate-50 font-medium text-sm transition-colors">
                     <CloudUploadIcon className="mr-2 h-4 w-4" /> {file ? (file.name.length > 15 ? file.name.substring(0,12) + "..." : file.name) : "Choose CSV"}
                   </label>
                 </div>
                 {file && (
-                  <Button onClick={handleUpload} disabled={loading} className="w-full sm:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30]">
+                  <Button onClick={handleUpload} disabled={loading} className="w-full sm:w-auto bg-brand-primary text-white hover:bg-brand-primary-hover">
                     {loading ? "..." : "Upload"}
                   </Button>
                 )}
@@ -376,19 +376,19 @@ const Cashadvances = () => {
         {/* Matrix Table Section */}
         <Card className="shadow-sm border-0 bg-white">
           <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-4 border-b border-slate-50 gap-4">
-            <CardTitle className="text-lg text-[#2A174E]">Cash Advance Matrix ({selectedYear})</CardTitle>
+            <CardTitle className="text-lg text-brand-primary">Cash Advance Matrix ({selectedYear})</CardTitle>
             <div className="flex flex-wrap gap-2">
               {isAdmin && (
                 <Button 
                   variant="outline" 
                   size="sm"
                   onClick={() => setIsEditingTable(!isEditingTable)}
-                  className={`${isEditingTable ? 'bg-green-500 text-white hover:bg-green-600 border-transparent' : 'border-[#2A174E] text-[#2A174E] hover:bg-slate-50'}`}
+                  className={`${isEditingTable ? 'bg-green-500 text-white hover:bg-green-600 border-transparent' : 'border-brand-primary text-brand-primary hover:bg-slate-50'}`}
                 >
                   {isEditingTable ? <><CheckIcon className="mr-1 h-4 w-4" /> Save Table</> : <><EditIcon className="mr-1 h-4 w-4" /> Edit Table</>}
                 </Button>
               )}
-              <Button size="sm" onClick={fetchData} disabled={loading} className="bg-[#2A174E] hover:bg-[#1a0e30] text-white">
+              <Button size="sm" onClick={fetchData} disabled={loading} className="bg-brand-primary hover:bg-brand-primary-hover text-white">
                 <SaveIcon className="mr-1 h-4 w-4" /> {loading ? "Updating..." : "Refresh Data"}
               </Button>
             </div>
@@ -401,7 +401,7 @@ const Cashadvances = () => {
                 <thead className="sticky top-0 z-[50] shadow-sm">
                   <tr>
                     {/* Top-Left Header Cell */}
-                    <th className="sticky left-0 top-0 z-[60] bg-[#1e1136] text-yellow-400 border-r-2 border-b-2 border-[#2A174E] p-3 min-w-[120px] align-middle text-left shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
+                    <th className="sticky left-0 top-0 z-[60] bg-[#1e1136] text-yellow-400 border-r-2 border-b-2 border-brand-primary p-3 min-w-[120px] align-middle text-left shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
                       <div className="flex flex-col leading-tight">
                         <span className="text-[9px] font-black uppercase opacity-90">{selectedYear} Year</span>
                         <span className="text-xs text-white font-bold">MONTHS / DATE</span>
@@ -409,7 +409,7 @@ const Cashadvances = () => {
                     </th>
                     {/* Top Header Cells */}
                     {employeeList.map((emp) => (
-                      <th key={emp.key} className="sticky top-0 z-[50] bg-[#2A174E] text-white border-x border-b-2 border-[#3d2270] min-w-[140px] p-3 text-center align-middle">
+                      <th key={emp.key} className="sticky top-0 z-[50] bg-brand-primary text-white border-x border-b-2 border-[#3d2270] min-w-[140px] p-3 text-center align-middle">
                         <div className="flex flex-col leading-tight items-center">
                           <span className="text-[11px] font-bold uppercase">{emp.name.split(',')[0]}</span>
                           <span className="text-[9px] text-white/70 font-mono">{emp.id}</span>
@@ -444,19 +444,19 @@ const Cashadvances = () => {
                         return (
                           <tr key={dateStr} className={`hover:bg-slate-50 transition-colors ${isCurrentRow ? "bg-blue-50/30" : ""}`}>
                             {/* Left Column Cell */}
-                            <td className="sticky left-0 z-[40] bg-white border-r-2 border-b border-[#2A174E] p-3 align-top shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                            <td className="sticky left-0 z-[40] bg-white border-r-2 border-b border-brand-primary p-3 align-top shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                               {isEditingTable ? (
                                 <Input 
                                   type="date" 
                                   value={dateStr}
                                   onChange={(e) => handleHeaderChange(i)(e.target.value)}
-                                  className="h-8 text-xs font-bold text-[#2A174E] focus-visible:ring-blue-500"
+                                  className="h-8 text-xs font-bold text-brand-primary focus-visible:ring-blue-500"
                                 />
                               ) : (
                                 <div className="flex flex-col">
-                                  <span className="font-bold text-[13px] text-[#2A174E]">{monthLabel}</span>
+                                  <span className="font-bold text-[13px] text-brand-primary">{monthLabel}</span>
                                   <span className="text-[10px] font-semibold text-slate-500">{dayLabel}</span>
-                                  {isCurrentRow && <span className="bg-yellow-400 text-[#2A174E] text-[9px] font-black px-1 py-0.5 rounded w-fit mt-1">CURR</span>}
+                                  {isCurrentRow && <span className="bg-yellow-400 text-brand-primary text-[9px] font-black px-1 py-0.5 rounded w-fit mt-1">CURR</span>}
                                 </div>
                               )}
                             </td>
@@ -495,7 +495,7 @@ const Cashadvances = () => {
                                         }
                                       }}
                                       autoFocus
-                                      className="w-full h-10 border-2 border-[#2A174E] bg-white text-center font-mono text-[13px] text-black font-bold outline-none"
+                                      className="w-full h-10 border-2 border-brand-primary bg-white text-center font-mono text-[13px] text-black font-bold outline-none"
                                     />
                                   ) : isSyncing ? (
                                     <span className="text-[8px] font-black text-yellow-600 animate-pulse">SAVING...</span>
@@ -523,8 +523,8 @@ const Cashadvances = () => {
                   <tfoot className="sticky bottom-0 z-[50] shadow-[0_-2px_10px_rgba(0,0,0,0.1)]">
                     {/* Row 1: Total Paid - Current Year */}
                     <tr className="bg-slate-100 border-b border-slate-300">
-                      <td className="sticky left-0 z-[60] bg-slate-100 border-r-2 border-t-2 border-[#2A174E] p-3 align-middle shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
-                        <span className="text-[11px] font-black tracking-wider text-[#2A174E]">TOTAL PAID ({selectedYear})</span>
+                      <td className="sticky left-0 z-[60] bg-slate-100 border-r-2 border-t-2 border-brand-primary p-3 align-middle shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
+                        <span className="text-[11px] font-black tracking-wider text-brand-primary">TOTAL PAID ({selectedYear})</span>
                       </td>
                       {employeeList.map((emp) => {
                         const empSubtotal = expectedDates.reduce((acc, d) => {
@@ -532,7 +532,7 @@ const Cashadvances = () => {
                           return acc + (period?.values[emp.key]?.amount || 0);
                         }, 0);
                         return (
-                          <td key={emp.key} className="border-r border-t-2 border-[#2A174E] border-slate-200 p-3 text-center align-middle font-mono text-[13px] font-bold text-slate-900">
+                          <td key={emp.key} className="border-r border-t-2 border-brand-primary border-slate-200 p-3 text-center align-middle font-mono text-[13px] font-bold text-slate-900">
                             {parseFloat(empSubtotal).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
                         );
@@ -541,8 +541,8 @@ const Cashadvances = () => {
 
                     {/* Row 2: Total Paid - All Time */}
                     <tr className="bg-slate-200">
-                      <td className="sticky left-0 z-[60] bg-slate-200 border-r-2 border-[#2A174E] p-3 align-middle shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
-                        <span className="text-[11px] font-black tracking-wider text-[#2A174E]">TOTAL LOANS (ALL-TIME)</span>
+                      <td className="sticky left-0 z-[60] bg-slate-200 border-r-2 border-brand-primary p-3 align-middle shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">
+                        <span className="text-[11px] font-black tracking-wider text-brand-primary">TOTAL LOANS (ALL-TIME)</span>
                       </td>
                       {employeeList.map((emp) => {
                         const totalLoans = data.reduce((acc, item) => acc + (item.values[emp.key]?.amount || 0), 0);

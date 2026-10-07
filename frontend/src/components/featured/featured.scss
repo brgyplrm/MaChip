@@ -7,7 +7,7 @@
   border-radius: 10px;
 
   .CircularProgressbar-path {
-    stroke: #2A174E !important; 
+    stroke: var(--color-brand-primary) !important; 
   }
 
   /* Target the background trail */
@@ -17,7 +17,7 @@
 
   /* Target the center text */
   .CircularProgressbar-text {
-    fill: #2A174E !important;
+    fill: var(--color-brand-primary) !important;
     font-weight: bold;
   }
 

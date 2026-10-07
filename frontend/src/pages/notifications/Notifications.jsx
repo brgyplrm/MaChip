@@ -114,6 +114,8 @@ const Notifications = () => {
     }
 
     const titleLower = (notif.title || "").toLowerCase();
+    const msg = notif.message || "";
+    const targetReqId = notif.targetId || msg.match(/#(\d+)/)?.[1] || notif.title?.match(/#(\d+)/)?.[1];
 
     // Reroute irregular logs and unrecognized/unauthorized card scans to the transaction log page
     if (
@@ -125,10 +127,17 @@ const Notifications = () => {
       navigate("/transactionLog");
     } else if (notif.title === "Password Reset Request" && notif.targetId) {
       navigate(`/users/edit/${notif.targetId}`);
+    } else if (targetReqId) {
+      const userRole = Number(userData?.user_RoleId);
+      if (userRole === 1 || userRole === 2 || userRole === 4) {
+        navigate(`/adminRequests?requestId=${targetReqId}`, {
+          state: { selectedReqId: parseInt(targetReqId, 10) }
+        });
+      } else {
+        navigate(`/requests/${targetReqId}`);
+      }
     } else if (notif.title === "New Request for Review") {
       navigate("/adminRequests");
-    } else if (notif.targetId) {
-      navigate(`/requests/${notif.targetId}`);
     }
   };
 
@@ -139,11 +148,11 @@ const Notifications = () => {
         
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-          <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">System Notifications</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-brand-primary">System Notifications</h1>
           <Button 
             variant="outline" 
             onClick={handleMarkAllRead}
-            className="w-full sm:w-auto border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white transition-colors shadow-sm"
+            className="w-full sm:w-auto border-brand-primary text-brand-primary hover:bg-brand-primary hover:text-white transition-colors shadow-sm"
           >
             <DoneAllIcon className="mr-2 h-4 w-4" /> Mark all as read
           </Button>
@@ -160,11 +169,11 @@ const Notifications = () => {
                   className={`flex items-start gap-4 p-5 border-b border-slate-100 cursor-pointer transition-colors border-l-4 ${
                     notif.isRead 
                       ? 'border-l-transparent bg-white hover:bg-slate-50' 
-                      : 'border-l-orange-500 bg-slate-50/50 hover:bg-slate-100'
+                      : 'border-l-accent-gold bg-slate-50/50 hover:bg-slate-100'
                   }`}
                 >
                   <div className="pt-1 w-4 shrink-0 flex justify-center">
-                    {!notif.isRead && <FiberManualRecordIcon className="text-orange-500 h-3 w-3" />}
+                    {!notif.isRead && <FiberManualRecordIcon className="text-accent-gold h-3 w-3" />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm leading-relaxed mb-1 ${notif.isRead ? 'font-normal text-slate-600' : 'font-bold text-slate-800'}`}>

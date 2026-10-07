@@ -22,6 +22,7 @@ import { formatUserId } from "../../utils/formatUserId";
 import { formatDateTime, calculateDays } from "../../utils/formatTime";
 import { fetchWithAuth } from "../../utils/api";
 import { useSystemTime } from "../../context/SystemTimeContext";
+import { getStoredUser, setStoredUser } from "../../utils/authStorage";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -42,7 +43,7 @@ const isSaturday = (dateStr) => {
 
 const UserRequests = () => {
   const { systemToday } = useSystemTime();
-  const userData = JSON.parse(localStorage.getItem("userData"));
+  const [userData, setUserData] = useState(() => getStoredUser() || {});
   const [activeTab, setActiveTab] = useState("submit"); // "submit" or "history"
   const [historyTab, setHistoryTab] = useState("pending"); // "pending", "returned", "past"
   const [historySearchQuery, setHistorySearchQuery] = useState("");
@@ -167,7 +168,48 @@ const UserRequests = () => {
     consoDP: "",
     mscCount: "",
     avgMSC: "",
+    deductionFrequency: "semi-monthly",
   });
+
+  // Sync profile details (gender, civil_status, is_solo_parent) from database
+  useEffect(() => {
+    const syncProfile = async () => {
+      const current = getStoredUser();
+      if (current?.user_Id) {
+        try {
+          const res = await fetchWithAuth(`/api/users/${current.user_Id}`);
+          if (res.ok) {
+            const data = await res.json();
+            const { user_Password, ...safeUser } = data;
+            const merged = { ...current, ...safeUser };
+            setUserData(merged);
+            setStoredUser(merged);
+            setFormData(prev => ({
+              ...prev,
+              user_Id: merged.user_Id || prev.user_Id
+            }));
+          }
+        } catch (err) {
+          console.error("[REQUESTS] Failed to sync user profile:", err);
+        }
+      }
+    };
+    syncProfile();
+  }, []);
+
+  // Demographic eligibility helpers for statutory leave benefits
+  const userGender = (userData?.user_Gender || "").toLowerCase().trim();
+  const civilStatus = (userData?.civil_status || "").toLowerCase().trim();
+  const isFemale = userGender === "female";
+  const isMale = userGender === "male";
+  const isMarriedMale = isMale && civilStatus === "married";
+  const isSoloParent = Boolean(
+    userData?.is_solo_parent === true ||
+    userData?.is_solo_parent === "true" ||
+    userData?.is_solo_parent === 1 ||
+    userData?.is_solo_parent === "1"
+  );
+  const hasAnyStatutory = isFemale || isMarriedMale || isSoloParent;
 
   const [currentPeriodLogs, setCurrentPeriodLogs] = useState([]);
   const [periodDates, setPeriodDates] = useState([]);
@@ -381,7 +423,7 @@ const UserRequests = () => {
   }, [activeTab]);
 
   useEffect(() => {
-    if (["3", "4", "6", "8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId) && formData.leaveStartDate && formData.leaveEndDate) {
+    if (["3", "4", "8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId) && formData.leaveStartDate && formData.leaveEndDate) {
       const start = new Date(formData.leaveStartDate + "T00:00:00");
       const end = new Date(formData.leaveEndDate + "T00:00:00");
       let count = 0;
@@ -405,6 +447,8 @@ const UserRequests = () => {
         cur.setDate(cur.getDate() + 1);
       }
       setFormData((prev) => ({ ...prev, noDays: count }));
+    } else if (formData.emp_reqTypeId === "6") {
+      setFormData((prev) => ({ ...prev, noDays: 1, leaveEndDate: prev.leaveStartDate }));
     }
   }, [formData.leaveStartDate, formData.leaveEndDate, formData.emp_reqTypeId, holidays]);
 
@@ -467,6 +511,13 @@ const UserRequests = () => {
 
     // 3. Emergency Leave (EL)
     else if (formData.emp_reqTypeId === "6") {
+      if (reqDays > 1) {
+        warnings.push({
+          type: "danger",
+          title: "Emergency Leave Limit Exceeded",
+          message: "Emergency Leave is strictly limited to a maximum of 1 day per application.",
+        });
+      }
       const combinedBal = vlBal + slBal;
       if (reqDays > 0 && reqDays > combinedBal) {
         const excess = (reqDays - combinedBal).toFixed(1).replace(/\.0$/, "");
@@ -502,7 +553,9 @@ const UserRequests = () => {
     }
 
     // 6. Holiday Intervening & Sandwich Rule Checks
-    if (["3", "4", "6", "7", "8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId) && (formData.leaveStartDate || formData.leaveEndDate)) {
+    // Applies strictly to discretionary company leaves: Vacation (3) and Half-day (7).
+    // Emergency Leave (6), statutory leaves (8-12), and Sick Leave (4) are strictly exempt from Sandwich Rule.
+    if (["3", "7"].includes(formData.emp_reqTypeId) && (formData.leaveStartDate || formData.leaveEndDate)) {
       const sDateStr = formData.leaveStartDate || formData.leaveEndDate;
       const eDateStr = formData.leaveEndDate || formData.leaveStartDate;
       if (sDateStr && eDateStr) {
@@ -778,6 +831,13 @@ const UserRequests = () => {
   const handleSelectChange = (name, val) => {
     setFormData((prev) => {
       const updated = { ...prev, [name]: val };
+      if (name === "emp_reqTypeId" && val === "6") {
+        updated.noDays = 1;
+        if (updated.leaveStartDate) {
+          updated.leaveEndDate = updated.leaveStartDate;
+        }
+      }
+
       if (name === "agency") {
         updated.loanType = "";
         if (val === "Company") {
@@ -854,9 +914,16 @@ const UserRequests = () => {
       else if (formData.emp_reqTypeId === "7" && 0.5 > vlBal) isInsufficient = true;
     }
 
-    // Attachment validation for specific statutory leaves and government loans
+    // Attachment validation for statutory leaves and government loans
     const isGovLoan = formData.emp_reqTypeId === "14" && formData.agency !== "Company";
-    if ((["8", "11", "12"].includes(formData.emp_reqTypeId) || isGovLoan) && !formData.proofFile) {
+    const isStatutoryWithProof = ["8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId);
+
+    if (isStatutoryWithProof && !formData.proofFile) {
+      setToast({ message: "Supporting documentation (Medical Cert/SPIC/Birth Cert/Barangay Cert) is mandatory for this statutory benefit.", type: "error" });
+      return;
+    }
+
+    if (isGovLoan && !formData.proofFile) {
       setToast({ message: "Voucher or Disclosure Statement is mandatory for government loan enrollment.", type: "error" });
       return;
     }
@@ -899,8 +966,8 @@ const UserRequests = () => {
     } else if (formData.emp_reqTypeId === "6") {
       formDataToSubmit.append("DateOfLeave", formData.leaveStartDate);
       formDataToSubmit.append("StartDate", formData.leaveStartDate);
-      formDataToSubmit.append("EndDate", formData.leaveEndDate || formData.leaveStartDate);
-      formDataToSubmit.append("NoDays", formData.noDays || 1);
+      formDataToSubmit.append("EndDate", formData.leaveStartDate);
+      formDataToSubmit.append("NoDays", 1);
       formDataToSubmit.append("reason", formData.remarks);
     } else if (formData.emp_reqTypeId === "7") {
       formDataToSubmit.append("DateOfLeave", formData.leaveStartDate);
@@ -911,6 +978,7 @@ const UserRequests = () => {
       formDataToSubmit.append("loanType", formData.loanType);
       formDataToSubmit.append("amountRequested", formData.amountRequested);
       formDataToSubmit.append("monthsToPay", formData.monthsToPay);
+      formDataToSubmit.append("deductionFrequency", formData.deductionFrequency || "semi-monthly");
       
       if (formData.agency === "SSS" && formData.loanType === "Salary Loan" && formData.emp_reqTypeId === "14") {
         formDataToSubmit.append("loanReferenceNo", formData.loanReferenceNo);
@@ -1009,6 +1077,7 @@ const UserRequests = () => {
           loanType: "",
           amountRequested: "",
           monthsToPay: "",
+          deductionFrequency: "semi-monthly",
         });
         fetchBalance();
         fetchHistory();
@@ -1161,7 +1230,7 @@ const UserRequests = () => {
 
         {/* Header Section */}
         <div className="mb-6">
-          <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">My Requests</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-brand-primary leading-tight">My Requests</h1>
           <span className="text-sm text-slate-500 mt-1 block">
               Submit and track your leave, overtime, and log corrections.
           </span>
@@ -1170,12 +1239,12 @@ const UserRequests = () => {
         {/* Dashboard-Style Statistics Cards */}
         <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-6 mb-6 w-full">
           {/* Card 1: Pending */}
-          <Card className="shadow-sm border-t-4 border-[#2A174E] py-0 h-full min-w-0">
+          <Card className="shadow-sm border-t-4 border-brand-primary py-0 h-full min-w-0">
             <CardContent className="px-5 py-5 flex justify-between h-full text-left">
               <div className="flex flex-col justify-between">
                 <div>
                   <div className="flex items-center gap-1.5 mb-2">
-                    <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider">Pending</p>
+                    <p className="text-xs font-bold text-brand-primary uppercase tracking-wider">Pending</p>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
@@ -1185,10 +1254,10 @@ const UserRequests = () => {
                       </TooltipContent>
                     </Tooltip>
                   </div>
-                  <p className="text-4xl font-bold text-[#2A174E]">{stats.pending}</p>
+                  <p className="text-4xl font-bold text-brand-primary">{stats.pending}</p>
                 </div>
               </div>
-              <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+              <div className="bg-brand-primary/10 text-brand-primary p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <HourglassEmptyIcon className="h-6 w-6" />
               </div>
             </CardContent>
@@ -1197,12 +1266,12 @@ const UserRequests = () => {
           
  
           {/* Card 2: Approved */}
-          <Card className="shadow-sm border-t-4 border-[#3B4E17] py-0 h-full min-w-0">
+          <Card className="shadow-sm border-t-4 border-accent-green py-0 h-full min-w-0">
             <CardContent className="px-5 py-5 flex justify-between h-full text-left">
               <div className="flex flex-col justify-between">
                 <div>
                   <div className="flex items-center gap-1.5 mb-2">
-                    <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider">Approved</p>
+                    <p className="text-xs font-bold text-accent-green uppercase tracking-wider">Approved</p>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
@@ -1212,22 +1281,22 @@ const UserRequests = () => {
                       </TooltipContent>
                     </Tooltip>
                   </div>
-                  <p className="text-4xl font-bold text-[#3B4E17]">{stats.approved}</p>
+                  <p className="text-4xl font-bold text-accent-green">{stats.approved}</p>
                 </div>
               </div>
-              <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+              <div className="bg-accent-green/10 text-accent-green p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <CheckCircleOutlineIcon className="h-6 w-6" />
               </div>
             </CardContent>
           </Card>
  
           {/* Card 3: Rejected */}
-          <Card className="shadow-sm border-t-4 border-[#BB8B26] py-0 h-full min-w-0">
+          <Card className="shadow-sm border-t-4 border-accent-gold py-0 h-full min-w-0">
             <CardContent className="px-5 py-5 flex justify-between h-full text-left">
               <div className="flex flex-col justify-between">
                 <div>
                   <div className="flex items-center gap-1.5 mb-2">
-                    <p className="text-xs font-bold text-[#BB8B26] uppercase tracking-wider">Rejected</p>
+                    <p className="text-xs font-bold text-accent-gold uppercase tracking-wider">Rejected</p>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
@@ -1237,22 +1306,22 @@ const UserRequests = () => {
                       </TooltipContent>
                     </Tooltip>
                   </div>
-                  <p className="text-4xl font-bold text-[#BB8B26]">{stats.rejected}</p>
+                  <p className="text-4xl font-bold text-accent-gold">{stats.rejected}</p>
                 </div>
               </div>
-              <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+              <div className="bg-accent-gold/20 text-accent-gold p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <CancelOutlinedIcon className="h-6 w-6" />
               </div>
             </CardContent>
           </Card>
 
           {/* Card 4: Returned */}
-          <Card className="shadow-sm border-t-4 border-blue-500  py-0 h-full min-w-0">
+          <Card className="shadow-sm border-t-4 border-status-info py-0 h-full min-w-0">
             <CardContent className="px-5 py-5 flex justify-between h-full text-left">
               <div className="flex flex-col justify-between">
                 <div>
                   <div className="flex items-center gap-1.5 mb-2">
-                    <p className="text-xs font-bold text-blue-800 uppercase tracking-wider">Returned</p>
+                    <p className="text-xs font-bold text-status-info uppercase tracking-wider">Returned</p>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
@@ -1262,10 +1331,10 @@ const UserRequests = () => {
                       </TooltipContent>
                     </Tooltip>
                   </div>
-                  <p className="text-4xl font-bold text-blue-800">{stats.returned}</p>
+                  <p className="text-4xl font-bold text-status-info">{stats.returned}</p>
                 </div>
               </div>
-              <div className="bg-blue-100 text-blue-800 p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+              <div className="bg-status-info/10 text-status-info p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <ReplyIcon className="h-6 w-6" />
               </div>
             </CardContent>
@@ -1294,7 +1363,7 @@ const UserRequests = () => {
                       setHistorySearchQuery(e.target.value);
                       setCurrentPage(1);
                     }}
-                    className="pl-9 h-9 border-slate-200 focus-visible:ring-[#2A174E] w-full bg-slate-50 text-slate-700 font-medium"
+                    className="pl-9 h-9 border-slate-200 focus-visible:ring-brand-primary w-full bg-slate-50 text-slate-700 font-medium"
                   />
                 </div>
 
@@ -1356,7 +1425,7 @@ const UserRequests = () => {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
-                    className={`flex-1 py-4 font-semibold text-sm transition-colors ${activeTab === "submit" ? "text-[#2A174E] border-b-2 border-[#2A174E] bg-white" : "text-slate-500 hover:bg-slate-100"}`}
+                    className={`flex-1 py-4 font-semibold text-sm transition-colors ${activeTab === "submit" ? "text-brand-primary border-b-2 border-brand-primary bg-white" : "text-slate-500 hover:bg-slate-100"}`}
                     onClick={() => setActiveTab("submit")}
                   >
                     <AddCircleOutlineIcon className="h-4 w-4 mr-1 mb-0.5" /> Submit Request
@@ -1369,7 +1438,7 @@ const UserRequests = () => {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
-                    className={`flex-1 py-4 font-semibold text-sm transition-colors ${activeTab === "history" ? "text-[#2A174E] border-b-2 border-[#2A174E] bg-white" : "text-slate-500 hover:bg-slate-100"}`}
+                    className={`flex-1 py-4 font-semibold text-sm transition-colors ${activeTab === "history" ? "text-brand-primary border-b-2 border-brand-primary bg-white" : "text-slate-500 hover:bg-slate-100"}`}
                     onClick={() => setActiveTab("history")}
                   >
                     <HistoryIcon className="h-4 w-4 mr-1 mb-0.5" /> History
@@ -1394,7 +1463,7 @@ const UserRequests = () => {
                      <span className="text-sm font-semibold text-slate-700">Sick Leave (SL)</span>
                      <Badge className="bg-rose-100 text-rose-800">{balance ? balance.SL_balance : "..."} days</Badge>
                   </div>
-                  {userData?.is_solo_parent && (
+                  {isSoloParent && (
                     <div className="flex justify-between items-center">
                        <span className="text-sm font-semibold text-slate-700">Solo Parent Leave</span>
                        <Badge className="bg-amber-100 text-amber-800">{balance ? balance.SoloParent_balance : "..."} days</Badge>
@@ -1429,7 +1498,7 @@ const UserRequests = () => {
                          <TooltipTrigger asChild>
                            <button
                              onClick={() => { setHistoryTab(t); setCurrentPage(1); setSelectedReqId(null); }}
-                             className={`flex-1 py-1.5 text-[11px] font-bold uppercase rounded-md transition-all ${historyTab === t ? "bg-white text-[#2A174E] shadow-sm" : "text-slate-500 hover:bg-white/50"}`}
+                             className={`flex-1 py-1.5 text-[11px] font-bold uppercase rounded-md transition-all ${historyTab === t ? "bg-white text-brand-primary shadow-sm" : "text-slate-500 hover:bg-white/50"}`}
                            >
                              {t}
                            </button>
@@ -1456,7 +1525,7 @@ const UserRequests = () => {
                         <div
                           key={req.emp_reqId}
                           onClick={() => setSelectedReqId(req.emp_reqId)}
-                          className={`p-4 border rounded-xl cursor-pointer transition-all ${isSelected ? "bg-[#f0ebfa] border-[#2A174E] shadow-sm" : "border-slate-200 bg-white hover:border-[#2A174E]/50"}`}
+                          className={`p-4 border rounded-xl cursor-pointer transition-all ${isSelected ? "bg-brand-primary-light border-brand-primary shadow-sm" : "border-slate-200 bg-white hover:border-brand-primary/50"}`}
                         >
                           <div className="flex justify-between items-center mb-2">
                             <div className="flex items-center gap-1.5 flex-wrap">
@@ -1479,7 +1548,7 @@ const UserRequests = () => {
                   ) : (
                     <div className="flex flex-col items-center justify-center py-12 px-4 text-center bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl mt-2">
                       <HourglassEmptyIcon className="h-8 w-8 text-slate-300 mb-2" />
-                      <h5 className="font-bold text-[#2A174E] text-sm mb-1">Empty</h5>
+                      <h5 className="font-bold text-brand-primary text-sm mb-1">Empty</h5>
                       <p className="text-xs text-slate-500">No requests in this category.</p>
                     </div>
                   )}
@@ -1507,7 +1576,7 @@ const UserRequests = () => {
             {activeTab === "submit" ? (
               <CardContent className="flex-1 overflow-y-auto p-6 md:p-8 custom-scrollbar">
                 <div className="mb-6">
-                  <h3 className="text-xl md:text-2xl font-bold text-[#2A174E]">Submit New Request</h3>
+                  <h3 className="text-xl md:text-2xl font-bold text-brand-primary">Submit New Request</h3>
                   <p className="text-sm text-slate-500 mt-1">Fill out the form below to file a new attendance or leave request.</p>
                 </div>
                 
@@ -1516,7 +1585,7 @@ const UserRequests = () => {
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-slate-700">Request Type <span className="text-red-500">*</span></label>
                     <Select value={formData.emp_reqTypeId} onValueChange={(val) => handleSelectChange("emp_reqTypeId", val)} required>
-                      <SelectTrigger className="w-full bg-slate-50/50 border-slate-200 focus-visible:ring-[#2A174E]">
+                      <SelectTrigger className="w-full bg-slate-50/50 border-slate-200 focus-visible:ring-brand-primary">
                         <SelectValue placeholder="Select request type" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1536,24 +1605,26 @@ const UserRequests = () => {
                           <SelectItem value="14">Loan Enrollment (Payroll Setup)</SelectItem>
                         </SelectGroup>
 
-                        <SelectGroup>
-                          <SelectLabel>Statutory Benefits</SelectLabel>
-                          {userData?.user_Gender === "Female" && (
-                            <SelectItem value="8">Maternity Leave</SelectItem>
-                          )}
-                          {userData?.user_Gender === "Male" && userData?.civil_status === "Married" && (
-                            <SelectItem value="9">Paternity Leave</SelectItem>
-                          )}
-                          {userData?.is_solo_parent && (
-                            <SelectItem value="10">Solo Parent Leave</SelectItem>
-                          )}
-                          {userData?.user_Gender === "Female" && (
-                            <>
-                              <SelectItem value="11">VAWC Leave</SelectItem>
-                              <SelectItem value="12">Special Leave for Women</SelectItem>
-                            </>
-                          )}
-                        </SelectGroup>
+                        {hasAnyStatutory && (
+                          <SelectGroup>
+                            <SelectLabel>Statutory Benefits</SelectLabel>
+                            {isFemale && (
+                              <SelectItem value="8">Maternity Leave</SelectItem>
+                            )}
+                            {isMarriedMale && (
+                              <SelectItem value="9">Paternity Leave</SelectItem>
+                            )}
+                            {isSoloParent && (
+                              <SelectItem value="10">Solo Parent Leave</SelectItem>
+                            )}
+                            {isFemale && (
+                              <>
+                                <SelectItem value="11">VAWC Leave</SelectItem>
+                                <SelectItem value="12">Special Leave for Women</SelectItem>
+                              </>
+                            )}
+                          </SelectGroup>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -1582,7 +1653,7 @@ const UserRequests = () => {
 
                   {formData.emp_reqTypeId === "5" && (
                     <div className="pt-4 border-t border-slate-100 border-dashed space-y-4">
-                      <p className="text-xs font-bold text-slate-500 uppercase">Current Period: <span className="text-[#2A174E]">{payroll.payEnding}</span></p>
+                      <p className="text-xs font-bold text-slate-500 uppercase">Current Period: <span className="text-brand-primary">{payroll.payEnding}</span></p>
                       <div className="space-y-2">
                         <label className="text-sm font-bold text-slate-700">Correction Category</label>
                         <Select value={formData.correctionCategory} onValueChange={(val) => handleSelectChange('correctionCategory', val)}>
@@ -1694,7 +1765,32 @@ const UserRequests = () => {
                     </div>
                   )}
 
-                  {(["3", "4", "6", "8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId)) && (
+                  {formData.emp_reqTypeId === "6" && (
+                    <div className="pt-4 border-t border-slate-100 border-dashed space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-slate-700">Date of Emergency Leave</label>
+                        <Input 
+                          type="date" 
+                          name="leaveStartDate" 
+                          value={formData.leaveStartDate} 
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setFormData((prev) => ({
+                              ...prev,
+                              leaveStartDate: val,
+                              leaveEndDate: val,
+                              noDays: 1
+                            }));
+                          }} 
+                          required 
+                          className="bg-slate-50/50" 
+                        />
+                        <p className="text-xs text-slate-500 italic">Emergency Leave is strictly limited to 1 day per application.</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {(["3", "4", "8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId)) && (
                     <div className="pt-4 border-t border-slate-100 border-dashed space-y-4">
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
@@ -1760,11 +1856,34 @@ const UserRequests = () => {
                             </SelectContent>
                           </Select>
                         </div>
+
+                        <div className="space-y-1.5 md:col-span-2">
+                          <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                            Deduction Frequency
+                          </label>
+                          <Select 
+                            value={formData.deductionFrequency || "semi-monthly"} 
+                            onValueChange={(val) => handleSelectChange('deductionFrequency', val)}
+                          >
+                            <SelectTrigger className="bg-slate-50 border-slate-200">
+                              <SelectValue placeholder="Select deduction frequency" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="semi-monthly">Semi-Monthly (Split equally on 15th & End of Month)</SelectItem>
+                              <SelectItem value="monthly">Monthly (Deducted once a month on 15th Cutoff)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-[10px] text-slate-500 italic">
+                            {formData.deductionFrequency === "monthly" 
+                              ? "The entire monthly amortization will be deducted once per month on the 15th cutoff." 
+                              : "The monthly amortization will be split equally between the 15th and end-of-month cutoffs."}
+                          </p>
+                        </div>
                       </div>
 
                       {/* NEW: HIGH ACCURACY FINANCIAL SUMMARY CARD */}
                       {formData.netDisbursement > 0 && (
-                        <div className="bg-[#2A174E] text-white p-5 rounded-2xl border border-indigo-900/50 space-y-4 my-6 shadow-2xl animate-in fade-in slide-in-from-top-4 duration-300">
+                        <div className="bg-brand-primary text-white p-5 rounded-2xl border border-indigo-900/50 space-y-4 my-6 shadow-2xl animate-in fade-in slide-in-from-top-4 duration-300">
                           <div className="flex justify-between items-center">
                             <h4 className="text-[10px] font-black text-indigo-300 uppercase tracking-[0.2em]">Matrix Financial Disclosure</h4>
                             <Badge className="bg-yellow-400 text-blue-900 font-black border-0">SSS/HDMF STANDARDS</Badge>
@@ -1778,7 +1897,11 @@ const UserRequests = () => {
                             <div className="text-right space-y-1">
                               <p className="text-[10px] text-indigo-300 font-bold uppercase">Monthly Amortization</p>
                               <p className="text-2xl font-black text-yellow-400 tracking-tight">₱{parseFloat(formData.monthlyAmortization || 0).toLocaleString('en-PH', {minimumFractionDigits: 2})}</p>
-                              <p className="text-[8px] text-indigo-200 italic font-medium">Split across 2 cutoffs (₱{(parseFloat(formData.monthlyAmortization || 0) / 2).toLocaleString()}/ea)</p>
+                              <p className="text-[8px] text-indigo-200 italic font-medium">
+                                {formData.deductionFrequency === "monthly"
+                                  ? "Deducted once a month on 15th cutoff"
+                                  : `Split across 2 cutoffs (₱${(parseFloat(formData.monthlyAmortization || 0) / 2).toLocaleString('en-PH', {minimumFractionDigits: 2})}/ea)`}
+                              </p>
                             </div>
                           </div>
 
@@ -2089,7 +2212,7 @@ const UserRequests = () => {
                                 </div>
                                 <div className="space-y-2">
                                   <label className="text-sm font-bold text-slate-700">Monthly Amortization (₱) <span className="text-red-500">*</span></label>
-                                  <Input type="number" name="monthlyAmortization" value={formData.monthlyAmortization} readOnly className="bg-slate-100 text-[#2A174E] font-bold" />
+                                  <Input type="number" name="monthlyAmortization" value={formData.monthlyAmortization} readOnly className="bg-slate-100 text-brand-primary font-bold" />
                                   <p className="text-[10px] text-slate-400 italic">Auto-computed at 10.5% p.a. interest.</p>
                                 </div>
                               </div>
@@ -2152,7 +2275,7 @@ const UserRequests = () => {
                                 </div>
                                 <div className="space-y-2">
                                   <label className="text-sm font-bold text-slate-700">Monthly Amortization (₱) <span className="text-red-500">*</span></label>
-                                  <Input type="number" name="monthlyAmortization" value={formData.monthlyAmortization} readOnly className="bg-slate-100 text-[#2A174E] font-bold" />
+                                  <Input type="number" name="monthlyAmortization" value={formData.monthlyAmortization} readOnly className="bg-slate-100 text-brand-primary font-bold" />
                                   <p className="text-[10px] text-slate-400 italic">Auto-computed at 5.95% p.a. interest.</p>
                                 </div>
                               </div>
@@ -2268,17 +2391,18 @@ const UserRequests = () => {
                   
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-slate-700">
-                      {formData.emp_reqTypeId === "14" && formData.loanType === "Calamity Loan" ? "Disclosure Statement (Required)" : (
-                        <>Attachment {["8", "11", "12"].includes(formData.emp_reqTypeId) || (formData.emp_reqTypeId === "14" && formData.agency !== "Company") ? <span className="text-red-500">*</span> : "(Optional)"}</>
+                      {formData.emp_reqTypeId === "14" && formData.loanType === "Calamity Loan" ? <>Disclosure Statement <span className="text-red-500">*</span>
+                      </> : (
+                        <>Attachment {["8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId) || (formData.emp_reqTypeId === "14" && formData.agency !== "Company") ? <span className="text-red-500">*</span> : "(Optional)"}</>
                       )}
-                    </label>
+                     </label>
                     <Input 
                       type="file" 
                       name="proofFile" 
                       onChange={handleInputChange} 
                       accept="image/png, image/jpeg, image/jpg, application/pdf" 
                       className="bg-slate-50/50 cursor-pointer" 
-                      required={["8", "11", "12"].includes(formData.emp_reqTypeId) || (formData.emp_reqTypeId === "14" && formData.agency !== "Company")} 
+                      required={["8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId) || (formData.emp_reqTypeId === "14" && formData.agency !== "Company")} 
                     />
                     <p className="text-xs text-slate-400">
                       {formData.agency === "Company" ? "Optional: You may upload a supporting document or voucher if necessary." :
@@ -2286,8 +2410,8 @@ const UserRequests = () => {
                         ? "Mandatory: Please upload the official Disclosure Statement."
                         : formData.emp_reqTypeId === "14" 
                         ? "Mandatory: Please upload your Loan Voucher or Billing Statement."
-                        : ["8", "11", "12"].includes(formData.emp_reqTypeId) 
-                          ? "Mandatory for legal compliance (Medical Cert/Barangay Cert)." 
+                        : ["8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId) 
+                          ? "Mandatory for legal compliance (Medical Cert/SPIC/Birth Cert/Barangay Cert)." 
                           : "Required for Sick Leaves spanning more than 2 days."}
                     </p>
                   </div>
@@ -2346,7 +2470,7 @@ const UserRequests = () => {
                   <div className="pt-4 border-t border-slate-100 flex justify-end">
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button type="submit" className="bg-[#2A174E] text-white hover:bg-[#1a0e30] w-full sm:w-auto px-8">Submit Request</Button>
+                        <Button type="submit" className="bg-brand-primary text-white hover:bg-brand-primary-hover w-full sm:w-auto px-8">Submit Request</Button>
                       </TooltipTrigger>
                       <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
                         Submit this request for review
@@ -2362,7 +2486,7 @@ const UserRequests = () => {
                   <>
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-100 pb-6 mb-6 gap-4">
                       <div>
-                        <h3 className="text-xl md:text-2xl font-bold text-[#2A174E]">Review {currentReq.reqTypeName}</h3>
+                        <h3 className="text-xl md:text-2xl font-bold text-brand-primary">Review {currentReq.reqTypeName}</h3>
                         <p className="text-sm text-slate-500 mt-1">Submitted on {currentReq.date_Filed ? new Date(currentReq.date_Filed).toLocaleDateString() : ""}</p>
                       </div>
                       <div className="flex flex-col sm:flex-row items-end gap-3">
@@ -2370,7 +2494,7 @@ const UserRequests = () => {
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button 
-                                className="bg-[#2A174E] hover:bg-[#1a0e30] text-white font-bold shadow-md"
+                                className="bg-brand-primary hover:bg-brand-primary-hover text-white font-bold shadow-md"
                                 onClick={() => handleEditReturned(currentReq)}
                               >
                                 <EditIcon className="mr-2 h-4 w-4" /> Edit & Resubmit
@@ -2391,7 +2515,7 @@ const UserRequests = () => {
                       
                       <div className="space-y-1 sm:col-span-2 xl:col-span-1 p-3 -m-3 rounded-lg ">
                         <label className="text-xs font-bold text-slate-500 uppercase">Requested Schedule</label>
-                        <p className="font-bold text-[#2A174E]">{getDates(currentReq)}</p>
+                        <p className="font-bold text-brand-primary">{getDates(currentReq)}</p>
                       </div>
 
                       <div className="space-y-1">
@@ -2582,7 +2706,7 @@ const UserRequests = () => {
                                 href={`/api/uploads/${currentReq.SL_proof_File || currentReq.OW_proof_File || currentReq.LC_proof_File || currentReq.ST_proof_File || currentReq.LR_proof_File}`} 
                                 target="_blank" 
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center text-[#2A174E] font-semibold hover:underline w-fit"
+                                className="inline-flex items-center text-brand-primary font-semibold hover:underline w-fit"
                               >
                                 <AttachmentIcon className="mr-1 h-4 w-4" /> View Primary Document (Disclosure Statement/Medical Cert)
                               </a>

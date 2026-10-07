@@ -157,7 +157,7 @@ const EastwestLoanHistory = () => {
                       variant="ghost" 
                       size="icon" 
                       asChild 
-                      className="text-[#2A174E]"
+                      className="text-brand-primary"
                     >
                       <Link to="/eastwestloan">
                         <ChevronLeft className="h-6 w-6" />
@@ -173,7 +173,7 @@ const EastwestLoanHistory = () => {
 
             {/* Title Group: Moves to the right via ml-2 when hovered */}
             <div className="ml-0 group-hover:ml-2 transition-all duration-300 ease-in-out flex-1">
-              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Employee Loan Records</h1>
+              <h1 className="text-2xl md:text-3xl font-bold text-brand-primary">Employee Loan Records</h1>
               <span className="text-sm text-slate-500 mt-1 block">Complete historical log of employee bank loan repayments via payroll.</span>
             </div>
           </div>
@@ -186,7 +186,7 @@ const EastwestLoanHistory = () => {
                   <Button 
                     onClick={handleExportPDF}
                     disabled={isExporting || history.length === 0}
-                    className="bg-[#2A174E] hover:bg-[#1a0e30] text-white font-bold shadow-sm w-full md:w-auto"
+                    className="bg-brand-primary hover:bg-brand-primary-hover text-white font-bold shadow-sm w-full md:w-auto"
                   >
                     <DownloadIcon className="mr-2 h-4 w-4" /> 
                     {isExporting ? "Exporting..." : "Export History (PDF)"}
@@ -202,7 +202,7 @@ const EastwestLoanHistory = () => {
 
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card className="border-t-4 border-[#2A174E] shadow-sm">
+          <Card className="border-t-4 border-brand-primary shadow-sm">
             <CardContent className="flex justify-between items-start">
               <div>
                 <div className="flex items-center gap-1.5 mb-1">
@@ -216,15 +216,15 @@ const EastwestLoanHistory = () => {
                     </TooltipContent>
                   </Tooltip>
                 </div>
-                <p className="text-3xl font-bold text-[#2A174E]">{peso(stats.totalDeducted)}</p>
+                <p className="text-3xl font-bold text-brand-primary">{peso(stats.totalDeducted)}</p>
               </div>
-              <div className="bg-[#2A174E]/10 p-2 rounded-lg text-[#2A174E]">
+              <div className="bg-brand-primary/10 p-2 rounded-lg text-brand-primary">
                 <AccountBalanceIcon />
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-t-4 border-indigo-500 shadow-sm">
+          <Card className="border-t-4 border-accent-gold shadow-sm">
             <CardContent className=" flex justify-between items-start">
               <div>
                 <div className="flex items-center gap-1.5 mb-1">
@@ -238,15 +238,15 @@ const EastwestLoanHistory = () => {
                     </TooltipContent>
                   </Tooltip>
                 </div>
-                <p className="text-3xl font-bold text-indigo-700">{stats.totalBorrowers}</p>
+                <p className="text-3xl font-bold text-accent-gold">{stats.totalBorrowers}</p>
               </div>
-              <div className="bg-indigo-50 p-2 rounded-lg text-indigo-600">
+              <div className="bg-accent-gold/10 p-2 rounded-lg text-accent-gold">
                 <GroupIcon />
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-t-4 border-emerald-500 shadow-sm">
+          <Card className="border-t-4 border-accent-green shadow-sm">
             <CardContent className="flex justify-between items-start">
               <div>
                 <div className="flex items-center gap-1.5 mb-1">
@@ -260,9 +260,9 @@ const EastwestLoanHistory = () => {
                     </TooltipContent>
                   </Tooltip>
                 </div>
-                <p className="text-3xl font-bold text-emerald-700">{peso(stats.avgPerTransaction)}</p>
+                <p className="text-3xl font-bold text-accent-green">{peso(stats.avgPerTransaction)}</p>
               </div>
-              <div className="bg-emerald-50 p-2 rounded-lg text-emerald-600">
+              <div className="bg-accent-green/10 p-2 rounded-lg text-accent-green">
                 <AccountBalanceWalletIcon />
               </div>
             </CardContent>
@@ -305,7 +305,7 @@ const EastwestLoanHistory = () => {
         <Card className="shadow-sm border-0 bg-white py-0 overflow-hidden">
           <CardContent className="p-0 flex flex-col">
             <Table>
-              <TableHeader className="bg-[#2A174E]">
+              <TableHeader className="bg-brand-primary">
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="text-white font-bold py-4 px-6 uppercase text-[10px] tracking-wider">Date Filed</TableHead>
                   <TableHead className="text-white font-bold py-4 uppercase text-[10px] tracking-wider">Borrower Name</TableHead>
@@ -322,7 +322,7 @@ const EastwestLoanHistory = () => {
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col">
-                          <span className="font-bold text-[#2A174E] text-sm">{item.userName}</span>
+                          <span className="font-bold text-brand-primary text-sm">{item.userName}</span>
                           <span className="text-[10px] text-slate-400 font-mono uppercase">{formatUserId(item.user_Id)}</span>
                         </div>
                       </TableCell>

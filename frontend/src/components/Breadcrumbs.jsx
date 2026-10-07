@@ -278,7 +278,7 @@ const Breadcrumbs = () => {
           <React.Fragment key={index}>
             {index > 0 && <NavigateNextIcon className="text-[#ccc] !text-[18px]" />}
             {isLast || !item.path ? (
-              <span className="text-[#2A174E] font-bold text-xs md:text-sm">
+              <span className="text-brand-primary font-bold text-xs md:text-sm">
                 {index === 0 ? (
                   <span className="flex items-center gap-1.5">
                     <HomeIcon className="!text-[15px] md:!text-[18px]" />
@@ -291,7 +291,7 @@ const Breadcrumbs = () => {
             ) : (
               <Link 
                 to={item.path} 
-                className="flex items-center gap-1.5 text-[#888] text-xs md:text-sm transition-all duration-200 ease-in hover:text-[#2A174E] hover:underline"
+                className="flex items-center gap-1.5 text-[#888] text-xs md:text-sm transition-all duration-200 ease-in hover:text-brand-primary hover:underline"
               >
                 {index === 0 && <HomeIcon className="!text-[15px] md:!text-[18px]" />}
                 <span>{item.label}</span>

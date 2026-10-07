@@ -9,7 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { Edit2, Eye, Pause, Search, Plus, X, Filter } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import LoanAdjustmentDialog from "@/components/LoanAdjustmentDialog";
 import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
@@ -53,17 +53,51 @@ export default function LoanManagement() {
   const [typeFilter, setTypeFilter] = useState("ALL");
 
   // Filtering Logic
-  const filteredLoans = activeLoans.filter(loan => {
-    const matchesSearch = 
-      loan.employee.toLowerCase().includes(searchQuery.toLowerCase()) || 
-      (loan.title && loan.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      loan.govtype.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesStatus = statusFilter === "ALL" || loan.status.toUpperCase() === statusFilter;
-    const matchesType = typeFilter === "ALL" || loan.govtype.toUpperCase() === typeFilter.toUpperCase();
-    
-    return matchesSearch && matchesStatus && matchesType;
-  });
+  const filteredLoans = useMemo(() => {
+    return activeLoans.filter(loan => {
+      const query = searchQuery.toLowerCase().trim();
+      const empName = (loan.employee || "").toLowerCase();
+      const loanTitle = (loan.title || "").toLowerCase();
+      const govType = (loan.govtype || "").toLowerCase();
+      const empIdStr = loan.employeeId ? `macj-${String(loan.employeeId).padStart(3, '0')}`.toLowerCase() : "";
+
+      const matchesSearch = !query || 
+        empName.includes(query) || 
+        loanTitle.includes(query) ||
+        govType.includes(query) ||
+        empIdStr.includes(query);
+      
+      const matchesStatus = statusFilter === "ALL" || (loan.status || "").toUpperCase() === statusFilter.toUpperCase();
+      
+      let matchesType = true;
+      if (typeFilter !== "ALL") {
+        const govTypeUpper = (loan.govtype || "").toUpperCase();
+
+        switch (typeFilter) {
+          case "SSS_CALAMITY":
+            matchesType = govTypeUpper.includes("SSS") && govTypeUpper.includes("CALAMITY");
+            break;
+          case "SSS_SALARY":
+            matchesType = govTypeUpper.includes("SSS") && (govTypeUpper.includes("SALARY") || govTypeUpper.includes("SAL"));
+            break;
+          case "SSS_EMERGENCY":
+            matchesType = govTypeUpper.includes("SSS") && govTypeUpper.includes("EMERGENCY");
+            break;
+          case "PAGIBIG_CALAMITY":
+            matchesType = (govTypeUpper.includes("PAG-IBIG") || govTypeUpper.includes("PAGIBIG") || govTypeUpper.includes("HDMF")) && govTypeUpper.includes("CALAMITY");
+            break;
+          case "PAGIBIG_MPL":
+            matchesType = (govTypeUpper.includes("PAG-IBIG") || govTypeUpper.includes("PAGIBIG") || govTypeUpper.includes("HDMF")) && (govTypeUpper.includes("MPL") || govTypeUpper.includes("MULTI"));
+            break;
+          default:
+            matchesType = govTypeUpper === typeFilter.toUpperCase() || govTypeUpper.includes(typeFilter.toUpperCase());
+            break;
+        }
+      }
+      
+      return matchesSearch && matchesStatus && matchesType;
+    });
+  }, [activeLoans, searchQuery, statusFilter, typeFilter]);
 
   const stats = {
     totalLoans: activeLoans.length,
@@ -122,7 +156,7 @@ export default function LoanManagement() {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         {/* Header Text Group */}
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">Government Loans</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-brand-primary leading-tight">Government Loans</h1>
           <span className="text-sm text-slate-500 mt-1 block">Manage loan records - view details, make adjustments, or close loans</span>
         </div>
 
@@ -134,7 +168,7 @@ export default function LoanManagement() {
                 <Button 
                   variant="outline" 
                   asChild
-                  className="w-full border-[#2A174E]/20 hover:text-[#2A174E] text-[#2A174E]/70 font-semibold shadow-sm transition-all"
+                  className="w-full border-brand-primary/20 hover:text-brand-primary text-brand-primary/70 font-semibold shadow-sm transition-all"
                 >
                   <Link 
                     to="/govloans" 
@@ -150,7 +184,7 @@ export default function LoanManagement() {
             </TooltipContent>
           </Tooltip>
           
-          {/* <Button onClick={() => setShowLoanModal(true)} className="bg-[#2A174E] hover:bg-[#7A52B5]">
+          {/* <Button onClick={() => setShowLoanModal(true)} className="bg-brand-primary hover:bg-[#7A52B5]">
             <Plus className="mr-2 h-4 w-4" /> Create Custom Loan
           </Button> */}
         </div>
@@ -160,93 +194,93 @@ export default function LoanManagement() {
         <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-8 w-full">
           
           {/* Card 1: Total Loans */}
-          <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+          <Card className="border-t-5 border-brand-primary bg-white py-0 h-full">
             <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
               <div>
                 <div className="flex items-center gap-1.5 mb-2">
-                  <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider">Total Loans</p>
+                  <p className="text-xs font-bold text-brand-primary uppercase tracking-wider">Total Loans</p>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#2A174E]/60 hover:text-[#2A174E] cursor-help" />
+                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-brand-primary/60 hover:text-brand-primary cursor-help" />
                     </TooltipTrigger>
                     <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
                       Total number of active loan contracts.
                     </TooltipContent>
                   </Tooltip>
                 </div>
-                <p className="text-4xl font-bold text-[#2A174E]">{loading ? "..." : stats.totalLoans}</p>
+                <p className="text-4xl font-bold text-brand-primary">{loading ? "..." : stats.totalLoans}</p>
               </div>
-              <p className="text-xs text-[#2A174E]/70 italic mt-4">Total loan agreements created</p>
+              <p className="text-xs text-brand-primary/70 italic mt-4">Total loan agreements created</p>
             </CardContent>
           </Card>
 
 
           {/* Card 3: Total Disbursed */}
-          <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
+          <Card className="border-t-5 border-accent-gold bg-white py-0 h-full">
             <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
               <div>
                 <div className="flex items-center gap-1.5 mb-2">
-                  <p className="text-xs font-bold text-[#BB8B26] uppercase tracking-wider">Total Disbursed</p>
+                  <p className="text-xs font-bold text-accent-gold uppercase tracking-wider">Total Disbursed</p>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#BB8B26]/60 hover:text-[#BB8B26] cursor-help" />
+                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-accent-gold/60 hover:text-accent-gold cursor-help" />
                     </TooltipTrigger>
                     <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
                       Cumulative initial principal amount lent to employees.
                     </TooltipContent>
                   </Tooltip>
                 </div>
-                <p className="text-4xl font-bold text-[#BB8B26]">
+                <p className="text-4xl font-bold text-accent-gold">
                   {loading ? "₱0.00" : `₱${stats.totalDisbursed.toLocaleString()}`}
                 </p>
               </div>
-              <p className="text-xs text-[#BB8B26]/70 italic mt-4">Cumulative loan principal amount</p>
+              <p className="text-xs text-accent-gold/70 italic mt-4">Cumulative loan principal amount</p>
             </CardContent>
           </Card>
 
           {/* Card 4: Total Collected */}
-          <Card className="border-t-5 border-[#174e4e] bg-white py-0 h-full">
+          <Card className="border-t-5 border-accent-green bg-white py-0 h-full">
             <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
               <div>
                 <div className="flex items-center gap-1.5 mb-2">
-                  <p className="text-xs font-bold text-[#174e4e] uppercase tracking-wider">Total Collected</p>
+                  <p className="text-xs font-bold text-accent-green uppercase tracking-wider">Total Collected</p>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#174e4e]/60 hover:text-[#174e4e] cursor-help" />
+                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-accent-green/60 hover:text-accent-green cursor-help" />
                     </TooltipTrigger>
                     <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
                       Total cumulative repayments collected from employees.
                     </TooltipContent>
                   </Tooltip>
                 </div>
-                <p className="text-4xl font-bold text-[#174e4e]">
+                <p className="text-4xl font-bold text-accent-green">
                   {loading ? "₱0.00" : `₱${stats.totalCollected.toLocaleString()}`}
                 </p>
               </div>
-              <p className="text-xs text-[#174e4e]/70 italic mt-4">Total payments received</p>
+              <p className="text-xs text-accent-green/70 italic mt-4">Total payments received</p>
             </CardContent>
           </Card>
 
           {/* Card 5: Outstanding */}
-          <Card className="border-t-5 border-[#a12626] bg-white py-0 h-full">
+          <Card className="border-t-5 border-status-danger bg-white py-0 h-full">
             <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
               <div>
                 <div className="flex items-center gap-1.5 mb-2">
-                  <p className="text-xs font-bold text-[#a12626] uppercase tracking-wider">Outstanding</p>
+                  <p className="text-xs font-bold text-status-danger uppercase tracking-wider">Outstanding</p>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#a12626]/60 hover:text-[#a12626] cursor-help" />
+                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-status-danger/60 hover:text-status-danger cursor-help" />
                     </TooltipTrigger>
                     <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
                       Remaining unpaid loan balance.
                     </TooltipContent>
                   </Tooltip>
                 </div>
-                <p className="text-4xl font-bold text-[#a12626]">
+                <p className="text-4xl font-bold text-status-danger">
                   {loading ? "₱0.00" : `₱${stats.outstanding.toLocaleString()}`}
                 </p>
               </div>
-              <p className="text-xs text-[#a12626]/70 italic mt-4">Remaining balance to collect</p>
+              <p className="text-xs text-status-danger/70 italic mt-4">Remaining balance to collect</p>
             </CardContent>
           </Card>
 
@@ -264,7 +298,7 @@ export default function LoanManagement() {
                 placeholder="Search employee or loan title..."
                 value={searchQuery}
                 onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-                className="pl-10 border-slate-200 focus-visible:ring-[#2A174E] w-full"
+                className="pl-10 border-slate-200 focus-visible:ring-brand-primary w-full"
               />
             </div>
             
@@ -275,14 +309,28 @@ export default function LoanManagement() {
               <div className="flex items-center gap-2 w-full sm:w-auto">
                 <Filter className="text-slate-400 h-5 w-5 hidden sm:block" />
                 <Select value={typeFilter} onValueChange={(val) => { setTypeFilter(val); setCurrentPage(1); }}>
-                  <SelectTrigger className="w-full sm:w-[160px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors font-semibold text-slate-700">
+                  <SelectTrigger className="w-full sm:w-[175px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors font-semibold text-slate-700">
                     <SelectValue placeholder="Filter by Type" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ALL">All Types</SelectItem>
-                    <SelectItem value="SSS">SSS</SelectItem>
-                    <SelectItem value="HDMF">HDMF</SelectItem>
-                    <SelectItem value="CALAMITY">Calamity</SelectItem>
+                    <SelectSeparator />
+                    <SelectGroup>
+                      <SelectLabel className="font-bold text-xs uppercase tracking-wider text-brand-primary px-2 py-1.5">
+                        SSS
+                      </SelectLabel>
+                      <SelectItem value="SSS_CALAMITY">Calamity Loan</SelectItem>
+                      <SelectItem value="SSS_SALARY">Salary</SelectItem>
+                      <SelectItem value="SSS_EMERGENCY">Emergency</SelectItem>
+                    </SelectGroup>
+                    <SelectSeparator />
+                    <SelectGroup>
+                      <SelectLabel className="font-bold text-xs uppercase tracking-wider text-brand-primary px-2 py-1.5">
+                        Pag-ibig
+                      </SelectLabel>
+                      <SelectItem value="PAGIBIG_CALAMITY">Calamity</SelectItem>
+                      <SelectItem value="PAGIBIG_MPL">MPL</SelectItem>
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
               </div>
@@ -329,8 +377,8 @@ export default function LoanManagement() {
             onClick={() => { setViewMode("table"); setCurrentPage(1); }}
             className={`h-7 text-xs font-bold transition-all px-4 ${
               viewMode === "table" 
-                ? "bg-white text-[#2A174E] shadow-sm hover:bg-white" 
-                : "text-slate-500 hover:text-[#2A174E]"
+                ? "bg-white text-brand-primary shadow-sm hover:bg-white" 
+                : "text-slate-500 hover:text-brand-primary"
             }`}
           >
             Table Mode
@@ -341,8 +389,8 @@ export default function LoanManagement() {
             onClick={() => { setViewMode("grid"); setCurrentPage(1); }}
             className={`h-7 text-xs font-bold transition-all px-4 ${
               viewMode === "grid" 
-                ? "bg-white text-[#2A174E] shadow-sm hover:bg-white" 
-                : "text-slate-500 hover:text-[#2A174E]"
+                ? "bg-white text-brand-primary shadow-sm hover:bg-white" 
+                : "text-slate-500 hover:text-brand-primary"
             }`}
           >
             Grid Mode
@@ -350,24 +398,24 @@ export default function LoanManagement() {
         </div>
 
         {viewMode === 'table' ? (
-        <Card className="py-0">
-          <CardHeader className="bg-[#2A174E] flex flex-row items-center justify-between pt-4 pb-4">
+        <Card className="shadow-sm border-0 bg-white py-0 overflow-hidden">
+          {/* <CardHeader className="bg-brand-primary flex flex-row items-center justify-between pt-4 pb-4">
             <CardTitle className="text-white font-semibold">Active Loans</CardTitle>
-          </CardHeader>
-          <CardContent className="px-4">
+          </CardHeader> */}
+          <CardContent className="p-0 flex flex-col">
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider">GOV TYPE</TableHead>
-                    <TableHead className="font-semibold text-[#2A174E] py-4  uppercase text-xs tracking-wider">EMPLOYEE</TableHead>
-                    <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider">LOAN TITLE</TableHead>
-                    <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider">PRINCIPAL</TableHead>
-                    <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider">PAID</TableHead>
-                    <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider">OUTSTANDING</TableHead>
-                    <TableHead className="font-semibold text-[#2A174E] py-4 uppercase text-xs tracking-wider">PROGRESS</TableHead>
-                    <TableHead className="font-semibold text-[#2A174E] py-4  uppercase text-xs tracking-wider">STATUS</TableHead>
-                    <TableHead className="font-semibold text-[#2A174E] py-4  pl-10 uppercase text-xs tracking-wider">ACTIONS</TableHead>
+                <TableHeader className="bg-brand-primary">
+                  <TableRow className="bg-brand-primary text-white hover:bg-brand-primary">
+                    <TableHead className="font-semibold text-white py-4 pl-6 uppercase text-xs tracking-wider">GOV TYPE</TableHead>
+                    <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">EMPLOYEE</TableHead>
+                    <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">LOAN TITLE</TableHead>
+                    <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">PRINCIPAL</TableHead>
+                    <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">PAID</TableHead>
+                    <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">OUTSTANDING</TableHead>
+                    <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">PROGRESS</TableHead>
+                    <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">STATUS</TableHead>
+                    <TableHead className="font-semibold text-white py-4 pr-6 text-center uppercase text-xs tracking-wider">ACTIONS</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -377,15 +425,15 @@ export default function LoanManagement() {
                     </TableRow>
                   ) : currentLoans.length > 0 ? (
                     currentLoans.map((loan) => (
-                      <TableRow key={loan.id}>
-                        <TableCell className="font-bold text-[11px] text-[#2A174E]">
-                          <Badge variant="outline" className="border-[#2A174E]/20 text-[#2A174E] bg-[#2A174E]/5 rounded uppercase">
+                      <TableRow key={loan.id} className="hover:bg-slate-50/50 transition-colors">
+                        <TableCell className="font-bold text-[11px] text-brand-primary pl-6">
+                          <Badge variant="outline" className="border-brand-primary/20 text-brand-primary bg-brand-primary/5 rounded uppercase">
                             {loan.govtype}
                           </Badge>
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-col text-left">
-                            <span className="font-bold text-[#2A174E]">{loan.employee}</span>
+                            <span className="font-bold text-brand-primary">{loan.employee}</span>
                             <span className="text-[10px] text-slate-400 font-mono">MACJ-{String(loan.employeeId).padStart(3, '0')}</span>
                           </div>
                         </TableCell>
@@ -396,7 +444,7 @@ export default function LoanManagement() {
                         <TableCell className="w-40">
                           <div className="flex items-center gap-2">
                             <Progress value={loan.progress} className="h-1.5" />
-                            <span className="text-[10px] font-black text-[#2A174E]">{loan.progress}%</span>
+                            <span className="text-[10px] font-black text-brand-primary">{loan.progress}%</span>
                           </div>
                         </TableCell>
                         <TableCell>
@@ -404,7 +452,7 @@ export default function LoanManagement() {
                             {loan.status.toUpperCase()}
                           </Badge>
                         </TableCell>
-                        <TableCell className="flex text-muted-foreground justify-center">
+                        <TableCell className="flex text-muted-foreground justify-center pr-6">
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <span className="inline-block">
@@ -412,7 +460,7 @@ export default function LoanManagement() {
                                   variant="ghost" 
                                   size="icon" 
                                   onClick={() => navigate(`/loanDetails/${loan.id}`)}
-                                  className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0]"
+                                  className="border-brand-primary/20 text-brand-primary hover:bg-brand-primary-light hover:border-brand-primary/40"
                                   >
                                   <Eye className="h-4 w-4" />
                                 </Button>
@@ -471,17 +519,17 @@ export default function LoanManagement() {
                 {/* Card Header Profile Block */}
                 <CardHeader className="bg-slate-50/60 pb-3 border-b border-slate-100 flex flex-row items-center justify-between space-y-0">
                   <div className="flex items-center gap-3 truncate mr-2">
-                    <div className="p-2 bg-[#2A174E]/10 rounded-lg text-[#2A174E] shrink-0">
+                    <div className="p-2 bg-brand-primary/10 rounded-lg text-brand-primary shrink-0">
                       <Edit2 className="h-4 w-4" />
                     </div>
                     <div className="truncate text-left">
-                      <h4 className="text-sm font-bold text-[#2A174E] truncate">{group.employeeName}</h4>
+                      <h4 className="text-sm font-bold text-brand-primary truncate">{group.employeeName}</h4>
                       <span className="text-[10px] font-mono font-semibold text-slate-400 mt-0.5 block">MACJ-{String(group.employeeId).padStart(3, '0')}</span>
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-1 max-w-[150px] justify-end">
                     {group.loanTypes.map((type, idx) => (
-                      <Badge key={idx} variant="outline" className="text-[9px] font-black px-1.5 py-0 border-[#2A174E]/20 text-[#2A174E] bg-[#2A174E]/5 rounded">
+                      <Badge key={idx} variant="outline" className="text-[9px] font-black px-1.5 py-0 border-brand-primary/20 text-brand-primary bg-brand-primary/5 rounded">
                         {type}
                       </Badge>
                     ))}
@@ -532,7 +580,7 @@ export default function LoanManagement() {
                         <div key={subLoan.id} className="flex justify-between items-center text-xs p-2 bg-slate-50 rounded border border-slate-100 hover:bg-slate-100/70 transition-colors">
                           <div className="min-w-0 flex-1 mr-2">
                             <div className="flex items-center gap-1.5">
-                              <span className="font-bold text-[#2A174E] text-[11px] shrink-0">{subLoan.govtype}</span>
+                              <span className="font-bold text-brand-primary text-[11px] shrink-0">{subLoan.govtype}</span>
                               <span className="text-slate-500 truncate text-[10px]">{subLoan.title || "No Title"}</span>
                             </div>
                             <span className="text-[10px] text-slate-400 font-medium mt-0.5 block">
@@ -545,7 +593,7 @@ export default function LoanManagement() {
                                 <Button 
                                   variant="ghost" 
                                   size="icon" 
-                                  className="h-7 w-7 text-slate-400 hover:text-[#2A174E] rounded-full"
+                                  className="h-7 w-7 text-slate-400 hover:text-brand-primary rounded-full"
                                   onClick={() => navigate(`/loanDetails/${subLoan.id}`)}
                                 >
                                   <Eye className="h-3.5 w-3.5" />
@@ -605,7 +653,7 @@ export default function LoanManagement() {
         {/* Loan Creation Modal */}
         <Dialog open={showLoanModal} onOpenChange={setShowLoanModal}>
           <DialogContent className="max-w-2xl bg-white p-0 overflow-hidden border-0 shadow-2xl">
-            <DialogHeader className="bg-[#2A174E] text-white p-6 relative">
+            <DialogHeader className="bg-brand-primary text-white p-6 relative">
               <DialogTitle className="text-xl font-bold">Create Custom Loan</DialogTitle>
               <DialogDescription className="text-purple-200">Set up a new employee loan agreement.</DialogDescription>
               <button onClick={() => setShowLoanModal(false)} className="absolute top-4 right-4 text-white/70 hover:text-white"><X className="h-5 w-5" /></button>
@@ -650,7 +698,7 @@ export default function LoanManagement() {
 
               <div className="flex gap-4 pt-4">
                 <Button variant="outline" className="flex-1" onClick={() => setShowLoanModal(false)}>Cancel</Button>
-                <Button className="flex-1 bg-[#2A174E] text-white hover:bg-[#1a0e30]">Create Loan</Button>
+                <Button className="flex-1 bg-brand-primary text-white hover:bg-brand-primary-hover">Create Loan</Button>
               </div>
             </div>
           </DialogContent>

@@ -32,13 +32,13 @@ const Featured = ({ stats, loading }) => {
             styles={buildStyles({
                 pathColor: "#BA90E9",
                 textColor: "#040405",
-                trailColor: "#f0ebfa"
+                trailColor: "var(--color-brand-primary-light)"
             })}
           />
         </div>
         <div className="text-center">
           <p className=" text-gray-500 text-sm">Employees Present</p>
-          <p className="text-4xl font-bold text-[#2A174E] mt-1">{presentCount}/{stats.totalEmployees}</p>
+          <p className="text-4xl font-bold text-brand-primary mt-1">{presentCount}/{stats.totalEmployees}</p>
         </div>
         <p className="font-light text-xs text-gray-400 text-center px-4">
           Real-time snapshot of the workforce currently active in the system.

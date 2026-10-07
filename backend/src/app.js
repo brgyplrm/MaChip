@@ -24,7 +24,11 @@ initSocket(server);
 app.set("trust proxy", 1);
 
 // 2. Parse body and cookies first
-app.use(express.json());
+app.use(express.json({
+  verify: (req, res, buf) => {
+    req.rawBody = buf.toString('utf8');
+  }
+}));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
@@ -56,7 +60,7 @@ app.use((req, res, next) => {
     const duration = Date.now() - start;
     const userNumber = req.user ? formatUserNumber(req.user.user_Id) : "ANONYMOUS";
     const userIdStr = req.user ? ` (ID: ${req.user.user_Id})` : "";
-    const statusIcon = res.statusCode >= 400 ? "❌" : "✅";
+    const statusIcon = res.statusCode >= 400 ? "[FAIL]" : "[OK]";
     
     // Only output to VSCode terminal if it's not a silent 1-second heartbeat poll or if an error occurred
     if (!isSilentPolling || res.statusCode >= 400) {
@@ -144,6 +148,8 @@ const hardwareRoutes = require("./routes/hardware.routes.js");
 app.use("/api/users", userRoutes);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/request", requestRoutes);
+app.use("/api/requests", requestRoutes);
+app.use("/api/userRequests", requestRoutes);
 app.use("/api/payroll", payrollRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/system", systemRoutes);
@@ -173,6 +179,7 @@ const { initializeStorageStructure } = require("./utils/fileStorage");
 const { initializeAnnualLeaveBalances } = require("./utils/leaveBalanceHelper");
 const { processEmailQueue } = require("./utils/emailService");
 const { processAutoSeparations } = require("./utils/separationTask");
+const { startUdpDiscovery } = require("./utils/udpDiscovery");
 
 // ── Database Connection and Background Tasks ──────────────────────────────────
 connectDB().then(async () => {
@@ -180,8 +187,9 @@ connectDB().then(async () => {
   const PORT = process.env.PORT || 4000;
   server.listen(PORT, "0.0.0.0", () => {
     console.log(`Server is running on port ${PORT} (Listening on 0.0.0.0).`);
+    startUdpDiscovery();
     console.log("==========================================================");
-    console.log(" 🌐 ESP32 SECURED WEB SERIAL CONSOLE ACCESS INFO");
+    console.log(" [*] ESP32 SECURED WEB SERIAL CONSOLE ACCESS INFO");
     console.log(" └─ Direct URL:  http://192.168.1.86/console");
     console.log(" └─ mDNS URL:    http://machip-esp32.local/console");
     console.log(" └─ Admin User:  admin");

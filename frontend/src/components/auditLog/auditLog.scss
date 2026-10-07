@@ -1,5 +1,5 @@
 /* src/pages/auditLog/auditLog.scss */
-$primary-purple: #2A174E;
+$primary-purple: var(--color-brand-primary);
 
 .auditLogs {
   display: flex;
@@ -111,7 +111,7 @@ $primary-purple: #2A174E;
           th { text-align: left; padding: 18px; color: #4a5568; font-size: 12px; border-bottom: 2px solid #f1f3f5; text-transform: uppercase; font-weight: 700; white-space: nowrap;}
           td { padding: 18px; border-bottom: 1px solid #f8f9fa; font-size: 14px; color: #2d3748; }
           
-          .adminCell { font-weight: 600; color: #2A174E; }
+          .adminCell { font-weight: 600; color: var(--color-brand-primary); }
           .timeCell { color: #718096; font-size: 13px; }
           .detailsCell { font-size: 13px; font-style: italic; color: #4a5568; }
 
@@ -278,7 +278,7 @@ $primary-purple: #2A174E;
         padding: 20px 25px;
         border-bottom: 1px solid #eee;
         display: flex; justify-content: space-between; align-items: center;
-        h3 { margin: 0; color: #2A174E; font-size: 18px; text-transform: capitalize; }
+        h3 { margin: 0; color: var(--color-brand-primary); font-size: 18px; text-transform: capitalize; }
         .closeIcon { cursor: pointer; color: #888; &:hover { color: #333; } }
       }
 

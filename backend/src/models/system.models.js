@@ -15,6 +15,10 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.DATE,
         allowNull: true,
       },
+      mockTimeSetAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
       maxicareTotalGross: {
         type: DataTypes.FLOAT,
         defaultValue: 23410.67,
@@ -44,6 +48,7 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
       },
       // Shift Configurations
+      enableNightShift: { type: DataTypes.BOOLEAN, defaultValue: false },
       morningShiftStart: { type: DataTypes.TIME, defaultValue: "08:30:00" },
       morningShiftEnd: { type: DataTypes.TIME, defaultValue: "17:30:00" },
       eveningShiftStart: { type: DataTypes.TIME, defaultValue: "20:30:00" },
@@ -86,6 +91,26 @@ module.exports = (sequelize, DataTypes) => {
       payrollGracePeriodDays: {
         type: DataTypes.INTEGER,
         defaultValue: 7,
+      },
+      payrollCutoffBufferDays: {
+        type: DataTypes.INTEGER,
+        defaultValue: 2,
+      },
+      payrollProcessingDeadlineDays: {
+        type: DataTypes.INTEGER,
+        defaultValue: 3,
+      },
+      payrollAutoRelease: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: true,
+      },
+      payrollRemindersEnabled: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: true,
+      },
+      payrollWeekendRule: {
+        type: DataTypes.STRING(30),
+        defaultValue: 'PRECEDING_FRIDAY',
       },
       archivedRetentionYears: {
         type: DataTypes.INTEGER,

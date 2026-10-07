@@ -24,6 +24,7 @@ import { Badge } from "./ui/badge";
 import TuneIcon from '@mui/icons-material/Tune';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { cn } from "../lib/utils";
+import { getStoredUser, getStoredViewMode, setStoredViewMode, clearStoredAuth } from "../utils/authStorage";
 
 import {
   Sidebar as ShadcnSidebar,
@@ -126,12 +127,12 @@ const Sidebar = ({ children }) => {
     location.pathname.startsWith("/loanManagementHub")
   );
   
-  const [userData, setUserData] = useState(JSON.parse(localStorage.getItem("userData")));
+  const [userData, setUserData] = useState(() => getStoredUser());
 
   // Refresh user data if updated elsewhere (e.g. Profile Edit)
   useEffect(() => {
     const refreshUserData = () => {
-      setUserData(JSON.parse(localStorage.getItem("userData")));
+      setUserData(getStoredUser());
     };
     window.addEventListener("userUpdate", refreshUserData);
     return () => window.removeEventListener("userUpdate", refreshUserData);
@@ -140,7 +141,7 @@ const Sidebar = ({ children }) => {
   const { isMockTime } = useSystemTime();
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState([]);
-  const [viewMode, setViewMode] = useState(localStorage.getItem("viewMode") || "management");
+  const [viewMode, setViewMode] = useState(() => getStoredViewMode("management"));
   
   // New Role Check Logic
   // Admin = 1, Supervisor = 2, Employee = 3, Accountant = 4
@@ -150,6 +151,36 @@ const Sidebar = ({ children }) => {
   const isAdmin = (roleId === 1) && viewMode === "management";
   const isMaster = (roleId === 1 || roleId === 4) && viewMode === "management";
   const isAccountant = roleId === 4;
+
+  const getRoleBadge = () => {
+    const rawRole = userData?.user_Role;
+    const numericRoleId = Number(userData?.user_RoleId);
+
+    if (numericRoleId === 1 || rawRole === "Admin Manager" || rawRole === "Administrator" || rawRole === "Admin") {
+      return {
+        label: "Admin Manager",
+        className: "bg-brand-primary/10 text-brand-primary border-brand-primary/25"
+      };
+    }
+    if (numericRoleId === 4 || rawRole === "Admin Accountant" || rawRole === "Accountant") {
+      return {
+        label: "Admin Accountant",
+        className: "bg-[#B06E16]/10 text-[#8C550E] border-[#B06E16]/25"
+      };
+    }
+    if (numericRoleId === 2 || rawRole === "Supervisor") {
+      return {
+        label: "Supervisor",
+        className: "bg-accent-green/10 text-accent-green border-accent-green/25"
+      };
+    }
+    return {
+      label: rawRole || "Employee",
+      className: "bg-slate-100 text-slate-700 border-slate-200"
+    };
+  };
+
+  const roleBadge = getRoleBadge();
 
   const homePath = isManagement || isSupervisor ? "/" : "/employeeHome";
   const isActive = (path) => location.pathname === path;
@@ -207,16 +238,23 @@ const Sidebar = ({ children }) => {
   }, []);
 
   // --- Auth & User Logic ---
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("userData");
-    localStorage.removeItem("viewMode");
-    navigate("/login");
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_Id: userData?.user_Id }),
+        credentials: "include",
+      }).catch(() => {});
+    } finally {
+      clearStoredAuth();
+      navigate("/login");
+    }
   };
 
   const toggleViewMode = () => {
     const newMode = viewMode === "management" ? "employee" : "management";
-    localStorage.setItem("viewMode", newMode);
+    setStoredViewMode(newMode);
     setViewMode(newMode);
     navigate(newMode === "employee" ? "/employeeHome" : "/");
     window.dispatchEvent(new Event("storage"));
@@ -272,6 +310,9 @@ const Sidebar = ({ children }) => {
 
     // 3. Navigate to relevant destination
     const titleLower = (notif.title || "").toLowerCase();
+    const msg = notif.message || "";
+    const targetReqId = notif.targetId || msg.match(/#(\d+)/)?.[1] || notif.title?.match(/#(\d+)/)?.[1];
+
     if (
       titleLower.includes("irregular log") ||
       titleLower.includes("unrecognized") ||
@@ -281,12 +322,19 @@ const Sidebar = ({ children }) => {
       navigate("/transactionLog");
     } else if (notif.title === "Password Reset Request" && notif.targetId) {
       navigate(`/users/edit/${notif.targetId}`);
+    } else if (targetReqId) {
+      const userRole = Number(userData?.user_RoleId);
+      if (userRole === 1 || userRole === 2 || userRole === 4) {
+        navigate(`/adminRequests?requestId=${targetReqId}`, {
+          state: { selectedReqId: parseInt(targetReqId, 10) }
+        });
+      } else {
+        navigate(`/requests/${targetReqId}`);
+      }
     } else if (notif.title === "New Request for Review") {
       navigate("/adminRequests");
     } else if (userData?.user_RoleId === 3) {
       navigate("/userRequests");
-    } else if (notif.targetId) {
-      navigate(`/requests/${notif.targetId}`);
     }
   };
 
@@ -597,13 +645,14 @@ const Sidebar = ({ children }) => {
   );
 
   const subMenuButtonClass = (active) => cn(
-    "transition-all duration-200 !h-8 px-3 rounded-md flex items-center w-full text-gray-500 hover:bg-[#f7f2fe] hover:text-[#2A174E]",
-    active ? "bg-[#f0ebfa] text-[#2A174E]" : ""
+    "transition-all duration-200 !h-8 px-3 rounded-md flex items-center w-full text-gray-500 hover:bg-[#f7f2fe] hover:text-brand-primary",
+    active ? "bg-brand-primary-light text-brand-primary" : ""
   );
 
   // Users active state variables
   const isViewAllUsersActive = location.pathname === "/users" || (location.pathname.startsWith("/users/") && !location.pathname.includes("newUser") && !location.pathname.includes("archived") && !location.pathname.includes("hardware"));
   const isNewUserActive = location.pathname === "/users/newUser";
+  const isHardwareRegistryActive = location.pathname === "/users/hardware";
   const isArchivedUsersActive = location.pathname === "/users/archived";
 
   // Access Logs active state variables
@@ -641,13 +690,26 @@ const Sidebar = ({ children }) => {
     <SidebarProvider>
       <ShadcnSidebar collapsible="icon" className="bg-white border-r border-gray-200">
         <SidebarHeader className="p-4 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:h-14 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:justify-center border-b border-gray-100 relative overflow-hidden transition-all duration-200">
-          <Link to={homePath} className="flex no-underline items-center justify-center">
-            <img 
-              src="/logo2.png" 
-              alt="MAC-J Logo" 
-              className="w-[150px] group-data-[collapsible=icon]:w-8 object-contain transition-all duration-200"
-            />
-          </Link>
+          <div className="flex flex-col items-center justify-center gap-1.5 w-full group-data-[collapsible=icon]:gap-0">
+            <Link to={homePath} className="flex no-underline items-center justify-center">
+              <img 
+                src="/2026-Logo2.png" 
+                alt="MAC-J Logo" 
+                className="w-[150px] group-data-[collapsible=icon]:w-8 object-contain transition-all duration-200"
+              />
+            </Link>
+            <div className="group-data-[collapsible=icon]:hidden flex items-center justify-center">
+              <Badge 
+                variant="outline" 
+                className={cn(
+                  "text-[10px] font-bold tracking-wider uppercase px-2.5 py-0.5 h-auto rounded-full border shadow-none select-none",
+                  roleBadge.className
+                )}
+              >
+                {roleBadge.label}
+              </Badge>
+            </div>
+          </div>
           {isMockTime && (
             <div className="absolute top-2 right-2 group-data-[collapsible=icon]:hidden">
               <Badge className="bg-amber-500 hover:bg-amber-600 text-white text-[10px] px-1.5 h-4 border-none shadow-sm animate-pulse">
@@ -727,6 +789,13 @@ const Sidebar = ({ children }) => {
                               <SidebarMenuSubButton asChild isActive={isNewUserActive} className={subMenuButtonClass(isNewUserActive)}>
                                 <Link to="/users/newUser" className={cn("text-inherit font-medium", isNewUserActive ? "font-bold" : "")}>
                                   Add New User
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                            <SidebarMenuSubItem>
+                              <SidebarMenuSubButton asChild isActive={isHardwareRegistryActive} className={subMenuButtonClass(isHardwareRegistryActive)}>
+                                <Link to="/users/hardware" className={cn("text-inherit font-medium", isHardwareRegistryActive ? "font-bold" : "")}>
+                                  Hardware Registry
                                 </Link>
                               </SidebarMenuSubButton>
                             </SidebarMenuSubItem>
@@ -1134,10 +1203,10 @@ const Sidebar = ({ children }) => {
               >
                 <button 
                   onClick={() => setIsNotifLocked(!isNotifLocked)}
-                  className="relative p-2 text-gray-500 hover:text-[#2A174E] transition-colors block focus:outline-none"
+                  className="relative p-2 text-gray-500 hover:text-brand-primary transition-colors block focus:outline-none"
                 >
                   {location.pathname === "/notifications" ? (
-                    <NotificationsIcon className="!text-[26px] text-[#2A174E]" />
+                    <NotificationsIcon className="!text-[26px] text-brand-primary" />
                   ) : (
                     <NotificationsNoneIcon className="!text-[26px] hover:animate-bell-shake" />
                   )}
@@ -1152,11 +1221,11 @@ const Sidebar = ({ children }) => {
                 {showNotifMenu && (
                   <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                     <div className="px-4 py-3 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                      <span className="text-sm font-bold text-[#2A174E]">Recent Notifications</span>
+                      <span className="text-sm font-bold text-brand-primary">Recent Notifications</span>
                       <Link 
                         to="/notifications" 
                         onClick={() => { setIsNotifLocked(false); setIsNotifHovered(false); }}
-                        className="text-[11px] text-[#2A174E]/60 hover:underline font-semibold"
+                        className="text-[11px] text-brand-primary/60 hover:underline font-semibold"
                       >
                         View All
                       </Link>
@@ -1166,11 +1235,11 @@ const Sidebar = ({ children }) => {
                         notifications.map((notif) => (
                           <div 
                             key={notif.notifId} 
-                            className="group/notif relative px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer bg-[#f0ebfa]/30"
+                            className="group/notif relative px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer bg-brand-primary-light/30"
                             onClick={() => handleNotifClick(notif)}
                           >
                             <div className="flex gap-3 items-start">
-                              <div className="mt-1.5 shrink-0 w-2 h-2 rounded-full bg-[#2A174E]" />
+                              <div className="mt-1.5 shrink-0 w-2 h-2 rounded-full bg-brand-primary" />
                               <div className="flex-1 min-w-0 pr-2">
                                 <p className="text-[12px] text-gray-800 leading-snug line-clamp-2 font-medium">{notif.message}</p>
                                 <p className="text-[10px] text-gray-400 mt-1">{new Date(notif.createdAt).toLocaleString()}</p>
@@ -1197,7 +1266,7 @@ const Sidebar = ({ children }) => {
                       <Link 
                         to="/notifications" 
                         onClick={() => { setIsNotifLocked(false); setIsNotifHovered(false); }}
-                        className="block py-2.5 text-center text-[11px] font-bold text-[#2A174E] hover:bg-gray-50 border-t border-gray-100"
+                        className="block py-2.5 text-center text-[11px] font-bold text-brand-primary hover:bg-gray-50 border-t border-gray-100"
                       >
                         SEE ALL NOTIFICATIONS
                       </Link>
@@ -1218,7 +1287,7 @@ const Sidebar = ({ children }) => {
                   className={cn(
                     "flex text-sm rounded-full transition-all duration-300 active:scale-95 relative",
                     location.pathname === "/profile"
-                      ? "p-[2.5px] bg-gradient-to-r from-[#2A174E] via-[#7A52B5] to-[#2A174E] shadow-[0_0_15px_rgba(122,82,181,0.75)] animate-pulse"
+                      ? "p-[2.5px] bg-gradient-to-r from-brand-primary via-[#7A52B5] to-brand-primary shadow-[0_0_15px_rgba(122,82,181,0.75)] animate-pulse"
                       : "bg-gray-800 focus:ring-2 focus:ring-gray-300"
                   )}
                 >
@@ -1239,7 +1308,7 @@ const Sidebar = ({ children }) => {
                       <li>
                         <Link 
                           to="/profile" 
-                          className="flex items-center gap-3 px-4 py-2 hover:bg-[#f0ebfa] hover:text-[#2A174E] no-underline"
+                          className="flex items-center gap-3 px-4 py-2 hover:bg-brand-primary-light hover:text-brand-primary no-underline"
                           onClick={() => { setIsProfileLocked(false); setIsProfileHovered(false); }}
                         >
                           <AccountCircleOutlinedIcon className="!text-[18px]" /> Profile
@@ -1249,7 +1318,7 @@ const Sidebar = ({ children }) => {
                         <li>
                           <button 
                             onClick={() => { toggleViewMode(); setIsProfileLocked(false); setIsProfileHovered(false); }} 
-                            className="flex items-center w-full gap-3 px-4 py-2 text-left hover:bg-[#f0ebfa] hover:text-[#2A174E]"
+                            className="flex items-center w-full gap-3 px-4 py-2 text-left hover:bg-brand-primary-light hover:text-brand-primary"
                           >
                             <SwitchAccountIcon className="!text-[18px]" /> {viewMode === "management" ? "Switch to Employee View" : "Switch to Management View"}
                           </button>

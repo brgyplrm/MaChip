@@ -35,7 +35,9 @@ import SearchOffIcon from '@mui/icons-material/SearchOff';
 import EmptyState from "../../components/EmptyState";
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 
 // shadcn/ui components
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -56,6 +58,38 @@ const Home = () => {
     hour12: true
   });
   const [toast, setToast] = useState({ message: "", type: "success" });
+  const [isResettingTft, setIsResettingTft] = useState(false);
+
+  const handleResetTftScreen = async () => {
+    if (isResettingTft) return;
+    setIsResettingTft(true);
+    try {
+      const response = await fetchWithAuth("/api/esp/reset-screen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setToast({
+          message: "TFT screen successfully reset to default state (Scan RFID to Clock In).",
+          type: "success"
+        });
+      } else {
+        setToast({
+          message: data?.message || "Failed to reset TFT screen.",
+          type: "error"
+        });
+      }
+    } catch (error) {
+      console.error("Error resetting TFT screen:", error);
+      setToast({
+        message: "Network error occurred while resetting TFT screen.",
+        type: "error"
+      });
+    } finally {
+      setIsResettingTft(false);
+    }
+  };
   const [stats, setStats] = useState({
     totalEmployees: 0,
     officeOccupancy: 0,
@@ -101,10 +135,28 @@ const Home = () => {
 
   const fetchDashboardStats = async () => {
     try {
-      const response = await fetchWithAuth("/api/attendance/stats");
-      if (response.ok) {
-        const data = await response.json();
-        setStats(data);
+      const [statsRes, pendingRes] = await Promise.all([
+        fetchWithAuth("/api/attendance/stats"),
+        fetchWithAuth("/api/request/pending-count")
+      ]);
+
+      let pendingCount = null;
+      if (pendingRes && pendingRes.ok) {
+        const pendingData = await pendingRes.json();
+        pendingCount = Number(pendingData.count);
+      }
+
+      if (statsRes.ok) {
+        const data = await statsRes.json();
+        setStats({
+          ...data,
+          pendingCount: pendingCount !== null && !isNaN(pendingCount) ? pendingCount : (data.pendingCount || 0)
+        });
+      } else if (pendingCount !== null && !isNaN(pendingCount)) {
+        setStats(prev => ({
+          ...prev,
+          pendingCount
+        }));
       }
     } catch (error) {
       console.error("Error fetching dashboard stats:", error);
@@ -342,37 +394,69 @@ const Home = () => {
           {/* Greeting Banner */}
           <div className="rounded-xl p-0 md:p-0 mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 text-white w-full">
             <div>
-              <h1 className="text-2xl md:text-3xl font-extrabold mb-1 tracking-tight text-[#2A174E]">
+              <h1 className="text-2xl md:text-3xl font-extrabold mb-1 tracking-tight text-brand-primary">
                 {getGreeting()}, {userData?.user_FirstName || "User"}!
               </h1>
-              <p className="text-[#2A174E]/80 text-sm md:text-base font-medium">
+              <p className="text-brand-primary/80 text-sm md:text-base font-medium">
                 Here is what's happening today, {currentDate}.
               </p>
             </div>
             
-            <div className="shadow-sm flex bg-white border border-slate-200 px-5 py-3 rounded-xl flex-col gap-1 items-start min-w-[200px] transition-all duration-200 hover:shadow-md">
-              <p className="text-[10px] font-bold text-[#2A174E]/60 uppercase tracking-widest mb-0.5 flex items-center gap-1.5">
-                <AccessTimeIcon sx={{ fontSize: 12 }} />
-                <span>System Time</span>
-                <span className={`w-2 h-2 rounded-full ${isMockTime ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)] animate-pulse" : "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse"}`}></span>
-              </p>
-              <div className="flex flex-col">
-                <span className="text-2xl font-black tracking-tight text-[#2A174E] font-mono leading-none">
-                  {formattedTime}
-                </span>
-                {isMockTime && (
-                  <span className="text-[9px] text-amber-600 font-bold uppercase tracking-wider mt-1 animate-pulse">
-                    ⚠️ Mock Mode Active
+            <div className="flex flex-wrap sm:flex-nowrap items-stretch gap-3">
+              {/* System Time Card */}
+              <div className="shadow-sm flex bg-white border border-slate-200 px-5 py-3 rounded-xl flex-col justify-between gap-1 items-start min-w-[190px] transition-all duration-200 hover:shadow-md">
+                <p className="text-[10px] font-bold text-brand-primary/60 uppercase tracking-widest mb-0.5 flex items-center gap-1.5">
+                  <AccessTimeIcon sx={{ fontSize: 12 }} />
+                  <span>System Time</span>
+                  <span className={`w-2 h-2 rounded-full ${isMockTime ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)] animate-pulse" : "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse"}`}></span>
+                </p>
+                <div className="flex flex-col">
+                  <span className="text-2xl font-black tracking-tight text-brand-primary font-mono leading-none">
+                    {formattedTime}
                   </span>
-                )}
+                  {isMockTime && (
+                    <span className="text-[9px] text-amber-600 font-bold uppercase tracking-wider mt-1 animate-pulse">
+                      ⚠️ Mock Mode Active
+                    </span>
+                  )}
+                </div>
               </div>
+
+              {/* Reset TFT Screen to Default State Button */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={handleResetTftScreen}
+                    disabled={isResettingTft}
+                    type="button"
+                    className="shadow-sm flex bg-white border border-slate-200 px-4 py-3 rounded-xl flex-col justify-between items-start min-w-[140px] transition-all duration-200 hover:shadow-md hover:border-brand-primary/40 hover:bg-slate-50/80 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed group cursor-pointer text-left"
+                    aria-label="Reset TFT Screen to Default State"
+                  >
+                    <p className="text-[10px] font-bold text-brand-primary/60 uppercase tracking-widest mb-0.5 flex items-center gap-1.5 w-full">
+                      <RestartAltIcon 
+                        sx={{ fontSize: 13 }} 
+                        className={`text-brand-primary transition-transform duration-500 ${isResettingTft ? "animate-spin" : "group-hover:rotate-180"}`} 
+                      />
+                      <span>TFT Screen</span>
+                    </p>
+                    <div className="flex items-center gap-1.5 mt-auto">
+                      <span className="text-xs sm:text-sm font-extrabold tracking-tight text-brand-primary group-hover:text-brand-primary/90 transition-colors">
+                        {isResettingTft ? "Resetting..." : "Reset Screen"}
+                      </span>
+                    </div>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                  Reset the TFT screen into the default state (Scan RFID to Clock In).
+                </TooltipContent>
+              </Tooltip>
             </div>
           </div>
 
           {/* Border Top Widget Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
             <Link to="/logs" className="block outline-none hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
-              <Card className="bg-gradient-to-t from-[#2A174E] to-[#4A2C7D] shadow-sm py-0 h-full relative overflow-hidden">
+              <Card className="bg-gradient-to-t from-brand-primary to-[#4A2C7D] shadow-sm py-0 h-full relative overflow-hidden">
                 {/* Absolute Icon Container */}
                 <div className="absolute right-1 top-4 opacity-10">
                   <AssignmentIcon sx={{ fontSize: 200 }} className="text-white" />
@@ -408,7 +492,7 @@ const Home = () => {
             </Link>
 
             <Link to="/adminRequests" className="block outline-none hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
-              <Card className="bg-gradient-to-t from-[#3B4E17] to-[#5A6F2A] shadow-sm py-0 h-full relative overflow-hidden">
+              <Card className="bg-gradient-to-t from-[#5A6F2A] to-accent-green shadow-sm py-0 h-full relative overflow-hidden">
                 <div className="absolute right-1 top-4 opacity-10">
                   <SyncIcon sx={{ fontSize: 200 }} className="text-white" />
                 </div>
@@ -433,7 +517,7 @@ const Home = () => {
             </Link>
 
             <Link to="/payroll" className="block outline-none hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
-              <Card className="bg-gradient-to-t from-[#B06E16] to-[#D4AF37] shadow-sm py-0 h-full relative overflow-hidden">
+              <Card className="bg-gradient-to-t from-accent-gold to-[#6e6adc] shadow-sm py-0 h-full relative overflow-hidden">
                 <div className="absolute right-1 top-4 opacity-10">
                   <CreditCardIcon sx={{ fontSize: 200 }} className="text-white" />
                 </div>
@@ -463,7 +547,7 @@ const Home = () => {
           {/* Small Summary Section */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-2 w-full">
             {/* Donut Chart Card */}
-            <div className="bg-white p-5 rounded-xl shadow-sm flex flex-col border-t-4 border-[#2A174E] min-w-0">
+            <div className="bg-white p-5 rounded-xl shadow-sm flex flex-col border-t-4 border-brand-primary min-w-0">
               <div className="flex items-center gap-1.5 mb-1">
                 <h2 className="text-gray-500 font-medium">Arrival Breakdown</h2>
                 <Tooltip>
@@ -482,8 +566,8 @@ const Home = () => {
                     <div className="w-full h-full rounded-full border-[14px] border-muted/80 animate-pulse"></div>
                     {/* Inner Text Placeholder */}
                     <div className="absolute flex flex-col items-center justify-center">
-                      <span className="text-[10px] font-bold text-[#2A174E]/40 uppercase tracking-wider">No Data</span>
-                      <span className="text-xl font-extrabold text-[#2A174E]/30">0%</span>
+                      <span className="text-[10px] font-bold text-brand-primary/40 uppercase tracking-wider">No Data</span>
+                      <span className="text-xl font-extrabold text-brand-primary/30">0%</span>
                     </div>
                   </div>
                   {/* Legend Skeleton */}
@@ -539,47 +623,67 @@ const Home = () => {
             </div>
 
             {/* Recent Pending Requests Card */}
-            <div className="bg-white p-5 rounded-xl shadow-sm flex flex-col border-t-4 border-[#3B4E17] min-w-0">
+            <div className="bg-white p-5 rounded-xl shadow-sm flex flex-col border-t-4 border-accent-green min-w-0">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-gray-500 font-medium">Pending Requests</h2>
-                <Link to="/adminRequests" className="text-xs text-[#3B4E17]/60 font-semibold hover:underline hover:text-[#3B4E17]/80">View All</Link>
+                <Link to="/adminRequests" className="text-xs text-accent-green/60 font-semibold hover:underline hover:text-accent-green/80">View All</Link>
               </div>
-              <div className="flex-1 space-y-4">
+              <div className="flex-1 space-y-3">
                 {pendingRequests.length > 0 ? (
-                  pendingRequests.map((req) => {
-                    const isLeave = req.reqTypeName?.includes("Leave");
-                    const isField = req.reqTypeName?.includes("Onfield");
-                    const isOvertime = req.reqTypeName?.includes("Overtime");
+                  <>
+                    <div className="space-y-3">
+                      {pendingRequests.map((req) => {
+                        const isLeave = req.reqTypeName?.includes("Leave");
+                        const isField = req.reqTypeName?.includes("Onfield");
+                        const isOvertime = req.reqTypeName?.includes("Overtime");
 
-                    let borderClass = "border-[#D4AF37]";
-                    let iconClass = "bg-[#D4AF37]/10 text-[#D4AF37] hover:bg-[#D4AF37]";
-                    
-                    if (isLeave) {
-                      borderClass = "border-green-500";
-                      iconClass = "bg-green-100 text-green-600 hover:bg-green-500";
-                    } else if (isField) {
-                      borderClass = "border-orange-500";
-                      iconClass = "bg-orange-100 text-orange-600 hover:bg-orange-500";
-                    } else if (isOvertime) {
-                      borderClass = "border-blue-500";
-                      iconClass = "bg-blue-100 text-blue-600 hover:bg-blue-500";
-                    }
+                        let borderClass = "border-[#D4AF37]";
+                        let iconClass = "bg-[#D4AF37]/10 text-[#D4AF37] hover:bg-[#D4AF37]";
+                        
+                        if (isLeave) {
+                          borderClass = "border-green-500";
+                          iconClass = "bg-green-100 text-green-600 hover:bg-green-500";
+                        } else if (isField) {
+                          borderClass = "border-orange-500";
+                          iconClass = "bg-orange-100 text-orange-600 hover:bg-orange-500";
+                        } else if (isOvertime) {
+                          borderClass = "border-blue-500";
+                          iconClass = "bg-blue-100 text-blue-600 hover:bg-blue-500";
+                        }
 
-                    return (
-                      <div key={req.emp_reqId} className={`flex items-center gap-3 p-2 rounded-lg hover:bg-[#F8FFF2] transition-colors border-l-4 ${borderClass} min-w-0`}>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-[#2A174E] truncate">{req.userName}</p>
-                          <p className="text-[11px] text-gray-500">{req.reqTypeName} • {new Date(req.date_Filed).toLocaleDateString()}</p>
-                        </div>
+                        return (
+                          <div key={req.emp_reqId} className={`flex items-center gap-3 p-2 rounded-lg hover:bg-[#F8FFF2] transition-colors border-l-4 ${borderClass} min-w-0`}>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-bold text-brand-primary truncate">{req.userName}</p>
+                              <p className="text-[11px] text-gray-500">{req.reqTypeName} • {new Date(req.date_Filed).toLocaleDateString()}</p>
+                            </div>
+                            <Link 
+                              to={`/adminRequests`} 
+                              className={`p-1.5 ${iconClass} rounded-md hover:text-white transition-all shrink-0`}
+                            >
+                              <RateReviewIcon sx={{ fontSize: 16 }} />
+                            </Link>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {Number(stats.pendingCount) > 3 && (
+                      <div className="pt-1 flex items-center justify-center">
                         <Link 
-                          to={`/adminRequests`} 
-                          className={`p-1.5 ${iconClass} rounded-md hover:text-white transition-all shrink-0`}
+                          to="/adminRequests" 
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold text-accent-green hover:text-brand-primary hover:underline transition-colors py-1 px-3 rounded-md hover:bg-[#F8FFF2]"
                         >
-                          <RateReviewIcon sx={{ fontSize: 16 }} />
+                          <MoreHorizIcon sx={{ fontSize: 18 }} className="text-accent-green/70" />
+                          <span>See more</span>
+                          {Number(stats.pendingCount) > pendingRequests.length && (
+                            <span className="text-[11px] text-gray-500 font-normal">
+                              (+{Number(stats.pendingCount) - pendingRequests.length} more)
+                            </span>
+                          )}
                         </Link>
                       </div>
-                    );
-                  })
+                    )}
+                  </>
                 ) : (
                   <div className="space-y-3">
                     {[1, 2, 3].map((i) => (
@@ -600,7 +704,7 @@ const Home = () => {
             </div>
 
             {/* Next Payroll Run Card */}
-            <div className="bg-white p-5 rounded-xl shadow-sm text-[#B06E16] flex flex-col justify-between border-t-4 border-[#B06E16] min-w-0">
+            <div className="bg-white p-5 rounded-xl shadow-sm text-accent-gold flex flex-col justify-between border-t-4 border-accent-gold min-w-0">
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-1.5">
@@ -614,7 +718,7 @@ const Home = () => {
                       </TooltipContent>
                     </Tooltip>
                   </div>
-                  <Link to="/payroll" className="text-xs text-[#B06E16]/60 font-semibold hover:underline hover:text-[#B06E16]/80">View All</Link> 
+                  <Link to="/payroll" className="text-xs text-accent-gold font-semibold hover:underline hover:text-accent-gold/80">View All</Link> 
                 </div>
                 <div className="text-5xl font-bold mb-3 truncate h-13">
                   {daysRemaining > 0 ? `${daysRemaining} Day${daysRemaining === 1 ? "" : "s"} Left` : "Processing..."}
@@ -645,15 +749,15 @@ const Home = () => {
           <div className="h-6"></div>
 
           {/* Multi-Tab Chart Section */}
-          <Card className="bg-gradient-to-r from-[#F8FAFC] to-[#FAF2FF] shadow-sm border-gray-200">
+          <Card className="bg-white shadow-sm border border-slate-200/80">
             <Tabs defaultValue="weekly" className="w-full">
               <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between space-y-4 md:space-y-0">
                 <div>
-                  <CardTitle className="text-xl font-bold text-[#2A174E] flex items-center gap-1.5">
+                  <CardTitle className="text-xl font-bold text-brand-primary flex items-center gap-1.5">
                     Overall Attendance
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <HelpOutlineIcon sx={{ fontSize: 16 }} className="text-[#2A174E]/60 hover:text-[#2A174E] cursor-help" />
+                        <HelpOutlineIcon sx={{ fontSize: 16 }} className="text-brand-primary/60 hover:text-brand-primary cursor-help" />
                       </TooltipTrigger>
                       <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
                         Comparison of average attendance percentages over the selected interval (weekly, quarterly, or yearly).

@@ -2,6 +2,7 @@ const { sequelize, User, User_Hardware } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
 const { getSystemTime, formatDateLocal } = require("../utils/systemTime.js");
 const { logTransaction } = require("../utils/logger");
+const { queueSlotDeletion } = require("./rfid.controller.js");
 
 exports.getAllRfidCards = async (req, res) => {
   try {
@@ -81,10 +82,11 @@ exports.assignRfidCard = async (req, res) => {
 
     // Upsert into User_Hardware
     await sequelize.query(
-      `INSERT INTO "User_Hardware" ("user_Id", "user_MachipId", "createdAt", "updatedAt")
-       VALUES (:user_Id, :machip_id, :now, :now)
+      `INSERT INTO "User_Hardware" ("user_Id", "user_MachipId", "card_counter", "createdAt", "updatedAt")
+       VALUES (:user_Id, :machip_id, 0, :now, :now)
        ON CONFLICT ("user_Id") DO UPDATE SET
         "user_MachipId" = EXCLUDED."user_MachipId",
+        "card_counter" = 0,
         "updatedAt" = EXCLUDED."updatedAt"`,
       { replacements: { user_Id, machip_id, now: nowStr }, type: QueryTypes.INSERT }
     );
@@ -108,7 +110,7 @@ exports.revokeRfidCard = async (req, res) => {
 
     await sequelize.query(
       `UPDATE "User_Hardware" 
-       SET "user_MachipId" = NULL, "updatedAt" = :now
+       SET "user_MachipId" = NULL, "card_counter" = 0, "updatedAt" = :now
        WHERE "user_Id" = :userId`,
       { replacements: { userId, now: nowStr }, type: QueryTypes.UPDATE }
     );
@@ -129,14 +131,50 @@ exports.getAllFingerprints = async (req, res) => {
         u."user_Id", 
         CONCAT(u."user_FirstName", ' ', u."user_LastName") as "userName",
         h."user_FingerprintId" as "fingerprintIndex",
-        'Secure Node 01' as "sensorNode"
+        1 as "slotNumber",
+        'Primary' as "fingerprintType",
+        'Secure Node 01' as "sensorNode",
+        'Assigned' as "hardwareStatus",
+        h."updatedAt" as "dateAligned"
       FROM "User" u
       JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
       WHERE u."deletedAt" IS NULL 
         AND h."user_FingerprintId" IS NOT NULL
         AND h."user_FingerprintTemplate" IS NOT NULL 
         AND TRIM(h."user_FingerprintTemplate") != ''
-      ORDER BY u."user_LastName" ASC`,
+      UNION ALL
+      SELECT 
+        u."user_Id", 
+        CONCAT(u."user_FirstName", ' ', u."user_LastName") as "userName",
+        h."user_FingerprintId2" as "fingerprintIndex",
+        2 as "slotNumber",
+        'Secondary (Fallback)' as "fingerprintType",
+        'Secure Node 01' as "sensorNode",
+        'Assigned' as "hardwareStatus",
+        h."updatedAt" as "dateAligned"
+      FROM "User" u
+      JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
+      WHERE u."deletedAt" IS NULL 
+        AND h."user_FingerprintId2" IS NOT NULL
+        AND h."user_FingerprintTemplate2" IS NOT NULL 
+        AND TRIM(h."user_FingerprintTemplate2") != ''
+      UNION ALL
+      SELECT 
+        u."user_Id", 
+        CONCAT(u."user_FirstName", ' ', u."user_LastName") as "userName",
+        NULL as "fingerprintIndex",
+        NULL as "slotNumber",
+        NULL as "fingerprintType",
+        'Secure Node 01' as "sensorNode",
+        'Unassigned' as "hardwareStatus",
+        NULL as "dateAligned"
+      FROM "User" u
+      LEFT JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
+      WHERE u."deletedAt" IS NULL 
+        AND u."user_Id" != 999
+        AND (h."user_FingerprintId" IS NULL OR h."user_FingerprintTemplate" IS NULL OR TRIM(h."user_FingerprintTemplate") = '')
+        AND (h."user_FingerprintId2" IS NULL OR h."user_FingerprintTemplate2" IS NULL OR TRIM(h."user_FingerprintTemplate2") = '')
+      ORDER BY "userName" ASC, "slotNumber" ASC NULLS LAST`,
       { type: QueryTypes.SELECT }
     );
     res.status(200).json(results);
@@ -147,7 +185,7 @@ exports.getAllFingerprints = async (req, res) => {
 };
 
 exports.assignFingerprint = async (req, res) => {
-  const { user_Id, fingerprintIndex, fingerprintTemplate } = req.body;
+  const { user_Id, fingerprintIndex, fingerprintTemplate, slotNumber } = req.body;
 
   if (!user_Id || !fingerprintIndex) {
     return res.status(400).json({ error: "User ID and Fingerprint Slot are required." });
@@ -160,7 +198,8 @@ exports.assignFingerprint = async (req, res) => {
       `SELECT u."user_FirstName", u."user_LastName" 
        FROM "User" u
        JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
-       WHERE h."user_FingerprintId" = :fingerprintIndex AND u."deletedAt" IS NULL AND u."user_Id" != :user_Id`,
+       WHERE (h."user_FingerprintId" = :fingerprintIndex OR h."user_FingerprintId2" = :fingerprintIndex)
+         AND u."deletedAt" IS NULL AND u."user_Id" != :user_Id`,
       { replacements: { fingerprintIndex, user_Id }, type: QueryTypes.SELECT }
     );
 
@@ -170,24 +209,64 @@ exports.assignFingerprint = async (req, res) => {
       });
     }
 
+    // Fetch current hardware profile for this user
+    const [currentHw] = await sequelize.query(
+      `SELECT "user_FingerprintId", "user_FingerprintId2" FROM "User_Hardware" WHERE "user_Id" = :user_Id`,
+      { replacements: { user_Id }, type: QueryTypes.SELECT }
+    );
+
+    // Determine target slot (1 or 2)
+    let targetSlotNumber = slotNumber ? parseInt(slotNumber) : null;
+    if (!targetSlotNumber) {
+      if (currentHw && currentHw.user_FingerprintId && currentHw.user_FingerprintId !== parseInt(fingerprintIndex)) {
+        targetSlotNumber = 2;
+      } else {
+        targetSlotNumber = 1;
+      }
+    }
+
+    // Prevent assigning the same slot to both Primary and Fallback for the same user
+    if (targetSlotNumber === 2 && currentHw?.user_FingerprintId && currentHw.user_FingerprintId === parseInt(fingerprintIndex)) {
+      return res.status(400).json({ 
+        error: "Fallback fingerprint cannot use the same slot or finger as the Primary fingerprint." 
+      });
+    }
+    if (targetSlotNumber === 1 && currentHw?.user_FingerprintId2 && currentHw.user_FingerprintId2 === parseInt(fingerprintIndex)) {
+      return res.status(400).json({ 
+        error: "Primary fingerprint cannot use the same slot or finger as the Fallback fingerprint." 
+      });
+    }
+
     let encryptedTemplate = null;
     if (fingerprintTemplate) {
       encryptedTemplate = encrypt(fingerprintTemplate);
     }
 
-    await sequelize.query(
-      `INSERT INTO "User_Hardware" ("user_Id", "user_FingerprintId", "user_FingerprintTemplate", "createdAt", "updatedAt")
-       VALUES (:user_Id, :fingerprintIndex, :encryptedTemplate, :now, :now)
-       ON CONFLICT ("user_Id") DO UPDATE SET
-        "user_FingerprintId" = EXCLUDED."user_FingerprintId",
-        "user_FingerprintTemplate" = EXCLUDED."user_FingerprintTemplate",
-        "updatedAt" = EXCLUDED."updatedAt"`,
-      { replacements: { user_Id, fingerprintIndex, encryptedTemplate, now: nowStr }, type: QueryTypes.INSERT }
-    );
+    if (targetSlotNumber === 2) {
+      await sequelize.query(
+        `INSERT INTO "User_Hardware" ("user_Id", "user_FingerprintId2", "user_FingerprintTemplate2", "createdAt", "updatedAt")
+         VALUES (:user_Id, :fingerprintIndex, :encryptedTemplate, :now, :now)
+         ON CONFLICT ("user_Id") DO UPDATE SET
+          "user_FingerprintId2" = EXCLUDED."user_FingerprintId2",
+          "user_FingerprintTemplate2" = EXCLUDED."user_FingerprintTemplate2",
+          "updatedAt" = EXCLUDED."updatedAt"`,
+        { replacements: { user_Id, fingerprintIndex, encryptedTemplate, now: nowStr }, type: QueryTypes.INSERT }
+      );
+    } else {
+      await sequelize.query(
+        `INSERT INTO "User_Hardware" ("user_Id", "user_FingerprintId", "user_FingerprintTemplate", "createdAt", "updatedAt")
+         VALUES (:user_Id, :fingerprintIndex, :encryptedTemplate, :now, :now)
+         ON CONFLICT ("user_Id") DO UPDATE SET
+          "user_FingerprintId" = EXCLUDED."user_FingerprintId",
+          "user_FingerprintTemplate" = EXCLUDED."user_FingerprintTemplate",
+          "updatedAt" = EXCLUDED."updatedAt"`,
+        { replacements: { user_Id, fingerprintIndex, encryptedTemplate, now: nowStr }, type: QueryTypes.INSERT }
+      );
+    }
 
-    await logTransaction(user_Id, req.user?.user_Id, "HARDWARE_ASSIGN", `Biometric Profile assigned to slot ${fingerprintIndex}.`, { fingerprintIndex }, req);
+    await logTransaction(user_Id, req.user?.user_Id, "HARDWARE_ASSIGN", `Biometric Profile (${targetSlotNumber === 2 ? 'Secondary Fallback' : 'Primary'}) assigned to slot ${fingerprintIndex}.`, { fingerprintIndex, slotNumber: targetSlotNumber }, req);
 
-    res.status(200).json({ message: "Biometric profile assigned successfully." });
+    res.status(200).json({ message: `Biometric profile (${targetSlotNumber === 2 ? 'Secondary Fallback' : 'Primary'}) assigned successfully.` });
   } catch (error) {
     console.error("[HARDWARE-CONTROLLER] Error assigning biometric:", error);
     res.status(500).json({ error: "Failed to assign hardware credentials." });
@@ -196,18 +275,55 @@ exports.assignFingerprint = async (req, res) => {
 
 exports.clearFingerprint = async (req, res) => {
   const { userId } = req.params;
+  const slotNumber = req.query.slotNumber || req.body?.slotNumber;
 
   try {
     const nowStr = new Date().toISOString();
 
-    await sequelize.query(
-      `UPDATE "User_Hardware" 
-       SET "user_FingerprintId" = NULL, "user_FingerprintTemplate" = NULL, "updatedAt" = :now
-       WHERE "user_Id" = :userId`,
-      { replacements: { userId, now: nowStr }, type: QueryTypes.UPDATE }
+    // 1. Fetch existing hardware slots so we can instruct ESP32 to delete physical templates from R307
+    const existingHardware = await sequelize.query(
+      `SELECT "user_FingerprintId", "user_FingerprintId2" FROM "User_Hardware" WHERE "user_Id" = :userId`,
+      { replacements: { userId }, type: QueryTypes.SELECT }
     );
 
-    await logTransaction(userId, req.user?.user_Id, "HARDWARE_REVOKE", `Biometric Profile access revoked for user.`, {}, req);
+    if (existingHardware && existingHardware.length > 0) {
+      const hw = existingHardware[0];
+      if (parseInt(slotNumber) === 2) {
+        if (hw.user_FingerprintId2) queueSlotDeletion(hw.user_FingerprintId2);
+      } else if (parseInt(slotNumber) === 1) {
+        if (hw.user_FingerprintId) queueSlotDeletion(hw.user_FingerprintId);
+      } else {
+        if (hw.user_FingerprintId) queueSlotDeletion(hw.user_FingerprintId);
+        if (hw.user_FingerprintId2) queueSlotDeletion(hw.user_FingerprintId2);
+      }
+    }
+
+    if (parseInt(slotNumber) === 2) {
+      await sequelize.query(
+        `UPDATE "User_Hardware" 
+         SET "user_FingerprintId2" = NULL, "user_FingerprintTemplate2" = NULL, "updatedAt" = :now
+         WHERE "user_Id" = :userId`,
+        { replacements: { userId, now: nowStr }, type: QueryTypes.UPDATE }
+      );
+    } else if (parseInt(slotNumber) === 1) {
+      await sequelize.query(
+        `UPDATE "User_Hardware" 
+         SET "user_FingerprintId" = NULL, "user_FingerprintTemplate" = NULL, "updatedAt" = :now
+         WHERE "user_Id" = :userId`,
+        { replacements: { userId, now: nowStr }, type: QueryTypes.UPDATE }
+      );
+    } else {
+      await sequelize.query(
+        `UPDATE "User_Hardware" 
+         SET "user_FingerprintId" = NULL, "user_FingerprintTemplate" = NULL,
+             "user_FingerprintId2" = NULL, "user_FingerprintTemplate2" = NULL,
+             "updatedAt" = :now
+         WHERE "user_Id" = :userId`,
+        { replacements: { userId, now: nowStr }, type: QueryTypes.UPDATE }
+      );
+    }
+
+    await logTransaction(userId, req.user?.user_Id, "HARDWARE_REVOKE", `Biometric Profile access revoked for user.`, { slotNumber }, req);
 
     res.status(200).json({ message: "Biometric profile unlinked successfully." });
   } catch (error) {

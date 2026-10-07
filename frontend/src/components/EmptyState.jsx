@@ -17,7 +17,7 @@ const EmptyState = ({
       )}
       
       {/* Text Content */}
-      <h3 className="text-lg font-bold text-[#2A174E] mb-2">{title}</h3>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">{title}</h3>
       <p className="text-sm text-slate-500 max-w-sm mx-auto mb-6 leading-relaxed">
         {description}
       </p>

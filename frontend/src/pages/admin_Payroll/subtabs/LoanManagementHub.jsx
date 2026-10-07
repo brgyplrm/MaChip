@@ -472,7 +472,7 @@ const LoanManagementHub = () => {
       <Dialog open={showNewChannelModal} onOpenChange={setShowNewChannelModal}>
         <DialogContent className="max-w-md bg-white p-6 rounded-xl border-0 shadow-xl">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold text-[#2A174E] flex items-center gap-2">
+            <DialogTitle className="text-xl font-bold text-brand-primary flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-indigo-600" /> Register Partner Company
             </DialogTitle>
             <DialogDescription>Instantiate a dynamic claim/loan tracking infrastructure tab context for your employee dashboard views.</DialogDescription>
@@ -494,7 +494,7 @@ const LoanManagementHub = () => {
                 </SelectContent>
               </Select>
             </div>
-            <Button onClick={handleCreateNewChannel} className="w-full bg-[#2A174E] hover:bg-[#190d30] text-white font-bold h-10 shadow mt-2">Initialize Allocation Channel</Button>
+            <Button onClick={handleCreateNewChannel} className="w-full bg-brand-primary hover:bg-[#190d30] text-white font-bold h-10 shadow mt-2">Initialize Allocation Channel</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -503,13 +503,13 @@ const LoanManagementHub = () => {
       <Dialog open={showBatchModal} onOpenChange={setShowBatchModal}>
         <DialogContent className="max-w-2xl bg-white p-6 rounded-xl border-0 shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold text-[#2A174E]">Batch Ledger Distribution Loader</DialogTitle>
+            <DialogTitle className="text-xl font-bold text-brand-primary">Batch Ledger Distribution Loader</DialogTitle>
           </DialogHeader>
           
           <div className="mb-4 text-left">
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Target Allocation Channel Stream Context</label>
             <Select value={auditLoanTab} onValueChange={setAuditLoanTab}>
-              <SelectTrigger className="bg-white border-slate-200 font-bold text-[#2A174E] mt-1 h-10"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="bg-white border-slate-200 font-bold text-brand-primary mt-1 h-10"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {loanRegistry.map(ch => <SelectItem key={ch.id} value={ch.id}>{ch.label} ({ch.category})</SelectItem>)}
               </SelectContent>
@@ -551,7 +551,7 @@ const LoanManagementHub = () => {
                   ))}
                 </div>
               </div>
-              <Button onClick={handleExecuteBatchForm} className="w-full bg-[#2A174E] text-white hover:bg-[#190d30] h-10 font-bold">Commit Mass Update Distribution</Button>
+              <Button onClick={handleExecuteBatchForm} className="w-full bg-brand-primary text-white hover:bg-[#190d30] h-10 font-bold">Commit Mass Update Distribution</Button>
             </TabsContent>
             
             <TabsContent value="csv" className="space-y-6">
@@ -562,12 +562,12 @@ const LoanManagementHub = () => {
                 </Button>
               </div>
               <div className="space-y-4">
-                <div className="flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-xl p-8 hover:border-[#2A174E] transition-colors relative cursor-pointer">
+                <div className="flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-xl p-8 hover:border-brand-primary transition-colors relative cursor-pointer">
                   <Input type="file" accept=".csv" onChange={handleFileChange} className="absolute inset-0 opacity-0 cursor-pointer" />
                   <CloudUploadIcon className="text-slate-400 h-10 w-10 mb-2" />
                   <p className="text-xs font-semibold text-slate-500">{file ? file.name : "Click or drag your validation .csv structure sheet file here"}</p>
                 </div>
-                <Button onClick={handleCSVUploadProcessing} disabled={!file} className="w-full bg-[#2A174E] text-white h-10 font-bold">Execute Document Processing Parse</Button>
+                <Button onClick={handleCSVUploadProcessing} disabled={!file} className="w-full bg-brand-primary text-white h-10 font-bold">Execute Document Processing Parse</Button>
               </div>
             </TabsContent>
           </Tabs>
@@ -580,7 +580,7 @@ const LoanManagementHub = () => {
           {/* Top Panel Brand & Dynamic Controls Container */}
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-slate-100 pb-5">
             <div>
-              <h1 className="text-2xl md:text-3xl font-black text-[#2A174E] tracking-tight">Loan Management Hub</h1>
+              <h1 className="text-2xl md:text-3xl font-black text-brand-primary tracking-tight">Loan Management Hub</h1>
               <p className="text-sm text-slate-500 mt-1">Unified lifecycle tracking, corporate partner claims entries, and employee deduction streams dashboard frames.</p>
             </div>
             
@@ -589,16 +589,16 @@ const LoanManagementHub = () => {
                 placeholder="Search employee or ID code..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full sm:w-[240px] h-9 bg-white text-slate-700 border-slate-200 focus-visible:ring-[#2A174E] shadow-sm"
+                className="w-full sm:w-[240px] h-9 bg-white text-slate-700 border-slate-200 focus-visible:ring-brand-primary shadow-sm"
               />
-              <Button onClick={() => setShowNewChannelModal(true)} className="w-full sm:w-auto bg-gradient-to-r from-indigo-600 to-[#2A174E] hover:from-indigo-700 hover:to-[#190d30] text-white font-bold h-9 shadow-sm transition-all">
+              <Button onClick={() => setShowNewChannelModal(true)} className="w-full sm:w-auto bg-brand-primary hover:bg-brand-primary-hover text-white font-bold h-9 shadow-sm transition-all">
                 + Create Custom Loan
               </Button>
               <Select value={selectedYear.toString()} onValueChange={(v) => setSelectedYear(parseInt(v))}>
-                <SelectTrigger className="w-full sm:w-[130px] h-9 bg-white font-bold text-[#2A174E] border-slate-200 shadow-sm"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-full sm:w-[130px] h-9 bg-white font-bold text-brand-primary border-slate-200 shadow-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {Array.from({ length: 8 }, (_, i) => 2023 + i).map(y => (
-                    <SelectItem key={y} value={y.toString()}>FY {y} Ledger</SelectItem>
+                    <SelectItem key={y} value={y.toString()}>{y} Ledger</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -607,30 +607,30 @@ const LoanManagementHub = () => {
 
           {/* Unified Global Operational Overview Summary Widget Grid Deck */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="bg-white border border-slate-100 shadow-sm border-l-4 border-l-[#2A174E]">
+            <Card className="bg-white border border-slate-100 shadow-sm border-l-4 border-l-brand-primary">
               <CardContent className="p-4 flex items-center gap-4 text-left">
-                <div className="p-3 rounded-xl bg-slate-50 text-[#2A174E]"><GroupIcon /></div>
+                <div className="p-3 rounded-xl bg-slate-50 text-brand-primary"><GroupIcon /></div>
                 <div>
                   <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Total Active Borrowers</span>
                   <p className="text-2xl font-black text-slate-800 mt-0.5">{globalSummaryMetrics.activeAccounts} Accounts</p>
                 </div>
               </CardContent>
             </Card>
-            <Card className="bg-white border border-slate-100 shadow-sm border-l-4 border-l-emerald-600">
+            <Card className="bg-white border border-slate-100 shadow-sm border-l-4 border-l-accent-green">
               <CardContent className="p-4 flex items-center gap-4 text-left">
-                <div className="p-3 rounded-xl bg-slate-50 text-emerald-600"><TrendingUp /></div>
+                <div className="p-3 rounded-xl bg-slate-50 text-accent-green"><TrendingUp /></div>
                 <div>
                   <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Total Collected ({selectedYear})</span>
                   <p className="text-2xl font-black text-slate-800 mt-0.5">{formatValuePeso(globalSummaryMetrics.remittedYTD)}</p>
                 </div>
               </CardContent>
             </Card>
-            <Card className="bg-[#2A174E] border-0 text-white shadow-sm">
+            <Card className="bg-white border border-slate-100 shadow-sm border-l-4 border-l-accent-gold">
               <CardContent className="p-4 flex items-center gap-4 h-full text-left">
-                <div className="p-3 rounded-xl bg-white/10 text-yellow-400"><CircleDollarSign /></div>
+                <div className="p-3 rounded-xl bg-slate-50 text-accent-gold"><CircleDollarSign /></div>
                 <div className="min-w-0 flex-1">
-                  <span className="text-[10px] uppercase font-bold text-white/60 tracking-wider block">Dynamic Ecosystem Layout</span>
-                  <p className="text-lg font-bold text-white tracking-tight mt-0.5 uppercase">Employee-First Track</p>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Dynamic Ecosystem Layout</span>
+                  <p className="text-lg font-bold text-slate-800 tracking-tight mt-0.5 uppercase">Employee-First Track</p>
                 </div>
               </CardContent>
             </Card>
@@ -639,7 +639,7 @@ const LoanManagementHub = () => {
           {/* Controls Presentation Action Header Row */}
           <div className="flex justify-between items-center pt-2">
             <div className="text-left">
-              <h3 className="text-lg font-bold text-[#2A174E] tracking-tight">Active Employee Loan Roster</h3>
+              <h3 className="text-lg font-bold text-brand-primary tracking-tight">Active Employee Loan Roster</h3>
               <p className="text-xs text-slate-400">Scan parameters or select specific items to unlock detailed history matrix tables.</p>
             </div>
             
@@ -648,19 +648,19 @@ const LoanManagementHub = () => {
               <div className="bg-slate-200/60 p-1 rounded-lg flex gap-1 border border-slate-300/10 shadow-inner">
                 <button
                   onClick={() => setViewMode("cards")}
-                  className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 ${viewMode === "cards" ? "bg-white text-[#2A174E] shadow-sm" : "text-slate-500 hover:text-[#2A174E]"}`}
+                  className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 ${viewMode === "cards" ? "bg-white text-brand-primary shadow-sm" : "text-slate-500 hover:text-brand-primary"}`}
                 >
                   <LayoutGrid className="h-3.5 w-3.5" /> Cards Grid
                 </button>
                 <button
                   onClick={() => setViewMode("table")}
-                  className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 ${viewMode === "table" ? "bg-white text-[#2A174E] shadow-sm" : "text-slate-500 hover:text-[#2A174E]"}`}
+                  className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 ${viewMode === "table" ? "bg-white text-brand-primary shadow-sm" : "text-slate-500 hover:text-brand-primary"}`}
                 >
                   <Table2 className="h-3.5 w-3.5" /> Master Spreadsheet
                 </button>
               </div>
 
-              <Button size="sm" variant="outline" onClick={() => setShowBatchModal(true)} className="border-[#2A174E] text-[#2A174E] h-9 font-semibold">
+              <Button size="sm" variant="outline" onClick={() => setShowBatchModal(true)} className="border-brand-primary text-brand-primary h-9 font-semibold">
                 <GroupAddOutlinedIcon className="h-4 w-4 mr-1"/> Mass Upload Action
               </Button>
             </div>
@@ -684,11 +684,11 @@ const LoanManagementHub = () => {
                   <Card key={emp.key} className="border border-slate-100 shadow-sm bg-white hover:shadow-md transition-all flex flex-col justify-between overflow-hidden group">
                     <CardHeader className="bg-slate-50/50 pb-3.5 border-b border-slate-100 flex flex-row items-center justify-between space-y-0">
                       <div className="flex items-center gap-3 truncate text-left">
-                        <div className="p-2 bg-[#2A174E]/10 rounded-lg text-[#2A174E] shrink-0">
+                        <div className="p-2 bg-brand-primary/10 rounded-lg text-brand-primary shrink-0">
                           <AccountCircleIcon />
                         </div>
                         <div className="truncate">
-                          <h4 className="text-sm font-bold text-[#2A174E] truncate">{emp.name}</h4>
+                          <h4 className="text-sm font-bold text-brand-primary truncate">{emp.name}</h4>
                           <span className="text-xs font-mono text-slate-400 block mt-0.5">{formatUserId(emp.user_Id)}</span>
                         </div>
                       </div>
@@ -696,13 +696,13 @@ const LoanManagementHub = () => {
                       {/* --- SHEET DRAWER TRIGGER PER EMPLOYEE FOR MULTI-MATRIX CONTROL --- */}
                       <Sheet>
                         <SheetTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 rounded-full p-0 text-slate-400 hover:text-[#2A174E] hover:bg-[#2A174E]/5">
+                          <Button variant="ghost" size="sm" className="h-8 w-8 rounded-full p-0 text-slate-400 hover:text-brand-primary hover:bg-brand-primary/5">
                             <Eye className="h-4 w-4" />
                           </Button>
                         </SheetTrigger>
                         <SheetContent className="w-full sm:max-w-3xl bg-white overflow-y-auto custom-scrollbar p-6">
                           <SheetHeader className="pb-4 border-b border-slate-100 text-left">
-                            <SheetTitle className="text-xl font-black text-[#2A174E]">{emp.name}</SheetTitle>
+                            <SheetTitle className="text-xl font-black text-brand-primary">{emp.name}</SheetTitle>
                             <SheetDescription className="font-mono text-xs text-slate-400">
                               System ID: {formatUserId(emp.user_Id)} | Matrix Reference Target Calendar Year: {selectedYear}
                             </SheetDescription>
@@ -711,7 +711,7 @@ const LoanManagementHub = () => {
                           {/* Individual liability context cards internal block layout */}
                           <div className="my-6 p-4 rounded-xl border border-indigo-100 bg-indigo-50/20 text-left">
                             <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block">Consolidated Annual Liabilities Collected</span>
-                            <span className="text-2xl font-black text-[#2A174E] block mt-1">{formatValuePeso(getEmployeeCombinedTotalAllLoans(emp.key))}</span>
+                            <span className="text-2xl font-black text-brand-primary block mt-1">{formatValuePeso(getEmployeeCombinedTotalAllLoans(emp.key))}</span>
                           </div>
 
                           {/* Sub-channel ledger tab controls layout nested inside person profile */}
@@ -719,7 +719,7 @@ const LoanManagementHub = () => {
                             <div className="flex items-center justify-between">
                               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Select Allocation Register</h4>
                               <div className="flex items-center gap-2">
-                                <Button size="xs" variant={isEditingTable ? "default" : "outline"} onClick={() => setIsEditingTable(!isEditingTable)} className={isEditingTable ? "bg-emerald-600 hover:bg-emerald-700 text-white h-7 text-[11px]" : "border-[#2A174E] text-[#2A174E] h-7 text-[11px]"}>
+                                <Button size="xs" variant={isEditingTable ? "default" : "outline"} onClick={() => setIsEditingTable(!isEditingTable)} className={isEditingTable ? "bg-emerald-600 hover:bg-emerald-700 text-white h-7 text-[11px]" : "border-brand-primary text-brand-primary h-7 text-[11px]"}>
                                   {isEditingTable ? "Lock Cells" : "Unlock Cells"}
                                 </Button>
                               </div>
@@ -730,7 +730,7 @@ const LoanManagementHub = () => {
                                 <button
                                   key={ch.id}
                                   onClick={() => { setAuditLoanTab(ch.id); }}
-                                  className={`px-3 py-1.5 text-xs font-bold rounded-md whitespace-nowrap transition-all ${auditLoanTab === ch.id ? 'bg-[#2A174E] text-white shadow-sm' : 'text-slate-500 hover:bg-slate-200/50'}`}
+                                  className={`px-3 py-1.5 text-xs font-bold rounded-md whitespace-nowrap transition-all ${auditLoanTab === ch.id ? 'bg-brand-primary text-white shadow-sm' : 'text-slate-500 hover:bg-slate-200/50'}`}
                                 >
                                   {ch.label}
                                 </button>
@@ -741,7 +741,7 @@ const LoanManagementHub = () => {
                             <div className="border border-slate-100 rounded-xl overflow-hidden shadow-sm">
                               <table className="w-full text-left border-collapse text-xs">
                                 <thead>
-                                  <tr className="bg-[#2A174E] text-white font-bold">
+                                  <tr className="bg-brand-primary text-white font-bold">
                                     <th className="p-3">Payroll Cutoff Interval Point</th>
                                     <th className="p-3 text-center">Remitted Status</th>
                                     <th className="p-3 text-right pr-4">Value Amount</th>
@@ -768,7 +768,7 @@ const LoanManagementHub = () => {
                                       <tr key={dateStr} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                                         <td className="p-3 font-semibold text-slate-700">
                                           {new Date(dateStr).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                          {dateStr === currentCutoffDate && <span className="bg-yellow-400 text-[#2A174E] text-[8px] font-black px-1.5 py-0.2 rounded ml-2">CURRENT</span>}
+                                          {dateStr === currentCutoffDate && <span className="bg-yellow-400 text-brand-primary text-[8px] font-black px-1.5 py-0.2 rounded ml-2">CURRENT</span>}
                                         </td>
                                         <td className="p-3 text-center">
                                           <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full ${status === 'paid' ? 'bg-green-50 text-green-700 border border-green-200' : isProjection ? 'bg-slate-100 text-slate-400 italic' : 'bg-slate-50 text-slate-300'}`}>
@@ -787,7 +787,7 @@ const LoanManagementHub = () => {
                                               onBlur={() => handleCellSave(dateStr, emp.key)}
                                               onKeyDown={(e) => e.key === 'Enter' && handleCellSave(dateStr, emp.key)}
                                               autoFocus
-                                              className="w-24 h-7 text-right bg-white border-2 border-[#2A174E] outline-none font-bold text-slate-800 pr-1 text-xs"
+                                              className="w-24 h-7 text-right bg-white border-2 border-brand-primary outline-none font-bold text-slate-800 pr-1 text-xs"
                                             />
                                           ) : isCellSyncing ? (
                                             <span className="text-[9px] font-bold text-yellow-600">SYNC...</span>
@@ -823,7 +823,7 @@ const LoanManagementHub = () => {
                           return (
                             <div key={ch.id} className="flex justify-between items-center bg-slate-50 p-2 rounded-lg border border-slate-100">
                               <span className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
-                                <span className="h-1.5 w-1.5 rounded-full bg-[#2A174E]" /> {ch.label}
+                                <span className="h-1.5 w-1.5 rounded-full bg-brand-primary" /> {ch.label}
                               </span>
                               <span className="text-xs font-mono font-bold text-slate-800">{amtPaid.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
                             </div>
@@ -836,7 +836,7 @@ const LoanManagementHub = () => {
 
                       {/* Cumulative footer segment */}
                       <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                        <span className="text-xs font-semibold text-[#2A174E]">Aggregated Payout Remitted</span>
+                        <span className="text-xs font-semibold text-brand-primary">Aggregated Payout Remitted</span>
                         <span className="text-base font-black text-emerald-700">{formatValuePeso(combinedTotalPaid)}</span>
                       </div>
                     </CardContent>
@@ -853,7 +853,7 @@ const LoanManagementHub = () => {
               <div className="relative max-h-[62vh] overflow-auto w-full custom-scrollbar">
                 <table className="w-full min-w-max border-collapse text-xs text-left">
                   <thead>
-                    <tr className="bg-[#2A174E] text-white sticky top-0 z-30 shadow-sm font-bold text-center">
+                    <tr className="bg-brand-primary text-white sticky top-0 z-30 shadow-sm font-bold text-center">
                       <th className="sticky left-0 bg-[#1e1136] text-yellow-400 p-3 text-left shadow-[2px_0_5px_rgba(0,0,0,0.1)] min-w-[200px]">
                         EMPLOYEE NAME ROSTER
                       </th>
@@ -877,7 +877,7 @@ const LoanManagementHub = () => {
                       return (
                         <tr key={emp.key} className="hover:bg-slate-50 border-b border-slate-100 transition-colors text-center">
                           {/* Left Sticky Identity Anchor */}
-                          <td className="sticky left-0 bg-white font-bold p-3 text-[#2A174E] text-left border-r border-slate-200 shadow-[2px_0_5px_rgba(0,0,0,0.02)]">
+                          <td className="sticky left-0 bg-white font-bold p-3 text-brand-primary text-left border-r border-slate-200 shadow-[2px_0_5px_rgba(0,0,0,0.02)]">
                             <div className="flex flex-col">
                               <span className="text-sm font-bold text-slate-800">{emp.name}</span>
                               <span className="text-xs text-slate-400 font-mono mt-0.5">{formatUserId(emp.user_Id)}</span>
@@ -895,7 +895,7 @@ const LoanManagementHub = () => {
                           })}
 
                           {/* Right Combined Calculations Sum total column cell */}
-                          <td className="sticky right-0 bg-slate-50 font-black text-center p-3 text-[#2A174E] border-l border-slate-200 shadow-[-2px_0_5px_rgba(0,0,0,0.02)] font-mono text-xs">
+                          <td className="sticky right-0 bg-slate-50 font-black text-center p-3 text-brand-primary border-l border-slate-200 shadow-[-2px_0_5px_rgba(0,0,0,0.02)] font-mono text-xs">
                             {finalAccumulationTotal > 0 ? finalAccumulationTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 }) : "—"}
                           </td>
                         </tr>

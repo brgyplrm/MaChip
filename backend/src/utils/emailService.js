@@ -20,6 +20,44 @@ exports.validateEmailActive = async (email) => {
 const QUEUE_FILE = path.join(__dirname, "../../email_queue.json");
 
 /**
+ * Helper to build payroll mail options for both immediate and queued dispatch.
+ */
+const getPayrollMailOptions = ({ email, name, period, netPay, attachments = [], fromEmail }) => {
+  const targetRecipient = (email && !email.endsWith('@machip.com') && email.includes('@')) ? email : fromEmail;
+
+  return {
+    from: `"MaChip Payroll" <${fromEmail}>`,
+    to: targetRecipient,
+    subject: `Payroll Summary for Period: ${period} (${name})`,
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <h2 style="color: #2c3e50;">Payroll Notification</h2>
+        <p>Hello ${name},</p>
+        <p>This is your net pay for this period (<strong>${period}</strong>):</p>
+        <div style="background: #eef9f1; padding: 20px; border-radius: 8px; border: 1px solid #c3e6cb; display: inline-block;">
+          <span style="font-size: 24px; font-weight: bold; color: #28a745;">₱${parseFloat(netPay).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>
+        <p style="margin-top: 20px;">For your security, your attached payslips are <strong>password-protected</strong>. To open the files, please use the following password format:</p>
+        <div style="background: #fff3cd; padding: 15px; border-radius: 8px; border: 1px solid #ffeeba; margin-bottom: 20px;">
+          <p style="margin: 5px 0; color: #856404;"><strong>Password Format:</strong> [PeriodDigits][Month][LastName][PaddedID]</p>
+          <p style="margin: 5px 0; color: #856404; font-size: 0.9em;">Example: If the period is May 1-15, name is <strong>Rodrigo</strong>, and ID is <strong>MACJ-001</strong>, your password is: <strong>0115MayRodrigo001</strong></p>
+        </div>
+        <p>Attached are your official payroll documents:</p>
+        <ul>
+          <li><strong>Standard Compliance Payslip</strong> (Summary view)</li>
+          <li><strong>Detailed Computation Payslip</strong> (Full breakdown of metrics, allowances, & deductions)</li>
+          <li><strong>Daily Time Record (DTR)</strong></li>
+        </ul>
+        <p>You can also view and download your full records anytime by logging into the MaChip employee portal.</p>
+        <br/>
+        <p>Best Regards,<br/><strong>MaChip Administration</strong></p>
+      </div>
+    `,
+    attachments: attachments
+  };
+};
+
+/**
  * Enqueues a failed email to a JSON file.
  */
 const enqueueEmail = async (data) => {
@@ -30,11 +68,32 @@ const enqueueEmail = async (data) => {
       queue = JSON.parse(content || "[]");
     }
     // Add unique entry (avoid duplicates for the same user/type)
-    const exists = queue.find(item => item.email === data.email && item.displayId === data.displayId);
+    const exists = queue.find(item => {
+      if (item.type !== data.type || item.email !== data.email) return false;
+      if (data.type === "WELCOME") return item.displayId === data.displayId;
+      if (data.type === "PAYROLL") return item.period === data.period;
+      return true;
+    });
+
     if (!exists) {
-      queue.push({ ...data, attempts: 0, createdAt: new Date() });
+      // Serialize Buffer attachments to base64 so they survive JSON file storage
+      let safeData = { ...data };
+      if (Array.isArray(safeData.attachments)) {
+        safeData.attachments = safeData.attachments.map(att => {
+          if (att.content && Buffer.isBuffer(att.content)) {
+            return {
+              filename: att.filename,
+              content: att.content.toString("base64"),
+              encoding: "base64"
+            };
+          }
+          return att;
+        });
+      }
+
+      queue.push({ ...safeData, attempts: 0, createdAt: new Date() });
       fs.writeFileSync(QUEUE_FILE, JSON.stringify(queue, null, 2));
-      console.log(`[EMAIL QUEUE] System is likely OFFLINE. Enqueued welcome email for ${data.email} (ID: ${data.displayId}). It will be sent automatically once online.`);
+      console.log(`[EMAIL QUEUE] System is offline or dispatch failed. Enqueued ${data.type} email for ${data.email}. It will be sent automatically once online.`);
     }
   } catch (err) {
     console.error("[EMAIL QUEUE ERROR]:", err.message);
@@ -132,7 +191,30 @@ exports.processEmailQueue = async () => {
             `,
           };
           await sendEmailInternal(mailOptions);
-          console.log(`[EMAIL QUEUE] Successfully sent pending email to ${item.email}`);
+          console.log(`[EMAIL QUEUE] Successfully sent pending welcome email to ${item.email}`);
+        } else if (item.type === "PAYROLL") {
+          // Rehydrate Buffer attachments if they were stored as base64
+          const attachments = (item.attachments || []).map(att => {
+            if (att.encoding === "base64" && typeof att.content === "string") {
+              return {
+                filename: att.filename,
+                content: Buffer.from(att.content, "base64")
+              };
+            }
+            return att;
+          });
+
+          const mailOptions = getPayrollMailOptions({
+            email: item.email,
+            name: item.name,
+            period: item.period,
+            netPay: item.netPay,
+            attachments,
+            fromEmail: EMAIL_USER
+          });
+
+          await sendEmailInternal(mailOptions);
+          console.log(`[EMAIL QUEUE] Successfully sent pending payroll email to ${item.email}`);
         }
       } catch (err) {
         console.error(`[EMAIL QUEUE] Failed to send to ${item.email}: ${err.message}`);
@@ -163,59 +245,35 @@ exports.processEmailQueue = async () => {
  * @param {Array}  payrollData.attachments
  */
 exports.sendPayrollEmail = async ({ email, name, period, netPay, attachments = [] }) => {
-  const { EMAIL_SERVICE, EMAIL_USER, EMAIL_PASS } = process.env;
+  const { EMAIL_USER, EMAIL_PASS } = process.env;
 
   if (!EMAIL_USER || !EMAIL_PASS) {
     console.error("[EMAIL CONFIG ERROR]: Missing EMAIL_USER or EMAIL_PASS in .env file.");
     return;
   }
 
-  const transporter = nodemailer.createTransport({
-    service: EMAIL_SERVICE || "gmail",
-    auth: {
-      user: EMAIL_USER,
-      pass: EMAIL_PASS,
-    },
+  const mailOptions = getPayrollMailOptions({
+    email,
+    name,
+    period,
+    netPay,
+    attachments,
+    fromEmail: EMAIL_USER
   });
 
-  const targetRecipient = (email && !email.endsWith('@machip.com') && email.includes('@')) ? email : EMAIL_USER;
-
-  const mailOptions = {
-    from: `"MaChip Payroll" <${EMAIL_USER}>`,
-    to: targetRecipient,
-    subject: `Payroll Summary for Period: ${period} (${name})`,
-    html: `
-      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-        <h2 style="color: #2c3e50;">Payroll Notification</h2>
-        <p>Hello ${name},</p>
-        <p>This is your net pay for this period (<strong>${period}</strong>):</p>
-        <div style="background: #eef9f1; padding: 20px; border-radius: 8px; border: 1px solid #c3e6cb; display: inline-block;">
-          <span style="font-size: 24px; font-weight: bold; color: #28a745;">₱${parseFloat(netPay).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-        </div>
-        <p style="margin-top: 20px;">For your security, your attached payslips are <strong>password-protected</strong>. To open the files, please use the following password format:</p>
-        <div style="background: #fff3cd; padding: 15px; border-radius: 8px; border: 1px solid #ffeeba; margin-bottom: 20px;">
-          <p style="margin: 5px 0; color: #856404;"><strong>Password Format:</strong> [PeriodDigits][Month][LastName][PaddedID]</p>
-          <p style="margin: 5px 0; color: #856404; font-size: 0.9em;">Example: If the period is May 1-15, name is <strong>Rodrigo</strong>, and ID is <strong>MACJ-001</strong>, your password is: <strong>0115MayRodrigo001</strong></p>
-        </div>
-        <p>Attached are your official payroll documents:</p>
-        <ul>
-          <li><strong>Standard Compliance Payslip</strong> (Summary view)</li>
-          <li><strong>Detailed Computation Payslip</strong> (Full breakdown of metrics, allowances, & deductions)</li>
-          <li><strong>Daily Time Record (DTR)</strong></li>
-        </ul>
-        <p>You can also view and download your full records anytime by logging into the MaChip employee portal.</p>
-        <br/>
-        <p>Best Regards,<br/><strong>MaChip Administration</strong></p>
-      </div>
-    `,
-    attachments: attachments
-  };
-
   try {
-    await transporter.sendMail(mailOptions);
+    await sendEmailInternal(mailOptions);
     console.log(`[PAYROLL EMAIL SENT] to ${email} for period ${period}`);
   } catch (error) {
     console.error(`[PAYROLL EMAIL ERROR] for ${email}:`, error.message);
+    await enqueueEmail({
+      type: "PAYROLL",
+      email,
+      name,
+      period,
+      netPay,
+      attachments
+    });
   }
 };
 
@@ -373,6 +431,11 @@ exports.sendRequestNotificationEmail = async ({ toEmail, approverName, requester
 
   if (!EMAIL_USER || !EMAIL_PASS) {
     console.error("[EMAIL CONFIG ERROR]: Missing credentials.");
+    return;
+  }
+
+  if (!toEmail || toEmail.includes('@machip.system') || approverName?.toLowerCase().includes('visitor')) {
+    console.log(`[NOTIFICATION EMAIL SKIPPED] Placeholder recipient: ${toEmail} (${approverName})`);
     return;
   }
 

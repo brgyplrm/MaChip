@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import Sidebar from "../../components/Sidebar";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
@@ -15,7 +15,7 @@ import Toast from "../../components/toast/Toast";
 import { formatUserId } from "../../utils/formatUserId";
 import { formatDateTime, calculateDays } from "../../utils/formatTime";
 import { fetchWithAuth } from "../../utils/api";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import AssessmentIcon  from "@mui/icons-material/Assessment";
 import EditIcon from "@mui/icons-material/Edit";
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
@@ -37,9 +37,12 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 
 const AdminRequests = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const userData = JSON.parse(localStorage.getItem("userData"));
   const [activeTab, setActiveTab] = useState("pending");
   const [selectedReqId, setSelectedReqId] = useState(null); // Upgraded from selectedIdx
+  const handledDeepLinkRef = useRef(null);
+  const pageAlignedRef = useRef(null);
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [adminNote, setAdminNote] = useState("");
@@ -94,13 +97,52 @@ const AdminRequests = () => {
     return () => window.removeEventListener("dataRefresh", handleBackgroundRefresh);
   }, []);
 
-  // Reset states when changing tabs or filters
+  // Handle incoming requestId from URL or navigation state
   useEffect(() => {
-    setPaymentStatus("2"); 
+    const searchParams = new URLSearchParams(location.search);
+    const targetIdRaw = searchParams.get("requestId") || location.state?.selectedReqId;
+    if (!targetIdRaw || requests.length === 0) return;
+
+    const targetId = parseInt(targetIdRaw, 10);
+    if (handledDeepLinkRef.current === targetId) return;
+
+    const targetReq = requests.find((r) => r.emp_reqId === targetId);
+
+    if (targetReq) {
+      const isCompleted = targetReq.emp_reqStatusId === 2 || targetReq.emp_reqStatusId === 3;
+      const targetTab = isCompleted ? "completed" : "pending";
+      
+      if (activeTab !== targetTab) {
+        setActiveTab(targetTab);
+      }
+      setSelectedReqId(targetId);
+      handledDeepLinkRef.current = targetId;
+
+      // Clean up URL/state so subsequent manual interactions (tab switching, paging) are not overridden
+      if (searchParams.has("requestId") || location.state?.selectedReqId) {
+        navigate(location.pathname, { replace: true, state: {} });
+      }
+    } else {
+      setSelectedReqId(targetId);
+      handledDeepLinkRef.current = targetId;
+    }
+  }, [location.search, location.state, requests, activeTab, navigate, location.pathname]);
+
+  const handleTabChange = (newTab) => {
+    if (activeTab !== newTab) {
+      setActiveTab(newTab);
+      setCurrentPage(1);
+      setSelectedReqId(null);
+      setPaymentStatus("2");
+      if (newTab === "completed") setShowHistoryBanner(true);
+    }
+  };
+
+  // Reset states when changing filters
+  useEffect(() => {
     setCurrentPage(1);
     setSelectedReqId(null);
-    if (activeTab === "completed") setShowHistoryBanner(true);
-  }, [activeTab, searchQuery, typeFilter, statusFilter]);
+  }, [searchQuery, typeFilter, statusFilter, dateFilter]);
 
   const formatTime = (time) => {
     if (!time) return "";
@@ -196,74 +238,88 @@ const AdminRequests = () => {
     return "REQ";
   };
 
-  const filteredRequests = requests.filter((req) => {
-    const userRole = Number(userData?.user_RoleId);
-    const reqStatus = Number(req.emp_reqStatusId);
-    const reqUserRole = Number(req.user_RoleId);
-    const requesterId = Number(req.user_Id);
-    const currentUserId = Number(userData?.user_Id);
+  const filteredRequests = useMemo(() => {
+    return requests.filter((req) => {
+      const userRole = Number(userData?.user_RoleId);
+      const reqStatus = Number(req.emp_reqStatusId);
+      const requesterId = Number(req.user_Id);
+      const currentUserId = Number(userData?.user_Id);
 
-    const isPending = reqStatus === 1;
-    const isRecommended = reqStatus === 4;
-    const isCompleted = reqStatus === 2 || reqStatus === 3;
-    const isReturned = reqStatus === 5;
+      const isPending = reqStatus === 1;
+      const isRecommended = reqStatus === 4;
+      const isCompleted = reqStatus === 2 || reqStatus === 3;
+      const isReturned = reqStatus === 5;
 
-    let matchesTab = false;
-    if (activeTab === "pending") {
-      if (userRole === 1) { 
-        // Admins see everything in-progress: pending (1), recommended (4), and returned (5)
-        matchesTab = isPending || isRecommended || isReturned;
-      } else if (userRole === 2 || userRole === 4) {
-        // Supervisors and Accountants see pending and returned requests from others
-        matchesTab = (isPending || isReturned) && requesterId !== currentUserId;
-      }
-    } else { 
-      // History tab: strictly for completed records (Approved: 2, Rejected: 3)
-      if (userRole === 1) {
-        matchesTab = isCompleted;
+      let matchesTab = false;
+      if (activeTab === "pending") {
+        if (userRole === 1) { 
+          // Admins see everything in-progress: pending (1), recommended (4), and returned (5)
+          matchesTab = isPending || isRecommended || isReturned;
+        } else if (userRole === 2 || userRole === 4) {
+          // Supervisors and Accountants see pending and returned requests from others
+          matchesTab = (isPending || isReturned) && requesterId !== currentUserId;
+        }
       } else { 
-        matchesTab = isRecommended || isCompleted;
+        // History tab: strictly for completed records (Approved: 2, Rejected: 3)
+        if (userRole === 1) {
+          matchesTab = isCompleted;
+        } else { 
+          matchesTab = isRecommended || isCompleted;
+        }
       }
+
+      if (!matchesTab) return false;
+
+      // Remove the redundant Role 2 check here since we handled it in matchesTab
+      // if (userData?.user_RoleId === 2) { 
+      //   if (req.user_RoleId !== 3 && req.user_RoleId !== 1) return false;
+      // }
+
+      if (activeTab === "completed") {
+        // Baseline History Filter: Only show current and previous month (total of 4 payroll periods)
+        const filedDate = new Date(req.date_Filed);
+        const today = new Date();
+        const cutoff = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        if (filedDate < cutoff) return false;
+
+        const query = searchQuery.toLowerCase();
+        
+        // Search Name or ID
+        const matchesSearch = 
+          req.userName?.toLowerCase().includes(query) || 
+          req.emp_reqId?.toString().includes(query) ||
+          (req.user_Id && formatUserId(req.user_Id).toLowerCase().includes(query)) ||
+          req.user_Id?.toString().includes(query);
+        
+        const shortType = getShortType(req.reqTypeName);
+        const matchesType = typeFilter === "All" || shortType === typeFilter;
+        
+        let matchesStatus = true;
+        if (statusFilter === "Approved") matchesStatus = req.emp_reqStatusId === 2;
+        if (statusFilter === "Rejected") matchesStatus = req.emp_reqStatusId === 3;
+
+        // NEW: Date Filter Logic
+        const matchesDate = !dateFilter || req.date_Filed?.includes(dateFilter);
+
+        if (!matchesSearch || !matchesType || !matchesStatus || !matchesDate) return false;
+      }
+
+      return true;
+    });
+  }, [requests, userData?.user_RoleId, userData?.user_Id, activeTab, searchQuery, typeFilter, statusFilter, dateFilter]);
+
+  // Automatically align current page ONCE when a deep-linked request is loaded
+  useEffect(() => {
+    if (!selectedReqId || filteredRequests.length === 0) return;
+    if (pageAlignedRef.current === selectedReqId) return;
+
+    const reqIndex = filteredRequests.findIndex((r) => r.emp_reqId === selectedReqId);
+    if (reqIndex !== -1) {
+      const targetPage = Math.floor(reqIndex / itemsPerPage) + 1;
+      setCurrentPage(targetPage);
+      pageAlignedRef.current = selectedReqId;
     }
-
-    if (!matchesTab) return false;
-
-    // Remove the redundant Role 2 check here since we handled it in matchesTab
-    // if (userData?.user_RoleId === 2) { 
-    //   if (req.user_RoleId !== 3 && req.user_RoleId !== 1) return false;
-    // }
-
-    if (activeTab === "completed") {
-      // Baseline History Filter: Only show current and previous month (total of 4 payroll periods)
-      const filedDate = new Date(req.date_Filed);
-      const today = new Date();
-      const cutoff = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-      if (filedDate < cutoff) return false;
-
-      const query = searchQuery.toLowerCase();
-      
-      // Search Name or ID
-      const matchesSearch = 
-        req.userName?.toLowerCase().includes(query) || 
-        req.emp_reqId?.toString().includes(query) ||
-        (req.user_Id && formatUserId(req.user_Id).toLowerCase().includes(query)) ||
-        req.user_Id?.toString().includes(query);
-      
-      const shortType = getShortType(req.reqTypeName);
-      const matchesType = typeFilter === "All" || shortType === typeFilter;
-      
-      let matchesStatus = true;
-      if (statusFilter === "Approved") matchesStatus = req.emp_reqStatusId === 2;
-      if (statusFilter === "Rejected") matchesStatus = req.emp_reqStatusId === 3;
-
-      // NEW: Date Filter Logic
-      const matchesDate = !dateFilter || req.date_Filed?.includes(dateFilter);
-
-      if (!matchesSearch || !matchesType || !matchesStatus || !matchesDate) return false;
-    }
-
-    return true;
-  });
+  }, [selectedReqId, filteredRequests, itemsPerPage]);
 
   // Pagination Logic
   const totalItems = filteredRequests.length;
@@ -272,10 +328,41 @@ const AdminRequests = () => {
   const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
   const currentData = filteredRequests.slice(startIndex, endIndex);
 
-  // Derived current selection
-  const current = selectedReqId 
-    ? filteredRequests.find(r => r.emp_reqId === selectedReqId) 
-    : filteredRequests[0] || null;
+  // Clamp currentPage when totalPages decreases (e.g. after filtering or approval)
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(Math.max(1, totalPages));
+    }
+  }, [currentPage, totalPages]);
+
+  // Derived current selection: prefer selected item if on current page, otherwise fallback to first item on this page
+  const current = (selectedReqId && currentData.some(r => r.emp_reqId === selectedReqId))
+    ? currentData.find(r => r.emp_reqId === selectedReqId)
+    : (currentData[0] || null);
+
+  const getTimeLength = (req) => {
+    if (!req) return "";
+    if (req.emp_reqTypeId === 1) {
+      return `${req.Total_Hrs || 0} Hours`;
+    }
+    if (req.emp_reqTypeId === 2) {
+      return req.OW_NoHrs ? `${req.OW_NoHrs} Hours` : `${req.OW_NoDays || 1} Day(s)`;
+    }
+    if (req.emp_reqTypeId === 7) {
+      return "0.5 Day (4.0 Hours)";
+    }
+    if ([3, 4, 6, 8, 9, 10, 11, 12].includes(req.emp_reqTypeId)) {
+      const days = req.VL_NoDays || req.SL_NoDays || req.EL_NoDays || req.ST_NoDays || 1;
+      return `${days} ${days === 1 ? "Day" : "Days"}`;
+    }
+    if (req.emp_reqTypeId === 5) {
+      return "Log Adjustment";
+    }
+    if (req.emp_reqTypeId === 13 || req.emp_reqTypeId === 14) {
+      return "Loan Request";
+    }
+    return "";
+  };
 
   const getDates = (req) => {
     if (!req) return "";
@@ -286,7 +373,7 @@ const AdminRequests = () => {
         : req.ST_StartDate
           ? `${new Date(req.ST_StartDate).toLocaleDateString()} — ${new Date(req.ST_EndDate).toLocaleDateString()}`
           : req.OT_DateOf
-            ? `${new Date(req.OT_DateOf).toLocaleDateString()} (${formatTime(req.HrFrom)} - ${formatTime(req.HrTo)})`
+            ? new Date(req.OT_DateOf).toLocaleDateString()
             : req.LC_logDate
               ? new Date(req.LC_logDate).toLocaleDateString()
               : req.EL_DateOfLeave
@@ -295,7 +382,7 @@ const AdminRequests = () => {
                 ? new Date(req.HD_DateOfLeave).toLocaleDateString()
                 : req.DateonField ? new Date(req.DateonField).toLocaleDateString() : 
                 (req.emp_reqTypeId === 13 || req.emp_reqTypeId === 14) ? new Date(req.date_Filed).toLocaleDateString() : "";
-                };
+  };
   const getStatusColor = (statusId) => {
     if (statusId === 1 || statusId === 4) return "bg-orange-100 text-orange-800 hover:bg-orange-100";
     if (statusId === 2) return "bg-green-100 text-green-800 hover:bg-green-100";
@@ -337,7 +424,7 @@ const AdminRequests = () => {
         {/* Header Section */}
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-4 mb-6">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">User Requests</h1>
+              <h1 className="text-2xl md:text-3xl font-bold text-brand-primary leading-tight">User Requests</h1>
               <span className="text-sm text-slate-500 mt-1 block">
                 Monitor and process employee requests, leave filings, and log correction tickets.
               </span>
@@ -346,7 +433,7 @@ const AdminRequests = () => {
             <Button 
             variant="outline" 
             asChild
-            className="w-full md:w-auto border-[#2A174E]/20 hover:text-[#2A174E] text-[#2A174E]/70 font-semibold shadow-sm transition-all"
+            className="w-full md:w-auto border-brand-primary/20 hover:text-brand-primary text-brand-primary/70 font-semibold shadow-sm transition-all"
           >
             <Link 
               to="/adminReports" 
@@ -361,78 +448,78 @@ const AdminRequests = () => {
          {/* Statistics Cards */}
           <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
             {/* Card 1: Total Active Users */}
-            <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+            <Card className="border-t-5 border-brand-primary bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                 <div>
                   <div className="flex items-center gap-1.5 mb-2">
-                    <p className="text-xs font-bold text-[#2A174E] uppercase tracking-wider">Pending Requests</p>
+                    <p className="text-xs font-bold text-brand-primary uppercase tracking-wider">Pending Requests</p>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#2A174E]/60 hover:text-[#2A174E] cursor-help" />
+                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-brand-primary/60 hover:text-brand-primary cursor-help" />
                       </TooltipTrigger>
                       <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
                         Requests waiting for supervisor recommendation or final admin approval.
                       </TooltipContent>
                     </Tooltip>
                   </div>
-                  <p className="text-4xl font-bold text-[#2A174E]">{requests.filter((r) => r.emp_reqStatusId === 1).length}</p>
+                  <p className="text-4xl font-bold text-brand-primary">{requests.filter((r) => r.emp_reqStatusId === 1).length}</p>
                 </div>
-                <p className="text-xs text-[#2A174E]/70 italic mt-4">Awaiting review and approval</p>
+                <p className="text-xs text-brand-primary/70 italic mt-4">Awaiting review and approval</p>
               </div>
-              <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+              <div className="bg-brand-primary/10 text-brand-primary p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <HourglassEmptyIcon className="h-6 w-6" />
               </div>
               </CardContent>
             </Card>
 
             {/* Card 2: Employees */}
-            <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
+            <Card className="border-t-5 border-accent-green bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                 <div>
                   <div className="flex items-center gap-1.5 mb-2">
-                    <p className="text-xs font-bold text-[#3B4E17] uppercase tracking-wider">Approved Total</p>
+                    <p className="text-xs font-bold text-accent-green uppercase tracking-wider">Approved Total</p>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#3B4E17]/60 hover:text-[#3B4E17] cursor-help" />
+                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-accent-green/60 hover:text-accent-green cursor-help" />
                       </TooltipTrigger>
                       <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
                         Total number of employee requests approved in this system cycle.
                       </TooltipContent>
                     </Tooltip>
                   </div>
-                  <p className="text-4xl font-bold text-[#3B4E17]">{requests.filter((r) => r.emp_reqStatusId === 2).length}</p>
+                  <p className="text-4xl font-bold text-accent-green">{requests.filter((r) => r.emp_reqStatusId === 2).length}</p>
                 </div>
-                <p className="text-xs text-[#3B4E17]/70 italic mt-4">Processed and approved requests</p>
+                <p className="text-xs text-accent-green/70 italic mt-4">Processed and approved requests</p>
               </div>
-              <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+              <div className="bg-accent-green/10 text-accent-green p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <CheckCircleOutlineIcon className="h-6 w-6" />
               </div>
               </CardContent>
             </Card>
 
             {/* Card 3: Admins & Supervisors */}
-            <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
+            <Card className="border-t-5 border-accent-gold bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                 <div>
                   <div className="flex items-center gap-1.5 mb-2">
-                    <p className="text-xs font-bold text-[#BB8B26] uppercase tracking-wider">Rejected Total</p>
+                    <p className="text-xs font-bold text-accent-gold uppercase tracking-wider">Rejected Total</p>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#BB8B26]/60 hover:text-[#BB8B26] cursor-help" />
+                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-accent-gold/60 hover:text-accent-gold cursor-help" />
                       </TooltipTrigger>
                       <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
                         Total number of employee requests rejected or declined.
                       </TooltipContent>
                     </Tooltip>
                   </div>
-                  <p className="text-4xl font-bold text-[#BB8B26]">{requests.filter((r) => r.emp_reqStatusId === 3).length}</p>
+                  <p className="text-4xl font-bold text-accent-gold">{requests.filter((r) => r.emp_reqStatusId === 3).length}</p>
                 </div>
-                <p className="text-xs text-[#BB8B26]/70 italic mt-4">Declined and unapproved requests</p>
+                <p className="text-xs text-accent-gold/70 italic mt-4">Declined and unapproved requests</p>
               </div>
-              <div className="bg-white/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+              <div className="bg-white/20 text-accent-gold p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <CancelOutlinedIcon className="h-6 w-6" />
               </div>
               </CardContent>
@@ -473,7 +560,7 @@ const AdminRequests = () => {
                   placeholder="Search Employee Name or REQ ID..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 border-slate-200 focus-visible:ring-[#2A174E] w-full"
+                  className="pl-10 border-slate-200 focus-visible:ring-brand-primary w-full"
                 />
               </div>
               
@@ -552,14 +639,14 @@ const AdminRequests = () => {
           <Card className="w-full lg:w-1/3 flex flex-col shadow-sm border-0 bg-white h-full overflow-hidden py-0">
             <div className="flex border-b border-slate-100 bg-slate-50/50">
               <button
-                className={`flex-1 py-4 font-semibold text-sm transition-colors ${activeTab === "pending" ? "text-[#2A174E] border-b-2 border-[#2A174E] bg-white" : "text-slate-500 hover:bg-slate-100"}`}
-                onClick={() => setActiveTab("pending")}
+                className={`flex-1 py-4 font-semibold text-sm transition-colors ${activeTab === "pending" ? "text-brand-primary border-b-2 border-brand-primary bg-white" : "text-slate-500 hover:bg-slate-100"}`}
+                onClick={() => handleTabChange("pending")}
               >
                 Pending
               </button>
               <button
-                className={`flex-1 py-4 font-semibold text-sm transition-colors ${activeTab === "completed" ? "text-[#2A174E] border-b-2 border-[#2A174E] bg-white" : "text-slate-500 hover:bg-slate-100"}`}
-                onClick={() => setActiveTab("completed")}
+                className={`flex-1 py-4 font-semibold text-sm transition-colors ${activeTab === "completed" ? "text-brand-primary border-b-2 border-brand-primary bg-white" : "text-slate-500 hover:bg-slate-100"}`}
+                onClick={() => handleTabChange("completed")}
               >
                 History
               </button>
@@ -578,8 +665,11 @@ const AdminRequests = () => {
                   return (
                     <div
                       key={req.emp_reqId}
-                      onClick={() => setSelectedReqId(req.emp_reqId)}
-                      className={`p-4 border rounded-xl cursor-pointer transition-all ${isSelected ? "bg-[#f0ebfa] border-[#2A174E] shadow-sm" : "border-slate-200 bg-white hover:border-[#2A174E]/50"}`}
+                      onClick={() => {
+                        setSelectedReqId(req.emp_reqId);
+                        pageAlignedRef.current = req.emp_reqId;
+                      }}
+                      className={`p-4 border rounded-xl cursor-pointer transition-all ${isSelected ? "bg-brand-primary-light border-brand-primary shadow-sm" : "border-slate-200 bg-white hover:border-brand-primary/50"}`}
                     >
                       <div className="flex justify-between items-center mb-2">
                         <div className="flex items-center gap-1.5 flex-wrap">
@@ -587,15 +677,23 @@ const AdminRequests = () => {
                             {getShortType(req.reqTypeName)}
                           </Badge>
                           {req.system_remarks && (
-                            <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-300 text-[10px] px-1.5 py-0">
-                              ⚠️ Notice
+                            <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-300 text-[10px] px-1.5 py-0 flex items-center gap-0.5">
+                              <WarningAmberIcon sx={{ fontSize: 11 }} />
+                              Notice
                             </Badge>
                           )}
                         </div>
                         <span className="text-xs text-slate-500 font-medium">REQ-{req.emp_reqId}</span>
                       </div>
                       <p className="font-bold text-slate-800 text-sm mb-1">{req.userName}</p>
-                      <p className="text-xs text-slate-500">{getDates(req)}</p>
+                      <div className="flex justify-between items-center text-xs text-slate-500">
+                        <span>{getDates(req)}</span>
+                        {getTimeLength(req) && (
+                          <span className="font-semibold text-brand-primary bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded text-[11px]">
+                            {getTimeLength(req)}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   );
                 })
@@ -604,7 +702,7 @@ const AdminRequests = () => {
                   <div className="bg-green-100 text-green-600 p-4 rounded-full mb-4">
                     <CheckCircleOutlineIcon className="h-8 w-8" />
                   </div>
-                  <h5 className="font-bold text-[#2A174E] text-lg mb-2">
+                  <h5 className="font-bold text-brand-primary text-lg mb-2">
                     {activeTab === "pending" ? "All Caught Up!" : "No Records Found"}
                   </h5>
                   <p className="text-sm text-slate-500 max-w-[200px]">
@@ -637,7 +735,7 @@ const AdminRequests = () => {
                 <>
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-100 pb-6 mb-6 gap-4">
                     <div>
-                      <h3 className="text-xl md:text-2xl font-bold text-[#2A174E]">Review {current.reqTypeName}</h3>
+                      <h3 className="text-xl md:text-2xl font-bold text-brand-primary">Review {current.reqTypeName}</h3>
                       <p className="text-sm text-slate-500 mt-1">Submitted on {new Date(current.date_Filed).toLocaleDateString()}</p>
                       {current.emp_reqStatusId === 5 && (
                         <div className="mt-2">
@@ -725,7 +823,7 @@ const AdminRequests = () => {
                               <Button 
                                 variant="outline" 
                                 size="icon"
-                                className="text-[#2A174E]/70 border-transparent! hover:text-[#2A174E] font-bold h-9 w-9 shrink-0"
+                                className="text-brand-primary/70 border-transparent! hover:text-brand-primary font-bold h-9 w-9 shrink-0"
                                 onClick={() => handleEditClick(current)}
                               >
                                 <EditIcon className="h-4 w-4" />
@@ -749,33 +847,13 @@ const AdminRequests = () => {
 
                     <div className="space-y-1 sm:col-span-2 xl:col-span-1 p-3 -m-3 rounded-lg ">
                       <label className="text-xs font-bold text-slate-500 uppercase">Requested Schedule</label>
-                      <p className="font-bold text-[#2A174E]">{getDates(current)}</p>
+                      <p className="font-bold text-brand-primary">{getDates(current)}</p>
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Duration / Details</label>
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Time Length / Duration</label>
                       <p className="font-semibold text-slate-800">
-                        {current.emp_reqTypeId === 1
-                          ? `${current.Total_Hrs || 0} Hrs`
-                          : current.emp_reqTypeId === 2
-                            ? `${current.OW_NoDays || 0} Day(s) (${current.OW_NoHrs || 0} Hrs)`
-                            : current.emp_reqTypeId === 5
-                              ? `${current.LC_correctionCategory || "Correction"} for ${new Date(current.LC_logDate).toLocaleDateString()}`
-                              : [3, 4, 6, 8, 9, 10, 11, 12].includes(current.emp_reqTypeId)
-                                ? (() => {
-                                    const used = current.VL_NoDays || current.SL_NoDays || current.EL_NoDays || current.ST_NoDays || 0;
-                                    const start = current.VL_StartDate || current.SL_StartDate || current.EL_DateOfLeave || current.ST_StartDate;
-                                    const end = current.VL_EndDate || current.SL_EndDate || current.EL_DateOfLeave || current.ST_EndDate;
-                                    const original = calculateDays(start, end);
-                                    return used < original 
-                                      ? `${used} Day(s) Used (Original: ${original})` 
-                                      : `${used} Day(s)`;
-                                  })()
-                                : current.emp_reqTypeId === 7 // Half-day
-                                  ? `Half-day (${current.HD_period})`
-                                  : [13, 14].includes(current.emp_reqTypeId)
-                                    ? `${current.LR_agency} ${current.LR_loanType}`
-                                    : `${current.VL_NoDays || current.SL_NoDays || 0} Day(s)`}
+                        {getTimeLength(current)}
                       </p>
                     </div>
 
@@ -968,7 +1046,7 @@ const AdminRequests = () => {
                               setViewingFileName(`Attachment for REQ-${current.emp_reqId}`);
                               setIsFileViewerOpen(true);
                             }}
-                            className="inline-flex items-center text-[#2A174E] font-semibold hover:underline w-fit bg-transparent border-none cursor-pointer"
+                            className="inline-flex items-center text-brand-primary font-semibold hover:underline w-fit bg-transparent border-none cursor-pointer"
                             >
                             <AttachmentIcon className="mr-1 h-4 w-4" /> View Primary Document (Disclosure Statement/Medical Cert)
                             </button>
@@ -1016,7 +1094,7 @@ const AdminRequests = () => {
                         value={adminNote}
                         onChange={(e) => setAdminNote(e.target.value)}
                         placeholder="Reason for approval, rejection, or return..."
-                        className="h-24 resize-none focus-visible:ring-[#2A174E]"
+                        className="h-24 resize-none focus-visible:ring-brand-primary"
                       />
                     </div>
                   )}

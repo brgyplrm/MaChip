@@ -48,6 +48,15 @@ function Register() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const pwd = userData.user_Password || "";
+    if (pwd.length < 8 || !/[A-Z]/.test(pwd) || !/[a-z]/.test(pwd) || !/[0-9]/.test(pwd) || !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pwd)) {
+      setToast({ 
+        message: "Password must be at least 8 characters long and contain uppercase, lowercase, numbers, and special characters.", 
+        type: "error" 
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       const formDataToSend = new FormData();
@@ -165,6 +174,28 @@ function Register() {
               <div className="form-group">
                 <label>Temporary Password</label>
                 <input type="password" id="user_Password" placeholder="Create a temporary password" value={userData.user_Password} onChange={handleChange} required />
+                {userData.user_Password && (
+                  <div className="mt-2 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1 text-slate-600">
+                    <p className="font-semibold text-[11px] mb-1">Password Requirements:</p>
+                    <div className="grid grid-cols-2 gap-1 text-[11px]">
+                      <span className={userData.user_Password.length >= 8 ? "text-emerald-600 font-medium" : "text-slate-400"}>
+                        {userData.user_Password.length >= 8 ? "✓" : "○"} At least 8 characters
+                      </span>
+                      <span className={/[A-Z]/.test(userData.user_Password) ? "text-emerald-600 font-medium" : "text-slate-400"}>
+                        {/[A-Z]/.test(userData.user_Password) ? "✓" : "○"} Uppercase (A-Z)
+                      </span>
+                      <span className={/[a-z]/.test(userData.user_Password) ? "text-emerald-600 font-medium" : "text-slate-400"}>
+                        {/[a-z]/.test(userData.user_Password) ? "✓" : "○"} Lowercase (a-z)
+                      </span>
+                      <span className={/[0-9]/.test(userData.user_Password) ? "text-emerald-600 font-medium" : "text-slate-400"}>
+                        {/[0-9]/.test(userData.user_Password) ? "✓" : "○"} Number (0-9)
+                      </span>
+                      <span className={`col-span-2 ${/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(userData.user_Password) ? "text-emerald-600 font-medium" : "text-slate-400"}`}>
+                        {/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(userData.user_Password) ? "✓" : "○"} Special character (!@#$%^&*)
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="form-group">

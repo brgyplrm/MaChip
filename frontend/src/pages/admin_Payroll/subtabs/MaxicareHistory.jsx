@@ -159,7 +159,7 @@ const MaxicareHistory = () => {
                       variant="ghost" 
                       size="icon" 
                       asChild 
-                      className="text-[#2A174E]"
+                      className="text-brand-primary"
                     >
                       <Link to="/maxicare">
                         <ChevronLeft className="h-6 w-6" />
@@ -175,7 +175,7 @@ const MaxicareHistory = () => {
 
             {/* Title Group: Moves to the right via ml-2 when hovered */}
             <div className="ml-0 group-hover:ml-2 transition-all duration-300 ease-in-out flex-1 text-left">
-              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Maxicare Deduction History</h1>
+              <h1 className="text-2xl md:text-3xl font-bold text-brand-primary">Maxicare Deduction History</h1>
               <span className="text-sm text-slate-500 mt-1 block">Overview of all health insurance cycles and premiums.</span>
             </div>
           </div>
@@ -209,7 +209,7 @@ const MaxicareHistory = () => {
 
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card className="border-t-4 border-[#2A174E] shadow-sm py-0">
+          <Card className="border-t-4 border-brand-primary shadow-sm py-0">
             <CardContent className="flex justify-between items-center p-6">
               <div>
                 <div className="flex items-center gap-1.5 mb-1">
@@ -223,15 +223,15 @@ const MaxicareHistory = () => {
                     </TooltipContent>
                   </Tooltip>
                 </div>
-                <p className="text-3xl font-bold text-[#2A174E]">{stats.totalCycles}</p>
+                <p className="text-3xl font-bold text-brand-primary">{stats.totalCycles}</p>
               </div>
-              <div className="bg-[#2A174E]/10 p-3 rounded-xl text-[#2A174E]">
+              <div className="bg-brand-primary/10 p-3 rounded-xl text-brand-primary">
                 <HistoryIcon size={32} />
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-t-4 border-blue-500 shadow-sm py-0">
+          <Card className="border-t-4 border-status-info shadow-sm py-0">
             <CardContent className="flex justify-between items-center p-6">
               <div>
                 <div className="flex items-center gap-1.5 mb-1">
@@ -245,15 +245,15 @@ const MaxicareHistory = () => {
                     </TooltipContent>
                   </Tooltip>
                 </div>
-                <p className="text-3xl font-bold text-blue-700">{new Set(history.map(h => h.user_Id)).size}</p>
+                <p className="text-3xl font-bold text-status-info">{new Set(history.map(h => h.user_Id)).size}</p>
               </div>
-              <div className="bg-blue-50 p-3 rounded-xl text-blue-600">
+              <div className="bg-sky-50 p-3 rounded-xl text-status-info">
                 <GroupsIcon size={32} />
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-t-4 border-emerald-500 shadow-sm py-0">
+          <Card className="border-t-4 border-accent-green shadow-sm py-0">
             <CardContent className="flex justify-between items-center p-6">
               <div>
                 <div className="flex items-center gap-1.5 mb-1">
@@ -267,9 +267,9 @@ const MaxicareHistory = () => {
                     </TooltipContent>
                   </Tooltip>
                 </div>
-                <p className="text-3xl font-bold text-emerald-700">{peso(stats.totalBilled)}</p>
+                <p className="text-3xl font-bold text-accent-green">{peso(stats.totalBilled)}</p>
               </div>
-              <div className="bg-emerald-50 p-3 rounded-xl text-emerald-600">
+              <div className="bg-accent-green/10 p-3 rounded-xl text-accent-green">
                 <AccountBalanceWalletIcon size={32} />
               </div>
             </CardContent>
@@ -280,7 +280,7 @@ const MaxicareHistory = () => {
         <Card className="shadow-sm border-0 bg-white overflow-hidden py-0">
           <CardContent className="p-0">
             <Table>
-              <TableHeader className="bg-[#2A174E]">
+              <TableHeader className="bg-brand-primary">
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="text-white font-bold py-4 px-6 uppercase text-[11px] tracking-wider">Annual Cycle</TableHead>
                   <TableHead className="text-white font-bold py-4 uppercase text-[11px] tracking-wider">Total Gross Premium</TableHead>
@@ -297,11 +297,11 @@ const MaxicareHistory = () => {
                 ) : cycleSummaries.length > 0 ? (
                   cycleSummaries.map((summary) => (
                     <TableRow key={summary.year} className="hover:bg-slate-50 transition-colors">
-                      <TableCell className="font-bold text-[#2A174E] px-6 py-5">
+                      <TableCell className="font-bold text-brand-primary px-6 py-5">
                         <div className="flex items-center gap-2">
                           <span>Cycle {summary.label}</span>
                           {summary.year === currentCycleYear && (
-                            <Badge className="bg-yellow-400 text-[#2A174E] hover:bg-yellow-500 border-none font-black text-[10px]">
+                            <Badge className="bg-yellow-400 text-brand-primary hover:bg-yellow-500 border-none font-black text-[10px]">
                               CURRENT
                             </Badge>
                           )}
@@ -329,7 +329,7 @@ const MaxicareHistory = () => {
                                 variant="outline" 
                                 size="sm"
                                 onClick={() => navigate(`/maxicare?year=${summary.year}`)}
-                                className="border-[#2A174E] text-[#2A174E] hover:bg-[#2A174E] hover:text-white"
+                                className="border-brand-primary text-brand-primary hover:bg-brand-primary hover:text-white"
                               >
                                 <VisibilityIcon className="mr-2 h-4 w-4" /> View
                               </Button>

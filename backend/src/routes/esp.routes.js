@@ -42,4 +42,9 @@ router.get("/fingerprint/download/:uid", espValidator, rfidController.getFingerp
 router.post("/visitor-access", authMiddleware, rfidController.triggerVisitorAccess);
 router.post("/visitor-access/confirm", espValidator, rfidController.confirmVisitorAccess);
 
+// Reset TFT Screen to default state (Scan RFID to Clock In)
+router.post("/reset-screen", authMiddleware, rfidController.resetTftScreen);
+router.get("/reset-screen", authMiddleware, rfidController.resetTftScreen);
+
 module.exports = router;
+

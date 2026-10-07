@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import Sidebar from "../../components/Sidebar";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import RefreshIcon from "@mui/icons-material/Refresh";
@@ -18,10 +18,26 @@ import KeyboardDoubleArrowDownIcon from '@mui/icons-material/KeyboardDoubleArrow
 import PaymentsIcon from '@mui/icons-material/Payments';
 import { useSystemTime } from "../../context/SystemTimeContext";
 import SummarizeOutlinedIcon from '@mui/icons-material/SummarizeOutlined';
-import { EyeIcon, ChevronLeft, Mail } from "lucide-react";  
+import EventRepeatIcon from '@mui/icons-material/EventRepeat';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import { EyeIcon, ChevronLeft, Mail, ChevronDown, RotateCw } from "lucide-react";  
 import Toast from "../../components/toast/Toast";
+import PayrollAlertBanner from "../../components/PayrollAlertBanner";
+import ReleaseSummaryModal from "../../components/ReleaseSummaryModal";
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { resolvePaydaySchedule } from "../../utils/paydayHelper";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -46,6 +62,10 @@ const PayrollPeriod = () => {
     totalDeductions: 0
   });
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [confirmMode, setConfirmMode] = useState("release"); // "draft" or "release"
+  const [isReleaseSummaryOpen, setIsReleaseSummaryOpen] = useState(false);
+  const [releaseSummaryData, setReleaseSummaryData] = useState(null);
+  const [isResendConfirmOpen, setIsResendConfirmOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingPayroll, setEditingPayroll] = useState(null);
   const [showSummaryPreview, setShowSummaryPreview] = useState(false);
@@ -62,12 +82,34 @@ const PayrollPeriod = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const [gracePeriodDays, setGracePeriodDays] = useState(7);
+  const [deadlineDays, setDeadlineDays] = useState(3);
   const [toast, setToast] = useState({ message: "", type: "success" });
   const [isSendingBatchEmails, setIsSendingBatchEmails] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
 
-  const handleResendBatchEmails = async () => {
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    if (isDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isDropdownOpen]);
+
+  const handleOpenResendConfirm = () => {
     if (!selectedPeriod) return;
-    if (!window.confirm(`Resend payroll emails with Payslips 1 & 2 and DTR to all employees for period ${selectedPeriod.startDate} to ${selectedPeriod.endDate}?`)) return;
+    setIsResendConfirmOpen(true);
+  };
+
+  const executeResendBatchEmails = async () => {
+    setIsResendConfirmOpen(false);
+    if (!selectedPeriod) return;
 
     setIsSendingBatchEmails(true);
     try {
@@ -92,22 +134,49 @@ const PayrollPeriod = () => {
     }
   };
 
+  const [weekendRule, setWeekendRule] = useState("PRECEDING_FRIDAY");
+
+  const periodSchedule = useMemo(() => {
+    if (!selectedPeriod?.endDate) return null;
+    return resolvePaydaySchedule(selectedPeriod.endDate, weekendRule);
+  }, [selectedPeriod, weekendRule]);
+
+  const todayStr = useMemo(() => {
+    if (!systemToday) return "";
+    const d = new Date(systemToday);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }, [systemToday]);
+
   const isProcessingWindow = useMemo(() => {
     if (!selectedPeriod?.endDate || !systemToday) return false;
     
-    // Normalize dates to midnight for accurate day-to-day comparison
-    const end = new Date(selectedPeriod.endDate);
-    end.setHours(0, 0, 0, 0);
+    // Manual checking and batch preparation begins on the audit day (business day before payday)
+    const checkDateStr = periodSchedule?.checkingDate || selectedPeriod.endDate;
+    const checkDate = new Date(checkDateStr + "T00:00:00");
+    checkDate.setHours(0, 0, 0, 0);
     
     const today = new Date(systemToday);
     today.setHours(0, 0, 0, 0);
 
-    // 1-week (7 days) post-period grace window after cutoff ends
-    const windowEnd = new Date(end);
-    windowEnd.setDate(windowEnd.getDate() + (gracePeriodDays || 7));
+    return today >= checkDate;
+  }, [selectedPeriod, systemToday, periodSchedule]);
 
-    return today >= end && today <= windowEnd;
-  }, [selectedPeriod, systemToday, gracePeriodDays]);
+  const isOverdue = useMemo(() => {
+    if (!selectedPeriod?.endDate || !systemToday || selectedPeriod?.status !== 'Draft') return false;
+    const payDayStr = periodSchedule?.effectivePayday || selectedPeriod.endDate;
+    const payDay = new Date(payDayStr + "T00:00:00");
+    payDay.setHours(0, 0, 0, 0);
+
+    const today = new Date(systemToday);
+    today.setHours(0, 0, 0, 0);
+
+    const deadline = new Date(payDay);
+    deadline.setDate(deadline.getDate() + (deadlineDays || 3));
+    return today > deadline;
+  }, [selectedPeriod, systemToday, periodSchedule, deadlineDays]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -121,6 +190,12 @@ const PayrollPeriod = () => {
         const sData = await settingsRes.json();
         if (sData.payrollGracePeriodDays) {
           setGracePeriodDays(parseInt(sData.payrollGracePeriodDays));
+        }
+        if (sData.payrollProcessingDeadlineDays) {
+          setDeadlineDays(parseInt(sData.payrollProcessingDeadlineDays));
+        }
+        if (sData.payrollWeekendRule) {
+          setWeekendRule(sData.payrollWeekendRule);
         }
       }
 
@@ -151,47 +226,21 @@ const PayrollPeriod = () => {
 
   const fetchLivePreview = async (period) => {
     try {
-      const empRes = await fetchWithAuth("/api/users/all");
-      const employees = await empRes.json();
-      if (!empRes.ok) return;
-
-      const livePayrolls = [];
-      let totalNet = 0, totalEarn = 0, totalDed = 0;
-
-      for (const emp of employees.filter(e => e.dailyRate > 0)) {
-        const prevRes = await fetchWithAuth(`/api/payroll/preview?user_Id=${emp.user_Id}&period_Start=${period.startDate}&period_End=${period.endDate}`);
-        const preview = await prevRes.json();
-
-        if (prevRes.ok) {
-          livePayrolls.push({
-            payrollId: `preview-${emp.user_Id}`,
-            user_FirstName: emp.user_FirstName,
-            user_LastName: emp.user_LastName,
-            user_Id: emp.user_Id,
-            period_Start: period.startDate,
-            period_End: period.endDate,
-            NoDays_Worked: preview.NoDays_Worked,
-            NoHrs_Worked: preview.NoHrs_Worked,
-            totalScheduledDays: preview.totalScheduledDays,
-            potentialBasicPay: preview.potentialBasicPay || (preview.totalScheduledDays ? preview.totalScheduledDays * emp.dailyRate : emp.dailyRate * 13),
-            basicPay: preview.basicPay,
-            totalEarnings: preview.totalEarnings,
-            grossEarnings: preview.grossEarnings || preview.totalEarnings,
-            totalDeductions: preview.totalDeductions,
-            netPay: preview.netPay,
-            dailyRate: emp.dailyRate,
-            taxStatus: emp.taxStatus,
-            PaystatusName: "Draft"
-          });
-
-          totalNet += preview.netPay;
-          totalEarn += preview.totalEarnings;
-          totalDed += preview.totalDeductions;
-        }
+      const res = await fetchWithAuth(`/api/payroll/preview-batch?period_Start=${period.startDate}&period_End=${period.endDate}`);
+      if (res.ok) {
+        const data = await res.json();
+        setPayrolls(data.employees || []);
+        setStats({
+          totalNetPay: data.totalNetPay || 0,
+          totalEarnings: data.totalEarnings || 0,
+          totalDeductions: data.totalDeductions || 0
+        });
+      } else {
+        console.error("Failed to load batch live preview.");
       }
-      setPayrolls(livePayrolls);
-      setStats({ totalNetPay: totalNet, totalEarnings: totalEarn, totalDeductions: totalDed });
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error("fetchLivePreview error:", err);
+    }
   };
 
   const fetchSavedPayrolls = async (period) => {
@@ -212,21 +261,59 @@ const PayrollPeriod = () => {
     if (!selectedPeriod) return;
     try {
       setLoading(true);
-      const response = await fetchWithAuth("/api/payroll/batch-generate", {
+      const isRelease = (confirmMode === "release");
+      const endpoint = isRelease ? "/api/payroll/batch-release" : "/api/payroll/batch-generate";
+      const response = await fetchWithAuth(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           period_Start: selectedPeriod.startDate,
-          period_End: selectedPeriod.endDate
+          period_End: selectedPeriod.endDate,
+          shouldRelease: isRelease
         }),
       });
+
       if (response.ok) {
         const result = await response.json();
-        alert(result.message);
-        fetchData(); 
+        setIsConfirmOpen(false);
+
+        if (isRelease || result.status === "Released") {
+          setReleaseSummaryData({
+            periodLabel: selectedPeriod.label || `${selectedPeriod.startDate} to ${selectedPeriod.endDate}`,
+            employeeCount: result.processed || result.totalCount || payrolls.length,
+            totalNetPay: result.totalNetPay || stats.totalNetPay,
+            totalEarnings: result.totalEarnings || stats.totalEarnings,
+            totalDeductions: result.totalDeductions || stats.totalDeductions
+          });
+          setIsReleaseSummaryOpen(true);
+          setToast({
+            message: result.message || "Batch payroll released and locked successfully.",
+            type: "success"
+          });
+        } else {
+          setToast({
+            message: result.message || "Batch payroll draft calculated successfully.",
+            type: "success"
+          });
+        }
+        await fetchData(); 
+      } else {
+        const err = await response.json().catch(() => ({}));
+        setToast({
+          message: err.error || "Failed to process batch payroll.",
+          type: "error"
+        });
       }
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); setIsConfirmOpen(false); }
+    } catch (err) {
+      console.error("handleBatchProcess error:", err);
+      setToast({
+        message: "Network error: " + err.message,
+        type: "error"
+      });
+    } finally {
+      setLoading(false);
+      setIsConfirmOpen(false);
+    }
   };
 
   const handlePreviewSummary = async () => {
@@ -238,9 +325,12 @@ const PayrollPeriod = () => {
         setPreviewContent(html);
         setShowSummaryPreview(true);
       } else {
-        alert("Failed to fetch summary preview.");
+        setToast({ message: "Failed to fetch summary preview.", type: "error" });
       }
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error(err);
+      setToast({ message: "Failed to fetch summary preview: " + err.message, type: "error" });
+    }
   };
 
   const handleDownloadSummary = async () => {
@@ -256,10 +346,14 @@ const PayrollPeriod = () => {
         document.body.appendChild(a);
         a.click();
         a.remove();
+        setToast({ message: "Payroll summary PDF downloaded successfully.", type: "success" });
       } else {
-        alert("Failed to download summary. Ensure payroll is processed for this period.");
+        setToast({ message: "Failed to download summary. Ensure payroll is processed for this period.", type: "error" });
       }
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error(err);
+      setToast({ message: "Failed to download summary: " + err.message, type: "error" });
+    }
   };
 
   useEffect(() => {
@@ -302,6 +396,7 @@ const PayrollPeriod = () => {
       <Sidebar>
         <TooltipProvider>
           <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto">
+            <PayrollAlertBanner />
         
         {/* Header section with back button */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
@@ -316,7 +411,7 @@ const PayrollPeriod = () => {
                     variant="ghost" 
                     size="icon" 
                     asChild 
-                    className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-brand-primary"
                   >
                     <Link to="/payroll">
                       <ChevronLeft className="h-6 w-6" />
@@ -332,12 +427,25 @@ const PayrollPeriod = () => {
 
           {/* Title: Adds left padding when hovered */}
           <div className="transition-all duration-300 ease-in-out group-hover:pl-2">
-            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">
+            <h1 className="text-2xl md:text-3xl font-bold text-brand-primary leading-tight">
                 {selectedPeriod?.label} {selectedPeriod?.status === 'Draft' ? "Current Period" : "Previous Period"}
               </h1>
-              <span className="text-sm text-slate-500 mt-1 block">
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              <span className="text-sm text-slate-500">
                 {selectedPeriod?.startDate ? new Date(selectedPeriod.startDate).toLocaleDateString() : "—"} to {selectedPeriod?.endDate ? new Date(selectedPeriod.endDate).toLocaleDateString() : "—"}
               </span>
+              {periodSchedule?.effectivePayday && (
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200">
+                  Payday: {periodSchedule.readablePayday}
+                </span>
+              )}
+              {periodSchedule?.isAdjusted && (
+                <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 inline-flex items-center gap-1">
+                  <EventRepeatIcon className="h-3.5 w-3.5 text-amber-700 shrink-0" />
+                  {periodSchedule.adjustmentNotice}
+                </span>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto mt-4 md:mt-0">
@@ -345,7 +453,7 @@ const PayrollPeriod = () => {
               <TooltipTrigger asChild>
                 <span className="inline-block w-full sm:w-auto">
                   <Button 
-                    className="w-full bg-[#f8fafc] hover:text-[#2A174E] text-[#2A174E]/70 border border-slate-200 hover:bg-slate-100" 
+                    className="w-full bg-[#f8fafc] hover:text-brand-primary text-brand-primary/70 border border-slate-200 hover:bg-slate-100" 
                     onClick={handlePreviewSummary}
                     disabled={loading || payrolls.length === 0}
                   >
@@ -358,34 +466,109 @@ const PayrollPeriod = () => {
               </TooltipContent>
             </Tooltip>
 
-            {/* Updated Process Batch Button */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="inline-block w-full sm:w-auto">
-                  <Button 
-                    className={`w-full bg-[#2A174E] text-white border hover:bg-[#7A52B5] ${
-                      (selectedPeriod?.status !== 'Draft' || !isProcessingWindow) ? "opacity-50 cursor-not-allowed" : ""
-                    }`}
-                    onClick={() => setIsConfirmOpen(true)}
-                    disabled={selectedPeriod?.status !== 'Draft' || !isProcessingWindow}
-                    title={
-                      selectedPeriod?.status !== 'Draft' ? "Already Processed" :
-                      !isProcessingWindow ? `Processing is available from cutoff date (${new Date(selectedPeriod?.endDate).toLocaleDateString()}) up to 1 week after (${(() => {
-                        const d = new Date(selectedPeriod?.endDate);
-                        d.setDate(d.getDate() + (gracePeriodDays || 7));
-                        return d.toLocaleDateString();
-                      })()})` : ""
-                    }
-                  >
-                    <GroupsOutlinedIcon className="mr-2 h-4 w-4" /> 
-                    {selectedPeriod?.status === 'Draft' ? "Process Batch" : "Processed"}
-                  </Button>
-                </span>
-              </TooltipTrigger>
-              <TooltipContent className="bg-slate-900 text-white border-slate-800">
-                {selectedPeriod?.status === 'Draft' ? "Recalculate, lock, and archive payroll for all active employees." : "This payroll period is locked/processed."}
-              </TooltipContent>
-            </Tooltip>
+            {/* If Draft and already has records generated: Unified Release & Lock (Primary) + Recalculate Draft Action */}
+            {selectedPeriod?.status === 'Draft' && payrolls.length > 0 && (
+              <div className="relative inline-flex rounded-lg shadow-sm w-full sm:w-auto" ref={dropdownRef}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      className="w-full sm:w-auto rounded-r-none bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm border border-emerald-600 border-r-emerald-700/50"
+                      onClick={() => {
+                        setConfirmMode("release");
+                        setIsConfirmOpen(true);
+                      }}
+                      disabled={loading}
+                    >
+                      <LockOutlinedIcon className="mr-2 h-4 w-4" />
+                      Release &amp; Lock Payroll
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                    Recalculate latest attendance, permanently lock records, archive PDFs, and send payslip emails.
+                  </TooltipContent>
+                </Tooltip>
+
+                <Button
+                  type="button"
+                  className="rounded-l-none bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 border border-l-0 border-emerald-600 flex items-center justify-center cursor-pointer transition-colors"
+                  disabled={loading}
+                  onClick={() => setIsDropdownOpen((prev) => !prev)}
+                  title="More payroll batch actions"
+                >
+                  <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isDropdownOpen ? "rotate-180" : ""}`} />
+                </Button>
+
+                {isDropdownOpen && (
+                  <div className="absolute right-0 top-full mt-1.5 w-64 bg-white rounded-lg shadow-xl border border-slate-200 z-50 py-1.5 animate-in fade-in-0 zoom-in-95 duration-150">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsDropdownOpen(false);
+                        setConfirmMode("draft");
+                        setIsConfirmOpen(true);
+                      }}
+                      className="w-full text-left px-3 py-2.5 flex items-start gap-2.5 hover:bg-purple-50 transition-colors group cursor-pointer"
+                    >
+                      <RotateCw className="h-4 w-4 text-brand-primary mt-0.5 shrink-0 group-hover:rotate-45 transition-transform" />
+                      <div className="flex flex-col">
+                        <span className="font-semibold text-xs text-slate-800 group-hover:text-brand-primary">Recalculate Draft Only</span>
+                        <span className="text-[11px] text-slate-500 leading-tight mt-0.5">Preview latest logs and rates without locking</span>
+                      </div>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* If Draft and NO records generated yet */}
+            {selectedPeriod?.status === 'Draft' && payrolls.length === 0 && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-block w-full sm:w-auto">
+                    <Button 
+                      className={`w-full ${
+                        isOverdue 
+                          ? "bg-amber-600 hover:bg-amber-700 text-white border-amber-600 shadow-sm" 
+                          : "bg-brand-primary text-white border hover:bg-[#7A52B5]"
+                      } ${
+                        !isProcessingWindow ? "opacity-50 cursor-not-allowed" : ""
+                      }`}
+                      onClick={() => {
+                        setConfirmMode(isOverdue ? "release" : "draft");
+                        setIsConfirmOpen(true);
+                      }}
+                      disabled={!isProcessingWindow || loading}
+                      title={
+                        !isProcessingWindow ? `Batch manual verification will be available on the audit day (${periodSchedule?.readableCheckingDate || new Date(selectedPeriod?.endDate).toLocaleDateString()}).` :
+                        isOverdue ? `Overdue: Cutoff was on ${new Date(selectedPeriod?.endDate).toLocaleDateString()}. Click to process and finalize batch now.` : ""
+                      }
+                    >
+                      <GroupsOutlinedIcon className="mr-2 h-4 w-4" /> 
+                      {isOverdue 
+                        ? "Process & Release Overdue Batch" 
+                        : (todayStr && periodSchedule?.checkingDate && todayStr === periodSchedule.checkingDate)
+                          ? "Verify Batch (Audit Day)"
+                          : "Process Batch"}
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                  {isOverdue 
+                    ? `Overdue Batch: Cutoff was on ${new Date(selectedPeriod?.endDate).toLocaleDateString()}. Process, lock, and archive payroll now.`
+                    : !isProcessingWindow 
+                      ? `Manual verification opens on ${periodSchedule?.readableCheckingDate || new Date(selectedPeriod?.endDate).toLocaleDateString()} before payday release.`
+                      : "Compute draft attendance, earnings, and deductions for all active employees."}
+                </TooltipContent>
+              </Tooltip>
+            )}
+
+            {/* If Already Released */}
+            {selectedPeriod?.status !== 'Draft' && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-300 text-sm font-semibold cursor-default">
+                <CheckCircleOutlineIcon className="h-4 w-4 text-emerald-600" />
+                Released &amp; Locked
+              </span>
+            )}
 
             {/* Resend Batch Emails Button */}
             {selectedPeriod?.status !== 'Draft' && payrolls.length > 0 && (
@@ -394,8 +577,8 @@ const PayrollPeriod = () => {
                   <span className="inline-block w-full sm:w-auto">
                     <Button 
                       variant="outline"
-                      className="w-full border-purple-300 text-[#2A174E] hover:bg-purple-50"
-                      onClick={handleResendBatchEmails}
+                      className="w-full border-purple-300 text-brand-primary hover:bg-purple-50"
+                      onClick={handleOpenResendConfirm}
                       disabled={isSendingBatchEmails}
                     >
                       <Mail className="mr-2 h-4 w-4 text-purple-700" />
@@ -414,74 +597,58 @@ const PayrollPeriod = () => {
          {/* Statistics Cards */}
           <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
             {/* Card 1: Total Gross Pay */}
-            <Card className="border-t-5 border-green-600 bg-white py-0 h-full">
+            <Card className="border-t-5 border-accent-green bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
                  <div className="flex flex-col justify-between">
                 <div>
                   <div className="flex items-center gap-1.5 mb-2">
-                    <p className="text-[13px] font-bold text-green-600 uppercase tracking-wider">Total Earnings</p>
-                    {/* <Tooltip>
-                      <TooltipTrigger asChild>
-                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#3B4E17]/60 hover:text-[#3B4E17] cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
-                        Gross pay including OT and allowances.
-                      </TooltipContent>
-                    </Tooltip> */}
+                    <p className="text-[13px] font-bold text-accent-green uppercase tracking-wider">Total Earnings</p>
                   </div>
-                  <p className="text-3xl font-bold text-green-600">₱{stats.totalEarnings.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+                  <p className="text-3xl font-bold text-accent-green">₱{stats.totalEarnings.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
                 </div>
-                <p className="text-xs text-green-600/70 italic mt-4">Gross pay including OT and allowances</p>
+                <p className="text-xs text-accent-green/70 italic mt-4">Gross pay including OT and allowances</p>
               </div>
               </CardContent>
             </Card>
             
  
             {/* Card 2: Total Deductions */}
-            <Card className="border-t-5 border-red-500 bg-white py-0 h-full">
+            <Card className="border-t-5 border-status-danger bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                 <div>
                   <div className="flex items-center gap-1.5 mb-2">
-                    <p className="text-[13px] font-bold text-red-500 uppercase tracking-wider">Total Deductions</p>
-                    {/* <Tooltip>
-                      <TooltipTrigger asChild>
-                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#3B4E17]/60 hover:text-[#3B4E17] cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
-                        Withholdings including taxes and loans.
-                      </TooltipContent>
-                    </Tooltip> */}
+                    <p className="text-[13px] font-bold text-status-danger uppercase tracking-wider">Total Deductions</p>
                   </div>
-                  <p className="text-3xl font-bold text-red-500">₱{stats.totalDeductions.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+                  <p className="text-3xl font-bold text-status-danger">₱{stats.totalDeductions.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
                 </div>
-                <p className="text-xs text-red-500/70 italic mt-4">Withholdings including taxes and loans</p>
+                <p className="text-xs text-status-danger/70 italic mt-4">Withholdings including taxes and loans</p>
               </div>
-              {/* <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+              {/* <div className="bg-accent-gold/20 text-accent-gold p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <KeyboardDoubleArrowDownIcon className="h-6 w-6" />
               </div> */}
               </CardContent>
             </Card>
  
             {/* Card 3: Total Net Pay */}
-            <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+            <Card className="border-t-5 border-brand-primary bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                   <div>
                     <div className="flex items-center gap-1.5 mb-2">
-                    <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider">Total Net Pay</p>
+                    <p className="text-[13px] font-bold text-brand-primary uppercase tracking-wider">Total Net Pay</p>
                     {/* <Tooltip>
                       <TooltipTrigger asChild>
-                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#2A174E]/60 hover:text-[#2A174E] cursor-help" />
+                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-brand-primary/60 hover:text-brand-primary cursor-help" />
                       </TooltipTrigger>
                       <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
                         Estimated total net payout amount for the selected draft cycle.
                       </TooltipContent>
                     </Tooltip> */}
                   </div>
-                  <p className="text-3xl font-bold text-[#2A174E]">₱{stats.totalNetPay.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+                  <p className="text-3xl font-bold text-brand-primary">₱{stats.totalNetPay.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
                 </div>
-                <p className="text-xs text-[#2A174E]/70 italic mt-4">Calculated total distribution amount</p>
+                <p className="text-xs text-brand-primary/70 italic mt-4">Calculated total distribution amount</p>
               </div>
               </CardContent>
             </Card>
@@ -498,7 +665,7 @@ const PayrollPeriod = () => {
                 placeholder="Search by Employee Name or ID..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 border-slate-200 focus-visible:ring-[#2A174E] w-full"
+                className="pl-10 border-slate-200 focus-visible:ring-brand-primary w-full"
               />
             </div>
             
@@ -536,7 +703,7 @@ const PayrollPeriod = () => {
           <CardContent className="p-0 overflow-x-auto">
             {loading ? (
               <Table className="min-w-[800px]">
-                <TableHeader className="bg-[#2B174F]">
+                <TableHeader className="bg-brand-primary">
                   <TableRow className="hover:bg-transparent border-b-slate-200">
                     <TableHead className="font-semibold text-white py-4 px-6">EMPLOYEE</TableHead>
                     <TableHead className="font-semibold text-white py-4">
@@ -628,7 +795,7 @@ const PayrollPeriod = () => {
               </Table>
             ) : (
               <Table className="min-w-[800px]">
-                <TableHeader className="bg-[#2B174F]">
+                <TableHeader className="bg-brand-primary">
                   <TableRow className="hover:bg-transparent border-b-slate-200">
                     <TableHead className="font-semibold text-white py-4 px-6">EMPLOYEE</TableHead>
                     <TableHead className="font-semibold text-white py-4">
@@ -701,7 +868,7 @@ const PayrollPeriod = () => {
                       return (
                         <TableRow key={p.payrollId} className="border-b-slate-100 hover:bg-slate-50/50">
                           <TableCell className="py-4 px-6">
-                            <div className="font-semibold text-[#2A174E]">{p.user_FirstName || p.userName} {p.user_LastName || ""}</div>
+                            <div className="font-semibold text-brand-primary">{p.user_FirstName || p.userName} {p.user_LastName || ""}</div>
                             <div className="text-xs text-slate-400 font-mono">ID: {formatUserId(p.user_Id)}</div>
                           </TableCell>
                           <TableCell className="py-4 text-slate-700">₱{parseFloat(fixedBasic || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</TableCell>
@@ -717,7 +884,7 @@ const PayrollPeriod = () => {
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <span className="inline-block">
-                                  <Button variant="outline" size="sm" asChild className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-[#f0ebfa] hover:border-[#9c7de0] transition-colors">
+                                  <Button variant="outline" size="sm" asChild className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-brand-primary-light hover:border-[#9c7de0] transition-colors">
                                     <Link to={`/payrollDetails/${p.payrollId}?start=${p.period_Start || selectedPeriod.startDate}&end=${p.period_End || selectedPeriod.endDate}&periodId=${selectedPeriod.periodId}`}>
                                       <EyeIcon className="h-4 w-4" />
                                     </Link>
@@ -768,14 +935,47 @@ const PayrollPeriod = () => {
         onClose={() => setIsConfirmOpen(false)} 
         onConfirm={handleBatchProcess}
         employeeCount={payrolls.length}
+        mode={confirmMode}
+        periodLabel={selectedPeriod?.label}
+        isOverdue={isOverdue}
+        loading={loading}
       />
+
+      <ReleaseSummaryModal
+        isOpen={isReleaseSummaryOpen}
+        onClose={() => setIsReleaseSummaryOpen(false)}
+        data={releaseSummaryData}
+        onPreviewSummary={handlePreviewSummary}
+        onDownloadSummary={handleDownloadSummary}
+      />
+
+      {/* Resend Batch Emails Confirmation Dialog */}
+      <AlertDialog open={isResendConfirmOpen} onOpenChange={setIsResendConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Resend Batch Payroll Emails</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to resend encrypted Payslips (standard &amp; detailed) and official DTR PDFs to all {payrolls.length} employees for period <strong>{selectedPeriod?.label || `${selectedPeriod?.startDate} to ${selectedPeriod?.endDate}`}</strong>?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={executeResendBatchEmails}
+              className="bg-brand-primary hover:bg-[#7A52B5] text-white"
+            >
+              Send Emails
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Summary Preview Modal */}
       {showSummaryPreview && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <Card className="w-full max-w-7xl h-[90vh] flex flex-col shadow-2xl border-0 overflow-hidden py-0">
             <CardContent className="p-0 flex flex-col h-full">
-              <div className="flex justify-between items-center p-4 bg-[#2A174E] text-white">
+              <div className="flex justify-between items-center p-4 bg-brand-primary text-white">
                 <h3 className="font-bold text-lg flex items-center gap-2">
                    Payroll Summary Preview - {selectedPeriod?.label}
                 </h3>

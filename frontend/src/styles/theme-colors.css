@@ -1,0 +1,41 @@
+/**
+ * MaChip Unified Color Basis
+ * Central Theme Palette for Admin, Employee, and Supervisor portals.
+ * 
+ * To update any color across the entire application, edit the values below.
+ * These CSS variables are automatically mapped to Tailwind utility classes:
+ *   - Primary Brand:     bg-brand-primary, text-brand-primary, border-brand-primary
+ *   - Accent Green:      bg-accent-green, text-accent-green, border-accent-green (supports /10, /70 opacity)
+ *   - Accent Gold:       bg-accent-gold, text-accent-gold, border-accent-gold
+ *   - Semantic Statuses: bg-status-success, bg-status-warning, bg-status-danger, bg-status-info
+ */
+
+:root {
+  /* ── 1. Primary Brand (Corporate Purple / Violet) ── */
+  --color-brand-primary: #2a174e;
+  --color-brand-primary-hover: #1a0e30;
+  --color-brand-primary-light: #f0ebfa;
+
+  /* ── 2. Accent Green (Widget Cards, Active Badges, Leave Balance) ── */
+  --color-accent-green: #a3b622;
+  --color-accent-green-hover: #8e9e2b;
+  --color-accent-green-light: #f6f8ec;
+
+  /* ── 3. Accent Gold (Payroll & Financial Summaries, Pending Badges) ── */
+  --color-accent-gold: #44419a;
+  --color-accent-gold-hover: #6a6790;
+  --color-accent-gold-light: #e4e3ff;
+
+  /* ── 4. Semantic Status Indicators ── */
+  --color-status-success: #16a34a;
+  --color-status-warning: #f59e0b;
+  --color-status-danger: #dc2626;
+  --color-status-info: #0284c7;
+
+  /* ── 5. Surfaces & Neutrals ── */
+  --color-surface-bg: #f8fafc;
+  --color-surface-card: #ffffff;
+  --color-surface-border: #e2e8f0;
+  --color-text-main: #1e293b;
+  --color-text-muted: #64748b;
+}

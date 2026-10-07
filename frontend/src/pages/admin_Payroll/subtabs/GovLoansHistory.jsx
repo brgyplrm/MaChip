@@ -124,11 +124,13 @@ const GovLoansHistory = () => {
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
+        setToast({ message: "Gov loan report downloaded successfully.", type: "success" });
       } else {
-        alert("Failed to generate PDF report.");
+        setToast({ message: "Failed to generate PDF report.", type: "error" });
       }
     } catch (err) {
       console.error("Export PDF error:", err);
+      setToast({ message: "Export PDF error: " + err.message, type: "error" });
     }
   };
 
@@ -141,18 +143,18 @@ const GovLoansHistory = () => {
         <div className="flex flex-col md:flex-row items-start md:items-center gap-4 mb-8">
           <Link 
                to="/govloans" 
-               className="mr-4 flex items-center justify-center w-10 h-10 rounded-full hover:bg-[#f0ebfa] text-[#2A174E] transition-colors shrink-0 mt-1 md:mt-0 hover:scale-110"
+               className="mr-4 flex items-center justify-center w-10 h-10 rounded-full hover:bg-brand-primary-light text-brand-primary transition-colors shrink-0 mt-1 md:mt-0 hover:scale-110"
               >
             <ChevronLeft className="h-6 w-6" />
           </Link>
           <div className="flex justify-between w-full">
             <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Governmental Loan History</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-brand-primary">Governmental Loan History</h1>
             <span className="text-sm text-slate-500 mt-1 block">Audit and track all government-mandated loan repayments.</span>
           </div>
           <Button 
             onClick={handleExportPDF}
-            className="bg-[#2A174E] hover:bg-[#1a0e30] text-white font-bold shadow-sm"
+            className="bg-brand-primary hover:bg-brand-primary-hover text-white font-bold shadow-sm"
           >
             <DownloadIcon className="mr-2 h-4 w-4" /> Export Gov Report (PDF)
           </Button>
@@ -161,37 +163,37 @@ const GovLoansHistory = () => {
 
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card className="border-t-4 border-[#2A174E] shadow-sm">
+          <Card className="border-t-4 border-brand-primary shadow-sm">
             <CardContent className=" flex justify-between items-start">
               <div>
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total Remitted</p>
-                <p className="text-3xl font-bold text-[#2A174E]">{peso(stats.totalRemitted)}</p>
+                <p className="text-3xl font-bold text-brand-primary">{peso(stats.totalRemitted)}</p>
               </div>
-              <div className="bg-[#2A174E]/10 p-2 rounded-lg text-[#2A174E]">
+              <div className="bg-brand-primary/10 p-2 rounded-lg text-brand-primary">
                 <AssuredWorkloadIcon />
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-t-4 border-blue-500 shadow-sm">
+          <Card className="border-t-4 border-status-info shadow-sm">
             <CardContent className=" flex justify-between items-start">
               <div>
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Total Borrowers</p>
-                <p className="text-3xl font-bold text-blue-700">{stats.totalBorrowers}</p>
+                <p className="text-3xl font-bold text-status-info">{stats.totalBorrowers}</p>
               </div>
-              <div className="bg-blue-50 p-2 rounded-lg text-blue-600">
+              <div className="bg-sky-50 p-2 rounded-lg text-status-info">
                 <GroupIcon />
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-t-4 border-emerald-500 shadow-sm">
+          <Card className="border-t-4 border-accent-green shadow-sm">
             <CardContent className=" flex justify-between items-start">
               <div>
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Transactions YTD</p>
-                <p className="text-3xl font-bold text-emerald-700">{stats.activeLoans}</p>
+                <p className="text-3xl font-bold text-accent-green">{stats.activeLoans}</p>
               </div>
-              <div className="bg-emerald-50 p-2 rounded-lg text-emerald-600">
+              <div className="bg-accent-green/10 p-2 rounded-lg text-accent-green">
                 <AccountBalanceWalletIcon />
               </div>
             </CardContent>
@@ -243,7 +245,7 @@ const GovLoansHistory = () => {
         <Card className="shadow-sm border-0 bg-white py-0 overflow-hidden">
           <CardContent className="p-0 flex flex-col">
             <Table>
-              <TableHeader className="bg-[#2A174E]">
+              <TableHeader className="bg-brand-primary">
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="text-white font-bold py-4 px-6 uppercase text-[10px] tracking-wider">Date Processed</TableHead>
                   <TableHead className="text-white font-bold py-4 uppercase text-[10px] tracking-wider">Borrower</TableHead>
@@ -260,7 +262,7 @@ const GovLoansHistory = () => {
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col">
-                          <span className="font-bold text-[#2A174E] text-sm">{item.userName}</span>
+                          <span className="font-bold text-brand-primary text-sm">{item.userName}</span>
                           <span className="text-[10px] text-slate-400 font-mono">{formatUserId(item.user_Id)}</span>
                         </div>
                       </TableCell>

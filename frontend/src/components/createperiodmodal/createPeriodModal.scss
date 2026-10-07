@@ -48,7 +48,7 @@
         &:hover { background: #f9f9f9; }
       }
       .createBtn {
-        background: #2A174E; color: white;
+        background: var(--color-brand-primary); color: white;
         &:hover { opacity: 0.9; }
       }
     }

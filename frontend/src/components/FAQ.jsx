@@ -19,7 +19,7 @@ const formatAnswer = (text) => {
   return parts.map((part, i) => {
     if (part.startsWith("**") && part.endsWith("**")) {
       const boldText = part.slice(2, -2);
-      return <strong key={i} className="font-extrabold text-[#2A174E]">{boldText}</strong>;
+      return <strong key={i} className="font-extrabold text-brand-primary">{boldText}</strong>;
     }
     const subParts = part.split(/(\*.*?\*)/g);
     return subParts.map((subPart, j) => {
@@ -120,8 +120,8 @@ const FAQ = () => {
         },
         {
           roles: [1, 2, 3, 4],
-          q: "Can I access MAChip from my smartphone or outside the office?",
-          a: "Yes. While physical biometric and RFID time-clock stations operate locally inside the facility for security, the **Employee Request Module** is exposed via secure port forwarding. Employees can log in using any modern smartphone or browser to *file leave requests*, *submit overtime slips*, *check attendance records*, and *view payslips* on the go."
+          q: "Can I access MAChip from my laptop or outside the office?",
+          a: "Yes. While physical biometric and RFID time-clock stations operate locally inside the facility for security, the **Employee Request Module** is exposed via secure port forwarding. Employees can log in using any modern laptop or browser to *file leave requests*, *submit overtime slips*, *check attendance records*, and *view payslips* on the go."
         }
       ]
     },
@@ -379,11 +379,11 @@ const FAQ = () => {
           </div> */}
 
           <div className="flex items-center justify-center mb-3">
-            <div className="inline-flex items-center justify-center p-3 bg-[#2A174E]/10 text-[#2A174E] rounded-2xl shadow-inner">
+            <div className="inline-flex items-center justify-center p-3 bg-brand-primary/10 text-brand-primary rounded-2xl shadow-inner">
               <HelpOutlineIcon fontSize="large" />
             </div>
           </div>
-          <h1 className="text-3xl md:text-4xl font-extrabold text-[#2A174E] tracking-tight mb-2">
+          <h1 className="text-3xl md:text-4xl font-extrabold text-brand-primary tracking-tight mb-2">
             {roleInfo.title}
           </h1>
           <p className="text-slate-500 text-sm md:text-base leading-relaxed">
@@ -396,7 +396,7 @@ const FAQ = () => {
           <div className="relative">
             <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
             <Input 
-              className="pl-12 pr-10 h-14 bg-white border-slate-200 shadow-md text-base rounded-2xl focus-visible:ring-[#2A174E] placeholder:text-slate-400"
+              className="pl-12 pr-10 h-14 bg-white border-slate-200 shadow-md text-base rounded-2xl focus-visible:ring-brand-primary placeholder:text-slate-400"
               placeholder="Search knowledge base (e.g. 'tardiness', 'overtime', 'payslip')..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -421,7 +421,7 @@ const FAQ = () => {
             onClick={() => setSelectedCategory("all")}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
               selectedCategory === "all"
-                ? "bg-[#2A174E] text-white shadow-sm shadow-[#2A174E]/30"
+                ? "bg-brand-primary text-white shadow-sm shadow-brand-primary/30"
                 : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
             }`}
           >
@@ -434,7 +434,7 @@ const FAQ = () => {
               onClick={() => setSelectedCategory(cat.id)}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
                 selectedCategory === cat.id
-                  ? "bg-[#2A174E] text-white shadow-sm shadow-[#2A174E]/30"
+                  ? "bg-brand-primary text-white shadow-sm shadow-brand-primary/30"
                   : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
               }`}
             >
@@ -462,9 +462,9 @@ const FAQ = () => {
                       <AccordionItem 
                         key={fIdx} 
                         value={`item-${section.id}-${fIdx}`} 
-                        className="border-b border-slate-100 last:border-0 px-4 transition-all duration-200 data-[state=open]:bg-[#f8f6fc] data-[state=open]:border-l-4 data-[state=open]:border-[#2A174E] data-[state=open]:pl-5"
+                        className="border-b border-slate-100 last:border-0 px-4 transition-all duration-200 data-[state=open]:bg-[#f8f6fc] data-[state=open]:border-l-4 data-[state=open]:border-brand-primary data-[state=open]:pl-5"
                       >
-                        <AccordionTrigger className="text-left font-bold text-slate-800 hover:text-[#2A174E] hover:no-underline py-4 text-sm md:text-base leading-snug">
+                        <AccordionTrigger className="text-left font-bold text-slate-800 hover:text-brand-primary hover:no-underline py-4 text-sm md:text-base leading-snug">
                           {faq.q}
                         </AccordionTrigger>
                         <AccordionContent className="text-slate-600 leading-relaxed pb-5 pt-1 text-sm whitespace-pre-line border-t border-slate-100/60 mt-1">
@@ -490,7 +490,7 @@ const FAQ = () => {
                   setSearchQuery("");
                   setSelectedCategory("all");
                 }}
-                className="text-xs font-semibold text-[#2A174E] border-[#2A174E]/30 hover:bg-[#2A174E]/5"
+                className="text-xs font-semibold text-brand-primary border-brand-primary/30 hover:bg-brand-primary/5"
               >
                 Reset Filters & Search
               </Button>
@@ -500,15 +500,15 @@ const FAQ = () => {
 
         {/* Support CTA */}
         <div className="mt-12 text-center bg-white rounded-2xl p-8 shadow-sm border border-slate-200 max-w-3xl mx-auto w-full">
-          <div className="inline-flex items-center justify-center p-3 bg-purple-50 text-[#2A174E] rounded-full mb-3">
+          <div className="inline-flex items-center justify-center p-3 bg-purple-50 text-brand-primary rounded-full mb-3">
             <ContactSupportIcon fontSize="large" />
           </div>
-          <h3 className="text-lg font-bold text-[#2A174E] mb-1">Still need assistance?</h3>
+          <h3 className="text-lg font-bold text-brand-primary mb-1">Still need assistance?</h3>
           <p className="text-slate-500 mb-5 text-sm max-w-md mx-auto">
             If you have an urgent payroll inquiry or technical issue with your biometric terminal, submit a direct inquiry to our administrative team.
           </p>
           <Button 
-            className="bg-[#2A174E] hover:bg-[#1a0e30] px-8 text-sm font-semibold rounded-xl shadow-md shadow-[#2A174E]/20"
+            className="bg-brand-primary hover:bg-brand-primary-hover px-8 text-sm font-semibold rounded-xl shadow-md shadow-brand-primary/20"
             onClick={() => setIsSupportModalOpen(true)}
           >
             Contact Support

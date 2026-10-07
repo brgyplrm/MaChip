@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
-import { Clock, Coffee, ShieldAlert, Save, Info, Edit3, X } from 'lucide-react';
+import { Clock, Coffee, ShieldAlert, Save, Info, Edit3, X, Moon } from 'lucide-react';
+import { Switch } from "@/components/ui/switch";
 
 export default function AttendanceConfiguration({
+  enableNightShift, setEnableNightShift,
   workStart, setWorkStart,
   workEnd, setWorkEnd,
+  eveningStart, setEveningStart,
+  eveningEnd, setEveningEnd,
   gracePeriod, setGracePeriod,
   lunchStart, setLunchStart,
   lunchEnd, setLunchEnd,
@@ -19,8 +23,11 @@ export default function AttendanceConfiguration({
 
   const handleStartEdit = () => {
     setSnapshot({
+      enableNightShift,
       workStart,
       workEnd,
+      eveningStart,
+      eveningEnd,
       gracePeriod,
       lunchStart,
       lunchEnd,
@@ -33,8 +40,11 @@ export default function AttendanceConfiguration({
 
   const handleCancel = () => {
     if (snapshot) {
+      if (setEnableNightShift) setEnableNightShift(snapshot.enableNightShift);
       setWorkStart(snapshot.workStart);
       setWorkEnd(snapshot.workEnd);
+      if (setEveningStart) setEveningStart(snapshot.eveningStart);
+      if (setEveningEnd) setEveningEnd(snapshot.eveningEnd);
       setGracePeriod(snapshot.gracePeriod);
       setLunchStart(snapshot.lunchStart);
       setLunchEnd(snapshot.lunchEnd);
@@ -54,7 +64,7 @@ export default function AttendanceConfiguration({
     <div className="min-h-screen text-slate-800 font-sans max-w-6xl mx-auto space-y-6">
       
       {/* --- TOP HEADER CARD --- */}
-      <div className="bg-[#2A1B4E] text-white rounded-xl p-6 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="bg-brand-primary text-white rounded-xl p-6 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div className="flex items-start space-x-4">
           <div className="p-3 bg-white/10 rounded-lg border border-white/10">
             <Clock className="w-6 h-6 text-purple-200" />
@@ -107,23 +117,65 @@ export default function AttendanceConfiguration({
             <Clock className="w-4 h-4 text-purple-700" />
             <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Official Shift Bounds</h3>
           </div>
+
+          {/* Night Shift Operational Mode Toggle */}
+          <div className="p-4 bg-slate-50/80 border border-slate-200 rounded-xl flex items-center justify-between gap-4">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2">
+                <Moon className="w-4 h-4 text-indigo-600" />
+                <h4 className="text-sm font-bold text-slate-800">Company Operates Night Shift</h4>
+                {enableNightShift ? (
+                  <span className="text-[10px] uppercase font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded border border-indigo-200">Active</span>
+                ) : (
+                  <span className="text-[10px] uppercase font-bold bg-slate-200 text-slate-600 px-2 py-0.5 rounded border border-slate-300">Disabled (Day-Shift Only)</span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 max-w-xl">
+                Enable if your company schedules evening/night shifts (20:30 – 05:30). When disabled, any scans past 5:30 PM without approved overtime are strictly flagged as Irregular, and night shift options are hidden.
+              </p>
+            </div>
+            <Switch 
+              checked={Boolean(enableNightShift)}
+              onCheckedChange={(checked) => setEnableNightShift && setEnableNightShift(checked)}
+              disabled={!isAdmin || !isEditing}
+            />
+          </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <FormTimePicker 
-              label="Work Start Time"
+              label="Morning Shift Start Time"
               value={workStart}
               onChange={(e) => setWorkStart(e.target.value)}
               subtext="Official expected time-in punch threshold"
               disabled={!isAdmin || !isEditing}
             />
             <FormTimePicker 
-              label="Work End Time"
+              label="Morning Shift End Time"
               value={workEnd}
               onChange={(e) => setWorkEnd(e.target.value)}
               subtext="Official expected clock-out time marker"
               disabled={!isAdmin || !isEditing}
             />
           </div>
+
+          {enableNightShift && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-3 border-t border-slate-100 animate-in fade-in">
+              <FormTimePicker 
+                label="Evening Shift Start Time"
+                value={eveningStart}
+                onChange={(e) => setEveningStart && setEveningStart(e.target.value)}
+                subtext="Official expected time-in for night shift workers"
+                disabled={!isAdmin || !isEditing}
+              />
+              <FormTimePicker 
+                label="Evening Shift End Time"
+                value={eveningEnd}
+                onChange={(e) => setEveningEnd && setEveningEnd(e.target.value)}
+                subtext="Official expected clock-out for night shift workers"
+                disabled={!isAdmin || !isEditing}
+              />
+            </div>
+          )}
         </div>
 
         {/* SECTION 2: Buffer Zones & Gatekeeping */}

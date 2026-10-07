@@ -7,12 +7,15 @@ const { requireAdmin, requireStaff } = require("../middleware/roleCheck.js");
 // Management & Generation
 router.post("/generate", requireAdmin, payrollController.generatePayroll);
 router.post("/batch-generate", requireAdmin, payrollController.generateBatchPayroll);
+router.post("/batch-release", requireAdmin, payrollController.releaseBatchPayroll);
 router.get("/eligible-count", requireAdmin, payrollController.getEligibleEmployeesCount);
 router.get("/preview", requireAdmin, payrollController.getPayrollPreview);
+router.get("/preview-batch", requireAdmin, payrollController.getPayrollPreviewBatch);
 router.get("/govt-deductions-preview", requireAdmin, payrollController.getGovtDeductionsPreview);
 router.get("/summary-pdf", requireAdmin, payrollController.downloadPayrollSummaryPDF);
 router.get("/batch-zip", requireAdmin, payrollController.downloadBatchZip);
 router.get("/summary-preview", requireAdmin, payrollController.getPayrollSummaryPreview);
+router.get("/status-alerts", requireAdmin, payrollController.getPayrollStatusAlerts);
 
 // Specific Ledgers & History
 router.get("/maxicare/history", requireAdmin, payrollController.getMaxicareHistory);

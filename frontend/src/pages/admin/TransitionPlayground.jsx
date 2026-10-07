@@ -141,10 +141,10 @@ const TransitionPlayground = () => {
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 pb-6">
             <div>
               <div className="flex items-center gap-2">
-                <div className="p-2 bg-[#2A174E] text-white rounded-lg shadow-sm">
+                <div className="p-2 bg-brand-primary text-white rounded-lg shadow-sm">
                   <Sparkles className="h-5 w-5" />
                 </div>
-                <h1 className="text-2xl md:text-3xl font-extrabold text-[#2A174E] tracking-tight">
+                <h1 className="text-2xl md:text-3xl font-extrabold text-brand-primary tracking-tight">
                   UI Transition & Animation Lab
                 </h1>
               </div>
@@ -155,7 +155,7 @@ const TransitionPlayground = () => {
 
             <Button 
               onClick={handleReplay} 
-              className="bg-[#2A174E] text-white hover:bg-[#1f103b] shadow-md gap-2 font-bold px-5 py-2.5 transition-all hover:scale-105 active:scale-95"
+              className="bg-brand-primary text-white hover:bg-[#1f103b] shadow-md gap-2 font-bold px-5 py-2.5 transition-all hover:scale-105 active:scale-95"
             >
               <RotateCcw className="h-4 w-4 animate-spin-once" /> Replay Transition
             </Button>
@@ -165,10 +165,10 @@ const TransitionPlayground = () => {
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                <Layers className="h-4 w-4 text-[#2A174E]" />
+                <Layers className="h-4 w-4 text-brand-primary" />
                 Select Transition Effect Preset ({transitionPresets.length})
               </h2>
-              <span className="text-xs text-[#2A174E] font-bold bg-purple-50 px-2.5 py-1 rounded-full border border-purple-100">
+              <span className="text-xs text-brand-primary font-bold bg-purple-50 px-2.5 py-1 rounded-full border border-purple-100">
                 Click any preset to preview
               </span>
             </div>
@@ -185,8 +185,8 @@ const TransitionPlayground = () => {
                     }}
                     className={`p-3.5 rounded-xl border text-left transition-all relative flex flex-col justify-between ${
                       isSelected
-                        ? "bg-[#2A174E] text-white border-[#2A174E] shadow-md ring-2 ring-[#2A174E]/30"
-                        : "bg-white text-slate-700 border-slate-200 hover:border-[#2A174E]/40 hover:bg-slate-50"
+                        ? "bg-brand-primary text-white border-brand-primary shadow-md ring-2 ring-brand-primary/30"
+                        : "bg-white text-slate-700 border-slate-200 hover:border-brand-primary/40 hover:bg-slate-50"
                     }`}
                   >
                     <div>
@@ -241,8 +241,8 @@ const TransitionPlayground = () => {
           {/* --- LIVE DEMO PLAYGROUND AREA --- */}
           <div className="space-y-4 pt-2">
             <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-              <h3 className="text-sm font-extrabold text-[#2A174E] uppercase tracking-wider flex items-center gap-2">
-                <Eye className="h-4 w-4 text-[#2A174E]" />
+              <h3 className="text-sm font-extrabold text-brand-primary uppercase tracking-wider flex items-center gap-2">
+                <Eye className="h-4 w-4 text-brand-primary" />
                 Live Preview Canvas ({selectedPreset.name})
               </h3>
               <Badge className="bg-emerald-500 text-white font-bold text-[10px]">
@@ -250,7 +250,7 @@ const TransitionPlayground = () => {
               </Badge>
               <Button 
               onClick={handleReplay} 
-              className="bg-[#2A174E] text-white hover:bg-[#1f103b] shadow-md gap-2 font-bold px-5 py-2.5 transition-all hover:scale-105 active:scale-95"
+              className="bg-brand-primary text-white hover:bg-[#1f103b] shadow-md gap-2 font-bold px-5 py-2.5 transition-all hover:scale-105 active:scale-95"
             >
               <RotateCcw className="h-4 w-4 animate-spin-once" /> Replay Transition
             </Button>
@@ -260,7 +260,7 @@ const TransitionPlayground = () => {
             <div key={animKey} className={`space-y-6 ${selectedPreset.containerClass}`}>
               
               {/* Mock Hero Header */}
-              <div className="bg-gradient-to-r from-[#2A174E] via-[#3B1F6C] to-[#4A2B8C] text-white p-6 rounded-2xl shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="bg-gradient-to-r from-brand-primary via-[#3B1F6C] to-[#4A2B8C] text-white p-6 rounded-2xl shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div>
                   <Badge className="bg-white/20 text-white border-none text-[10px] font-bold uppercase tracking-wider mb-2">
                     MAChip Capstone Preview
@@ -270,7 +270,7 @@ const TransitionPlayground = () => {
                     This sample dashboard component is demonstrating <strong className="underline decoration-purple-400">{selectedPreset.name}</strong>.
                   </p>
                 </div>
-                <Button className="bg-white text-[#2A174E] hover:bg-purple-50 font-bold text-xs shadow-sm">
+                <Button className="bg-white text-brand-primary hover:bg-purple-50 font-bold text-xs shadow-sm">
                   View Full Analytics
                 </Button>
               </div>
@@ -278,7 +278,7 @@ const TransitionPlayground = () => {
               {/* Mock Stat Cards Grid (with optional staggered delays) */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 {[
-                  { title: "Total Employees", val: "148", note: "Active headcount", color: "bg-[#2A174E]", text: "text-white" },
+                  { title: "Total Employees", val: "148", note: "Active headcount", color: "bg-brand-primary", text: "text-white" },
                   { title: "On-Time Rate", val: "94.2%", note: "Current cutoff average", color: "bg-emerald-500", text: "text-white" },
                   { title: "Total Payroll", val: "₱842,500.00", note: "July 15 cutoff", color: "bg-amber-500", text: "text-slate-950" },
                   { title: "Pending Requests", val: "12", note: "Requires approval", color: "bg-purple-600", text: "text-white" },
@@ -297,7 +297,7 @@ const TransitionPlayground = () => {
                         <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{stat.title}</span>
                         <Badge className={`${stat.color} ${stat.text} text-[10px] font-mono font-bold border-none`}>LIVE</Badge>
                       </div>
-                      <p className="text-2xl font-black text-[#2A174E] font-mono mt-2">{stat.val}</p>
+                      <p className="text-2xl font-black text-brand-primary font-mono mt-2">{stat.val}</p>
                       <span className="text-[11px] text-slate-400 font-medium mt-1">{stat.note}</span>
                     </CardContent>
                   </Card>
@@ -307,14 +307,14 @@ const TransitionPlayground = () => {
               {/* Mock Distributed Log Table */}
               <Card className="border border-slate-200/80 shadow-sm bg-white overflow-hidden">
                 <CardHeader className="bg-slate-50 border-b border-slate-100 py-3.5 px-6">
-                  <CardTitle className="text-base font-bold text-[#2A174E]">Sample Attendance & Access Log Table</CardTitle>
+                  <CardTitle className="text-base font-bold text-brand-primary">Sample Attendance & Access Log Table</CardTitle>
                   <CardDescription className="text-xs text-slate-400">
                     Observing how tabular data renders under the active transition
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
                   <Table>
-                    <TableHeader className="bg-[#2A174E]">
+                    <TableHeader className="bg-brand-primary">
                       <TableRow className="hover:bg-transparent">
                         <TableHead className="font-bold text-white text-xs py-3 px-6">EMPLOYEE</TableHead>
                         <TableHead className="font-bold text-white text-xs py-3 text-center">DEPT</TableHead>
@@ -329,7 +329,7 @@ const TransitionPlayground = () => {
                         { name: "Arnel Mendoza", dept: "Operations", time: "07:48 AM", status: "On Time", badge: "bg-emerald-500 text-white" },
                       ].map((row, i) => (
                         <TableRow key={i} className="hover:bg-slate-50 border-b border-slate-100">
-                          <TableCell className="font-bold text-[#2A174E] text-xs py-3 px-6">{row.name}</TableCell>
+                          <TableCell className="font-bold text-brand-primary text-xs py-3 px-6">{row.name}</TableCell>
                           <TableCell className="text-center text-xs text-slate-600 py-3">{row.dept}</TableCell>
                           <TableCell className="text-center font-mono text-xs text-slate-800 py-3">{row.time}</TableCell>
                           <TableCell className="text-center py-3">

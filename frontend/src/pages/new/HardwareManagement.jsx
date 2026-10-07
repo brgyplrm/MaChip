@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import Sidebar from "../../components/Sidebar";
 import SearchIcon from "@mui/icons-material/Search";
 import FilterListIcon from '@mui/icons-material/FilterList';
@@ -57,12 +57,24 @@ const HardwareManagement = () => {
   
   // Selection/Targets
   const [selectedUserId, setSelectedUserId] = useState("");
+  const [selectedSlotNumber, setSelectedSlotNumber] = useState("1");
   const [revokeTarget, setRevokeTarget] = useState(null);
+
+  const selectedEmp = useMemo(() => {
+    return unassignedEmployees.find(e => e.user_Id.toString() === selectedUserId.toString());
+  }, [unassignedEmployees, selectedUserId]);
+
+  const isDuplicateSlot = useMemo(() => {
+    if (activeTab !== 'fingerprint' || !selectedEmp || !scannedId) return false;
+    const parsedSlot = parseInt(scannedId);
+    if (selectedSlotNumber === "2" && selectedEmp.user_FingerprintId && selectedEmp.user_FingerprintId === parsedSlot) return true;
+    if (selectedSlotNumber === "1" && selectedEmp.user_FingerprintId2 && selectedEmp.user_FingerprintId2 === parsedSlot) return true;
+    return false;
+  }, [activeTab, selectedEmp, scannedId, selectedSlotNumber]);
 
   // Filters & Pagination
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [memoryIdFilter, setMemoryIdFilter] = useState("All");
   const [selectedDate, setSelectedDate] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -131,11 +143,40 @@ const HardwareManagement = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, statusFilter, memoryIdFilter, selectedDate, activeTab]);
+  }, [searchQuery, statusFilter, selectedDate, activeTab]);
+
+  // Track active scan request for instant cancellation
+  const scanAbortControllerRef = useRef(null);
+
+  useEffect(() => {
+    // Abort and clear only if a scan was actively underway when switching tabs
+    if (scanAbortControllerRef.current) {
+      scanAbortControllerRef.current.abort();
+      scanAbortControllerRef.current = null;
+      fetchWithAuth("/api/system/reg-session", { method: "DELETE" }).catch(() => {});
+      fetchWithAuth("/api/users/clear-fingerprint-session", { method: "DELETE" }).catch(() => {});
+    }
+    setShowScanModal(false);
+  }, [activeTab]);
+
+  useEffect(() => {
+    return () => {
+      if (scanAbortControllerRef.current) {
+        scanAbortControllerRef.current.abort();
+        scanAbortControllerRef.current = null;
+      }
+    };
+  }, []);
 
   // ── Hardware Operations ──────────────────────────────────────────────────
 
   const handleStartScan = async () => {
+    if (scanAbortControllerRef.current) {
+      scanAbortControllerRef.current.abort();
+    }
+    const abortController = new AbortController();
+    scanAbortControllerRef.current = abortController;
+
     setScanError("");
     setLocalScannedId(null);
     setLocalScannedTemplate(null);
@@ -146,13 +187,21 @@ const HardwareManagement = () => {
       await fetchWithAuth("/api/system/reg-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: activeTab === 'rfid' ? "rfid" : 'FP', userId: "temp_reg" })
+        body: JSON.stringify({ type: activeTab === 'rfid' ? "RFID" : 'FP', userId: "temp_reg" }),
+        signal: abortController.signal
       });
 
       // 2. Poll/Wait for hardware scan
       const endpoint = activeTab === 'rfid' ? "/api/users/generateRfid" : "/api/users/generateFingerprint";
-      const response = await fetchWithAuth(endpoint);
+      const response = await fetchWithAuth(endpoint, {
+        signal: abortController.signal
+      });
       const data = await response.json();
+
+      if (data.cancelled) {
+        console.log(`[HARDWARE] ${activeTab.toUpperCase()} Scan aborted/cancelled.`);
+        return;
+      }
 
       if (response.ok) {
         if (activeTab === 'rfid' && data.rfid) {
@@ -173,27 +222,36 @@ const HardwareManagement = () => {
         if (activeTab === 'rfid' && data.rfid) setLocalScannedId(data.rfid);
       }
     } catch (err) {
+      if (err.name === "AbortError") {
+        console.log(`[HARDWARE] ${activeTab.toUpperCase()} Scan aborted by user.`);
+        return;
+      }
       console.error(`${activeTab.toUpperCase()} Scan Error:`, err);
       setScanError("An error occurred while communicating with hardware.");
     }
   };
 
   const handleCloseScanModal = () => {
+    if (scanAbortControllerRef.current) {
+      scanAbortControllerRef.current.abort();
+      scanAbortControllerRef.current = null;
+    }
     setShowScanModal(false);
     fetchWithAuth("/api/system/reg-session", { method: "DELETE" }).catch(() => {});
-    if (activeTab === 'fingerprint') {
-      fetchWithAuth("/api/users/clear-fingerprint-session", { method: "DELETE" }).catch(() => {});
-    }
+    fetchWithAuth("/api/users/clear-fingerprint-session", { method: "DELETE" }).catch(() => {});
   };
 
   const handleScanConfirm = () => {
     if (!localScannedId) return;
 
+    if (scanAbortControllerRef.current) {
+      scanAbortControllerRef.current.abort();
+      scanAbortControllerRef.current = null;
+    }
+
     // Cleanup sessions
     fetchWithAuth("/api/system/reg-session", { method: "DELETE" }).catch(() => {});
-    if (activeTab === 'fingerprint') {
-      fetchWithAuth("/api/users/clear-fingerprint-session", { method: "DELETE" }).catch(() => {});
-    }
+    fetchWithAuth("/api/users/clear-fingerprint-session", { method: "DELETE" }).catch(() => {});
 
     setShowScanModal(false);
     
@@ -219,7 +277,20 @@ const HardwareManagement = () => {
     setScannedId(uid);
     if (activeTab === 'fingerprint') setScannedTemplate(localScannedTemplate);
     setSelectedUserId("");
+    setSelectedSlotNumber("1");
     setShowAssignModal(true);
+  };
+
+  const handleSelectEmployee = (val) => {
+    setSelectedUserId(val);
+    if (activeTab === 'fingerprint') {
+      const emp = unassignedEmployees.find(e => e.user_Id.toString() === val.toString());
+      if (emp?.hasSlot1 && !emp?.hasSlot2) {
+        setSelectedSlotNumber("2");
+      } else {
+        setSelectedSlotNumber("1");
+      }
+    }
   };
 
   const handleAssignSubmit = async () => {
@@ -227,12 +298,21 @@ const HardwareManagement = () => {
       setToast({ message: "Please select an employee to link.", type: "error" });
       return;
     }
+    if (activeTab === 'fingerprint' && isDuplicateSlot) {
+      setToast({ message: "Fallback fingerprint cannot use the same slot or finger as the Primary fingerprint.", type: "error" });
+      return;
+    }
     setAssigning(true);
     try {
       const endpoint = activeTab === 'rfid' ? "/api/hardware/rfid/assign" : "/api/hardware/biometric/assign";
       const body = activeTab === 'rfid' 
         ? { user_Id: selectedUserId, machip_id: scannedId }
-        : { user_Id: selectedUserId, fingerprintIndex: parseInt(scannedId), fingerprintTemplate: scannedTemplate };
+        : { 
+            user_Id: selectedUserId, 
+            fingerprintIndex: parseInt(scannedId), 
+            fingerprintTemplate: scannedTemplate,
+            slotNumber: parseInt(selectedSlotNumber) || 1
+          };
 
       const response = await fetchWithAuth(endpoint, {
         method: "POST",
@@ -269,7 +349,9 @@ const HardwareManagement = () => {
     try {
       const endpoint = activeTab === 'rfid' 
         ? `/api/hardware/rfid/revoke/${revokeTarget.user_Id}`
-        : `/api/hardware/biometric/clear/${revokeTarget.user_Id}`;
+        : (revokeTarget.slotNumber 
+            ? `/api/hardware/biometric/clear/${revokeTarget.user_Id}?slotNumber=${revokeTarget.slotNumber}`
+            : `/api/hardware/biometric/clear/${revokeTarget.user_Id}`);
       
       const response = await fetchWithAuth(endpoint, { method: activeTab === 'rfid' ? "PUT" : "DELETE" });
       if (response.ok) {
@@ -291,41 +373,73 @@ const HardwareManagement = () => {
 
   // ── Filtering & Stats ────────────────────────────────────────────────────
 
-  const uniqueMemoryIds = useMemo(() => {
-    const ids = biometricList
-      .map(b => b.fingerprintIndex)
-      .filter(id => id !== null && id !== undefined);
-    return [...new Set(ids)].sort((a, b) => a - b);
-  }, [biometricList]);
+  const combinedBiometricList = useMemo(() => {
+    // If backend already returned unassigned items with hardwareStatus, use it directly
+    const hasUnassigned = biometricList.some(b => b.hardwareStatus === "Unassigned" || b.fingerprintIndex === null);
+    if (hasUnassigned) {
+      return biometricList.map(item => ({
+        ...item,
+        hardwareStatus: item.hardwareStatus || (item.fingerprintIndex !== null && item.fingerprintIndex !== undefined ? "Assigned" : "Unassigned")
+      }));
+    }
+
+    // Otherwise augment with unassigned employees who have no active fingerprints
+    const assignedUserIds = new Set(
+      biometricList
+        .filter(b => b.fingerprintIndex !== null && b.fingerprintIndex !== undefined)
+        .map(b => Number(b.user_Id))
+    );
+
+    const unassignedRows = unassignedEmployees
+      .filter(u => !u.hasSlot1 && !assignedUserIds.has(Number(u.user_Id)))
+      .map(u => ({
+        user_Id: u.user_Id,
+        userName: `${u.user_FirstName || ''} ${u.user_LastName || ''}`.trim(),
+        fingerprintIndex: null,
+        slotNumber: null,
+        fingerprintType: null,
+        sensorNode: "Secure Node 01",
+        hardwareStatus: "Unassigned",
+        dateAligned: null
+      }));
+
+    const mappedAssigned = biometricList.map(item => ({
+      ...item,
+      hardwareStatus: item.hardwareStatus || "Assigned"
+    }));
+
+    return [...mappedAssigned, ...unassignedRows].sort((a, b) => (a.userName || "").localeCompare(b.userName || ""));
+  }, [biometricList, unassignedEmployees]);
 
   const filteredData = useMemo(() => {
-    const list = activeTab === 'rfid' ? rfidList : biometricList;
+    const list = activeTab === 'rfid' ? rfidList : combinedBiometricList;
     return list.filter(item => {
       const query = searchQuery.toLowerCase();
       const matchesSearch = 
         item.userName?.toLowerCase().includes(query) || 
         (activeTab === 'rfid' && item.machip_id?.toLowerCase().includes(query)) ||
-        formatUserId(item.user_Id).toLowerCase().includes(query);
+        formatUserId(item.user_Id).toLowerCase().includes(query) ||
+        (activeTab === 'fingerprint' && item.fingerprintIndex !== null && item.fingerprintIndex !== undefined && `slot #${item.fingerprintIndex}`.toLowerCase().includes(query));
 
-      if (activeTab === 'rfid') {
-        const matchesStatus = statusFilter === "All" || item.hardwareStatus === statusFilter;
-        let matchesDate = true;
-        if (selectedDate) {
-          const alignedDateRaw = item.dateAligned;
-          if (alignedDateRaw) {
-            try {
-              const alignedDate = new Date(alignedDateRaw).toISOString().split('T')[0];
-              matchesDate = alignedDate === selectedDate;
-            } catch (e) { matchesDate = false; }
-          } else matchesDate = false;
-        }
-        return matchesSearch && matchesStatus && matchesDate;
-      } else {
-        const matchesMemoryId = memoryIdFilter === "All" || (item.fingerprintIndex !== null && item.fingerprintIndex !== undefined && item.fingerprintIndex.toString() === memoryIdFilter);
-        return matchesSearch && matchesMemoryId;
+      const matchesStatus = statusFilter === "All" || 
+        ((statusFilter === "Active" || statusFilter === "Assigned")
+          ? (item.hardwareStatus === "Active" || item.hardwareStatus === "Assigned")
+          : item.hardwareStatus === statusFilter);
+
+      let matchesDate = true;
+      if (selectedDate && activeTab === 'rfid') {
+        const alignedDateRaw = item.dateAligned;
+        if (alignedDateRaw) {
+          try {
+            const alignedDate = new Date(alignedDateRaw).toISOString().split('T')[0];
+            matchesDate = alignedDate === selectedDate;
+          } catch (e) { matchesDate = false; }
+        } else matchesDate = false;
       }
+
+      return matchesSearch && matchesStatus && matchesDate;
     });
-  }, [activeTab, rfidList, biometricList, searchQuery, statusFilter, memoryIdFilter, selectedDate]);
+  }, [activeTab, rfidList, combinedBiometricList, searchQuery, statusFilter, selectedDate]);
 
   const stats = useMemo(() => {
     if (activeTab === 'rfid') {
@@ -333,17 +447,17 @@ const HardwareManagement = () => {
         total: rfidList.filter(r => r.machip_id).length,
         unassigned: unassignedEmployees.length,
         icon: <CreditCardIcon />,
-        color: "bg-[#2A174E]"
+        color: "bg-brand-primary"
       };
     } else {
       return {
-        total: biometricList.filter(b => b.fingerprintIndex !== null).length,
+        total: combinedBiometricList.filter(b => b.fingerprintIndex !== null && b.fingerprintIndex !== undefined).length,
         unassigned: unassignedEmployees.length,
         icon: <FingerprintIcon />,
-        color: "bg-[#2A174E]"
+        color: "bg-brand-primary"
       };
     }
-  }, [activeTab, rfidList, biometricList, unassignedEmployees]);
+  }, [activeTab, rfidList, combinedBiometricList, unassignedEmployees]);
 
   const totalItems = filteredData.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
@@ -351,7 +465,7 @@ const HardwareManagement = () => {
   const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
   const currentData = filteredData.slice(startIndex, endIndex);
 
-  const isFiltering = searchQuery !== "" || statusFilter !== "All" || memoryIdFilter !== "All" || selectedDate !== "";
+  const isFiltering = searchQuery !== "" || statusFilter !== "All" || selectedDate !== "";
 
   // ── Render ───────────────────────────────────────────────────────────────
 
@@ -382,7 +496,7 @@ const HardwareManagement = () => {
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span className="inline-block">
-                        <Button variant="ghost" size="icon" asChild className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]">
+                        <Button variant="ghost" size="icon" asChild className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-brand-primary">
                           <Link to="/users"><ChevronLeft className="h-6 w-6" /></Link>
                         </Button>
                       </span>
@@ -393,23 +507,32 @@ const HardwareManagement = () => {
                   </Tooltip>
                 </div>
                 <div className="transition-all duration-300 ease-in-out group-hover:pl-2">
-                  <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Hardware Registry</h1>
+                  <h1 className="text-2xl md:text-3xl font-bold text-brand-primary">Hardware Registry</h1>
                   <span className="text-sm text-slate-500 mt-1 block">Manage MaChip hardware alignments, biometric signatures, and access states.</span>
                 </div>
               </div>
-              <Button onClick={handleStartScan} className="bg-[#2A174E] hover:bg-[#7A52B5] font-bold shadow-sm gap-2">
+              <Button onClick={handleStartScan} className="bg-brand-primary hover:bg-[#7A52B5] font-bold shadow-sm gap-2">
                 <ScanLine className="h-4 w-4 text-white" />
                 <span>{activeTab === 'rfid' ? 'Scan RFID' : 'Enroll Fingerprint'}</span>
               </Button>
             </div>
 
             {/* Tabs */}
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <Tabs 
+              value={activeTab} 
+              onValueChange={(val) => {
+                if (showScanModal) {
+                  handleCloseScanModal();
+                }
+                setActiveTab(val);
+              }} 
+              className="w-full"
+            >
               <TabsList className="grid w-full sm:w-[400px] grid-cols-2 h-11 bg-slate-200/60 rounded-lg mb-6 p-0.5">
-                <TabsTrigger value="rfid" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md">
+                <TabsTrigger value="rfid" className="data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md">
                   <CreditCardIcon className="mr-2 h-4 w-4" /> RFID Cards
                 </TabsTrigger>
-                <TabsTrigger value="fingerprint" className="data-[state=active]:bg-white data-[state=active]:text-[#2A174E] data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md">
+                <TabsTrigger value="fingerprint" className="data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md">
                   <FingerprintIcon className="mr-2 h-4 w-4" /> Biometrics
                 </TabsTrigger>
               </TabsList>
@@ -434,15 +557,15 @@ const HardwareManagement = () => {
                           </TooltipContent>
                         </Tooltip>
                       </div>
-                      <p className="text-3xl font-bold text-[#2A174E]">{stats.total}</p>
+                      <p className="text-3xl font-bold text-brand-primary">{stats.total}</p>
                       <p className="text-[10px] text-slate-400 mt-2 italic">
                         {activeTab === 'rfid' ? 'Registered RFID tokens in the system.' : 'Biometric slot maps active in module memory.'}
                       </p>
                     </div>
-                    <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg">{stats.icon}</div>
+                    <div className="bg-brand-primary/10 text-brand-primary p-3 rounded-lg">{stats.icon}</div>
                   </CardContent>
                 </Card>
-                <Card className="border-t-5 border-orange-600 bg-white py-0">
+                <Card className="border-t-5 border-accent-gold bg-white py-0">
                   <CardContent className="px-5 py-5 flex justify-between items-center">
                     <div>
                       <div className="flex items-center gap-1.5 mb-1">
@@ -456,10 +579,10 @@ const HardwareManagement = () => {
                           </TooltipContent>
                         </Tooltip>
                       </div>
-                      <p className="text-3xl font-bold text-orange-700">{stats.unassigned}</p>
+                      <p className="text-3xl font-bold text-accent-gold">{stats.unassigned}</p>
                       <p className="text-[10px] text-slate-400 mt-2 italic">Employees pending hardware alignment.</p>
                     </div>
-                    <div className="bg-orange-50 text-orange-600 p-3 rounded-lg"><SensorsIcon /></div>
+                    <div className="bg-accent-gold/10 text-accent-gold p-3 rounded-lg"><SensorsIcon /></div>
                   </CardContent>
                 </Card>
               </div>
@@ -478,26 +601,39 @@ const HardwareManagement = () => {
                   </div>
                   <div className="flex gap-3 w-full xl:w-auto items-center">
                     <FilterListIcon className="text-slate-400 hidden sm:block" />
-                    {activeTab === 'rfid' ? (
-                      <>
-                        <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="w-full sm:w-[160px] h-9 border-slate-200 bg-slate-50 text-slate-700 font-medium" />
-                        <Select value={statusFilter} onValueChange={setStatusFilter}>
-                          <SelectTrigger className="w-[160px] bg-slate-50"><SelectValue placeholder="Status" /></SelectTrigger>
-                          <SelectContent><SelectItem value="All">All Statuses</SelectItem><SelectItem value="Active">Active</SelectItem><SelectItem value="Unassigned">Unassigned</SelectItem></SelectContent>
-                        </Select>
-                      </>
-                    ) : (
-                      <Select value={memoryIdFilter} onValueChange={setMemoryIdFilter}>
-                        <SelectTrigger className="w-[160px] bg-slate-50"><SelectValue placeholder="Memory ID" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="All">All Slots</SelectItem>
-                          {uniqueMemoryIds.map(id => (
-                            <SelectItem key={id} value={id.toString()}>Slot #{id}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    {activeTab === 'rfid' && (
+                      <Input 
+                        type="date" 
+                        value={selectedDate} 
+                        onChange={(e) => setSelectedDate(e.target.value)} 
+                        className="w-full sm:w-[160px] h-9 border-slate-200 bg-slate-50 text-slate-700 font-medium" 
+                      />
                     )}
-                    {isFiltering && <Button variant="ghost" onClick={() => { setSearchQuery(""); setStatusFilter("All"); setMemoryIdFilter("All"); setSelectedDate(""); }} className="text-slate-500 hover:text-red-600"><CloseIcon className="h-4 w-4 mr-1" /> Clear</Button>}
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                      <SelectTrigger className="w-[160px] bg-slate-50">
+                        <SelectValue placeholder="Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="All">All Statuses</SelectItem>
+                        <SelectItem value={activeTab === 'rfid' ? 'Active' : 'Assigned'}>
+                          {activeTab === 'rfid' ? 'Active' : 'Assigned'}
+                        </SelectItem>
+                        <SelectItem value="Unassigned">Unassigned</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {isFiltering && (
+                      <Button 
+                        variant="ghost" 
+                        onClick={() => { 
+                          setSearchQuery(""); 
+                          setStatusFilter("All"); 
+                          setSelectedDate(""); 
+                        }} 
+                        className="text-slate-500 hover:text-red-600"
+                      >
+                        <CloseIcon className="h-4 w-4 mr-1" /> Clear
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -506,7 +642,7 @@ const HardwareManagement = () => {
               <Card className="shadow-sm border-0 bg-white py-0 overflow-hidden">
                 <CardContent className="p-0 flex flex-col">
                   <Table>
-                    <TableHeader className="bg-[#2A174E]">
+                    <TableHeader className="bg-brand-primary">
                       <TableRow className="hover:bg-transparent">
                         <TableHead className="text-white font-bold py-4 px-6 uppercase text-xs tracking-wider">Employee</TableHead>
                         <TableHead className="text-white font-bold py-4 uppercase text-xs tracking-wider">
@@ -524,35 +660,35 @@ const HardwareManagement = () => {
                             </Tooltip>
                           </div>
                         </TableHead>
+                        <TableHead className="text-white font-bold py-4 uppercase text-xs tracking-wider">
+                          <div className="flex items-center gap-1">
+                            Status
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <HelpOutlineIcon sx={{ fontSize: 12 }} className="text-white/60 hover:text-white cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                                {activeTab === 'rfid' 
+                                  ? 'Alignment status of the RFID card.' 
+                                  : 'Alignment status of the biometric fingerprint slot.'}
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                        </TableHead>
                         {activeTab === 'rfid' && (
-                          <>
-                            <TableHead className="text-white font-bold py-4 uppercase text-xs tracking-wider">
-                              <div className="flex items-center gap-1">
-                                Status
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <HelpOutlineIcon sx={{ fontSize: 12 }} className="text-white/60 hover:text-white cursor-help" />
-                                  </TooltipTrigger>
-                                  <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
-                                    Alignment status of the RFID card.
-                                  </TooltipContent>
-                                </Tooltip>
-                              </div>
-                            </TableHead>
-                            <TableHead className="text-white font-bold py-4 uppercase text-xs tracking-wider">
-                              <div className="flex items-center gap-1">
-                                Synchronized
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <HelpOutlineIcon sx={{ fontSize: 12 }} className="text-white/60 hover:text-white cursor-help" />
-                                  </TooltipTrigger>
-                                  <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
-                                    The date when the RFID card was mapped to the employee record.
-                                  </TooltipContent>
-                                </Tooltip>
-                              </div>
-                            </TableHead>
-                          </>
+                          <TableHead className="text-white font-bold py-4 uppercase text-xs tracking-wider">
+                            <div className="flex items-center gap-1">
+                              Synchronized
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <HelpOutlineIcon sx={{ fontSize: 12 }} className="text-white/60 hover:text-white cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                                  The date when the RFID card was mapped to the employee record.
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
+                          </TableHead>
                         )}
                         <TableHead className="text-white font-bold py-4 uppercase text-xs tracking-wider text-right pr-6">Action</TableHead>
                       </TableRow>
@@ -560,31 +696,43 @@ const HardwareManagement = () => {
                     <TableBody>
                       {currentData.length > 0 ? (
                         currentData.map((row) => (
-                          <TableRow key={row.user_Id} className="border-b-slate-100 hover:bg-slate-50/50">
+                          <TableRow key={`${row.user_Id}-${row.slotNumber || 1}-${row.fingerprintIndex || row.machip_id || 'unassigned'}`} className="border-b-slate-100 hover:bg-slate-50/50">
                             <TableCell className="px-6 py-4">
-                              <p className="font-bold text-[#2A174E] text-sm">{row.userName}</p>
-                              <p className="text-[10px] text-slate-400 font-mono">{formatUserId(row.user_Id)}</p>
+                              <div className="flex items-center gap-2">
+                                <div>
+                                  <p className="font-bold text-brand-primary text-sm">{row.userName}</p>
+                                  <p className="text-[10px] text-slate-400 font-mono">{formatUserId(row.user_Id)}</p>
+                                </div>
+                                {activeTab === 'fingerprint' && row.fingerprintType && (
+                                  <Badge variant="outline" className={`text-[10px] ml-1 font-semibold ${row.slotNumber === 2 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-purple-50 text-purple-700 border-purple-200'}`}>
+                                    {row.fingerprintType}
+                                  </Badge>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell className="font-mono text-xs font-semibold text-slate-700">
-                              {activeTab === 'rfid' ? (row.machip_id || "—") : `Slot #${row.fingerprintIndex ?? "—"}`}
+                              {activeTab === 'rfid' 
+                                ? (row.machip_id || "—") 
+                                : (row.fingerprintIndex !== null && row.fingerprintIndex !== undefined ? `Slot #${row.fingerprintIndex}` : "—")}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="secondary" className={
+                                (row.hardwareStatus === "Active" || row.hardwareStatus === "Assigned") 
+                                  ? "bg-green-100 text-green-800 hover:bg-green-100" 
+                                  : row.hardwareStatus === "Unassigned" 
+                                    ? "bg-slate-100 text-slate-500 hover:bg-slate-100" 
+                                    : "bg-red-100 text-red-800 hover:bg-red-100"
+                              }>
+                                {row.hardwareStatus || (activeTab === 'rfid' ? (row.machip_id ? "Active" : "Unassigned") : (row.fingerprintIndex !== null && row.fingerprintIndex !== undefined ? "Assigned" : "Unassigned"))}
+                              </Badge>
                             </TableCell>
                             {activeTab === 'rfid' && (
-                              <>
-                                <TableCell>
-                                  <Badge variant="secondary" className={
-                                    row.hardwareStatus === "Active" ? "bg-green-100 text-green-800" : 
-                                    row.hardwareStatus === "Unassigned" ? "bg-slate-100 text-slate-500" : "bg-red-100 text-red-800"
-                                  }>
-                                    {row.hardwareStatus || "Unknown"}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell className="text-slate-600 text-sm">
-                                  {row.dateAligned ? new Date(row.dateAligned).toLocaleDateString() : "—"}
-                                </TableCell>
-                              </>
+                              <TableCell className="text-slate-600 text-sm">
+                                {row.dateAligned ? new Date(row.dateAligned).toLocaleDateString() : "—"}
+                              </TableCell>
                             )}
                             <TableCell className="text-right pr-6">
-                              {(activeTab === 'rfid' ? row.machip_id : row.fingerprintIndex !== null) ? (
+                              {(activeTab === 'rfid' ? row.machip_id : (row.fingerprintIndex !== null && row.fingerprintIndex !== undefined)) ? (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <span className="inline-block">
@@ -604,7 +752,7 @@ const HardwareManagement = () => {
                           </TableRow>
                         ))
                       ) : (
-                        <TableRow><TableCell colSpan={activeTab === 'rfid' ? 5 : 3} className="p-6 border-0">
+                        <TableRow><TableCell colSpan={activeTab === 'rfid' ? 5 : 4} className="p-6 border-0">
                           <EmptyState icon={activeTab === 'rfid' ? <CreditCardIcon className="h-8 w-8 text-slate-300" /> : <FingerprintIcon className="h-8 w-8 text-slate-300" />} title="No mappings active" description="No registered nodes currently reside within hardware configuration filters." />
                         </TableCell></TableRow>
                       )}
@@ -643,7 +791,7 @@ const HardwareManagement = () => {
 
       <Dialog open={showAssignModal} onOpenChange={setShowAssignModal}>
         <DialogContent className="sm:max-w-[460px] p-0 border-0 overflow-hidden bg-white rounded-2xl shadow-2xl">
-          <DialogHeader className="bg-[#2A174E] text-white p-6 relative">
+          <DialogHeader className="bg-brand-primary text-white p-6 relative">
             <DialogTitle className="text-xl font-bold flex items-center gap-2">
               <ScanLine className="h-5 w-5 text-purple-300" /> {activeTab === 'rfid' ? 'Assign Scanned Card' : 'Link Biometric Template'}
             </DialogTitle>
@@ -656,7 +804,7 @@ const HardwareManagement = () => {
           <div className="p-6 space-y-6">
             <div className="space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-100">
               <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider">{activeTab === 'rfid' ? 'Scanned Card UID' : 'Allocated Flash Memory Index'}</Label>
-              <div className="font-mono text-sm font-black text-[#2A174E] bg-white border border-slate-200 rounded-lg p-3 tracking-widest shadow-sm">
+              <div className="font-mono text-sm font-black text-brand-primary bg-white border border-slate-200 rounded-lg p-3 tracking-widest shadow-sm">
                 {activeTab === 'rfid' ? scannedId : `Slot Pool Location #${scannedId}`}
               </div>
             </div>
@@ -668,21 +816,54 @@ const HardwareManagement = () => {
                   {loadingUnassigned ? "Refreshing..." : "Refresh List"}
                 </button>
               </div>
-              <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                <SelectTrigger className="w-full h-12 bg-white border-slate-200 rounded-lg focus:ring-[#2A174E]"><SelectValue placeholder="Select an unassigned employee..." /></SelectTrigger>
+              <Select value={selectedUserId} onValueChange={handleSelectEmployee}>
+                <SelectTrigger className="w-full h-12 bg-white border-slate-200 rounded-lg focus:ring-brand-primary"><SelectValue placeholder="Select an unassigned employee..." /></SelectTrigger>
                 <SelectContent className="max-h-[220px]">
                   {loadingUnassigned ? <div className="p-4 text-center text-xs text-slate-400 italic">Updating registry...</div> : 
                     unassignedEmployees.length > 0 ? unassignedEmployees.map((emp) => (
-                      <SelectItem key={emp.user_Id} value={emp.user_Id.toString()}>{emp.user_FirstName} {emp.user_LastName} ({formatUserId(emp.user_Id)})</SelectItem>
+                      <SelectItem key={emp.user_Id} value={emp.user_Id.toString()}>
+                        {emp.user_FirstName} {emp.user_LastName} ({formatUserId(emp.user_Id)}) {activeTab === 'fingerprint' ? emp.hasSlot1 : ""}
+                      </SelectItem>
                     )) : <div className="p-4 text-center text-xs text-slate-400 italic">No unassigned employees found.</div>
                   }
                 </SelectContent>
               </Select>
             </div>
 
+            {activeTab === 'fingerprint' && selectedUserId && (
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Fingerprint Role / Slot</Label>
+                <Select value={selectedSlotNumber} onValueChange={setSelectedSlotNumber}>
+                  <SelectTrigger className="w-full h-11 bg-white border-slate-200 rounded-lg">
+                    <SelectValue placeholder="Select Slot" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">Primary Fingerprint (Slot 1)</SelectItem>
+                    <SelectItem value="2">Secondary Fallback Fingerprint (Slot 2)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-slate-400 italic">
+                  Secondary fallback allows employees with worn or injured primary fingers to authenticate seamlessly.
+                </p>
+              </div>
+            )}
+
+            {isDuplicateSlot && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 font-medium flex items-center gap-2">
+                <BlockIcon className="h-4 w-4 text-red-500 shrink-0" />
+                <span>
+                  Slot #{scannedId} is already assigned as this employee's {selectedSlotNumber === "2" ? "Primary" : "Fallback"} fingerprint. Fallback must be a different finger.
+                </span>
+              </div>
+            )}
+
             <div className="flex gap-3 pt-2">
               <Button variant="outline" className="flex-1 h-11 border-slate-200 text-slate-500 rounded-lg font-bold" onClick={() => setShowAssignModal(false)}>Cancel</Button>
-              <Button onClick={handleAssignSubmit} disabled={assigning || !selectedUserId} className="flex-1 h-11 bg-[#2A174E] hover:bg-[#1a0e30] text-white rounded-lg font-bold shadow-md tracking-wide">
+              <Button 
+                onClick={handleAssignSubmit} 
+                disabled={assigning || !selectedUserId || (activeTab === 'fingerprint' && isDuplicateSlot)} 
+                className="flex-1 h-11 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-lg font-bold shadow-md tracking-wide disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 {assigning ? "Linking..." : "Assign Hardware Link"}
               </Button>
             </div>
@@ -695,7 +876,7 @@ const HardwareManagement = () => {
           <div className="p-6 text-center">
             <div className="w-16 h-16 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4"><AlertTriangle className="h-8 w-8" /></div>
             <DialogHeader>
-              <DialogTitle className="text-xl font-bold text-[#2A174E] text-center">Revoke Hardware Access?</DialogTitle>
+              <DialogTitle className="text-xl font-bold text-brand-primary text-center">Revoke Hardware Access?</DialogTitle>
               <DialogDescription className="text-slate-500 text-sm mt-2 text-center">
                 You are about to unlink the {activeTab === 'rfid' ? 'RFID card' : 'biometric signature'} from <b className="text-slate-900">{revokeTarget?.userName}</b>. 
                 This employee will no longer be able to use this hardware for attendance.

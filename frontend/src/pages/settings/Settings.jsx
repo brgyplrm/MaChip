@@ -57,8 +57,11 @@ const Settings = () => {
   const [showPicker, setShowPicker] = useState(false);
 
   // --- Attendance Configuration States ---
+  const [enableNightShift, setEnableNightShift] = useState(false);
   const [morningShiftStart, setMorningShiftStart] = useState("08:30");
   const [morningShiftEnd, setMorningShiftEnd] = useState("17:30");
+  const [eveningShiftStart, setEveningShiftStart] = useState("20:30");
+  const [eveningShiftEnd, setEveningShiftEnd] = useState("05:30");
   const [gracePeriod, setGracePeriod] = useState("08:35");
   const [lunchStartThreshold, setLunchStartThreshold] = useState("11:30");
   const [lunchEndThreshold, setLunchEndThreshold] = useState("13:30");
@@ -99,7 +102,10 @@ const Settings = () => {
         
         if (data.mockTimeValue) {
           const dt = new Date(data.mockTimeValue);
-          setMockDate(dt.toISOString().split('T')[0]);
+          const YYYY = dt.getFullYear();
+          const MM = String(dt.getMonth() + 1).padStart(2, "0");
+          const DD = String(dt.getDate()).padStart(2, "0");
+          setMockDate(`${YYYY}-${MM}-${DD}`);
           setMockTime(dt.toTimeString().split(' ')[0].substring(0, 5));
         }
 
@@ -110,8 +116,11 @@ const Settings = () => {
         setArchivedRetentionYears(data.archivedRetentionYears !== undefined && data.archivedRetentionYears !== null ? data.archivedRetentionYears : 5);
 
         // Load Attendance Settings
+        setEnableNightShift(Boolean(data.enableNightShift));
         if (data.morningShiftStart) setMorningShiftStart(data.morningShiftStart.substring(0, 5));
         if (data.morningShiftEnd) setMorningShiftEnd(data.morningShiftEnd.substring(0, 5));
+        if (data.eveningShiftStart) setEveningShiftStart(data.eveningShiftStart.substring(0, 5));
+        if (data.eveningShiftEnd) setEveningShiftEnd(data.eveningShiftEnd.substring(0, 5));
         if (data.gracePeriod) setGracePeriod(data.gracePeriod.substring(0, 5)); 
         if (data.lunchStartThreshold) setLunchStartThreshold(data.lunchStartThreshold.substring(0, 5));
         if (data.lunchEndThreshold) setLunchEndThreshold(data.lunchEndThreshold.substring(0, 5));
@@ -120,7 +129,15 @@ const Settings = () => {
         setWorkHourThreshold(data.workHourThreshold ?? 4.0);
         
         const rates = data.payrollRates ?? null;
-        setPayrollRates(rates);
+        setPayrollRates({
+          ...(rates || {}),
+          payrollCutoffBufferDays: data.payrollCutoffBufferDays ?? rates?.payrollCutoffBufferDays ?? 2,
+          payrollProcessingDeadlineDays: data.payrollProcessingDeadlineDays ?? rates?.payrollProcessingDeadlineDays ?? 3,
+          payrollAutoRelease: data.payrollAutoRelease ?? rates?.payrollAutoRelease ?? false,
+          payrollRemindersEnabled: data.payrollRemindersEnabled ?? rates?.payrollRemindersEnabled ?? true,
+          payrollWeekendRule: data.payrollWeekendRule ?? rates?.payrollWeekendRule ?? 'PRECEDING_FRIDAY',
+          payrollGracePeriodDays: data.payrollGracePeriodDays ?? rates?.payrollGracePeriodDays ?? 7,
+        });
         
         // Dynamically pull payroll constants if present in response records
         // Priority: 1. data.payroll (flat), 2. data.payrollRates.statutoryConstants (nested)
@@ -173,6 +190,7 @@ const Settings = () => {
       if (response.ok) {
         showNotification(successMessage);
         refreshSystemTime();
+        window.dispatchEvent(new Event("systemTimeRefresh"));
         await fetchSettings();
         return true;
       } else {
@@ -217,8 +235,11 @@ const Settings = () => {
     };
 
     const payload = {
+      enableNightShift,
       morningShiftStart,
       morningShiftEnd,
+      eveningShiftStart,
+      eveningShiftEnd,
       gracePeriod,
       lunchStartThreshold,
       lunchEndThreshold,
@@ -246,6 +267,12 @@ const Settings = () => {
       doubleSpecialDayRestDayRate: newRates.doubleSpecialDayRestDayRate,
       nightDiffRate: newRates.nightDiffRate,
       overtimeRate: newRates.overtimeRate,
+      payrollCutoffBufferDays: newRates.payrollCutoffBufferDays,
+      payrollProcessingDeadlineDays: newRates.payrollProcessingDeadlineDays,
+      payrollAutoRelease: newRates.payrollAutoRelease,
+      payrollRemindersEnabled: newRates.payrollRemindersEnabled,
+      payrollWeekendRule: newRates.payrollWeekendRule,
+      payrollGracePeriodDays: newRates.payrollGracePeriodDays,
       payrollRates: newRates.payrollRates,
       payroll: newRates.payroll
     };
@@ -267,7 +294,7 @@ const Settings = () => {
           
           {/* Header Dashboard Title */}    
           <div className="mb-6">
-            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E] leading-tight">Global Configurations</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-brand-primary leading-tight">Global Configurations</h1>
             <span className="text-sm text-slate-500 mt-1 block">Adjust platform constraints, system timing rules, variables, and financial formulas.</span>
           </div>
 
@@ -282,32 +309,32 @@ const Settings = () => {
                   <SelectContent className="rounded-xl border-slate-200 shadow-lg">
                     <SelectItem value="simulation" className="py-3 rounded-lg focus:bg-slate-100 cursor-pointer">
                       <div className="flex items-center font-semibold text-slate-700">
-                        <SettingsSuggestIcon className="mr-3 h-5 w-5 text-[#2A174E]" /> System Variables
+                        <SettingsSuggestIcon className="mr-3 h-5 w-5 text-brand-primary" /> System Variables
                       </div>
                     </SelectItem>
                     <SelectItem value="payroll" className="py-3 rounded-lg focus:bg-slate-100 cursor-pointer">
                       <div className="flex items-center font-semibold text-slate-700">
-                        <CurrencyExchangeIcon className="mr-3 h-5 w-5 text-[#2A174E]" /> Payroll Formulas
+                        <CurrencyExchangeIcon className="mr-3 h-5 w-5 text-brand-primary" /> Payroll Formulas
                       </div>
                     </SelectItem>
                     <SelectItem value="attendance" className="py-3 rounded-lg focus:bg-slate-100 cursor-pointer">
                       <div className="flex items-center font-semibold text-slate-700">
-                        <AccessTimeIcon className="mr-3 h-5 w-5 text-[#2A174E]" /> Attendance
+                        <AccessTimeIcon className="mr-3 h-5 w-5 text-brand-primary" /> Attendance
                       </div>
                     </SelectItem>
                     <SelectItem value="notification" className="py-3 rounded-lg focus:bg-slate-100 cursor-pointer">
                       <div className="flex items-center font-semibold text-slate-700">
-                        <NotificationsNoneIcon className="mr-3 h-5 w-5 text-[#2A174E]" /> Notification
+                        <NotificationsNoneIcon className="mr-3 h-5 w-5 text-brand-primary" /> Notification
                       </div>
                     </SelectItem>
                     <SelectItem value="positions" className="py-3 rounded-lg focus:bg-slate-100 cursor-pointer">
                       <div className="flex items-center font-semibold text-slate-700">
-                        <AssuredWorkloadIcon className="mr-3 h-5 w-5 text-[#2A174E]" /> Salary Grades
+                        <AssuredWorkloadIcon className="mr-3 h-5 w-5 text-brand-primary" /> Salary Grades
                       </div>
                     </SelectItem>
                     <SelectItem value="referenceTables" className="py-3 rounded-lg focus:bg-slate-100 cursor-pointer">
                       <div className="flex items-center font-semibold text-slate-700">
-                        <Layers className="mr-3 h-5 w-5 text-[#2A174E]" /> Ref Tables
+                        <Layers className="mr-3 h-5 w-5 text-brand-primary" /> Ref Tables
                       </div>
                     </SelectItem>
                   </SelectContent>
@@ -322,7 +349,7 @@ const Settings = () => {
               <div className="max-w-6xl w-full mx-auto space-y-6">
                 {/* Tab 1: Mock Time Simulation (Your Entire Original Layout) */}
                 <TabsContent value="simulation" className="space-y-6 mt-0 animate-in fade-in-50 duration-200">
-                  <div className="bg-[#2A1B4E] text-white rounded-xl p-6 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div className="bg-brand-primary text-white rounded-xl p-6 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div className="flex items-start space-x-4">
                       <div className="p-3 bg-white/10 rounded-lg border border-white/10">
                         <Clock className="w-6 h-6 text-purple-200" />
@@ -370,8 +397,8 @@ const Settings = () => {
                   <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 w-full">
                     <Card className="xl:col-span-2 sm:col-span-3 border-slate-200/80 shadow-sm bg-white pt-4 pb-0">
                       <CardHeader className="border-b border-slate-100 pb-4">
-                        <CardTitle className="text-lg text-[#2A174E] flex items-center gap-2 font-bold">
-                          <AccessTimeIcon className="text-[#2A174E]" /> Time Simulation Engine
+                        <CardTitle className="text-lg text-brand-primary flex items-center gap-2 font-bold">
+                          <AccessTimeIcon className="text-brand-primary" /> Time Simulation Engine
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="p-6 space-y-6">
@@ -424,7 +451,7 @@ const Settings = () => {
                       </CardHeader>
                       <CardContent className="p-6 flex flex-col justify-center items-center text-center h-[220px]">
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Live Engine Standard Time</p>
-                        <p className="text-4xl font-black text-[#2A174E] font-mono tracking-tight">
+                        <p className="text-4xl font-black text-brand-primary font-mono tracking-tight">
                           {realTime.toLocaleTimeString()}
                         </p>
                         <p className="text-xs text-slate-500 mt-2 font-medium">
@@ -434,8 +461,8 @@ const Settings = () => {
                     </Card>
                     <Card className="sm:grid-cols-1 col-span-3 border-slate-200/80 shadow-sm bg-white pt-4 pb-0">
                     <CardHeader className="border-b border-slate-100 pb-4">
-                      <CardTitle className="text-lg text-[#2A174E] flex items-center gap-2 font-bold">
-                        <LocalAtmIcon className="text-[#2A174E]" /> Regulatory & Infrastructure
+                      <CardTitle className="text-lg text-brand-primary flex items-center gap-2 font-bold">
+                        <LocalAtmIcon className="text-brand-primary" /> Regulatory & Infrastructure
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="p-6 space-y-6">
@@ -540,8 +567,11 @@ const Settings = () => {
                 {/* Tab 3: Attendance Configuration Layout (Your Retained Storage Paths) */}
                 <TabsContent value="attendance" className=" mt-0 animate-in fade-in-50 duration-200">
                   <AttendanceConfiguration 
+                    enableNightShift={enableNightShift} setEnableNightShift={setEnableNightShift}
                     workStart={morningShiftStart} setWorkStart={setMorningShiftStart}
                     workEnd={morningShiftEnd} setWorkEnd={setMorningShiftEnd}
+                    eveningStart={eveningShiftStart} setEveningStart={setEveningShiftStart}
+                    eveningEnd={eveningShiftEnd} setEveningEnd={setEveningShiftEnd}
                     gracePeriod={gracePeriod} setGracePeriod={setGracePeriod}
                     lunchStart={lunchStartThreshold} setLunchStart={setLunchStartThreshold}
                     lunchEnd={lunchEndThreshold} setLunchEnd={setLunchEndThreshold}

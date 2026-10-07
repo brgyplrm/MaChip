@@ -1,5 +1,5 @@
 /* src/pages/transactionLog/transactionLog.scss */
-$primary-purple: #2A174E;
+$primary-purple: var(--color-brand-primary);
 
 .transactionLog {
   display: flex;

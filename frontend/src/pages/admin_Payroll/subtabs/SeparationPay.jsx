@@ -24,6 +24,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { TablePagination } from "@/components/ui/table-pagination";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const SeparationPay = () => {
   const { systemToday } = useSystemTime();
@@ -38,6 +48,7 @@ const SeparationPay = () => {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
+  const [confirmConfig, setConfirmConfig] = useState(null);
   const [showGuideline, setShowGuideline] = useState(true);
   const [causes, setCauses] = useState([]);
   const [selectedCauseId, setSelectedCauseId] = useState("");
@@ -137,21 +148,7 @@ const SeparationPay = () => {
     }
   };
 
-  const handleGenerate = async (targetStatus = 'Draft') => {
-    if (!preview || !selectedCauseId) return;
-    
-    if (targetStatus === 'Notice Served') {
-      const thirtyDaysFromNow = new Date();
-      thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-      const sepDate = new Date(separationDate);
-      
-      let confirmMsg = `Are you sure you want to serve the Notice of Termination to ${preview.name}?`;
-      if (sepDate < thirtyDaysFromNow) {
-        confirmMsg += "\n\n⚠️ WARNING: The selected separation date is less than 30 days from today. DOLE requires at least 30 days notice.";
-      }
-      if (!window.confirm(confirmMsg)) return;
-    }
-
+  const executeGenerate = async (targetStatus = 'Draft') => {
     setLoading(true);
     try {
       const res = await fetchWithAuth("/api/payroll/separation/generate", {
@@ -181,36 +178,71 @@ const SeparationPay = () => {
     }
   };
 
-  const handleCancel = async (id) => {
-    if (!window.confirm("Are you sure you want to rescind this termination notice? This will restore the employee to Active status and send a notification email.")) return;
-    try {
-      const res = await fetchWithAuth(`/api/payroll/separation/cancel/${id}`, { method: "DELETE" });
-      const data = await res.json();
-      if (res.ok) {
-        setToast({ message: data.message, type: "success" });
-        fetchHistory();
-      } else {
-        setToast({ message: data.error || "Failed to cancel", type: "error" });
-      }
-    } catch (err) {
-      setToast({ message: "Network error", type: "error" });
+  const handleGenerate = async (targetStatus = 'Draft') => {
+    if (!preview || !selectedCauseId) return;
+    
+    if (targetStatus === 'Notice Served') {
+      const thirtyDaysFromNow = new Date();
+      thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+      const sepDate = new Date(separationDate);
+      
+      const isShortNotice = sepDate < thirtyDaysFromNow;
+      setConfirmConfig({
+        title: "Serve Notice of Termination",
+        description: `Are you sure you want to serve the official Notice of Termination to ${preview.name}?${
+          isShortNotice ? " Note: The selected separation date is less than 30 days from today. DOLE regulations require at least 30 days notice." : ""
+        }`,
+        actionLabel: "Serve Notice",
+        onConfirm: () => executeGenerate(targetStatus)
+      });
+      return;
     }
+
+    executeGenerate(targetStatus);
   };
 
-  const handleRelease = async (id) => {
-    if (!window.confirm("Release the final settlement? This will mark the employee as 'Separated' and archive their profile.")) return;
-    try {
-      const res = await fetchWithAuth(`/api/payroll/separation/release/${id}`, { method: "PUT" });
-      const data = await res.json();
-      if (res.ok) {
-        setToast({ message: data.message, type: "success" });
-        fetchHistory();
-      } else {
-        setToast({ message: data.error || "Failed to release", type: "error" });
+  const handleCancel = (id) => {
+    setConfirmConfig({
+      title: "Rescind Termination Notice",
+      description: "Are you sure you want to rescind this termination notice? This will restore the employee to Active status and send a notification email.",
+      actionLabel: "Rescind Notice",
+      onConfirm: async () => {
+        try {
+          const res = await fetchWithAuth(`/api/payroll/separation/cancel/${id}`, { method: "DELETE" });
+          const data = await res.json();
+          if (res.ok) {
+            setToast({ message: data.message, type: "success" });
+            fetchHistory();
+          } else {
+            setToast({ message: data.error || "Failed to cancel", type: "error" });
+          }
+        } catch (err) {
+          setToast({ message: "Network error", type: "error" });
+        }
       }
-    } catch (err) {
-      setToast({ message: "Network error", type: "error" });
-    }
+    });
+  };
+
+  const handleRelease = (id) => {
+    setConfirmConfig({
+      title: "Release Final Settlement",
+      description: "Release the final separation settlement? This will mark the employee as 'Separated' and archive their profile.",
+      actionLabel: "Release Settlement",
+      onConfirm: async () => {
+        try {
+          const res = await fetchWithAuth(`/api/payroll/separation/release/${id}`, { method: "PUT" });
+          const data = await res.json();
+          if (res.ok) {
+            setToast({ message: data.message, type: "success" });
+            fetchHistory();
+          } else {
+            setToast({ message: data.error || "Failed to release", type: "error" });
+          }
+        } catch (err) {
+          setToast({ message: "Network error", type: "error" });
+        }
+      }
+    });
   };
 
   const formatCurrency = (val) => `₱${parseFloat(val || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -222,14 +254,14 @@ const SeparationPay = () => {
 
           {showGuideline && (
             <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-4 w-full">
-              <Card className="bg-blue-50 border-blue-200 shadow-none mb-4 w-full py-0 relative">
+              <Card className="bg-sky-50 border border-sky-200 border-l-4 border-l-status-info shadow-none mb-4 w-full py-0 relative">
                 <CardContent className="flex items-start gap-4 p-4 pr-12">
-                  <div className="bg-blue-100 p-2 rounded-lg mt-0.5">
-                    <InfoOutlinedIcon className="h-5 w-5 text-[#005a9c]" />
+                  <div className="bg-sky-100 p-2 rounded-lg mt-0.5">
+                    <InfoOutlinedIcon className="h-5 w-5 text-status-info" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-[#005a9c] text-sm">Policy Guideline</h3>
-                    <p className="text-sm text-blue-900/80 mt-0.5">
+                    <h3 className="font-bold text-status-info text-sm">Policy Guideline</h3>
+                    <p className="text-sm text-sky-950/80 mt-0.5">
                       Calculate and process statutory separation pay according to DOLE Articles 298-299.
                     </p>
                   </div>
@@ -262,7 +294,7 @@ const SeparationPay = () => {
                 {/* Configuration Card */}
                 <Card className="lg:col-span-1 shadow-sm border-0 bg-white">
                   <CardHeader>
-                    <CardTitle className="text-lg font-bold text-[#2A174E]">Employee Details</CardTitle>
+                    <CardTitle className="text-lg font-bold text-brand-primary">Employee Details</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
@@ -291,7 +323,7 @@ const SeparationPay = () => {
                     </div>
                     <Button 
                       onClick={handlePreview} 
-                      className="w-full bg-[#2A174E] text-white"
+                      className="w-full bg-brand-primary text-white"
                       disabled={loading || !selectedUser}
                     >
                       <SearchIcon className="mr-2 h-4 w-4" /> Compute Preview
@@ -305,7 +337,7 @@ const SeparationPay = () => {
                     <>
                       <Card className="shadow-sm border-0 bg-white">
                         <CardHeader>
-                          <CardTitle className="text-lg font-bold text-[#2A174E]">Tenure & Salary Base</CardTitle>
+                          <CardTitle className="text-lg font-bold text-brand-primary">Tenure & Salary Base</CardTitle>
                         </CardHeader>
                         <CardContent className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                           <div>
@@ -327,9 +359,9 @@ const SeparationPay = () => {
                         </CardContent>
                       </Card>
 
-                      <Card className="shadow-sm border-0 bg-white border-t-6 border-indigo-950">
+                      <Card className="shadow-sm border-0 bg-white border-t-5 border-brand-primary">
                         <CardHeader>
-                          <CardTitle className="text-lg font-bold text-[#2A174E]">Step 1: Choose Authorized Cause</CardTitle>
+                          <CardTitle className="text-lg font-bold text-brand-primary">Step 1: Choose Authorized Cause</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-6">
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -339,7 +371,7 @@ const SeparationPay = () => {
                                 onClick={() => setSelectedCauseId(p.causeId)}
                                 className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${
                                   selectedCauseId === p.causeId 
-                                  ? 'border-[#2A174E] bg-[#2A174E]/5 shadow-md' 
+                                  ? 'border-brand-primary bg-brand-primary/5 shadow-md' 
                                   : 'border-slate-100 bg-slate-50 hover:border-slate-200'
                                 }`}
                               >
@@ -347,16 +379,16 @@ const SeparationPay = () => {
                                   <Badge className={p.multiplier === 1.0 ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"}>
                                     {p.multiplier === 1.0 ? "1 Month Pay / Yr" : "1/2 Month Pay / Yr"}
                                   </Badge>
-                                  {selectedCauseId === p.causeId && <CheckCircleIcon className="text-[#2A174E] h-5 w-5" />}
+                                  {selectedCauseId === p.causeId && <CheckCircleIcon className="text-brand-primary h-5 w-5" />}
                                 </div>
-                                <p className="font-bold text-[#2A174E] mb-1">{p.causeName}</p>
+                                <p className="font-bold text-brand-primary mb-1">{p.causeName}</p>
                                 <p className="text-xl font-black text-slate-900 mb-1">{formatCurrency(p.amount)}</p>
                                 <p className="text-[10px] text-slate-500 font-medium leading-tight">{p.desc}</p>
                               </div>
                             ))}
                           </div>
                           
-                          <CardTitle className="text-sm font-bold text-[#2A174E]">Comprehensive Separation Pay Breakdown Formula</CardTitle>
+                          <CardTitle className="text-sm font-bold text-brand-primary">Comprehensive Separation Pay Breakdown Formula</CardTitle>
                           {/* Comprehensive Separation Pay Formula Breakdown */}
                           {selectedCauseId && (
                             <div className="p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl space-y-3 text-left">
@@ -396,12 +428,12 @@ const SeparationPay = () => {
                         </CardContent>
                       </Card>
 
-                      <Card className="shadow-sm border-0 bg-white overflow-hidden text-left pt-0">
-                        <CardHeader className="border-t-6 border-indigo-950 text-white py-4">
-                          <CardTitle className="mt-2 text-lg font-bold text-[#2A174E]">
+                      <Card className="shadow-sm border-0 bg-white border-t-5 border-brand-primary overflow-hidden text-left pt-0">
+                        <CardHeader className="py-4">
+                          <CardTitle className="mt-2 text-lg font-bold text-brand-primary">
                             <span>Step 2: Finalize Settlement Breakdown & Mathematical Basis</span>
                           </CardTitle>
-                          <CardDescription className="text-indigo-800 text-xs mt-0.5">
+                          <CardDescription className="text-slate-500 text-xs mt-0.5">
                             Itemized mathematical origin for pro-rated 13th month, leave encashment, and final worked days.
                           </CardDescription>
                         </CardHeader>
@@ -481,19 +513,19 @@ const SeparationPay = () => {
                           )}
 
                           {/* FINAL PAY COMPUTATION GRAND TOTAL CARD */}
-                          <div className="p-5 bg-gradient-to-br from-[#2A174E] to-indigo-950 text-white rounded-2xl shadow-md border border-indigo-800 space-y-4">
-                            <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                          <div className="p-5 bg-white border-t-5 border-brand-primary text-slate-800 rounded-2xl shadow-sm border border-slate-200/80 space-y-4">
+                            <div className="flex justify-between items-center border-b border-slate-200 pb-3">
                               <div>
-                                <p className="text-xs font-bold text-purple-200 uppercase tracking-widest">Final Pay Settlement Package Grand Total</p>
-                                <p className="text-[10px] text-slate-300">Consolidated back pay components + selected separation cause minus outstanding loans</p>
+                                <p className="text-xs font-bold text-brand-primary uppercase tracking-widest">Final Pay Settlement Package Grand Total</p>
+                                <p className="text-[10px] text-slate-500">Consolidated back pay components + selected separation cause minus outstanding loans</p>
                               </div>
-                              <Badge className="bg-emerald-500 text-white font-bold text-xs">Final Settlement Summary</Badge>
+                              <Badge className="bg-accent-green text-slate-900 font-bold text-xs">Final Settlement Summary</Badge>
                             </div>
 
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                              <div className="bg-white/10 p-2.5 rounded-lg border border-white/10">
-                                <p className="text-[9px] font-bold text-purple-200 uppercase">Gross Back Pay</p>
-                                <p className="font-bold text-white text-sm">
+                              <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                                <p className="text-[9px] font-bold text-slate-500 uppercase">Gross Back Pay</p>
+                                <p className="font-bold text-slate-800 text-sm">
                                   {formatCurrency(
                                     parseFloat(preview.backPay.prorated13thMonth || 0) + 
                                     parseFloat(preview.backPay.leaveConversion || 0) + 
@@ -501,21 +533,21 @@ const SeparationPay = () => {
                                   )}
                                 </p>
                               </div>
-                              <div className="bg-white/10 p-2.5 rounded-lg border border-white/10">
-                                <p className="text-[9px] font-bold text-purple-200 uppercase">Separation Pay</p>
-                                <p className="font-bold text-amber-300 text-sm">
+                              <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                                <p className="text-[9px] font-bold text-slate-500 uppercase">Separation Pay</p>
+                                <p className="font-bold text-accent-gold text-sm">
                                   {formatCurrency(preview.preview.find(p => p.causeId === selectedCauseId)?.amount || 0)}
                                 </p>
                               </div>
-                              <div className="bg-white/10 p-2.5 rounded-lg border border-white/10">
-                                <p className="text-[9px] font-bold text-purple-200 uppercase">Outstanding Loans</p>
-                                <p className="font-bold text-rose-300 text-sm">
+                              <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                                <p className="text-[9px] font-bold text-slate-500 uppercase">Outstanding Loans</p>
+                                <p className="font-bold text-status-danger text-sm">
                                   -{formatCurrency(preview.loanDeductions || 0)}
                                 </p>
                               </div>
-                              <div className="bg-emerald-500/20 p-2.5 rounded-lg border border-emerald-400/40">
-                                <p className="text-[9px] font-bold text-emerald-300 uppercase">Net Settlement Payable</p>
-                                <p className="font-black text-emerald-400 text-base">
+                              <div className="bg-emerald-50 p-2.5 rounded-lg border border-emerald-200">
+                                <p className="text-[9px] font-bold text-emerald-700 uppercase">Net Settlement Payable</p>
+                                <p className="font-black text-emerald-700 text-base">
                                   {formatCurrency(
                                     Math.max(0, 
                                       (parseFloat(preview.preview.find(p => p.causeId === selectedCauseId)?.amount || 0) +
@@ -529,7 +561,7 @@ const SeparationPay = () => {
                               </div>
                             </div>
                           </div>
-                          <CardTitle className="mt-10 text-lg font-bold text-[#2A174E]">Step 3: Specify Reason and Finalize Notice.</CardTitle>
+                          <CardTitle className="mt-10 text-lg font-bold text-brand-primary">Step 3: Specify Reason and Finalize Notice.</CardTitle>
                           <div className="space-y-2">
                             <Label>Specific Reason (Optional)</Label>
                             <Input 
@@ -550,7 +582,7 @@ const SeparationPay = () => {
                             </Button>
                             <Button 
                               onClick={() => handleGenerate('Notice Served')} 
-                              className="w-full py-6 bg-[#2A174E] hover:bg-[#1a0f33] text-white font-bold"
+                              className="w-full py-6 bg-brand-primary hover:bg-[#1a0f33] text-white font-bold"
                               disabled={loading || !selectedCauseId}
                             >
                               <CheckCircleIcon className="mr-2 h-4 w-4" /> Finalize & Serve Notice
@@ -591,7 +623,7 @@ const SeparationPay = () => {
                 </div>
               </Card>
               <Card className="shadow-sm border-0 bg-white py-0">
-                <CardHeader className="bg-[#2A174E] border-b-0 pt-6 pb-4">
+                <CardHeader className="bg-brand-primary border-b-0 pt-6 pb-4">
                   <CardTitle className="text-lg font-bold text-white">Separation Pay Records</CardTitle>
                 </CardHeader>
                 <CardContent className="px-4">
@@ -610,7 +642,7 @@ const SeparationPay = () => {
                     <TableBody>
                       {paginatedHistory.length > 0 ? paginatedHistory.map((h) => (
                         <TableRow key={h.separationId}>
-                          <TableCell className="font-bold text-[#2A174E]">{h.user_LastName}, {h.user_FirstName}</TableCell>
+                          <TableCell className="font-bold text-brand-primary">{h.user_LastName}, {h.user_FirstName}</TableCell>
                           <TableCell>{new Date(h.separationDate).toLocaleDateString()}</TableCell>
                           <TableCell>{h.yearsOfService} Years</TableCell>
                           <TableCell>
@@ -693,6 +725,30 @@ const SeparationPay = () => {
             </TabsContent>
           </Tabs>
         </div>
+
+        {/* Confirmation Dialog */}
+        <AlertDialog open={Boolean(confirmConfig)} onOpenChange={(open) => !open && setConfirmConfig(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{confirmConfig?.title || "Confirm Action"}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {confirmConfig?.description}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  if (confirmConfig?.onConfirm) confirmConfig.onConfirm();
+                  setConfirmConfig(null);
+                }}
+                className="bg-brand-primary hover:bg-[#7A52B5] text-white"
+              >
+                {confirmConfig?.actionLabel || "Confirm"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
     </div>
   );
 };

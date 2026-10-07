@@ -17,7 +17,7 @@
 
       h1 {
         font-size: 28px;
-        color: #2a174e;
+        color: var(--color-brand-primary);
         margin-left: 10px;
       }
 
@@ -49,7 +49,7 @@
 
         .userInfo {
           text-align: center;
-          h2 { color: #2a174e; margin-bottom: 5px; }
+          h2 { color: var(--color-brand-primary); margin-bottom: 5px; }
           p { color: #888; font-size: 14px; }
         }
 
@@ -102,7 +102,7 @@
               label {
                 font-size: 14px;
                 font-weight: 600;
-                color: #2a174e;
+                color: var(--color-brand-primary);
               }
 
               input, select {
@@ -113,7 +113,7 @@
                 font-size: 14px;
 
                 &:focus {
-                  border-color: #2a174e;
+                  border-color: var(--color-brand-primary);
                   box-shadow: 0 0 5px rgba(42, 23, 78, 0.2);
                 }
               }
@@ -136,13 +136,13 @@
 
               &.cancelBtn {
                 background-color: white;
-                color: #2a174e;
-                border: 1px solid #2a174e;
+                color: var(--color-brand-primary);
+                border: 1px solid var(--color-brand-primary);
                 &:hover { background-color: #f8f9fa; }
               }
 
               &.submitBtn {
-                background-color: #2a174e;
+                background-color: var(--color-brand-primary);
                 color: white;
                 border: none;
                 &:hover { background-color: #502c92; }

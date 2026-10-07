@@ -134,6 +134,9 @@ module.exports = (sequelize, DataTypes) => {
       user_MachipId: { type: DataTypes.STRING, allowNull: true, unique: true },
       user_FingerprintId: { type: DataTypes.INTEGER, allowNull: true, unique: true },
       user_FingerprintTemplate: { type: DataTypes.TEXT, allowNull: true },
+      user_FingerprintId2: { type: DataTypes.INTEGER, allowNull: true, unique: true },
+      user_FingerprintTemplate2: { type: DataTypes.TEXT, allowNull: true },
+      card_counter: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
     },
     {
       timestamps: true,

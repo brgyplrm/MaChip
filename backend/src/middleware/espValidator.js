@@ -64,18 +64,25 @@ const espValidator = (req, res, next) => {
     }
     
     // For GET requests or empty bodies, we sign the timestamp + empty string
-    // For POST/PUT with body, we sign timestamp + stringified body
+    // For POST/PUT with body, prefer rawBody (exact wire bytes) to avoid serialization differences
     let bodyString = "";
-    if (req.method !== 'GET' && req.body && Object.keys(req.body).length > 0) {
-        bodyString = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+    if (req.method !== 'GET') {
+        if (typeof req.rawBody === 'string' && req.rawBody.length > 0) {
+            bodyString = req.rawBody;
+        } else if (req.body && Object.keys(req.body).length > 0) {
+            bodyString = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+        }
     }
 
     const expectedSignature = crypto.createHmac('sha256', hmacSecret)
         .update(timestamp + bodyString)
         .digest('hex');
 
-    if (signature !== expectedSignature) {
-        console.error(`[SEC] Signature Mismatch!`);
+    const sigBuf = Buffer.from(signature, 'utf8');
+    const expectedBuf = Buffer.from(expectedSignature, 'utf8');
+
+    if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) {
+        console.error(`[SEC] Signature Mismatch! Expected: ${expectedSignature.slice(0, 8)}..., Received: ${signature.slice(0, 8)}...`);
         return res.status(403).json({ success: false, message: "Invalid cryptographic signature." });
     }
 

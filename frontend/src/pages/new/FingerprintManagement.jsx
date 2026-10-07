@@ -25,6 +25,16 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { TablePagination } from "@/components/ui/table-pagination";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const FingerprintManagement = () => {
   const [biometricList, setBiometricList] = useState([]);
@@ -33,6 +43,7 @@ const FingerprintManagement = () => {
   const [loadingUnassigned, setLoadingUnassigned] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
+  const [clearTarget, setClearTarget] = useState(null);
   
   // Multi-step Registration Workflow States
   const [showScanModal, setShowScanModal] = useState(false);
@@ -40,6 +51,7 @@ const FingerprintManagement = () => {
   const [scannedSlotId, setScannedSlotId] = useState("");
   const [scannedTemplate, setScannedTemplate] = useState("");
   const [selectedUserId, setSelectedUserId] = useState("");
+  const [selectedSlotNumber, setSelectedSlotNumber] = useState("1");
   const [fingerprintError, setFingerprintError] = useState("");
   const [localScannedId, setLocalScannedId] = useState(null); // Added for polling state
   const [localScannedTemplate, setLocalScannedTemplate] = useState(null);
@@ -49,6 +61,18 @@ const FingerprintManagement = () => {
   const [sensorFilter, setSensorFilter] = useState("All");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  const selectedEmp = useMemo(() => {
+    return unassignedEmployees.find(e => e.user_Id.toString() === selectedUserId.toString());
+  }, [unassignedEmployees, selectedUserId]);
+
+  const isDuplicateSlot = useMemo(() => {
+    if (!selectedEmp || !scannedSlotId) return false;
+    const parsedSlot = parseInt(scannedSlotId);
+    if (selectedSlotNumber === "2" && selectedEmp.user_FingerprintId && selectedEmp.user_FingerprintId === parsedSlot) return true;
+    if (selectedSlotNumber === "1" && selectedEmp.user_FingerprintId2 && selectedEmp.user_FingerprintId2 === parsedSlot) return true;
+    return false;
+  }, [selectedEmp, scannedSlotId, selectedSlotNumber]);
 
   const fetchBiometricData = useCallback(async () => {
     setLoading(true);
@@ -163,12 +187,38 @@ const FingerprintManagement = () => {
     fetchWithAuth("/api/users/clear-fingerprint-session", { method: "DELETE" }).catch(() => {});
   };
 
+  // Transition to assignment overlay modal form
+  const handleSelectEmployee = (val) => {
+    setSelectedUserId(val);
+    const emp = unassignedEmployees.find(e => e.user_Id.toString() === val.toString());
+    if (emp) {
+      if (emp.hasSlot1 && !emp.hasSlot2) {
+        setSelectedSlotNumber("2");
+      } else {
+        setSelectedSlotNumber("1");
+      }
+    }
+  };
+
   // Step 3: Link captured flash matrix slot coordinates to selected workspace profile
   const handleAssignBiometricSubmit = async () => {
     if (!selectedUserId) {
       setToast({ message: "Please choose a workspace target identity.", type: "error" });
       return;
     }
+
+    const selectedEmp = unassignedEmployees.find(e => e.user_Id.toString() === selectedUserId.toString());
+    if (selectedEmp) {
+      if (selectedSlotNumber === "2" && selectedEmp.user_FingerprintId && selectedEmp.user_FingerprintId === parseInt(scannedSlotId)) {
+        setToast({ message: "Fallback fingerprint cannot use the same slot or finger as the Primary fingerprint.", type: "error" });
+        return;
+      }
+      if (selectedSlotNumber === "1" && selectedEmp.user_FingerprintId2 && selectedEmp.user_FingerprintId2 === parseInt(scannedSlotId)) {
+        setToast({ message: "Primary fingerprint cannot use the same slot or finger as the Fallback fingerprint.", type: "error" });
+        return;
+      }
+    }
+
     setAssigning(true);
     try {
       const response = await fetchWithAuth("/api/hardware/biometric/assign", {
@@ -177,7 +227,8 @@ const FingerprintManagement = () => {
         body: JSON.stringify({ 
           user_Id: selectedUserId, 
           fingerprintIndex: parseInt(scannedSlotId),
-          fingerprintTemplate: scannedTemplate
+          fingerprintTemplate: scannedTemplate,
+          slotNumber: parseInt(selectedSlotNumber) || 1
         })
       });
 
@@ -197,10 +248,17 @@ const FingerprintManagement = () => {
     }
   };
 
-  const handleClearTemplate = async (userId, slotId) => {
-    if (!window.confirm(`Clear scanner slot matrix index #${slotId} for this user?`)) return;
+  const handleClearTemplate = (userId, slotId, slotNumber) => {
+    setClearTarget({ userId, slotId, slotNumber });
+  };
+
+  const executeClearTemplate = async () => {
+    if (!clearTarget) return;
+    const { userId, slotNumber } = clearTarget;
+    setClearTarget(null);
     try {
-      const response = await fetchWithAuth(`/api/hardware/biometric/clear/${userId}`, { method: "DELETE" });
+      const url = slotNumber ? `/api/hardware/biometric/clear/${userId}?slotNumber=${slotNumber}` : `/api/hardware/biometric/clear/${userId}`;
+      const response = await fetchWithAuth(url, { method: "DELETE" });
       if (response.ok) {
         setToast({ message: "Biometric node deleted from flash cache slot.", type: "success" });
         fetchBiometricData();
@@ -253,7 +311,7 @@ const FingerprintManagement = () => {
                   variant="ghost" 
                   size="icon" 
                   asChild 
-                  className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[#2A174E]"
+                  className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-brand-primary"
                 >
                   <Link to="/users">
                     <ChevronLeft className="h-6 w-6" />
@@ -263,12 +321,12 @@ const FingerprintManagement = () => {
               
               {/* Title: Adds left padding when hovered */}
               <div className="transition-all duration-300 ease-in-out group-hover:pl-2">
-                <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Biometric Fingerprint Registry</h1>
+                <h1 className="text-2xl md:text-3xl font-bold text-brand-primary">Biometric Fingerprint Registry</h1>
                 <span className="text-sm text-slate-500 mt-1 block">Audit device memory allocations, flash signatures, and biometric slot maps.</span>
               </div>
             </div>
             
-            <Button onClick={handleStartFingerprintScan} className="bg-[#2A174E] hover:bg-[#7A52B5] font-bold shadow-sm gap-2">
+            <Button onClick={handleStartFingerprintScan} className="bg-brand-primary hover:bg-[#7A52B5] font-bold shadow-sm gap-2">
               <ScanLine className="h-4 w-4 text-white" />
               <span>Enroll Fingerprint</span>
             </Button>
@@ -276,23 +334,23 @@ const FingerprintManagement = () => {
 
         {/* Statistics Widgets */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <Card className="border-t-5 border-[#2A174E] bg-white py-0">
+          <Card className="border-t-5 border-brand-primary bg-white py-0">
             <CardContent className="px-5 py-5 flex justify-between items-center">
               <div>
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Enrolled Templates</p>
-                <p className="text-3xl font-bold text-[#2A174E]">{stats.registered} <span className="text-sm opacity-60">Matrix IDs</span></p>
+                <p className="text-3xl font-bold text-brand-primary">{stats.registered} <span className="text-sm opacity-60">Matrix IDs</span></p>
               </div>
-              <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg"><FingerprintIcon /></div>
+              <div className="bg-brand-primary/10 text-brand-primary p-3 rounded-lg"><FingerprintIcon /></div>
             </CardContent>
           </Card>
 
-          <Card className="border-t-5 border-blue-600 bg-white py-0">
+          <Card className="border-t-5 border-status-info bg-white py-0">
             <CardContent className="px-5 py-5 flex justify-between items-center">
               <div>
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Available Memory Capacity</p>
-                <p className="text-3xl font-bold text-blue-700">{stats.availableSlots} <span className="text-sm opacity-60">Slots Left</span></p>
+                <p className="text-3xl font-bold text-status-info">{stats.availableSlots} <span className="text-sm opacity-60">Slots Left</span></p>
               </div>
-              <div className="bg-blue-50 text-blue-600 p-3 rounded-lg"><MemoryIcon /></div>
+              <div className="bg-status-info/10 text-status-info p-3 rounded-lg"><MemoryIcon /></div>
             </CardContent>
           </Card>
         </div>
@@ -316,7 +374,7 @@ const FingerprintManagement = () => {
         <Card className="shadow-sm border-0 bg-white py-0 overflow-hidden">
           <CardContent className="p-0  flex flex-col">
             <Table>
-              <TableHeader className="bg-[#2A174E]">
+              <TableHeader className="bg-brand-primary">
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="text-white font-bold py-4 px-6 uppercase text-xs tracking-wider">Employee Profile</TableHead>
                   <TableHead className="text-white font-bold py-4 uppercase text-xs tracking-wider">Module Memory Address ID</TableHead>
@@ -327,10 +385,19 @@ const FingerprintManagement = () => {
               <TableBody>
                 {currentData.length > 0 ? (
                   currentData.map((row) => (
-                    <TableRow key={row.user_Id} className="border-b-slate-100 hover:bg-slate-50/50">
+                    <TableRow key={`${row.user_Id}-${row.slotNumber || 1}-${row.fingerprintIndex}`} className="border-b-slate-100 hover:bg-slate-50/50">
                       <TableCell className="px-6 py-4">
-                        <p className="font-bold text-[#2A174E] text-sm">{row.userName}</p>
-                        <p className="text-[10px] text-slate-400 font-mono">{formatUserId(row.user_Id)}</p>
+                        <div className="flex items-center gap-2">
+                          <div>
+                            <p className="font-bold text-brand-primary text-sm">{row.userName}</p>
+                            <p className="text-[10px] text-slate-400 font-mono">{formatUserId(row.user_Id)}</p>
+                          </div>
+                          {row.fingerprintType && (
+                            <Badge variant="outline" className={`text-[10px] ml-1 font-semibold ${row.slotNumber === 2 ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-purple-50 text-purple-700 border-purple-200'}`}>
+                              {row.fingerprintType}
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="font-mono text-sm font-bold text-slate-700">
                         Slot #{row.fingerprintIndex ?? "—"}
@@ -341,7 +408,7 @@ const FingerprintManagement = () => {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right pr-6">
-                        <Button variant="outline" size="sm" onClick={() => handleClearTemplate(row.user_Id, row.fingerprintIndex)} className="border-red-200 text-red-600 hover:bg-red-50">
+                        <Button variant="outline" size="sm" onClick={() => handleClearTemplate(row.user_Id, row.fingerprintIndex, row.slotNumber)} className="border-red-200 text-red-600 hover:bg-red-50">
                           <BlockIcon className="h-3.5 w-3.5 mr-1" /> Wipe Slot
                         </Button>
                       </TableCell>
@@ -387,7 +454,7 @@ const FingerprintManagement = () => {
       {/* STEP 2: Assign Scanned Biometric Template ID Modal Form */}
       <Dialog open={showAssignModal} onOpenChange={setShowAssignModal}>
         <DialogContent className="sm:max-w-[460px] p-0 border-0 overflow-hidden bg-white rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200">
-          <DialogHeader className="bg-[#2A174E] text-white p-6 relative">
+          <DialogHeader className="bg-brand-primary text-white p-6 relative">
             <DialogTitle className="text-xl font-bold flex items-center gap-2">
               <FingerprintIcon className="h-5 w-5 text-purple-300" /> Link Biometric Template
             </DialogTitle>
@@ -403,7 +470,7 @@ const FingerprintManagement = () => {
             {/* Captured Device Parameters */}
             <div className="space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-100">
               <Label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Allocated Flash Registry Memory Index</Label>
-              <div className="font-mono text-sm font-black text-[#2A174E] bg-white border border-slate-200 rounded-lg p-3 tracking-widest shadow-sm">
+              <div className="font-mono text-sm font-black text-brand-primary bg-white border border-slate-200 rounded-lg p-3 tracking-widest shadow-sm">
                 Slot Pool Location #{scannedSlotId}
               </div>
             </div>
@@ -411,8 +478,8 @@ const FingerprintManagement = () => {
             {/* Target Variable Selection Dropdown */}
             <div className="space-y-2">
               <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Assign Target Employee Profile</Label>
-              <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                <SelectTrigger className="w-full h-12 bg-white border-slate-200 rounded-lg focus:ring-[#2A174E]">
+              <Select value={selectedUserId} onValueChange={handleSelectEmployee}>
+                <SelectTrigger className="w-full h-12 bg-white border-slate-200 rounded-lg focus:ring-brand-primary">
                   <SelectValue placeholder="Select an unassigned employee..." />
                 </SelectTrigger>
                 <SelectContent className="max-h-[220px]">
@@ -423,7 +490,7 @@ const FingerprintManagement = () => {
                   ) : unassignedEmployees.length > 0 ? (
                     unassignedEmployees.map((emp) => (
                       <SelectItem key={emp.user_Id} value={emp.user_Id.toString()}>
-                        {emp.user_FirstName} {emp.user_LastName} ({formatUserId(emp.user_Id)})
+                        {emp.user_FirstName} {emp.user_LastName} ({formatUserId(emp.user_Id)}) {emp.hasSlot1 ? "• Secondary Fallback" : "• Primary"}
                       </SelectItem>
                     ))
                   ) : (
@@ -435,6 +502,34 @@ const FingerprintManagement = () => {
               </Select>
             </div>
 
+            {/* Fingerprint Slot Selection */}
+            {selectedUserId && (
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Fingerprint Role / Slot</Label>
+                <Select value={selectedSlotNumber} onValueChange={setSelectedSlotNumber}>
+                  <SelectTrigger className="w-full h-11 bg-white border-slate-200 rounded-lg">
+                    <SelectValue placeholder="Select Slot" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">Primary Fingerprint (Slot 1)</SelectItem>
+                    <SelectItem value="2">Secondary Fallback Fingerprint (Slot 2)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-slate-400 italic">
+                  Secondary fallback allows employees with worn or injured primary fingers to authenticate seamlessly.
+                </p>
+              </div>
+            )}
+
+            {isDuplicateSlot && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 font-medium flex items-center gap-2">
+                <BlockIcon className="h-4 w-4 text-red-500 shrink-0" />
+                <span>
+                  Slot #{scannedSlotId} is already assigned as this employee's {selectedSlotNumber === "2" ? "Primary" : "Fallback"} fingerprint. Fallback must be a different finger.
+                </span>
+              </div>
+            )}
+
             {/* Modal Navigation Links */}
             <div className="flex gap-3 pt-2">
               <Button variant="outline" className="flex-1 h-11 border-slate-200 text-slate-500 rounded-lg font-bold" onClick={() => setShowAssignModal(false)}>
@@ -442,8 +537,8 @@ const FingerprintManagement = () => {
               </Button>
               <Button 
                 onClick={handleAssignBiometricSubmit}
-                disabled={assigning || !selectedUserId}
-                className="flex-1 h-11 bg-[#2A174E] hover:bg-[#1a0e30] text-white rounded-lg font-bold shadow-md tracking-wide"
+                disabled={assigning || !selectedUserId || isDuplicateSlot}
+                className="flex-1 h-11 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-lg font-bold shadow-md tracking-wide disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {assigning ? "Allocating Flash..." : "Link Biometric Profile"}
               </Button>
@@ -451,6 +546,24 @@ const FingerprintManagement = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Wipe Slot Confirmation Dialog */}
+      <AlertDialog open={!!clearTarget} onOpenChange={(open) => !open && setClearTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Wipe Biometric Slot</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to clear scanner slot matrix index #{clearTarget?.slotId} for this user? This will delete the optical template from hardware flash memory.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setClearTarget(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={executeClearTemplate} className="bg-red-600 hover:bg-red-700 text-white">
+              Wipe Slot
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sidebar>
   );
 };

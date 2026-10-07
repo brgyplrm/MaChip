@@ -58,7 +58,10 @@ const EmployeeHome = () => {
   useEffect(() => {
     const fetchDashboardData = async () => {
       const storedUser = JSON.parse(localStorage.getItem("userData"));
-      if (!storedUser?.user_Id) return;
+      if (!storedUser?.user_Id) {
+        setLoading(false);
+        return;
+      }
       
       setUserData(storedUser);
       const currentId = storedUser.user_Id;
@@ -130,6 +133,12 @@ const EmployeeHome = () => {
 
   const att = dashboardStats.attendance;
   const balance = dashboardStats.leaveBalance;
+  const isSoloParent = Boolean(
+    userData?.is_solo_parent === true ||
+    userData?.is_solo_parent === "true" ||
+    userData?.is_solo_parent === 1 ||
+    userData?.is_solo_parent === "1"
+  );
   const recentRequests = dashboardStats.monthlyRequests;
   const totalDays = (att.absent || 0) + (att.onTime || 0) + (att.late || 0);
   const totalTrackedDays = totalDays || 1;
@@ -361,10 +370,10 @@ const EmployeeHome = () => {
               {/* Greeting Banner */}
               <div className="rounded-xl p-0 md:p-0 mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 text-white w-full">
                 <div>
-                  <h1 className="text-2xl md:text-3xl font-extrabold mb-1 tracking-tight text-[#2A174E]">
+                  <h1 className="text-2xl md:text-3xl font-extrabold mb-1 tracking-tight text-brand-primary">
                     {getGreeting()}, {userData?.user_FirstName || "User"}!
                   </h1>
-                  <p className="text-[#2A174E]/80 text-sm md:text-base font-medium">
+                  <p className="text-brand-primary/80 text-sm md:text-base font-medium">
                     Here is your personal overview for {currentDate}.
                   </p>
                 </div>
@@ -372,13 +381,13 @@ const EmployeeHome = () => {
                  <Tooltip>
                   <TooltipTrigger asChild>
                     <div className="shadow-sm flex bg-white border border-slate-200 px-5 py-3 rounded-xl flex-col gap-1 items-start min-w-[200px] transition-all duration-200 hover:shadow-md cursor-help">
-                      <p className="text-[10px] font-bold text-[#2A174E]/60 uppercase tracking-widest mb-0.5 flex items-center gap-1.5">
-                        <Clock size={12} className="text-[#2A174E]/60" />
+                      <p className="text-[10px] font-bold text-brand-primary/60 uppercase tracking-widest mb-0.5 flex items-center gap-1.5">
+                        <Clock size={12} className="text-brand-primary/60" />
                         <span>System Time</span>
                         <span className={`w-2 h-2 rounded-full ${isMockTime ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)] animate-pulse" : "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse"}`}></span>
                       </p>
                       <div className="flex flex-col">
-                        <span className="text-2xl font-black tracking-tight text-[#2A174E] font-mono leading-none">
+                        <span className="text-2xl font-black tracking-tight text-brand-primary font-mono leading-none">
                           {formattedTime}
                         </span>
                         {isMockTime && (
@@ -402,7 +411,7 @@ const EmployeeHome = () => {
                 <Link to="/logs" className="block outline-none hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Card className="bg-gradient-to-t from-[#2A174E] to-[#4A2C7D] shadow-sm py-0 h-[140px] relative overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-lg block outline-none cursor-help">
+                    <Card className="bg-gradient-to-t from-brand-primary to-[#4A2C7D] shadow-sm py-0 h-[140px] relative overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-lg block outline-none cursor-help">
                       <div className="absolute right-1 top-4 opacity-10">
                         <Clock size={160} className="text-white absolute -right-2 -top-2" strokeWidth={1} />
                       </div>
@@ -424,7 +433,7 @@ const EmployeeHome = () => {
                 <Link to="/requests" className="block outline-none hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Card className="bg-gradient-to-t from-[#3B4E17] to-[#5A6F2A] shadow-sm py-0 h-[140px] relative overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-lg block outline-none cursor-help">
+                    <Card className="bg-gradient-to-t from-accent-green to-[#5A6F2A] shadow-sm py-0 h-[140px] relative overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-lg block outline-none cursor-help">
                       <div className="absolute right-1 top-4 opacity-10">
                         <FileText size={160} className="text-white absolute -right-2 -top-2" strokeWidth={1} />
                       </div>
@@ -435,7 +444,10 @@ const EmployeeHome = () => {
                             {(balance.VL_balance || 0) + (balance.SL_balance || 0)} <span className="text-xl opacity-80 font-medium">Days</span>
                           </p>
                         </div>
-                        <p className="text-xs font-semibold text-white/70 italic mt-4">VL: {balance.VL_balance} &nbsp;|&nbsp; SL: {balance.SL_balance} Remaining Leaves</p>
+                        <p className="text-xs font-semibold text-white/70 italic mt-4">
+                          VL: {balance.VL_balance} &nbsp;|&nbsp; SL: {balance.SL_balance}
+                          {isSoloParent && balance.SoloParent_balance !== undefined ? ` \u00A0|\u00A0 SP: ${balance.SoloParent_balance}` : ""} Remaining Leaves
+                        </p>
                       </CardContent>
                     </Card>
                   </TooltipTrigger>
@@ -448,7 +460,7 @@ const EmployeeHome = () => {
                 <Link to="/employee/payroll" className="block outline-none hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Card className="bg-gradient-to-t from-[#B06E16] to-[#D4AF37] shadow-sm py-0 h-[140px] relative overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-lg block outline-none cursor-help">
+                    <Card className="bg-gradient-to-t from-accent-gold to-[#6e6adc] shadow-sm py-0 h-[140px] relative overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-lg block outline-none cursor-help">
                       <div className="absolute right-1 top-4 opacity-10">
                         <CreditCardIcon sx={{ fontSize: 160 }} className="text-white absolute -right-2 -top-2" />
                       </div>
@@ -477,7 +489,7 @@ const EmployeeHome = () => {
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-2 w-full">
                 
                 {/* Column 1: Attendance Breakdown */}
-                <div className="bg-white p-6 rounded-xl shadow-sm flex flex-col border-t-4 border-[#2A174E] h-[420px] min-w-0">
+                <div className="bg-white p-6 rounded-xl shadow-sm flex flex-col border-t-4 border-brand-primary h-[420px] min-w-0">
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="text-gray-500 font-medium flex items-center gap-1.5">
                       <span>Arrival Breakdown</span>
@@ -501,7 +513,7 @@ const EmployeeHome = () => {
                                 value={att.absent || 0} 
                                 maxValue={totalTrackedDays} 
                                 text={`${att.absent || 0}`} 
-                                styles={buildStyles({ pathColor: `#ef4444`, textColor: '#2A174E', trailColor: '#e2e8f0', textSize: '24px' })} 
+                                styles={buildStyles({ pathColor: `#ef4444`, textColor: 'var(--color-brand-primary)', trailColor: '#e2e8f0', textSize: '24px' })} 
                               />
                             </div>
                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Absent</span>
@@ -520,7 +532,7 @@ const EmployeeHome = () => {
                                 value={att.late || 0} 
                                 maxValue={totalTrackedDays} 
                                 text={`${att.late || 0}`} 
-                                styles={buildStyles({ pathColor: `#f59e0b`, textColor: '#2A174E', trailColor: '#e2e8f0', textSize: '24px' })} 
+                                styles={buildStyles({ pathColor: `#f59e0b`, textColor: 'var(--color-brand-primary)', trailColor: '#e2e8f0', textSize: '24px' })} 
                               />
                             </div>
                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Late</span>
@@ -539,7 +551,7 @@ const EmployeeHome = () => {
                                 value={att.onTime || 0} 
                                 maxValue={totalTrackedDays} 
                                 text={`${att.onTime || 0}`} 
-                                styles={buildStyles({ pathColor: `#22c55e`, textColor: '#2A174E', trailColor: '#e2e8f0', textSize: '24px' })} 
+                                styles={buildStyles({ pathColor: `#22c55e`, textColor: 'var(--color-brand-primary)', trailColor: '#e2e8f0', textSize: '24px' })} 
                               />
                             </div>
                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">On-Time</span>
@@ -627,7 +639,7 @@ const EmployeeHome = () => {
                 </div>
 
                 {/* Column 2: Recent Requests */}
-                <div className="bg-white p-6 rounded-xl shadow-sm flex flex-col border-t-4 border-[#3B4E17] h-[420px] min-w-0">
+                <div className="bg-white p-6 rounded-xl shadow-sm flex flex-col border-t-4 border-accent-green h-[420px] min-w-0">
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="text-gray-500 font-medium flex items-center gap-1.5">
                       <span>Recent Requests</span>
@@ -640,7 +652,7 @@ const EmployeeHome = () => {
                         </TooltipContent>
                       </Tooltip>
                     </h2>
-                    <Link to="/requests" className="text-xs text-[#3B4E17]/60 font-semibold hover:underline hover:text-[#3B4E17]/80">View All</Link>
+                    <Link to="/requests" className="text-xs text-accent-green/60 font-semibold hover:underline hover:text-accent-green/80">View All</Link>
                   </div>
                   <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-2">
                     {recentRequests.length > 0 ? (
@@ -652,7 +664,7 @@ const EmployeeHome = () => {
                             className={`flex items-center gap-3 p-3.5 rounded-lg hover:bg-slate-100 transition-colors border-l-4 ${config.borderClass} bg-slate-50/70 min-w-0`}
                           >
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-bold text-[#2A174E] truncate">{req.reqTypeName}</p>
+                              <p className="text-sm font-bold text-brand-primary truncate">{req.reqTypeName}</p>
                               <p className="text-[10px] text-gray-500 font-medium truncate">{req.remarks || "No description provided"}</p>
                             </div>
                             <Badge className={`shrink-0 text-[9px] uppercase px-2 py-0 border-0 ${config.badgeClass}`}>
@@ -671,7 +683,7 @@ const EmployeeHome = () => {
                 </div>
 
                 {/* Column 3: Recent Payslips & Actions */}
-                <div className="bg-white p-6 rounded-xl shadow-sm text-[#B06E16] flex flex-col border-t-4 border-[#B06E16] h-[420px] min-w-0">
+                <div className="bg-white p-6 rounded-xl shadow-sm text-accent-gold flex flex-col border-t-4 border-accent-gold h-[420px] min-w-0">
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="text-[#033A55]/80 font-medium flex items-center gap-1.5">
                       <span>Recent Payslips</span>
@@ -684,18 +696,18 @@ const EmployeeHome = () => {
                         </TooltipContent>
                       </Tooltip>
                     </h2>
-                    <Link to="/employee/payroll" className="text-xs text-[#B06E16]/60 font-semibold hover:underline hover:text-[#B06E16]/80">View All</Link>
+                    <Link to="/employee/payroll" className="text-xs text-accent-gold/60 font-semibold hover:underline hover:text-accent-gold/80">View All</Link>
                   </div>
                   <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-2">
                     {payrolls.length > 0 ? (
                       payrolls.map((p) => (
-                        <div key={p.payrollId} className="flex justify-between items-center p-3.5 bg-slate-50 rounded-lg border border-slate-100 hover:border-[#2A174E]/30 transition-all">
+                        <div key={p.payrollId} className="flex justify-between items-center p-3.5 bg-slate-50 rounded-lg border border-slate-100 hover:border-brand-primary/30 transition-all">
                           <div>
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Period End</p>
                             <p className="text-xs font-bold text-slate-800">{new Date(p.period_End).toLocaleDateString()}</p>
                           </div>
                           <div className="text-right flex flex-col items-end">
-                            <p className="text-sm font-black text-[#2A174E]">{formatCurrency(p.netPay)}</p>
+                            <p className="text-sm font-black text-brand-primary">{formatCurrency(p.netPay)}</p>
                             <Link to={`/employee/payslip/${p.payrollId}`} className="text-[9px] font-bold text-blue-500 hover:underline mt-0.5">VIEW SLIP</Link>
                           </div>
                         </div>
@@ -711,10 +723,10 @@ const EmployeeHome = () => {
                   <div className="mt-4 pt-4 border-t border-slate-100 shrink-0">
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Quick Actions</p>
                     <div className="grid grid-cols-2 gap-2">
-                      <Button size="sm" variant="outline" className="w-full text-xs hover:bg-[#3B4E17] hover:text-white hover:border-[#3B4E17] transition-colors" asChild>
+                      <Button size="sm" variant="outline" className="w-full text-xs hover:bg-accent-green hover:text-white hover:border-accent-green transition-colors" asChild>
                         <Link to="/requests">File Leave</Link>
                       </Button>
-                      <Button size="sm" variant="outline" className="w-full text-xs hover:bg-[#2A174E] hover:text-white hover:border-[#2A174E] transition-colors" asChild>
+                      <Button size="sm" variant="outline" className="w-full text-xs hover:bg-brand-primary hover:text-white hover:border-brand-primary transition-colors" asChild>
                         <Link to="/profile">My Profile</Link>
                       </Button>
                     </div>
@@ -729,15 +741,15 @@ const EmployeeHome = () => {
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 w-full mb-8">
                 
                 {/* Attendance Timeline */}
-                <Card className="xl:col-span-2 shadow-sm border-0 border-t-4 border-[#2A174E] bg-white h-[420px] flex flex-col">
+                <Card className="xl:col-span-2 shadow-sm border-0 border-t-4 border-brand-primary bg-white h-[420px] flex flex-col">
                   <CardHeader className="pb-0 border-b border-slate-50 shrink-0">
-                    <CardTitle className="text-[#2A174E] text-base font-bold uppercase tracking-wider flex items-center justify-between w-full">
+                    <CardTitle className="text-brand-primary text-base font-bold uppercase tracking-wider flex items-center justify-between w-full">
                       <div className="flex items-center gap-2">
                         <HistoryIcon className="h-5 w-5" />
                         <span>Attendance Timeline</span>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <HelpOutlinedIcon className="text-slate-400 hover:text-[#2A174E] cursor-pointer !text-[16px] transition-colors" />
+                            <HelpOutlinedIcon className="text-slate-400 hover:text-brand-primary cursor-pointer !text-[16px] transition-colors" />
                           </TooltipTrigger>
                           <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
                             Timeline of your daily RFID/biometric logs showing Time In, Time Out, and recorded attendance status.
@@ -775,15 +787,15 @@ const EmployeeHome = () => {
                 </Card>
 
                 {/* Detailed Leave Balances */}
-                <Card className="shadow-sm border-0 border-t-4 border-[#3B4E17] bg-white flex flex-col h-[420px]">
+                <Card className="shadow-sm border-0 border-t-4 border-accent-green bg-white flex flex-col h-[420px]">
                   <CardHeader className="pb-0 border-b border-slate-50 shrink-0">
-                    <CardTitle className="text-[#3B4E17] text-base font-bold uppercase tracking-wider flex items-center justify-between w-full">
+                    <CardTitle className="text-accent-green text-base font-bold uppercase tracking-wider flex items-center justify-between w-full">
                       <div className="flex items-center gap-2">
                         <FileText className="h-5 w-5" />
                         <span>Leave Balances</span>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <HelpOutlinedIcon className="text-slate-400 hover:text-[#3B4E17] cursor-pointer !text-[16px] transition-colors" />
+                            <HelpOutlinedIcon className="text-slate-400 hover:text-accent-green cursor-pointer !text-[16px] transition-colors" />
                           </TooltipTrigger>
                           <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
                             Your remaining and used Vacation Leave (VL) and Sick Leave (SL) credits for the calendar year.
@@ -795,7 +807,14 @@ const EmployeeHome = () => {
                   <CardContent className="py-0 flex-1 flex flex-col justify-center gap-6">
                     {[
                       { label: "Vacation Leave (VL)", bal: balance.VL_balance, total: balance.VL_total, color: "bg-[#8DB552]", light: "bg-[#8DB552]/20" },
-                      { label: "Sick Leave (SL)", bal: balance.SL_balance, total: balance.SL_total, color: "bg-[#C0E990]", light: "bg-[#C0E990]/30" }
+                      { label: "Sick Leave (SL)", bal: balance.SL_balance, total: balance.SL_total, color: "bg-[#C0E990]", light: "bg-[#C0E990]/30" },
+                      ...(isSoloParent && balance.SoloParent_balance !== undefined ? [{
+                        label: "Solo Parent Leave (SP)",
+                        bal: balance.SoloParent_balance,
+                        total: balance.SoloParent_total || ((parseFloat(balance.SoloParent_used || 0) + parseFloat(balance.SoloParent_balance || 0)) || 7),
+                        color: "bg-amber-500",
+                        light: "bg-amber-100"
+                      }] : [])
                     ].map((item, i) => (
                       <div key={i} className="bg-slate-50 p-5 rounded-xl border border-slate-100">
                         <div className="flex justify-between items-end mb-3">

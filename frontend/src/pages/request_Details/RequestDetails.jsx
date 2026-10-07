@@ -79,7 +79,7 @@ const RequestDetails = () => {
         <Sidebar>
         <div className="flex-1 p-4 md:p-8 w-full max-w-5xl mx-auto flex flex-col items-center justify-center gap-4">
           <p className="text-slate-500 italic">Request not found.</p>
-          <button onClick={() => navigate(-1)} className="text-[#2A174E] font-semibold hover:underline">Go Back</button>
+          <button onClick={() => navigate(-1)} className="text-brand-primary font-semibold hover:underline">Go Back</button>
         </div>
         </Sidebar>
       </div>
@@ -101,12 +101,12 @@ const RequestDetails = () => {
           <div className="flex items-center gap-4">
             <button 
               onClick={() => navigate(-1)} 
-              className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-[#f0ebfa] text-[#2A174E] transition-colors shrink-0"
+              className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-brand-primary-light text-brand-primary transition-colors shrink-0"
             >
               <ChevronLeft className="h-6 w-6" />
             </button>
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Review {request.reqTypeName}</h1>
+              <h1 className="text-2xl md:text-3xl font-bold text-brand-primary">Review {request.reqTypeName}</h1>
               <span className="text-sm text-slate-500 font-mono mt-1 block">Request #REQ-{request.emp_reqId}</span>
             </div>
           </div>
@@ -140,7 +140,7 @@ const RequestDetails = () => {
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Request Type</label>
-                <p className="font-semibold text-[#2A174E]">{request.reqTypeName}</p>
+                <p className="font-semibold text-brand-primary">{request.reqTypeName}</p>
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Submitted On</label>
@@ -171,7 +171,7 @@ const RequestDetails = () => {
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Total Hours</label>
-                    <p className="font-bold text-[#2A174E]">{request.Total_Hrs || 0} Hours</p>
+                    <p className="font-bold text-brand-primary">{request.Total_Hrs || 0} Hours</p>
                   </div>
                 </>
               )}
@@ -189,7 +189,7 @@ const RequestDetails = () => {
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Duration</label>
-                    <p className="font-bold text-[#2A174E]">{request.OW_NoHrs || 0} Hours ({request.OW_NoDays || 1} Day)</p>
+                    <p className="font-bold text-brand-primary">{request.OW_NoHrs || 0} Hours ({request.OW_NoDays || 1} Day)</p>
                   </div>
                 </>
               )}
@@ -207,7 +207,7 @@ const RequestDetails = () => {
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Claimed Corrected Log</label>
-                    <p className="font-bold text-[#2A174E]">In: {formatTime(request.LC_claimedIn) || "—"} | Out: {formatTime(request.LC_claimedOut) || "—"}</p>
+                    <p className="font-bold text-brand-primary">In: {formatTime(request.LC_claimedIn) || "—"} | Out: {formatTime(request.LC_claimedOut) || "—"}</p>
                   </div>
                 </>
               )}
@@ -225,7 +225,7 @@ const RequestDetails = () => {
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Payment Status</label>
-                    <p className="font-bold text-[#2A174E]">{request.HD_withPayName || "With Pay"}</p>
+                    <p className="font-bold text-brand-primary">{request.HD_withPayName || "With Pay"}</p>
                   </div>
                 </>
               )}
@@ -235,7 +235,7 @@ const RequestDetails = () => {
                 <>
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Duration</label>
-                    <p className="font-bold text-[#2A174E]">
+                    <p className="font-bold text-brand-primary">
                       {request.VL_NoDays || request.SL_NoDays || request.EL_NoDays || request.ST_NoDays || 1} Day(s)
                     </p>
                   </div>
@@ -273,7 +273,7 @@ const RequestDetails = () => {
                     setViewingFileName(`Attachment for REQ-${request.emp_reqId}`);
                     setIsFileViewerOpen(true);
                   }}
-                  className="inline-flex items-center text-[#2A174E] font-semibold hover:underline"
+                  className="inline-flex items-center text-brand-primary font-semibold hover:underline"
                 >
                   <AttachmentIcon className="mr-1 h-4 w-4" /> View Supporting Attachment
                 </button>

@@ -181,15 +181,25 @@ exports.updateSystemSettings = async (req, res) => {
     const updateData = {};
 
     // 1. Time Simulation
+    let mockTimeChanged = false;
     if (req.body.useMockTime !== undefined || req.body.mockTimeEnabled !== undefined) {
-      updateData.mockTimeEnabled = req.body.useMockTime !== undefined ? Boolean(req.body.useMockTime) : Boolean(req.body.mockTimeEnabled);
+      const enabled = req.body.useMockTime !== undefined ? Boolean(req.body.useMockTime) : Boolean(req.body.mockTimeEnabled);
+      updateData.mockTimeEnabled = enabled;
+      if (enabled && (!oldSettings || !oldSettings.mockTimeEnabled)) {
+        mockTimeChanged = true;
+      }
     }
     if (req.body.mockDate !== undefined && req.body.mockTime !== undefined) {
       updateData.mockTimeValue = (req.body.mockDate && req.body.mockTime) 
         ? new Date(`${req.body.mockDate}T${req.body.mockTime}`) 
         : null;
+      mockTimeChanged = true;
     } else if (req.body.mockTimeValue !== undefined) {
-      updateData.mockTimeValue = req.body.mockTimeValue;
+      updateData.mockTimeValue = req.body.mockTimeValue ? new Date(req.body.mockTimeValue) : null;
+      mockTimeChanged = true;
+    }
+    if (mockTimeChanged) {
+      updateData.mockTimeSetAt = new Date();
     }
 
     // 2. Storage & System Infrastructure
@@ -204,6 +214,12 @@ exports.updateSystemSettings = async (req, res) => {
     if (req.body.slRate !== undefined) updateData.slRate = parseFloat(req.body.slRate);
 
     // 3. Shifts & Attendance Thresholds
+    if (req.body.enableNightShift !== undefined) {
+      updateData.enableNightShift = Boolean(req.body.enableNightShift);
+      if (!updateData.enableNightShift) {
+        await sequelize.query('UPDATE "User" SET "user_ShiftId" = 1 WHERE "user_ShiftId" = 2');
+      }
+    }
     if (req.body.morningShiftStart !== undefined) updateData.morningShiftStart = req.body.morningShiftStart;
     if (req.body.morningShiftEnd !== undefined) updateData.morningShiftEnd = req.body.morningShiftEnd;
     if (req.body.eveningShiftStart !== undefined) updateData.eveningShiftStart = req.body.eveningShiftStart;
@@ -233,6 +249,21 @@ exports.updateSystemSettings = async (req, res) => {
     if (req.body.mandatedWageEffectiveDate !== undefined) updateData.mandatedWageEffectiveDate = req.body.mandatedWageEffectiveDate;
     if (req.body.payrollGracePeriodDays !== undefined && req.body.payrollGracePeriodDays !== null) {
       updateData.payrollGracePeriodDays = parseInt(req.body.payrollGracePeriodDays, 10);
+    }
+    if (req.body.payrollCutoffBufferDays !== undefined && req.body.payrollCutoffBufferDays !== null) {
+      updateData.payrollCutoffBufferDays = parseInt(req.body.payrollCutoffBufferDays, 10);
+    }
+    if (req.body.payrollProcessingDeadlineDays !== undefined && req.body.payrollProcessingDeadlineDays !== null) {
+      updateData.payrollProcessingDeadlineDays = parseInt(req.body.payrollProcessingDeadlineDays, 10);
+    }
+    if (req.body.payrollAutoRelease !== undefined) {
+      updateData.payrollAutoRelease = Boolean(req.body.payrollAutoRelease);
+    }
+    if (req.body.payrollRemindersEnabled !== undefined) {
+      updateData.payrollRemindersEnabled = Boolean(req.body.payrollRemindersEnabled);
+    }
+    if (req.body.payrollWeekendRule !== undefined) {
+      updateData.payrollWeekendRule = String(req.body.payrollWeekendRule);
     }
 
     // 6. Maxicare / HMO
@@ -461,6 +492,12 @@ exports.setRegistrationSession = async (req, res) => {
   const upperType = type ? type.toUpperCase() : null;
 
   try {
+    // Prepare in-memory session without sending cancel signal to ESP32
+    const rfidController = require("./rfid.controller.js");
+    if (rfidController && rfidController.prepareEnrollmentSession) {
+      rfidController.prepareEnrollmentSession(upperType, userId);
+    }
+
     const [session, created] = await System_State.findOrCreate({
       where: { key: 'REGISTRATION_SESSION' },
       defaults: { value: JSON.stringify({ userId, type: upperType }) }
@@ -483,6 +520,10 @@ exports.setRegistrationSession = async (req, res) => {
 exports.clearRegistrationSession = async (req, res) => {
   try {
     await System_State.destroy({ where: { key: 'REGISTRATION_SESSION' } });
+    const rfidController = require("./rfid.controller.js");
+    if (rfidController && rfidController.resetAllEnrollmentSessions) {
+      await rfidController.resetAllEnrollmentSessions();
+    }
     res.status(200).json({ success: true, message: "Registration session cleared" });
   } catch (error) {
     res.status(500).json({ error: error.message });

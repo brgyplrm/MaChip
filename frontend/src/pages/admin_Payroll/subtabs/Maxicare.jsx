@@ -42,6 +42,16 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Table, TableHeader, TableRow, TableHead, TableBody } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const Maxicare = () => {
   const { systemToday } = useSystemTime();
@@ -54,6 +64,7 @@ const Maxicare = () => {
   const isAdmin = [1, 4].includes(userData?.user_RoleId);
 
   const [toast, setToast] = useState({ message: "", type: "success" });
+  const [confirmDeleteEmp, setConfirmDeleteEmp] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [showCalculator, setShowCalculator] = useState(false);
   const [showAddCalculator, setShowAddCalculator] = useState(false);
@@ -151,13 +162,18 @@ const Maxicare = () => {
     }
   };
 
-  const deleteColumn = async (empKey) => {
+  const deleteColumn = (empKey) => {
     const emp = employeeList.find(e => e.key === empKey);
     if (!emp) return;
+    setConfirmDeleteEmp(emp);
+  };
 
-    if (!window.confirm(`Are you sure you want to remove ${emp.name} from the Maxicare list? This will clear their history and set their expected deduction to 0.`)) return;
+  const executeDeleteColumn = async () => {
+    const emp = confirmDeleteEmp;
+    setConfirmDeleteEmp(null);
+    if (!emp) return;
 
-    await emptyColumn(empKey);
+    await emptyColumn(emp.key);
 
     try {
       await fetchWithAuth("/api/users/bulk-maxicare", {
@@ -167,7 +183,7 @@ const Maxicare = () => {
           updates: [{ user_Id: emp.user_Id, healthCard_Amnt: 0 }]
         })
       });
-      setEmployeeList(prev => prev.filter(e => e.key !== empKey));
+      setEmployeeList(prev => prev.filter(e => e.key !== emp.key));
       setToast({ message: `${emp.name} has been removed from Maxicare.`, type: "success" });
     } catch (err) {
       setToast({ message: "Error updating user status", type: "error" });
@@ -265,6 +281,29 @@ const Maxicare = () => {
 
   const cycle = getCycleRange();
   const isUnconfigured = !cycleConfigs[selectedYear];
+
+  const renewalDateObj = useMemo(() => {
+    return cycle?.end ? new Date(cycle.end) : null;
+  }, [cycle]);
+
+  const renewalDateFormatted = useMemo(() => {
+    if (!renewalDateObj) return "renewal date";
+    return renewalDateObj.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+  }, [renewalDateObj]);
+
+  // Policy is editable only when the renewal date is nearing (e.g. within 30 days prior to renewal)
+  const isRenewalNearing = useMemo(() => {
+    if (!renewalDateObj) return false;
+    const now = systemToday ? new Date(systemToday) : new Date();
+    now.setHours(0, 0, 0, 0);
+    const renewal = new Date(renewalDateObj);
+    renewal.setHours(0, 0, 0, 0);
+
+    const diffDays = Math.ceil((renewal.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    
+    // Nearing means within 30 days before renewal date (0 to 30 days remaining)
+    return diffDays <= 30 && diffDays >= 0;
+  }, [renewalDateObj, systemToday]);
 
   const cycleData = data.filter(item => {
     if (!cycle) return false;
@@ -1394,7 +1433,7 @@ const Maxicare = () => {
       <Dialog open={showBatchModal} onOpenChange={setShowBatchModal}>
         <DialogContent className="max-w-2xl bg-white p-6 rounded-xl shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-bold text-[#2A174E]">Batch Details Upload</DialogTitle>
+            <DialogTitle className="text-2xl font-bold text-brand-primary">Batch Details Upload</DialogTitle>
             <DialogDescription>
               Select a method to upload multiple employee Maxicare records at once.
             </DialogDescription>
@@ -1427,8 +1466,8 @@ const Maxicare = () => {
                           onClick={() => toggleDateSelection(dStr)}
                           className={`text-[11px] py-2 px-3 rounded-lg border transition-all text-left flex flex-col ${
                             isSelected 
-                              ? "bg-[#2A174E] border-[#2A174E] text-white shadow-md font-bold" 
-                              : "bg-white border-slate-200 text-slate-600 hover:border-[#2A174E] hover:text-[#2A174E]"
+                              ? "bg-brand-primary border-brand-primary text-white shadow-md font-bold" 
+                              : "bg-white border-slate-200 text-slate-600 hover:border-brand-primary hover:text-brand-primary"
                           }`}
                         >
                           <span className={isSelected ? "text-yellow-400" : "text-slate-400"}>
@@ -1479,7 +1518,7 @@ const Maxicare = () => {
                 </div>
               </div>
 
-              <Button onClick={handleBatchSave} className="w-full bg-[#2A174E] hover:bg-[#1a0e30] text-white" disabled={loading}>
+              <Button onClick={handleBatchSave} className="w-full bg-brand-primary hover:bg-brand-primary-hover text-white" disabled={loading}>
                 {loading ? "Processing..." : "Apply Batch Update"}
               </Button>
             </TabsContent>
@@ -1493,7 +1532,7 @@ const Maxicare = () => {
               </div>
 
               <div className="space-y-4">
-                <div className="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-xl p-8 hover:border-[#2A174E] transition-colors cursor-pointer relative">
+                <div className="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-xl p-8 hover:border-brand-primary transition-colors cursor-pointer relative">
                   <Input 
                     type="file" 
                     accept=".csv" 
@@ -1503,7 +1542,7 @@ const Maxicare = () => {
                   <CloudUploadIcon className="text-slate-400 h-12 w-12 mb-2" />
                   <p className="text-sm font-medium text-slate-600">{file ? file.name : "Click or drag CSV file here"}</p>
                 </div>
-                <Button onClick={handleUpload} className="w-full bg-[#2A174E] hover:bg-[#1a0e30] text-white" disabled={!file || loading}>
+                <Button onClick={handleUpload} className="w-full bg-brand-primary hover:bg-brand-primary-hover text-white" disabled={!file || loading}>
                   {loading ? "Uploading..." : "Upload and Process CSV"}
                 </Button>
               </div>
@@ -1521,7 +1560,7 @@ const Maxicare = () => {
         {/* Header Section */}
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-6">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">HMO Management</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-brand-primary">HMO Management</h1>
             <span className="text-sm text-slate-500 mt-1 block">
               Manage employee health insurance deductions, track employer/employee shares, <br/>and configure the billing cycle.
             </span>
@@ -1534,7 +1573,7 @@ const Maxicare = () => {
                 setSelectedYear(parseInt(val));
                 setExpectedDates([]);
               }}>
-                <SelectTrigger className="w-full sm:w-[280px] h-10 bg-white border-[#2A174E]/30 font-bold text-xs text-[#2A174E] shadow-xs hover:border-[#2A174E]">
+                <SelectTrigger className="w-full sm:w-[280px] h-10 bg-white border-brand-primary/30 font-bold text-xs text-brand-primary shadow-xs hover:border-brand-primary">
                   <SelectValue placeholder="Select Policy Cycle" />
                 </SelectTrigger>
                 <SelectContent className="bg-white">
@@ -1558,7 +1597,7 @@ const Maxicare = () => {
                   <Button 
                     variant="outline" 
                     asChild
-                    className="w-full border-[#2A174E]/20 hover:text-[#2A174E] text-[#2A174E]/70 font-semibold shadow-sm transition-all"
+                    className="w-full border-brand-primary/20 hover:text-brand-primary text-brand-primary/70 font-semibold shadow-sm transition-all"
                   >
                     <Link 
                       to="/maxicare/history" 
@@ -1580,7 +1619,7 @@ const Maxicare = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 w-full text-left font-sans">
           
           {/* Card 1: Total Gross Premium */}
-          <div className="border-t-5 border-[#2A174E] bg-white p-6 rounded-xl shadow-sm flex flex-row items-center justify-between gap-4 relative overflow-hidden">
+          <div className="border-t-5 border-brand-primary bg-white p-6 rounded-xl shadow-sm flex flex-row items-center justify-between gap-4 relative overflow-hidden">
             <div className="text-left">
               <div className="flex items-center gap-1.5 mb-1">
                 <p className="text-xs font-bold text-slate-400 tracking-wider uppercase">Total Gross Premium</p>
@@ -1602,7 +1641,7 @@ const Maxicare = () => {
           </div>
 
           {/* Card 2: Active Subscribers */}
-          <div className="border-t-5 border-[#2A174E] border-x border-x-slate-200 bg-white p-6 rounded-xl shadow-sm flex flex-row items-center justify-between gap-4">
+          <div className="border-t-5 border-brand-primary border-x border-x-slate-200 bg-white p-6 rounded-xl shadow-sm flex flex-row items-center justify-between gap-4">
             <div className="text-left">
               <div className="flex items-center gap-1.5 mb-1">
                 <p className="text-xs font-bold text-slate-400 tracking-wider uppercase">
@@ -1620,13 +1659,13 @@ const Maxicare = () => {
               <p className="text-4xl font-extrabold text-slate-900 tracking-tight">{activeSubscribers}</p>
               <p className="text-[10px] text-slate-400 mt-2">({getCycleLabel()})</p>
             </div>
-            <div className="h-12 w-12 bg-[#2A174E]/5 rounded-full flex items-center justify-center border border-[#2A174E]/50 shrink-0">
+            <div className="h-12 w-12 bg-brand-primary/5 rounded-full flex items-center justify-center border border-brand-primary/50 shrink-0">
               <GroupIcon className="text-indigo-600" />
             </div>
           </div>
 
           {/* Card 3: Total Billed YTD */}
-          <div className="border border-slate-200 bg-[#2A174E] text-white p-6 rounded-xl shadow-sm relative overflow-hidden flex flex-row items-center justify-between gap-4">
+          <div className="border border-slate-200 bg-brand-primary text-white p-6 rounded-xl shadow-sm relative overflow-hidden flex flex-row items-center justify-between gap-4">
             <div className="absolute top-0 right-0 p-3 opacity-10">
               <AccountBalanceWalletIcon style={{ fontSize: '70px' }} />
             </div>
@@ -1652,11 +1691,11 @@ const Maxicare = () => {
         <Dialog open={showPolicyDetails} onOpenChange={setShowPolicyDetails}>
           <DialogContent className="max-w-md bg-white p-6 rounded-xl shadow-2xl text-left border border-slate-100">
             <div className="flex items-center gap-2 mb-4 pb-2 border-b border-slate-100">
-              <div className="p-2 bg-[#2A174E]/10 rounded-lg text-[#2A174E]">
+              <div className="p-2 bg-brand-primary/10 rounded-lg text-brand-primary">
                 <InfoIcon className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="text-base font-black text-[#2A174E]">Policy Specs & Splits</h3>
+                <h3 className="text-base font-black text-brand-primary">Policy Specs & Splits</h3>
                 <p className="text-xs text-slate-500 font-medium">Detailed schedule configuration</p>
               </div>
             </div>
@@ -1668,7 +1707,7 @@ const Maxicare = () => {
                 <div className="space-y-1.5 text-xs">
                   <div className="flex justify-between">
                     <span className="text-slate-500 font-medium">Cut-off Deduction:</span>
-                    <span className="font-bold text-[#2A174E]">{peso(deductionCutoff)}</span>
+                    <span className="font-bold text-brand-primary">{peso(deductionCutoff)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500 font-medium">Amortization Months:</span>
@@ -1732,7 +1771,7 @@ const Maxicare = () => {
         </Dialog>
 
         {/* Matrix Table Section */}
-        <h3 className="text-xl font-bold text-[#2A174E]">Employee Deduction History ({getCycleLabel()})</h3>
+        <h3 className="text-xl font-bold text-brand-primary">Employee Deduction History ({getCycleLabel()})</h3>
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-4 gap-4 mt-8">
         
         {/* Sub-container: Pushed to the right, spans full width on mobile, auto-width on desktop */}
@@ -1746,7 +1785,7 @@ const Maxicare = () => {
               variant={displayLayout === "card" ? "default" : "ghost"}
               onClick={() => setDisplayLayout("card")}
               className={`h-7 text-xs font-bold transition-all ${
-                displayLayout === "card" ? "bg-white text-[#2A174E] shadow-sm hover:bg-white" : "text-slate-500 hover:text-[#2A174E]"
+                displayLayout === "card" ? "bg-white text-brand-primary shadow-sm hover:bg-white" : "text-slate-500 hover:text-brand-primary"
               }`}
             >
               Employee Cards
@@ -1756,7 +1795,7 @@ const Maxicare = () => {
               variant={displayLayout === "table" ? "default" : "ghost"}
               onClick={() => setDisplayLayout("table")}
               className={`h-7 text-xs font-bold transition-all ${
-                displayLayout === "table" ? "bg-white text-[#2A174E] shadow-sm hover:bg-white" : "text-slate-500 hover:text-[#2A174E]"
+                displayLayout === "table" ? "bg-white text-brand-primary shadow-sm hover:bg-white" : "text-slate-500 hover:text-brand-primary"
               }`}
             >
               Matrix Table
@@ -1772,7 +1811,7 @@ const Maxicare = () => {
                   placeholder="Search card profile name or ID..."
                   value={cardSearchQuery}
                   onChange={(e) => setCardSearchQuery(e.target.value)}
-                  className="w-full bg-white text-slate-700 border-slate-200 focus-visible:ring-[#2A174E] pr-8 pl-3 h-9 text-xs"
+                  className="w-full bg-white text-slate-700 border-slate-200 focus-visible:ring-brand-primary pr-8 pl-3 h-9 text-xs"
                 />
                 {cardSearchQuery && (
                   <button 
@@ -1794,7 +1833,7 @@ const Maxicare = () => {
                 placeholder="Search matrix table employee..."
                 value={tableSearchQuery}
                 onChange={(e) => setTableSearchQuery(e.target.value)}
-                className="w-full bg-white text-slate-700 border-slate-200 focus-visible:ring-[#2A174E] pr-8 pl-3 h-9 text-xs shadow-sm"
+                className="w-full bg-white text-slate-700 border-slate-200 focus-visible:ring-brand-primary pr-8 pl-3 h-9 text-xs shadow-sm"
               />
               {tableSearchQuery && (
                 <button 
@@ -1813,26 +1852,39 @@ const Maxicare = () => {
               variant="outline" 
               size="sm"
               onClick={() => setShowPolicyDetails(true)}
-              className="border-[#2A174E]/20 hover:text-[#2A174E] text-[#2A174E]/70 font-semibold shadow-sm transition-all h-9"
+              className="border-brand-primary/20 hover:text-brand-primary text-brand-primary/70 font-semibold shadow-sm transition-all h-9"
               disabled={loading}
             >
-              <InfoIcon className="mr-1 h-4 w-4 text-[#2A174E]" /> Policy Specs
+              <InfoIcon className="mr-1 h-4 w-4 text-brand-primary" /> Policy Specs
             </Button>
             
             {isAdmin && (
               <>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => {
-                    setIsEditing(true);
-                    setShowCalculator(true);
-                  }}
-                  className="border-[#2A174E] text-[#2A174E] hover:bg-slate-50 h-9"
-                  disabled={loading}
-                >
-                  <EditIcon className="mr-1 h-4 w-4" /> Edit
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className={`inline-block ${!isRenewalNearing ? "cursor-not-allowed" : ""}`}>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          setIsEditing(true);
+                          setShowCalculator(true);
+                        }}
+                        className="border-brand-primary text-brand-primary hover:bg-slate-50 h-9 disabled:opacity-50 disabled:pointer-events-none"
+                        disabled={loading || !isRenewalNearing}
+                      >
+                        <EditIcon className="mr-1 h-4 w-4" /> Edit
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
+                    {!isRenewalNearing ? (
+                      <span>This button will be enabled on the renewal date{cycle?.end ? ` (${renewalDateFormatted})` : ""}.</span>
+                    ) : (
+                      <span>Edit health insurance policy configuration and premium settings.</span>
+                    )}
+                  </TooltipContent>
+                </Tooltip>
                 <Button 
                   variant="outline" 
                   size="sm"
@@ -1844,7 +1896,7 @@ const Maxicare = () => {
                     }));
                     setShowBatchModal(true);
                   }}
-                  className="border-[#2A174E] text-[#2A174E] hover:bg-slate-50 h-9"
+                  className="border-brand-primary text-brand-primary hover:bg-slate-50 h-9"
                   disabled={loading || displayDates.length === 0}
                 >
                   <GroupAddOutlinedIcon className="mr-1 h-4 w-4" /> Batch
@@ -1861,7 +1913,7 @@ const Maxicare = () => {
                         setIsEditingTable(true);
                       }
                     }}
-                    className={`h-9 ${isEditingTable ? 'bg-green-500 text-white hover:bg-green-600 border-transparent' : 'border-[#2A174E] text-[#2A174E] hover:bg-slate-50'}`}
+                    className={`h-9 ${isEditingTable ? 'bg-green-500 text-white hover:bg-green-600 border-transparent' : 'border-brand-primary text-brand-primary hover:bg-slate-50'}`}
                   >
                     {isEditingTable ? <><CheckIcon className="mr-1 h-4 w-4" /> Save Table</> : <><EditIcon className="mr-1 h-4 w-4" /> Edit Table</>}
                   </Button>
@@ -1897,7 +1949,7 @@ const Maxicare = () => {
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
             <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-bold text-[#2A174E]">
+                <h3 className="text-sm font-bold text-brand-primary">
                   Policy Cycle Matrix Visual Table ({getRenewalPeriod()})
                 </h3>
                 <span className="text-xs text-slate-500 font-mono">
@@ -1911,9 +1963,9 @@ const Maxicare = () => {
 
             <div className="w-full bg-white overflow-x-auto">
               <table className="w-full min-w-max border-collapse text-xs">
-                <thead className="bg-[#2A174E] text-white">
+                <thead className="bg-brand-primary text-white">
                   <tr>
-                    <th className="sticky left-0 top-0 z-[50] bg-[#1e1136] text-yellow-400 border-r border-b border-[#2A174E] p-2.5 text-left min-w-[170px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]">
+                    <th className="sticky left-0 top-0 z-[50] bg-[#1e1136] text-yellow-400 border-r border-b border-brand-primary p-2.5 text-left min-w-[170px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]">
                       EMPLOYEE
                     </th>
                     <th className="text-white font-bold text-xs uppercase text-right p-2.5 min-w-[100px]">
@@ -1990,11 +2042,11 @@ const Maxicare = () => {
                             {/* Sticky Left Employee Info */}
                             <td className="sticky left-0 z-[40] bg-white border-r border-b border-slate-200 p-2 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]">
                               <div className="flex items-center gap-2">
-                                <div className="p-1.5 bg-[#2A174E]/10 text-[#2A174E] rounded-md shrink-0">
+                                <div className="p-1.5 bg-brand-primary/10 text-brand-primary rounded-md shrink-0">
                                   <User className="h-3.5 w-3.5" />
                                 </div>
                                 <div className="text-left truncate">
-                                  <span className="font-bold text-[#2A174E] text-xs block truncate">{emp.name}</span>
+                                  <span className="font-bold text-brand-primary text-xs block truncate">{emp.name}</span>
                                   <span className="text-[10px] font-mono text-slate-400">{emp.id}</span>
                                 </div>
                               </div>
@@ -2048,7 +2100,7 @@ const Maxicare = () => {
                             {/* Completion Progress Bar */}
                             <td className="p-2 text-center align-middle">
                               <div className="flex flex-col items-center gap-1">
-                                <span className="text-[10px] font-bold text-[#2A174E]">
+                                <span className="text-[10px] font-bold text-brand-primary">
                                   {completionPercent.toFixed(0)}%
                                 </span>
                                 <div className="w-14 bg-slate-200 h-1.5 rounded-full overflow-hidden">
@@ -2064,8 +2116,8 @@ const Maxicare = () => {
                       })}
 
                       {/* Footer Row (Monthly Totals for All Employees) */}
-                      <tr className="bg-slate-100 font-bold border-t-2 border-[#2A174E]">
-                        <td className="sticky left-0 z-[40] bg-slate-100 border-r border-[#2A174E] p-2.5 text-left font-black text-[#2A174E] text-xs shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]">
+                      <tr className="bg-slate-100 font-bold border-t-2 border-brand-primary">
+                        <td className="sticky left-0 z-[40] bg-slate-100 border-r border-brand-primary p-2.5 text-left font-black text-brand-primary text-xs shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]">
                           TOTAL PAID
                         </td>
                         <td className="p-2.5 text-right font-mono text-xs text-slate-500">—</td>
@@ -2081,7 +2133,7 @@ const Maxicare = () => {
                           }, 0);
 
                           return (
-                            <td key={m.key} className="p-1.5 text-center font-mono text-xs font-black text-[#2A174E] border-r border-slate-200">
+                            <td key={m.key} className="p-1.5 text-center font-mono text-xs font-black text-brand-primary border-r border-slate-200">
                               {monthSumPaid > 0 ? peso(monthSumPaid) : "—"}
                             </td>
                           );
@@ -2134,7 +2186,7 @@ const Maxicare = () => {
                 >
                   Previous
                 </Button>
-                <div className="flex items-center justify-center min-w-[2rem] h-8 text-xs font-bold text-[#2A174E] bg-[#2A174E]/10 rounded-md px-2">
+                <div className="flex items-center justify-center min-w-[2rem] h-8 text-xs font-bold text-brand-primary bg-brand-primary/10 rounded-md px-2">
                   {tableCurrentPage} / {totalTablePages}
                 </div>
                 <Button 
@@ -2170,25 +2222,25 @@ const Maxicare = () => {
                       <Card key={emp.key} className="py-0 border border-slate-100 shadow-sm bg-white hover:shadow-md transition-all flex flex-col justify-between overflow-hidden group">
                         <CardHeader className="pt-6 bg-slate-50/60 pb-4 border-b border-slate-100 border-t-4 flex flex-row items-center justify-between space-y-0">
                           <div className="flex items-center gap-3 truncate mr-2">
-                            <div className="p-2 bg-[#2A174E]/10 rounded-lg text-[#2A174E] shrink-0">
+                            <div className="p-2 bg-brand-primary/10 rounded-lg text-brand-primary shrink-0">
                               <AccountCircleIcon />
                             </div>
                             <div className="truncate text-left">
-                              <CardTitle className="text-sm md:text-base font-bold text-[#2A174E] truncate">{emp.name}</CardTitle>
+                              <CardTitle className="text-sm md:text-base font-bold text-brand-primary truncate">{emp.name}</CardTitle>
                               <span className="text-xs font-mono text-slate-400 block mt-0.5">{emp.id}</span>
                             </div>
                           </div>
 
                           <Sheet>
                             <SheetTrigger asChild>
-                              <Button variant="ghost" size="icon" className="text-slate-400 hover:text-[#2A174E] hover:bg-[#2A174E]/5 rounded-full shrink-0">
+                              <Button variant="ghost" size="icon" className="text-slate-400 hover:text-brand-primary hover:bg-brand-primary/5 rounded-full shrink-0">
                                 <OpenInNewIcon fontSize="small" />
                               </Button>
                             </SheetTrigger>
                             {/* Upgrades to 4xl (~896px) on desktop and 5xl (~1024px) on wide monitors */}
                             <SheetContent className="w-full sm:max-w-2xl lg:max-w-xl! xl:max-w-5xl bg-white overflow-y-auto custom-scrollbar p-6">
                               <SheetHeader className="pb-4 border-b border-slate-100 text-left">
-                                <SheetTitle className="text-xl font-bold text-[#2A174E]">
+                                <SheetTitle className="text-xl font-bold text-brand-primary">
                                   {emp.name}'s Premium History
                                 </SheetTitle>
                                 <SheetDescription className="text-xs text-slate-400 font-mono">
@@ -2217,7 +2269,7 @@ const Maxicare = () => {
                                   {/* Interval Date Filter Dropdown */}
                                   <div className="w-full sm:w-[160px]">
                                     <Select value={selectedSheetMonth} onValueChange={setSelectedSheetMonth}>
-                                      <SelectTrigger className="h-8 text-[11px] bg-slate-50 border-slate-200 font-semibold text-slate-600 focus-visible:ring-[#2A174E]">
+                                      <SelectTrigger className="h-8 text-[11px] bg-slate-50 border-slate-200 font-semibold text-slate-600 focus-visible:ring-brand-primary">
                                         <SelectValue placeholder="Filter by Month" />
                                       </SelectTrigger>
                                       <SelectContent>
@@ -2241,7 +2293,7 @@ const Maxicare = () => {
 
                                 <div className="border border-slate-100 rounded-lg overflow-hidden shadow-sm">
                                   <Table>
-                                    <TableHeader className="bg-[#2B174F]">
+                                    <TableHeader className="bg-brand-primary">
                                       <TableRow className="hover:bg-transparent border-b-0">
                                         <TableHead className="font-semibold text-white uppercase text-[10px] tracking-wider py-3 px-4">Payroll Interval Point</TableHead>
                                         <TableHead className="font-semibold text-white text-center uppercase text-[10px] tracking-wider py-3">Deduction Amount</TableHead>
@@ -2271,9 +2323,9 @@ const Maxicare = () => {
                                           const dObj = new Date(log.dateStr);
                                           return (
                                             <TableRow key={log.dateStr} className="border-b-slate-100 hover:bg-slate-50/50 transition-colors">
-                                              <td className="font-bold text-[#2A174E] text-xs py-2.5 px-4 text-left">
+                                              <td className="font-bold text-brand-primary text-xs py-2.5 px-4 text-left">
                                                 {dObj.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                                {log.dateStr === currentCutoffDate && <span className="bg-yellow-400 text-[#2A174E] text-[8px] font-black px-1.5 py-0.2 rounded ml-2">CURRENT</span>}
+                                                {log.dateStr === currentCutoffDate && <span className="bg-yellow-400 text-brand-primary text-[8px] font-black px-1.5 py-0.2 rounded ml-2">CURRENT</span>}
                                               </td>
                                               <td className="text-center text-xs font-mono font-bold text-slate-700">
                                                 {log.amount > 0 ? `₱${log.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : "—"}
@@ -2312,7 +2364,7 @@ const Maxicare = () => {
 
                           <div className="grid grid-cols-2 gap-2 pt-1">
                             <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 flex flex-col justify-between">
-                              <div className="flex items-center gap-1 text-[#2A174E] mb-1">
+                              <div className="flex items-center gap-1 text-brand-primary mb-1">
                                 <AccountBalanceWalletIcon className="!text-xs shrink-0" />
                                 <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Per Cut-Off</span>
                               </div>
@@ -2373,7 +2425,7 @@ const Maxicare = () => {
                     >
                       Previous
                     </Button>
-                    <div className="flex items-center justify-center min-w-[2rem] h-8 text-xs font-bold text-[#2A174E] bg-[#2A174E]/10 rounded-md px-2">
+                    <div className="flex items-center justify-center min-w-[2rem] h-8 text-xs font-bold text-brand-primary bg-brand-primary/10 rounded-md px-2">
                       {cardCurrentPage} / {totalCardPages || 1}
                     </div>
                     <Button 
@@ -2392,6 +2444,27 @@ const Maxicare = () => {
           </div>
         )}
         </div>
+
+        {/* Delete Maxicare Employee Confirmation */}
+        <AlertDialog open={Boolean(confirmDeleteEmp)} onOpenChange={(open) => !open && setConfirmDeleteEmp(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Remove from Maxicare Plan</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to remove <strong>{confirmDeleteEmp?.name}</strong> from the Maxicare list? This will clear their active deduction record and set their health card deduction to &#8369;0.00.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={executeDeleteColumn}
+                className="bg-rose-600 hover:bg-rose-700 text-white"
+              >
+                Remove Employee
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </TooltipProvider>
       </Sidebar>
     </div>

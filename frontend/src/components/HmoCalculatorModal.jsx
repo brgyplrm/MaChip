@@ -138,7 +138,7 @@ const HmoCalculatorModal = ({
       <div className="w-full bg-white text-slate-800 rounded-xl shadow-2xl p-6 border border-slate-200 font-sans overflow-hidden">
         
         {/* Premium Header Banner */}
-        <div className="bg-[#2A174E] text-white p-6 rounded-xl -mx-6 -mt-6 mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div className="bg-brand-primary text-white p-6 rounded-xl -mx-6 -mt-6 mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-4 text-left">
             <div className="h-12 w-12 bg-white/10 rounded-full flex items-center justify-center border border-white/20 shrink-0">
               <MedicalServicesIcon className="text-white" />
@@ -207,16 +207,16 @@ const HmoCalculatorModal = ({
           </div>
 
           {/* Right Section: Policy Schedule */}
-          <div className="lg:col-span-4 p-5 bg-[#2A174E]/5 rounded-xl border border-[#2A174E]/10 flex flex-col justify-between gap-4 text-left">
+          <div className="lg:col-span-4 p-5 bg-brand-primary/5 rounded-xl border border-brand-primary/10 flex flex-col justify-between gap-4 text-left">
             <div>
               <div className="flex items-center gap-2 mb-3">
-                <ShieldIcon className="text-[#2A174E] h-4 w-4" />
-                <h3 className="text-xs font-bold text-[#2A174E] uppercase tracking-widest">Policy Schedule</h3>
+                <ShieldIcon className="text-brand-primary h-4 w-4" />
+                <h3 className="text-xs font-bold text-brand-primary uppercase tracking-widest">Policy Schedule</h3>
               </div>
               
-              <div className="space-y-1 bg-white p-3 rounded-lg border border-[#2A174E]/10 shadow-sm mb-3">
+              <div className="space-y-1 bg-white p-3 rounded-lg border border-brand-primary/10 shadow-sm mb-3">
                  <div className="flex justify-between items-center mb-1">
-                   <span className="text-[10px] font-bold text-[#2A174E] uppercase block">Calculated Period</span>
+                   <span className="text-[10px] font-bold text-brand-primary uppercase block">Calculated Period</span>
                    <span className="text-[9px] font-black bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">PREVIEW</span>
                  </div>
                  <span className="text-xs font-black text-slate-800 tracking-tighter">
@@ -274,7 +274,7 @@ const HmoCalculatorModal = ({
                   setPremium(val === '' ? 0 : parseFloat(val));
                 }
               }}
-              className="bg-white border-slate-300 text-slate-900 focus-visible:ring-[#2A174E] font-bold text-lg h-10 mt-1"
+              className="bg-white border-slate-300 text-slate-900 focus-visible:ring-brand-primary font-bold text-lg h-10 mt-1"
               placeholder="0.00"
             />
           </div>
@@ -283,7 +283,7 @@ const HmoCalculatorModal = ({
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/60 text-left h-28 flex flex-col justify-between">
             <div className="flex justify-between items-center">
               <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Employer Share</label>
-              <span className="text-base font-black text-[#2A174E]">{employerShare}%</span>
+              <span className="text-base font-black text-brand-primary">{employerShare}%</span>
             </div>
             <Slider 
               value={[employerShare]} 
@@ -304,7 +304,7 @@ const HmoCalculatorModal = ({
             <Button 
               onClick={handleReset}
               variant="outline" 
-              className="w-full bg-white hover:bg-slate-100 text-slate-600 border-slate-300 hover:text-[#2A174E] transition-all font-bold h-10 mt-1 flex items-center justify-center gap-1"
+              className="w-full bg-white hover:bg-slate-100 text-slate-600 border-slate-300 hover:text-brand-primary transition-all font-bold h-10 mt-1 flex items-center justify-center gap-1"
             >
               <RestartAltIcon sx={{ fontSize: 18 }} /> Reset to Defaults
             </Button>
@@ -333,7 +333,7 @@ const HmoCalculatorModal = ({
         <Button 
           onClick={handleSaveClick}
           disabled={saving}
-          className="bg-[#2A174E] text-white hover:bg-[#1a0e30] border border-white/20 h-12 min-w-[200px] px-6 rounded-lg font-bold transition-all shadow-xl hover:scale-102 transform active:scale-98"
+          className="bg-brand-primary text-white hover:bg-brand-primary-hover border border-white/20 h-12 min-w-[200px] px-6 rounded-lg font-bold transition-all shadow-xl hover:scale-102 transform active:scale-98"
         >
           {saving ? "Saving Configuration..." : (onSave ? "Save Configuration" : "Save New Configuration")}
         </Button>

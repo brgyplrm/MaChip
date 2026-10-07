@@ -13,8 +13,15 @@ export const SystemTimeProvider = ({ children }) => {
       if (response.ok) {
         const data = await response.json();
         const sysDate = new Date(data.systemTime);
-        setSystemToday(sysDate);
-        setIsMockTime(data.isMock);
+        setIsMockTime(Boolean(data.isMock));
+        setSystemToday(prev => {
+          // If the difference is minor (under 2s drift), keep smooth local ticking
+          const diff = Math.abs(sysDate.getTime() - prev.getTime());
+          if (diff < 2000) {
+            return prev;
+          }
+          return sysDate;
+        });
       }
     } catch (err) {
       console.error("Error fetching system time:", err);
@@ -32,9 +39,13 @@ export const SystemTimeProvider = ({ children }) => {
       setSystemToday(prev => new Date(prev.getTime() + 1000));
     }, 1000);
 
+    const handleRefresh = () => fetchSystemTime();
+    window.addEventListener("systemTimeRefresh", handleRefresh);
+
     return () => {
       clearInterval(syncInterval);
       clearInterval(clockTimer);
+      window.removeEventListener("systemTimeRefresh", handleRefresh);
     };
   }, [fetchSystemTime]);
 

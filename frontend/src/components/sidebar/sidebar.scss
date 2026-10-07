@@ -56,7 +56,7 @@
         justify-content: center;
         width: 45px;
         height: 45px;
-        background: #2A174E;
+        background: var(--color-brand-primary);
         color: white;
         font-weight: bold;
         font-size: 20px;
@@ -142,7 +142,7 @@
       // This targets the active state from NavLink
       &.active {
         li {
-          background-color: #2A174E;
+          background-color: var(--color-brand-primary);
           color: white;
           border-radius: 12px 0px 0px 12px;
 
@@ -171,7 +171,7 @@
       margin-left: 10px;
       cursor: pointer;
       gap: 10px;
-      color: #2A174E; // Default color
+      color: var(--color-brand-primary); // Default color
 
       // Grouping hover and active logic
       &:hover {
@@ -187,7 +187,7 @@
 
       .icon {
         font-size: 20px;
-        color: #2A174E;
+        color: var(--color-brand-primary);
       }
 
       span {
@@ -288,7 +288,7 @@
 
     a.active {
       li {
-        background-color: #2A174E;
+        background-color: var(--color-brand-primary);
         span { color: white; }
         .icon { color: white; }
       }

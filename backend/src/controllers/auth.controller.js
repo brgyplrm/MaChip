@@ -65,12 +65,11 @@ exports.loginUser = async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: "8h" }
     );
-    // Set HttpOnly Cookie
+    // Set HttpOnly Session Cookie (Strict Option A: deleted automatically when browser closes)
     res.cookie("machip_token", token, {
       httpOnly: true,
       secure: false, // Set to false for HTTP (LAN/Local)
       sameSite: "Lax", // Works through the Vite proxy
-      maxAge: 8 * 60 * 60 * 1000, // 8 hours
     });
 
     // Strip password before sending back to client
@@ -130,6 +129,47 @@ exports.logoutUser = async (req, res) => {
   } catch (error) {
     console.error("[LOGOUT ERROR]:", error.message);
     return res.status(500).json({ error: "Failed to log logout event." });
+  }
+};
+
+exports.verifySession = async (req, res) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+
+  const userId = req.user ? req.user.user_Id : null;
+  if (!userId) {
+    return res.status(401).json({ error: "Session invalid or expired." });
+  }
+
+  try {
+    const [user] = await sequelize.query(
+      `SELECT u."user_Id", u."user_FirstName", u."user_LastName", u."user_MiddleName", u."user_Email", 
+              u."user_RoleId", r."roleName" AS "user_Role", u."position", u."department",
+              u."is_time_exempt", u."user_Gender", u."civil_status", u."is_solo_parent", u."hireDate",
+              u."user_ProfilePic"
+       FROM "User" u
+       LEFT JOIN "user_Role" r ON u."user_RoleId" = r."roleId"
+       WHERE u."user_Id" = :userId AND u."deletedAt" IS NULL`,
+      {
+        replacements: { userId },
+        type: QueryTypes.SELECT
+      }
+    );
+
+    if (!user) {
+      res.clearCookie("machip_token", {
+        httpOnly: true,
+        secure: false,
+        sameSite: "Lax",
+      });
+      return res.status(401).json({ error: "User no longer exists or has been deactivated." });
+    }
+
+    return res.status(200).json({ valid: true, user });
+  } catch (error) {
+    console.error("[VERIFY SESSION ERROR]:", error.message);
+    return res.status(500).json({ error: "Failed to verify session." });
   }
 };
 
@@ -298,8 +338,11 @@ exports.resetPassword = async (req, res) => {
   if (!token) {
     return res.status(400).json({ error: "Reset token is required." });
   }
-  if (!newPassword || newPassword.length < 6) {
-    return res.status(400).json({ error: "Password must be at least 6 characters long." });
+
+  const { validatePassword } = require("../utils/passwordValidator");
+  const pwdValidation = validatePassword(newPassword);
+  if (!pwdValidation.isValid) {
+    return res.status(400).json({ error: pwdValidation.message });
   }
 
   try {

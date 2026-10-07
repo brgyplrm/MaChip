@@ -280,6 +280,16 @@ const AdminReports = () => {
     }
   }, [calendarStartDate, calendarEndDate]);
 
+  // Sync default filters if systemToday loads and user hasn't manually customized filters
+  const [hasManuallyFiltered, setHasManuallyFiltered] = useState(false);
+  useEffect(() => {
+    if (!hasManuallyFiltered && systemToday) {
+      setSelectedYear(systemToday.getFullYear().toString());
+      setSelectedMonth((systemToday.getMonth() + 1).toString());
+      setSelectedPeriod(systemToday.getDate() <= 15 ? "1" : "2");
+    }
+  }, [systemToday, hasManuallyFiltered]);
+
   useEffect(() => {
     fetchEmployees();
   }, [fetchEmployees]);
@@ -289,6 +299,18 @@ const AdminReports = () => {
     else if (activeReport === "payroll") fetchPayrollReport();
     else if (activeReport === "calendar") fetchCalendarReport();
     else if (activeReport === "requests") fetchRequestsReport();
+  }, [activeReport, fetchAttendanceReport, fetchPayrollReport, fetchCalendarReport, fetchRequestsReport]);
+
+  // Real-time synchronization when RFID/Biometric scans or approvals occur
+  useEffect(() => {
+    const handleDataRefresh = () => {
+      if (activeReport === "attendance") fetchAttendanceReport();
+      else if (activeReport === "payroll") fetchPayrollReport();
+      else if (activeReport === "calendar") fetchCalendarReport();
+      else if (activeReport === "requests") fetchRequestsReport();
+    };
+    window.addEventListener("dataRefresh", handleDataRefresh);
+    return () => window.removeEventListener("dataRefresh", handleDataRefresh);
   }, [activeReport, fetchAttendanceReport, fetchPayrollReport, fetchCalendarReport, fetchRequestsReport]);
 
   useEffect(() => {
@@ -461,9 +483,10 @@ const AdminReports = () => {
 
   // --- Reducer Operational Loops ---
   const attStats = attendanceData.reduce((acc, curr) => {
-    if (curr.status === "On-Time") acc.present++;
-    else if (curr.status === "Late") { acc.present++; acc.late++; }
-    else if (curr.status === "Absent") acc.absent++;
+    const s = (curr.status || "").toLowerCase().replace(/[^a-z]/g, "");
+    if (s === "ontime" || s === "present" || s === "exempt") acc.present++;
+    else if (s === "late") { acc.present++; acc.late++; }
+    else if (s === "absent") acc.absent++;
     acc.totalHours += parseFloat(curr.hoursWorked) || 0;
     return acc;
   }, { present: 0, absent: 0, late: 0, totalHours: 0 });
@@ -518,7 +541,7 @@ const AdminReports = () => {
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
               <div>
-                <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">Reports & Analytics</h1>
+                <h1 className="text-2xl md:text-3xl font-bold text-brand-primary">Reports & Analytics</h1>
                 <span className="text-sm text-slate-500 mt-1 block">Generate, analyze, and export system attendance and payroll data.</span>
               </div>
               <div className="flex items-center gap-3 w-full md:w-auto">
@@ -527,7 +550,7 @@ const AdminReports = () => {
                 </Button> */}
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button onClick={handlePDFExport} className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm">
+                    <Button onClick={handlePDFExport} className="w-full md:w-auto bg-brand-primary text-white hover:bg-brand-primary-hover shadow-sm">
                       <FileDownloadIcon className="mr-2 h-4 w-4" /> Export PDF
                     </Button>
                   </TooltipTrigger>
@@ -559,8 +582,8 @@ const AdminReports = () => {
             <TabsTrigger 
               value="attendance" 
               className="text-xs font-bold text-slate-500 transition-all rounded-md
-                data-[state=active]:bg-[#2B174F] data-[state=active]:text-white data-[state=active]:shadow-sm 
-                hover:text-[#2A174E]"
+                data-[state=active]:bg-brand-primary data-[state=active]:text-white data-[state=active]:shadow-sm 
+                hover:text-brand-primary"
             >
               <AssessmentIcon className="mr-2 h-4 w-4 shrink-0" /> 
               <span>Attendance Report</span>
@@ -570,8 +593,8 @@ const AdminReports = () => {
             <TabsTrigger 
               value="payroll" 
               className="text-xs font-bold text-slate-500 transition-all rounded-md
-                data-[state=active]:bg-[#2B174F] data-[state=active]:text-white data-[state=active]:shadow-sm 
-                hover:text-[#2A174E]"
+                data-[state=active]:bg-brand-primary data-[state=active]:text-white data-[state=active]:shadow-sm 
+                hover:text-brand-primary"
             >
               <PaymentsIcon className="mr-2 h-4 w-4 shrink-0" /> 
               <span>Payroll Report</span>
@@ -581,8 +604,8 @@ const AdminReports = () => {
             <TabsTrigger 
               value="calendar" 
               className="text-xs font-bold text-slate-500 transition-all rounded-md
-                data-[state=active]:bg-[#2B174F] data-[state=active]:text-white data-[state=active]:shadow-sm 
-                hover:text-[#2A174E]"
+                data-[state=active]:bg-brand-primary data-[state=active]:text-white data-[state=active]:shadow-sm 
+                hover:text-brand-primary"
             >
               <CalendarMonthIcon className="mr-2 h-4 w-4 shrink-0" /> 
               <span>Calendar / Events</span>
@@ -592,8 +615,8 @@ const AdminReports = () => {
             <TabsTrigger 
               value="requests" 
               className="text-xs font-bold text-slate-500 transition-all rounded-md
-                data-[state=active]:bg-[#2B174F] data-[state=active]:text-white data-[state=active]:shadow-sm 
-                hover:text-[#2A174E]"
+                data-[state=active]:bg-brand-primary data-[state=active]:text-white data-[state=active]:shadow-sm 
+                hover:text-brand-primary"
             >
               <FileInput className="mr-2 h-4 w-4 shrink-0" /> 
               <span>Requests</span>
@@ -607,12 +630,12 @@ const AdminReports = () => {
             {activeReport === "attendance" && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6 w-full">
                 {/* Card 1: Total Present */}
-                <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+                <Card className="border-t-5 border-brand-primary bg-white py-0 h-full">
                   <CardContent className="px-5 py-5 flex justify-between h-full">
                     <div className="flex flex-col justify-between">
                       <div>
                         <div className="flex items-center gap-1.5 mb-2">
-                          <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider">Total Present</p>
+                          <p className="text-[13px] font-bold text-brand-primary uppercase tracking-wider">Total Present</p>
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
@@ -622,21 +645,21 @@ const AdminReports = () => {
                             </TooltipContent>
                           </Tooltip>
                         </div>
-                        <p className="text-4xl font-bold text-[#2A174E]">{attStats.present}</p>
+                        <p className="text-4xl font-bold text-brand-primary">{attStats.present}</p>
                       </div>
-                      <p className="text-xs text-[#2A174E]/70 italic mt-4">Total present records</p>
+                      <p className="text-xs text-brand-primary/70 italic mt-4">Total present records</p>
                     </div>
-                    <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><CheckCircleOutlineIcon /></div>
+                    <div className="bg-brand-primary/10 text-brand-primary p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><CheckCircleOutlineIcon /></div>
                   </CardContent>
                 </Card>
 
                 {/* Card 2: Total Hours */}
-                <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
+                <Card className="border-t-5 border-accent-green bg-white py-0 h-full">
                   <CardContent className="px-5 py-5 flex justify-between h-full">
                     <div className="flex flex-col justify-between">
                       <div>
                         <div className="flex items-center gap-1.5 mb-2">
-                          <p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider">Total Hours</p>
+                          <p className="text-[13px] font-bold text-accent-green uppercase tracking-wider">Total Hours</p>
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
@@ -646,21 +669,21 @@ const AdminReports = () => {
                             </TooltipContent>
                           </Tooltip>
                         </div>
-                        <p className="text-4xl font-bold text-[#3B4E17]">{attStats.totalHours.toFixed(1)}<span className="text-lg opacity-80 ml-1">hrs</span></p>
+                        <p className="text-4xl font-bold text-accent-green">{attStats.totalHours.toFixed(1)}<span className="text-lg opacity-80 ml-1">hrs</span></p>
                       </div>
-                      <p className="text-xs text-[#3B4E17]/70 italic mt-4">Total working hours</p>
+                      <p className="text-xs text-accent-green/70 italic mt-4">Total working hours</p>
                     </div>
-                    <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><AccessTimeIcon /></div>
+                    <div className="bg-accent-green/10 text-accent-green p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><AccessTimeIcon /></div>
                   </CardContent>
                 </Card>
 
                 {/* Card 3: Lates / Absences */}
-                <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
+                <Card className="border-t-5 border-accent-gold bg-white py-0 h-full">
                   <CardContent className="px-5 py-5 flex justify-between h-full">
                     <div className="flex flex-col justify-between">
                       <div>
                         <div className="flex items-center gap-1.5 mb-2">
-                          <p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider">Lates / Absences</p>
+                          <p className="text-[13px] font-bold text-accent-gold uppercase tracking-wider">Lates / Absences</p>
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
@@ -670,11 +693,11 @@ const AdminReports = () => {
                             </TooltipContent>
                           </Tooltip>
                         </div>
-                        <p className="text-4xl font-bold text-[#BB8B26]">{attStats.late + attStats.absent}</p>
+                        <p className="text-4xl font-bold text-accent-gold">{attStats.late + attStats.absent}</p>
                       </div>
-                      <p className="text-xs text-[#BB8B26]/70 italic mt-4">Recorded schedule infractions</p>
+                      <p className="text-xs text-accent-gold/70 italic mt-4">Recorded schedule infractions</p>
                     </div>
-                    <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><AssignmentLateIcon /></div>
+                    <div className="bg-accent-gold/20 text-accent-gold p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><AssignmentLateIcon /></div>
                   </CardContent>
                 </Card>
               </div>
@@ -683,12 +706,12 @@ const AdminReports = () => {
             {activeReport === "payroll" && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6 w-full">
                 {/* Card 1: Total Net Pay */}
-                <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+                <Card className="border-t-5 border-brand-primary bg-white py-0 h-full">
                   <CardContent className="px-5 py-5 flex justify-between h-full">
                     <div className="flex flex-col justify-between">
                       <div>
                         <div className="flex items-center gap-1.5 mb-2">
-                          <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider">Total Net Pay</p>
+                          <p className="text-[13px] font-bold text-brand-primary uppercase tracking-wider">Total Net Pay</p>
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
@@ -698,21 +721,21 @@ const AdminReports = () => {
                             </TooltipContent>
                           </Tooltip>
                         </div>
-                        <p className="text-4xl font-bold text-[#2A174E]">{peso(payStats.net)}</p>
+                        <p className="text-4xl font-bold text-brand-primary">{peso(payStats.net)}</p>
                       </div>
-                      <p className="text-xs text-[#2A174E]/70 italic mt-4">Distribution payload volume</p>
+                      <p className="text-xs text-brand-primary/70 italic mt-4">Distribution payload volume</p>
                     </div>
-                    <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><PaymentsIcon /></div>
+                    <div className="bg-brand-primary/10 text-brand-primary p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><PaymentsIcon /></div>
                   </CardContent>
                 </Card>
 
                 {/* Card 2: Total Earnings */}
-                <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
+                <Card className="border-t-5 border-accent-green bg-white py-0 h-full">
                   <CardContent className="px-5 py-5 flex justify-between h-full">
                     <div className="flex flex-col justify-between">
                       <div>
                         <div className="flex items-center gap-1.5 mb-2">
-                          <p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider">Total Earnings</p>
+                          <p className="text-[13px] font-bold text-accent-green uppercase tracking-wider">Total Earnings</p>
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
@@ -722,21 +745,21 @@ const AdminReports = () => {
                             </TooltipContent>
                           </Tooltip>
                         </div>
-                        <p className="text-4xl font-bold text-[#3B4E17]">{peso(payStats.earn)}</p>
+                        <p className="text-4xl font-bold text-accent-green">{peso(payStats.earn)}</p>
                       </div>
-                      <p className="text-xs text-[#3B4E17]/70 italic mt-4">Gross operational pay index</p>
+                      <p className="text-xs text-accent-green/70 italic mt-4">Gross operational pay index</p>
                     </div>
-                    <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><KeyboardDoubleArrowUpIcon /></div>
+                    <div className="bg-accent-green/10 text-accent-green p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><KeyboardDoubleArrowUpIcon /></div>
                   </CardContent>
                 </Card>
 
                 {/* Card 3: Total Deductions */}
-                <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
+                <Card className="border-t-5 border-accent-gold bg-white py-0 h-full">
                   <CardContent className="px-5 py-5 flex justify-between h-full">
                     <div className="flex flex-col justify-between">
                       <div>
                         <div className="flex items-center gap-1.5 mb-2">
-                          <p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider">Total Deductions</p>
+                          <p className="text-[13px] font-bold text-accent-gold uppercase tracking-wider">Total Deductions</p>
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
@@ -746,11 +769,11 @@ const AdminReports = () => {
                             </TooltipContent>
                           </Tooltip>
                         </div>
-                        <p className="text-4xl font-bold text-[#BB8B26]">{peso(payStats.ded)}</p>
+                        <p className="text-4xl font-bold text-accent-gold">{peso(payStats.ded)}</p>
                       </div>
-                      <p className="text-xs text-[#BB8B26]/70 italic mt-4">Withholdings ledger volume</p>
+                      <p className="text-xs text-accent-gold/70 italic mt-4">Withholdings ledger volume</p>
                     </div>
-                    <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><KeyboardDoubleArrowDownIcon /></div>
+                    <div className="bg-accent-gold/20 text-accent-gold p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><KeyboardDoubleArrowDownIcon /></div>
                   </CardContent>
                 </Card>
               </div> 
@@ -759,12 +782,12 @@ const AdminReports = () => {
             {activeReport === "calendar" && (
               <div className="grid grid-cols-1 mb-6 w-full">
                 {/* Card 1: Total Logged Events */}
-                <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+                <Card className="border-t-5 border-brand-primary bg-white py-0 h-full">
                   <CardContent className="px-5 py-5 flex justify-between h-full">
                     <div className="flex flex-col justify-between">
                       <div>
                         <div className="flex items-center gap-1.5 mb-2">
-                          <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider">Total Logged Events</p>
+                          <p className="text-[13px] font-bold text-brand-primary uppercase tracking-wider">Total Logged Events</p>
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
@@ -774,11 +797,11 @@ const AdminReports = () => {
                             </TooltipContent>
                           </Tooltip>
                         </div>
-                        <p className="text-4xl font-bold text-[#2A174E]">{filteredCalendarData.length}</p>
+                        <p className="text-4xl font-bold text-brand-primary">{filteredCalendarData.length}</p>
                       </div>
-                      <p className="text-xs text-[#2A174E]/70 italic mt-4">Holidays and leave logs active in window</p>
+                      <p className="text-xs text-brand-primary/70 italic mt-4">Holidays and leave logs active in window</p>
                     </div>
-                    <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><EventNoteIcon /></div>
+                    <div className="bg-brand-primary/10 text-brand-primary p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><EventNoteIcon /></div>
                   </CardContent>
                 </Card>
               </div>
@@ -787,12 +810,12 @@ const AdminReports = () => {
             {activeReport === "requests" && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6 w-full">
                 {/* Card 1: Queue Total */}
-                <Card className="border-t-5 border-[#2A174E] bg-white py-0 h-full">
+                <Card className="border-t-5 border-brand-primary bg-white py-0 h-full">
                   <CardContent className="px-5 py-5 flex justify-between h-full items-center">
                     <div className="flex flex-col justify-between">
                       <div>
                         <div className="flex items-center gap-1.5 mb-1">
-                          <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider">Queue Total</p>
+                          <p className="text-[13px] font-bold text-brand-primary uppercase tracking-wider">Queue Total</p>
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
@@ -802,21 +825,21 @@ const AdminReports = () => {
                             </TooltipContent>
                           </Tooltip>
                         </div>
-                        <p className="text-4xl font-extrabold text-[#2A174E]">{requestStats.pending}</p>
+                        <p className="text-4xl font-extrabold text-brand-primary">{requestStats.pending}</p>
                       </div>
-                      <p className="text-xs text-[#2A174E]/70 font-medium italic mt-2">Pending review entries</p>
+                      <p className="text-xs text-brand-primary/70 font-medium italic mt-2">Pending review entries</p>
                     </div>
-                    <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0"><AccessTimeIcon /></div>
+                    <div className="bg-brand-primary/10 text-brand-primary p-3 rounded-lg flex items-center justify-center shrink-0"><AccessTimeIcon /></div>
                   </CardContent>
                 </Card>
 
                 {/* Card 2: Approved History */}
-                <Card className="border-t-5 border-[#3B4E17] bg-white py-0 h-full">
+                <Card className="border-t-5 border-accent-green bg-white py-0 h-full">
                   <CardContent className="px-5 py-5 flex justify-between h-full items-center">
                     <div className="flex flex-col justify-between">
                       <div>
                         <div className="flex items-center gap-1.5 mb-1">
-                          <p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider">Approved History</p>
+                          <p className="text-[13px] font-bold text-accent-green uppercase tracking-wider">Approved History</p>
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
@@ -826,21 +849,21 @@ const AdminReports = () => {
                             </TooltipContent>
                           </Tooltip>
                         </div>
-                        <p className="text-4xl font-extrabold text-[#3B4E17]">{requestStats.approved}</p>
+                        <p className="text-4xl font-extrabold text-accent-green">{requestStats.approved}</p>
                       </div>
-                      <p className="text-xs text-[#3B4E17]/70 font-medium italic mt-2">Accepted historical logs</p>
+                      <p className="text-xs text-accent-green/70 font-medium italic mt-2">Accepted historical logs</p>
                     </div>
-                    <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0"><CheckCircleOutlineIcon /></div>
+                    <div className="bg-accent-green/10 text-accent-green p-3 rounded-lg flex items-center justify-center shrink-0"><CheckCircleOutlineIcon /></div>
                   </CardContent>
                 </Card>
 
                 {/* Card 3: Rejected Records */}
-                <Card className="border-t-5 border-[#BB8B26] bg-white py-0 h-full">
+                <Card className="border-t-5 border-accent-gold bg-white py-0 h-full">
                   <CardContent className="px-5 py-5 flex justify-between h-full items-center">
                     <div className="flex flex-col justify-between">
                       <div>
                         <div className="flex items-center gap-1.5 mb-1">
-                          <p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider">Rejected Records</p>
+                          <p className="text-[13px] font-bold text-accent-gold uppercase tracking-wider">Rejected Records</p>
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
@@ -850,16 +873,16 @@ const AdminReports = () => {
                             </TooltipContent>
                           </Tooltip>
                         </div>
-                        <p className="text-4xl font-extrabold text-[#BB8B26]">{requestStats.rejected}</p>
+                        <p className="text-4xl font-extrabold text-accent-gold">{requestStats.rejected}</p>
                       </div>
-                      <p className="text-xs text-[#BB8B26]/70 font-medium italic mt-2">Declined system entries</p>
+                      <p className="text-xs text-accent-gold/70 font-medium italic mt-2">Declined system entries</p>
                     </div>
-                    <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0"><AssignmentLateIcon /></div>
+                    <div className="bg-accent-gold/20 text-accent-gold p-3 rounded-lg flex items-center justify-center shrink-0"><AssignmentLateIcon /></div>
                   </CardContent>
                 </Card>
 
                 {/* Card 4: Gross Logs Filed */}
-                <Card className="border-t-5 border-[#475569] bg-white py-0 h-full">
+                <Card className="border-t-5 border-slate-500 bg-white py-0 h-full">
                   <CardContent className="px-5 py-5 flex justify-between h-full items-center">
                     <div className="flex flex-col justify-between">
                       <div>
@@ -897,7 +920,7 @@ const AdminReports = () => {
               {(activeReport === "attendance" || activeReport === "payroll") && (
                 <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto flex-wrap">
                   {/* Year Selection */}
-                  <Select value={selectedYear || ""} onValueChange={(val) => setSelectedYear(val === "all" ? "" : val)}>
+                  <Select value={selectedYear || ""} onValueChange={(val) => { setHasManuallyFiltered(true); setSelectedYear(val === "all" ? "" : val); }}>
                     <SelectTrigger className="w-full sm:w-[110px] border-slate-200 bg-slate-50 font-medium text-slate-700">
                       <SelectValue placeholder="Year" />
                     </SelectTrigger>
@@ -910,7 +933,7 @@ const AdminReports = () => {
                   </Select>
 
                   {/* Month Selection */}
-                  <Select value={selectedMonth || ""} onValueChange={(val) => setSelectedMonth(val === "all" ? "" : val)}>
+                  <Select value={selectedMonth || ""} onValueChange={(val) => { setHasManuallyFiltered(true); setSelectedMonth(val === "all" ? "" : val); }}>
                     <SelectTrigger className="w-full sm:w-[140px] border-slate-200 bg-slate-50 font-medium text-slate-700">
                       <SelectValue placeholder="Month" />
                     </SelectTrigger>
@@ -923,7 +946,7 @@ const AdminReports = () => {
                   </Select>
 
                   {/* Period Selection (1st or 2nd) */}
-                  <Select value={selectedPeriod || ""} onValueChange={(val) => setSelectedPeriod(val === "all" ? "" : val)}>
+                  <Select value={selectedPeriod || ""} onValueChange={(val) => { setHasManuallyFiltered(true); setSelectedPeriod(val === "all" ? "" : val); }}>
                     <SelectTrigger className="w-full sm:w-[200px] border-slate-200 bg-slate-50 font-medium text-slate-700">
                       <SelectValue placeholder="Period" />
                     </SelectTrigger>
@@ -936,7 +959,7 @@ const AdminReports = () => {
                   </Select>
 
                   {/* Employee Selection */}
-                  <Select value={selectedEmployee || "All Employees"} onValueChange={setSelectedEmployee}>
+                  <Select value={selectedEmployee || "All Employees"} onValueChange={(val) => { setHasManuallyFiltered(true); setSelectedEmployee(val); }}>
                     <SelectTrigger className="w-full sm:w-[180px] border-slate-200 bg-slate-50 font-medium text-slate-700">
                       <SelectValue placeholder="All Employees" />
                     </SelectTrigger>
@@ -994,7 +1017,7 @@ const AdminReports = () => {
                       placeholder="Search key criteria..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-9 h-9 border-slate-200 focus-visible:ring-[#2A174E] w-full bg-slate-50"
+                      className="pl-9 h-9 border-slate-200 focus-visible:ring-brand-primary w-full bg-slate-50"
                     />
                   </div>
 
@@ -1056,7 +1079,7 @@ const AdminReports = () => {
                   {/* Attendance Report Table */}
                   {activeReport === "attendance" && (
                     <Table className="min-w-[1000px]">
-                      <TableHeader className="bg-[#2B174F]">
+                      <TableHeader className="bg-brand-primary">
                         <TableRow className="hover:bg-transparent border-b-0">
                           <TableHead className="font-semibold text-white py-4 px-6 uppercase text-xs tracking-wider">Emp ID</TableHead>
                           <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Employee Name</TableHead>
@@ -1070,14 +1093,15 @@ const AdminReports = () => {
                       </TableHeader>
                       <TableBody>
                         {currentData.map((r, i) => {
+                          const sNorm = (r.status || "").toLowerCase().replace(/[^a-z]/g, "");
                           let badgeStyle = "bg-slate-100 text-slate-800 font-bold";
-                          if (r.status === "On-Time") badgeStyle = "bg-green-100 text-green-800 font-bold";
-                          else if (r.status === "Late") badgeStyle = "bg-amber-100 text-amber-800 font-bold";
-                          else if (r.status === "Absent") badgeStyle = "bg-red-100 text-red-800 font-bold";
+                          if (sNorm === "ontime" || sNorm === "present" || sNorm === "exempt") badgeStyle = "bg-green-100 text-green-800 font-bold";
+                          else if (sNorm === "late") badgeStyle = "bg-amber-100 text-amber-800 font-bold";
+                          else if (sNorm === "absent") badgeStyle = "bg-red-100 text-red-800 font-bold";
 
                           return (
                             <TableRow key={i} className="hover:bg-slate-50 transition-colors border-b-slate-100">
-                              <TableCell className="font-bold text-[#2A174E] px-6 py-4">{formatUserId(r.user_Id)}</TableCell>
+                              <TableCell className="font-bold text-brand-primary px-6 py-4">{formatUserId(r.user_Id)}</TableCell>
                               <TableCell className="font-semibold text-slate-800 py-4">{r.userName}</TableCell>
                               <TableCell className="text-slate-600 py-4">{new Date(r.log_Date).toLocaleDateString()}</TableCell>
                               <TableCell className="text-slate-600 font-mono text-[13px] py-4">{r.time_In}</TableCell>
@@ -1102,7 +1126,7 @@ const AdminReports = () => {
                   {/* Payroll Report Table */}
                   {activeReport === "payroll" && (
                     <Table className="min-w-[1200px]">
-                      <TableHeader className="bg-[#2B174F]">
+                      <TableHeader className="bg-brand-primary">
                         <TableRow className="hover:bg-transparent border-b-0">
                           <TableHead className="font-semibold text-white py-4 px-6 uppercase text-xs tracking-wider">Emp ID</TableHead>
                           <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Employee Name</TableHead>
@@ -1124,7 +1148,7 @@ const AdminReports = () => {
                           
                           return (
                             <TableRow key={i} className="hover:bg-slate-50 transition-colors border-b-slate-100">
-                              <TableCell className="font-bold text-[#2A174E] px-6 py-4">{formatUserId(r.user_Id)}</TableCell>
+                              <TableCell className="font-bold text-brand-primary px-6 py-4">{formatUserId(r.user_Id)}</TableCell>
                               <TableCell className="font-semibold text-slate-800 py-4">{r.user_FirstName} {r.user_LastName}</TableCell>
                               <TableCell className="text-slate-500 text-xs py-4 font-medium">
                                 {new Date(r.period_Start).toLocaleDateString()} - <br/>{new Date(r.period_End).toLocaleDateString()}
@@ -1140,7 +1164,7 @@ const AdminReports = () => {
                               <TableCell className="text-right pr-6 py-4">
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon" asChild className="text-[#2A174E] hover:bg-[#f0ebfa]">
+                                    <Button variant="ghost" size="icon" asChild className="text-brand-primary hover:bg-brand-primary-light">
                                       <Link to={`/adminReports/payslip/${r.payrollId}`} state={{ fromTab: activeReport }}>
                                         <ReceiptLongIcon className="h-5 w-5" />
                                       </Link>
@@ -1166,7 +1190,7 @@ const AdminReports = () => {
                   {/* Calendar / Corporate Events Data Table Container */}
                   {activeReport === "calendar" && (
                     <Table className="min-w-[800px]">
-                      <TableHeader className="bg-[#2B174F]">
+                      <TableHeader className="bg-brand-primary">
                         <TableRow className="hover:bg-transparent border-b-0">
                           <TableHead className="font-semibold text-white py-4 px-6 uppercase text-xs tracking-wider">Date</TableHead>
                           <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Event Type</TableHead>
@@ -1186,7 +1210,7 @@ const AdminReports = () => {
                               <TableCell className="py-4">
                                 <Badge variant="secondary" className={typeBadge}>{r.type}</Badge>
                               </TableCell>
-                              <TableCell className="font-semibold text-[#2A174E] py-4">{r.name}</TableCell>
+                              <TableCell className="font-semibold text-brand-primary py-4">{r.name}</TableCell>
                               <TableCell className="text-slate-600 italic pr-6 py-4">{r.details || "—"}</TableCell>
                             </TableRow>
                           );
@@ -1203,7 +1227,7 @@ const AdminReports = () => {
                   {/* Requests Audit Ledger Table Panel */}
                   {activeReport === "requests" && (
                     <Table className="min-w-[1000px] md:min-w-full">
-                      <TableHeader className="bg-[#2A174E]">
+                      <TableHeader className="bg-brand-primary">
                         <TableRow className="hover:bg-transparent border-b-slate-200">
                           <TableHead className="font-semibold text-white py-4 px-6 uppercase text-xs tracking-wider">REQ ID</TableHead>
                           <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Employee</TableHead>
@@ -1217,7 +1241,7 @@ const AdminReports = () => {
                         {currentData.length > 0 ? (
                           currentData.map((req) => (
                             <TableRow key={req.emp_reqId} className="border-b-slate-100 hover:bg-slate-50/50 transition-colors">
-                              <TableCell className="font-bold text-[#2A174E] py-4 px-6">REQ-{req.emp_reqId}</TableCell>
+                              <TableCell className="font-bold text-brand-primary py-4 px-6">REQ-{req.emp_reqId}</TableCell>
                               <TableCell className="py-4">
                                 <p className="font-semibold text-slate-800">{req.userName}</p>
                                 <p className="text-[10px] text-slate-500 font-medium">{formatUserId(req.user_Id)}</p>
@@ -1273,7 +1297,7 @@ const AdminReports = () => {
         {/* Batch ZIP Modal Overlay */}
         <Dialog open={showBatchZipModal} onOpenChange={setShowBatchZipModal}>
           <DialogContent className="max-w-md bg-white p-0 overflow-hidden border-0 shadow-2xl">
-            <div className="bg-[#2A174E] p-6 text-white flex flex-col items-center text-center">
+            <div className="bg-brand-primary p-6 text-white flex flex-col items-center text-center">
               <div className="bg-white/10 p-4 rounded-full mb-4">
                 <ShieldIcon className="h-10 w-10 text-green-400" />
               </div>
@@ -1285,10 +1309,10 @@ const AdminReports = () => {
               <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl p-6 mb-6">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 text-center">File Encryption Password</p>
                 <div className="flex items-center justify-between gap-4 bg-white border border-slate-200 p-4 rounded-lg shadow-sm">
-                  <code className="text-lg font-black text-[#2A174E] tracking-tight">{zipPassword}</code>
+                  <code className="text-lg font-black text-brand-primary tracking-tight">{zipPassword}</code>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-9 w-9 text-slate-400 hover:text-[#2A174E] hover:bg-[#2A174E]/5" onClick={() => navigator.clipboard.writeText(zipPassword)}>
+                      <Button variant="ghost" size="icon" className="h-9 w-9 text-slate-400 hover:text-brand-primary hover:bg-brand-primary/5" onClick={() => navigator.clipboard.writeText(zipPassword)}>
                         <ContentCopyIcon className="h-4 w-4" />
                       </Button>
                     </TooltipTrigger>
@@ -1304,7 +1328,7 @@ const AdminReports = () => {
                   <div className="mt-0.5">⚠️</div>
                   <p>This password is required by anyone opening the ZIP. Make sure to share it with authorized personnel only.</p>
                 </div>
-                <Button onClick={confirmBatchZip} className="w-full bg-[#2A174E] hover:bg-[#1a0e30] text-white font-bold py-6 text-base shadow-lg shadow-[#2A174E]/20">Download Protected ZIP</Button>
+                <Button onClick={confirmBatchZip} className="w-full bg-brand-primary hover:bg-brand-primary-hover text-white font-bold py-6 text-base shadow-lg shadow-brand-primary/20">Download Protected ZIP</Button>
                 <Button variant="ghost" onClick={() => setShowBatchZipModal(false)} className="w-full text-slate-400 hover:text-slate-600 font-medium">Cancel Export</Button>
               </div>
             </div>

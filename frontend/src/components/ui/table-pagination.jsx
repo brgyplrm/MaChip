@@ -40,7 +40,7 @@ export const TablePagination = ({
           >
             Previous
           </Button>
-          <div className="flex items-center justify-center min-w-[28px] h-8 text-xs font-semibold text-[#2A174E] bg-[#2A174E]/10 rounded-md">
+          <div className="flex items-center justify-center min-w-[28px] h-8 text-xs font-semibold text-brand-primary bg-brand-primary/10 rounded-md">
             {currentPage}
           </div>
           <Button
@@ -102,7 +102,7 @@ export const TablePagination = ({
           Previous
         </Button>
         
-        <div className="flex items-center justify-center min-w-[32px] h-8 text-sm font-semibold text-[#2A174E] bg-[#2A174E]/10 rounded-md">
+        <div className="flex items-center justify-center min-w-[32px] h-8 text-sm font-semibold text-brand-primary bg-brand-primary/10 rounded-md">
           {currentPage}
         </div>
 

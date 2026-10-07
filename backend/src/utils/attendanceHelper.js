@@ -103,9 +103,17 @@ async function calculateMultiBucketHours(firstIn, lastOut, logDate, userShiftId,
     holidayMap[dStr].types.push(h.type);
     holidayMap[dStr].count++;
   });
+  const isNightShiftAllowed = Boolean(settings?.enableNightShift && userShiftId === 2);
   const startCursor = new Date(`${logDate}T${firstIn}`);
   let endCursor = new Date(`${logDate}T${lastOut}`);
-  if (endCursor < startCursor) endCursor.setDate(endCursor.getDate() + 1);
+  if (endCursor < startCursor) {
+    if (isNightShiftAllowed) {
+      endCursor.setDate(endCursor.getDate() + 1);
+    } else {
+      // Day shift or night shift disabled: invalid backwards range, no overnight rollover!
+      return result;
+    }
+  }
   const totalMinutes = Math.floor((endCursor - startCursor) / 60000);
   result.totalRawMinutes = totalMinutes;
   if (totalMinutes <= 0) return result;
@@ -164,34 +172,53 @@ async function calculateAndStoreAttendanceUnits(userId, logDate) {
     const mEnd   = settings?.morningShiftEnd?.substring(0, 5) || "17:30";
     
     // MIXED LOG LOGIC: Check if we should upgrade from Irregular (8) to a regular status
-    if (report.attendance_StatusId === 8) {
-      const firstRegularIn = inArr.find(t => t.substring(0, 5) >= "06:30" && t.substring(0, 5) < "17:30");
-      if (firstRegularIn) {
-        const graceTimeStr = settings?.gracePeriod || "08:35:00";
-        const graceTime = graceTimeStr.substring(0, 5);
-        const newStatus = (firstRegularIn.substring(0, 5) <= graceTime) ? 1 : 2;
-        await report.update({ attendance_StatusId: newStatus });
-        report.attendance_StatusId = newStatus;
+    const isNightShiftAllowed = Boolean(settings?.enableNightShift && user?.user_ShiftId === 2);
+    const shiftStart = isNightShiftAllowed ? (settings?.eveningShiftStart || "20:30:00") : (settings?.morningShiftStart || "08:30:00");
+    const shiftEnd = isNightShiftAllowed ? (settings?.eveningShiftEnd || "05:30:00") : (settings?.morningShiftEnd || "17:30:00");
+
+    const firstRegularIn = !isNightShiftAllowed ? inArr.find(t => t.substring(0, 5) >= "05:30" && t.substring(0, 5) < shiftEnd.substring(0, 5)) : inArr[0];
+    if (report.attendance_StatusId === 8 && firstRegularIn) {
+      const graceTimeStr = settings?.gracePeriod || "08:35:00";
+      const graceTime = graceTimeStr.substring(0, 5);
+      let newStatus = 1;
+      if (firstRegularIn.substring(0, 5) >= "12:00") {
+        newStatus = 4; // Half Day
+      } else if (firstRegularIn.substring(0, 5) > graceTime) {
+        newStatus = 2; // Late
       }
+      await report.update({ attendance_StatusId: newStatus });
+      report.attendance_StatusId = newStatus;
     }
 
-    let firstIn = inArr[0], lastOut = outArr[outArr.length - 1];
-    const shiftStart = (user?.user_ShiftId === 2) ? (settings?.eveningShiftStart || "20:30:00") : (settings?.morningShiftStart || "08:30:00");
-    const shiftEnd = (user?.user_ShiftId === 2) ? (settings?.eveningShiftEnd || "05:30:00") : (settings?.morningShiftEnd || "17:30:00");
+    let firstIn = (!isNightShiftAllowed && firstRegularIn) ? firstRegularIn : inArr[0];
+    let lastOut = outArr[outArr.length - 1];
     
     // Clamp to shift boundaries for REGULAR hours calculation
-    if (firstIn && firstIn < shiftStart && user?.user_ShiftId !== 2) firstIn = shiftStart;
-    if (!dayOT && lastOut && lastOut > shiftEnd && user?.user_ShiftId !== 2) lastOut = shiftEnd;
+    if (firstIn && firstIn < shiftStart && !isNightShiftAllowed) firstIn = shiftStart;
+    if (!dayOT && lastOut && lastOut > shiftEnd && !isNightShiftAllowed) lastOut = shiftEnd;
     
-    const stats = await calculateMultiBucketHours(firstIn, lastOut, logDate, user?.user_ShiftId, settings, holidays);
+    let stats = { reg_hrs: 0, nd_hrs: 0, ot_hrs: 0, hol_hrs: 0, totalPayableHours: 0 };
+    if (!firstIn || !lastOut || (firstIn >= shiftEnd && !dayOT && !isNightShiftAllowed)) {
+      // Outside shift hours without approved OT, 0 hours
+    } else {
+      stats = await calculateMultiBucketHours(firstIn, lastOut, logDate, isNightShiftAllowed ? 2 : 1, settings, holidays);
+    }
     
-    // If status is Incidental Visit (7) or Irregular (8), zero out the payable hours
-    if (report.attendance_StatusId === 7 || report.attendance_StatusId === 8) {
+    // If status is Incidental Visit (7), Irregular (8), or Absent (3), zero out the payable hours
+    if (report.attendance_StatusId === 7 || report.attendance_StatusId === 8 || report.attendance_StatusId === 3) {
       stats.reg_hrs = 0;
       stats.nd_hrs = 0;
       stats.ot_hrs = 0;
       stats.hol_hrs = 0;
       stats.totalPayableHours = 0;
+    } else {
+      // Threshold check: Zero out regular payable hours if below workHourThreshold (default 4.0 hrs)
+      const threshold = settings?.workHourThreshold !== undefined ? parseFloat(settings.workHourThreshold) : 4.0;
+      const isExempt = Boolean(user?.is_time_exempt) || (user?.user_RoleId === 1);
+      if (!isExempt && stats.reg_hrs < threshold) {
+        stats.reg_hrs = 0;
+        stats.totalPayableHours = Math.round((stats.ot_hrs + stats.nd_hrs + stats.hol_hrs) * 100) / 100;
+      }
     }
 
     await report.update({ reg_hrs: stats.reg_hrs, nd_hrs: stats.nd_hrs, ot_hrs: stats.ot_hrs, holiday_hrs: stats.hol_hrs, total_payable_hrs: stats.totalPayableHours });
@@ -203,30 +230,42 @@ function mapLogsToBuckets(inArr, outArr, settings, otStartTime = null) {
   let ins = (inArr || []).map(t => t.substring(0, 5)).filter(t => t && t !== "—" && t !== "00:00").sort();
   let outs = (outArr || []).map(t => t.substring(0, 5)).filter(t => t && t !== "—" && t !== "00:00").sort();
   
-  // Define thresholds
-  const irregularStart = "17:30";
-  const irregularEnd = "06:30";
+  // Define thresholds (allow all valid timestamps across the 24-hour cycle)
+  const irregularStart = "23:59";
+  const irregularEnd = "00:00";
 
-  // Filter Ins: Must be within regular window OR approved OT
+  // Filter Ins: Keep all valid timestamps
   ins = ins.filter(time => {
     if (otStartTime && time >= otStartTime) return true;
     const mins = timeToMins(time);
-    return mins >= timeToMins(irregularEnd) && mins < timeToMins(irregularStart);
+    return mins >= timeToMins(irregularEnd) && mins <= timeToMins(irregularStart);
   });
 
-  // Filter Outs: More lenient. Allow anything after the earliest possible shift start.
-  // This allows the 5:30 PM clock-out and even late clock-outs (e.g., 6:00 PM) to show up.
+  // Filter Outs: Allow shift clock-outs
   outs = outs.filter(time => {
+    if (otStartTime && time >= otStartTime) return true;
     const mins = timeToMins(time);
-    return mins >= timeToMins(irregularEnd);
+    return mins >= timeToMins(irregularEnd) && mins <= timeToMins(irregularStart);
   });
 
-  if (ins.length === 0 && outs.length === 0) return { morning_In: "—", morning_Out: "—", afternoon_In: "—", afternoon_Out: "—" };
-
-  const morning_In = ins[0] || "—";
+  let morning_In = "—";
   let morning_Out = "—";
   let afternoon_In = "—";
   let afternoon_Out = "—";
+
+  // If first In is at or after 12:00 PM noon, it is Afternoon In
+  if (ins.length > 0 && timeToMins(ins[0]) >= 720) {
+    afternoon_In = ins[0];
+    const matchingOuts = outs.filter(o => timeToMins(o) >= timeToMins(afternoon_In));
+    if (matchingOuts.length > 0) {
+      afternoon_Out = matchingOuts[matchingOuts.length - 1];
+    }
+    return { morning_In, morning_Out, afternoon_In, afternoon_Out };
+  }
+
+  if (ins.length > 0) {
+    morning_In = ins[0];
+  }
 
   // Identify Lunch Interval (Typically 30-70 minutes)
   let foundLunchBreak = false;

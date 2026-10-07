@@ -13,7 +13,7 @@ import { fetchWithAuth } from "../../utils/api";
 
 // UI Components
 import { Input } from "@/components/ui/input";
-import { Search } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,17 +29,95 @@ const Profile = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [monthFilter, setMonthFilter] = useState("All");
+
+  // Derive unique months available in user's attendance history
+  const availableMonths = useMemo(() => {
+    const monthsMap = new Map();
+    attendanceLogs.forEach((log) => {
+      if (!log.log_Date) return;
+      const d = new Date(log.log_Date + "T00:00:00");
+      if (isNaN(d.getTime())) return;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const label = d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+      if (!monthsMap.has(key)) {
+        monthsMap.set(key, label);
+      }
+    });
+    return Array.from(monthsMap.entries())
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([key, label]) => ({ value: key, label }));
+  }, [attendanceLogs]);
+
+  const isFiltering = searchQuery.trim() !== "" || statusFilter !== "All" || monthFilter !== "All";
+
+  const handleClearFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("All");
+    setMonthFilter("All");
+    setCurrentPage(1);
+  };
 
   // Memoized Pagination & Filtering Logic
   const { paginatedLogs, totalItems, totalPages, startIndex, endIndex } = useMemo(() => {
     // 1. Filter
-    const filtered = attendanceLogs.filter(log => {
-      const dateStr = log.log_Date ? new Date(log.log_Date).toLocaleDateString() : "";
-      return (
-        (log.logStatus?.toLowerCase().includes(searchQuery.toLowerCase())) || 
-        (log.attendanceStatus?.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (dateStr.includes(searchQuery))
-      );
+    const q = searchQuery.toLowerCase().trim();
+    const filtered = attendanceLogs.filter((log) => {
+      // A. Status Filter
+      if (statusFilter !== "All") {
+        const rawStatus = (log.attendanceStatus || "").toLowerCase();
+        const filterKey = statusFilter.toLowerCase();
+        if (filterKey === "on time") {
+          if (!rawStatus.includes("on time") && !rawStatus.includes("present") && !rawStatus.includes("exempt")) return false;
+        } else if (filterKey === "late") {
+          if (!rawStatus.includes("late")) return false;
+        } else if (filterKey === "absent") {
+          if (!rawStatus.includes("absent")) return false;
+        } else if (filterKey === "half day") {
+          if (!rawStatus.includes("half")) return false;
+        } else if (filterKey === "on-field") {
+          if (!rawStatus.includes("field")) return false;
+        } else {
+          if (!rawStatus.includes(filterKey)) return false;
+        }
+      }
+
+      // B. Month Filter
+      if (monthFilter !== "All") {
+        if (!log.log_Date || !log.log_Date.startsWith(monthFilter)) return false;
+      }
+
+      // C. Search Query
+      if (q) {
+        const dateObj = log.log_Date ? new Date(log.log_Date + "T00:00:00") : null;
+        const dateFormatted = dateObj ? dateObj.toLocaleDateString("en-US", { weekday: "short", year: "numeric", month: "short", day: "numeric" }).toLowerCase() : "";
+        const dateFullMonth = dateObj ? dateObj.toLocaleDateString("en-US", { month: "long" }).toLowerCase() : "";
+        const dateNumeric = dateObj ? dateObj.toLocaleDateString().toLowerCase() : "";
+        const dateIso = String(log.log_Date || "").toLowerCase();
+        const timeIn = String(formatTime12h(log.time_In) || "").toLowerCase();
+        const timeOut = String(formatTime12h(log.time_Out) || "").toLowerCase();
+        const rawIn = String(log.time_In || "").toLowerCase();
+        const rawOut = String(log.time_Out || "").toLowerCase();
+        const logStatus = String(log.logStatus || "").toLowerCase();
+        const attStatus = String(log.attendanceStatus || "").toLowerCase();
+
+        const matches = (
+          dateFormatted.includes(q) ||
+          dateFullMonth.includes(q) ||
+          dateNumeric.includes(q) ||
+          dateIso.includes(q) ||
+          timeIn.includes(q) ||
+          timeOut.includes(q) ||
+          rawIn.includes(q) ||
+          rawOut.includes(q) ||
+          logStatus.includes(q) ||
+          attStatus.includes(q)
+        );
+        if (!matches) return false;
+      }
+
+      return true;
     });
 
     // 2. Paginate
@@ -55,12 +133,12 @@ const Profile = () => {
       startIndex: start,
       endIndex: end
     };
-  }, [attendanceLogs, searchQuery, currentPage, itemsPerPage]);
+  }, [attendanceLogs, searchQuery, statusFilter, monthFilter, currentPage, itemsPerPage]);
 
   // Reset page when filtering
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, itemsPerPage]);
+  }, [searchQuery, statusFilter, monthFilter, itemsPerPage]);
 
   useEffect(() => {
     const fetchProfileData = async () => {
@@ -121,11 +199,11 @@ const Profile = () => {
           {/* Header Section */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-[#2A174E]">User Profile</h1>
+              <h1 className="text-2xl md:text-3xl font-bold text-brand-primary">User Profile</h1>
               <span className="text-sm text-slate-500 mt-1 block">View and manage your personal information and activity history.</span>
             </div>
             {user && (
-              <Button asChild className="w-full md:w-auto bg-[#2A174E] text-white hover:bg-[#1a0e30] shadow-sm h-10">
+              <Button asChild className="w-full md:w-auto bg-brand-primary text-white hover:bg-brand-primary-hover shadow-sm h-10">
                 <Link to={`/users/edit/${user.user_Id}`}>
                   <EditOutlinedIcon className="mr-2 h-4 w-4" /> Edit Profile
                 </Link>
@@ -151,11 +229,11 @@ const Profile = () => {
             <>
               {/* Hero Banner Section */}
               <Card className="bg-white border-0 shadow-sm mb-6 relative overflow-hidden py-0">
-                <div className="h-28 bg-gradient-to-r from-[#2A174E] to-[#45297e]"></div>
+                <div className="h-28 bg-gradient-to-r from-brand-primary to-[#45297e]"></div>
                 <CardContent className="px-6 pb-6 pt-0 relative">
                   <div className="flex flex-col md:flex-row items-center md:items-end gap-6 -mt-12">
                     <div className="w-28 h-28 rounded-full bg-white p-1.5 shadow-md">
-                      <div className="w-full h-full rounded-full bg-[#f0ebfa] text-[#4a2b8c] flex items-center justify-center text-4xl font-black uppercase tracking-widest">
+                      <div className="w-full h-full rounded-full bg-brand-primary-light text-[#4a2b8c] flex items-center justify-center text-4xl font-black uppercase tracking-widest">
                         {user.user_FirstName?.[0]}{user.user_LastName?.[0]}
                       </div>
                     </div>
@@ -182,12 +260,12 @@ const Profile = () => {
                   <CardContent className="px-5 py-5 flex justify-between h-full">
                     <div className="flex flex-col justify-between">
                       <div>
-                        <p className="text-[13px] font-bold text-[#2A174E] uppercase tracking-wider mb-2">Account Identifier</p>
-                        <p className="text-3xl font-bold text-[#2A174E] font-mono">{formatUserId(user.user_Id)}</p>
+                        <p className="text-[13px] font-bold text-brand-primary uppercase tracking-wider mb-2">Account Identifier</p>
+                        <p className="text-3xl font-bold text-brand-primary font-mono">{formatUserId(user.user_Id)}</p>
                       </div>
-                      <p className="text-xs text-[#2A174E]/70 italic mt-4">System generated employee ID</p>
+                      <p className="text-xs text-brand-primary/70 italic mt-4">System generated employee ID</p>
                     </div>
-                    <div className="bg-[#2A174E]/10 text-[#2A174E] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                    <div className="bg-brand-primary/10 text-brand-primary p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                       <BadgeOutlinedIcon className="h-6 w-6" />
                     </div>
                   </CardContent>
@@ -197,12 +275,12 @@ const Profile = () => {
                   <CardContent className="px-5 py-5 flex justify-between h-full">
                     <div className="flex flex-col justify-between">
                       <div>
-                        <p className="text-[13px] font-bold text-[#3B4E17] uppercase tracking-wider mb-2">System Role</p>
-                        <p className="text-3xl font-bold text-[#3B4E17]">{user.user_Role}</p>
+                        <p className="text-[13px] font-bold text-accent-green uppercase tracking-wider mb-2">System Role</p>
+                        <p className="text-3xl font-bold text-accent-green">{user.user_Role}</p>
                       </div>
-                      <p className="text-xs text-[#3B4E17]/70 italic mt-4">Current authorization access level</p>
+                      <p className="text-xs text-accent-green/70 italic mt-4">Current authorization access level</p>
                     </div>
-                    <div className="bg-[#3B4E17]/10 text-[#3B4E17] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                    <div className="bg-accent-green/10 text-accent-green p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                       <AdminPanelSettingsOutlinedIcon className="h-6 w-6" />
                     </div>
                   </CardContent>
@@ -212,14 +290,14 @@ const Profile = () => {
                   <CardContent className="px-5 py-5 flex justify-between h-full">
                     <div className="flex flex-col justify-between">
                       <div>
-                        <p className="text-[13px] font-bold text-[#BB8B26] uppercase tracking-wider mb-2">MaChip Biometrics</p>
-                        <p className="text-2xl font-bold text-[#BB8B26] font-mono leading-tight max-w-[200px] truncate">
+                        <p className="text-[13px] font-bold text-accent-gold uppercase tracking-wider mb-2">MaChip Biometrics</p>
+                        <p className="text-2xl font-bold text-accent-gold font-mono leading-tight max-w-[200px] truncate">
                           {user.user_MachipId || "Unlinked"}
                         </p>
                       </div>
-                      <p className="text-xs text-[#BB8B26]/70 italic mt-4">Hardware authentication token</p>
+                      <p className="text-xs text-accent-gold/70 italic mt-4">Hardware authentication token</p>
                     </div>
-                    <div className="bg-[#BB8B26]/20 text-[#BB8B26] p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                    <div className="bg-accent-gold/20 text-accent-gold p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                       <FingerprintOutlinedIcon className="h-6 w-6" />
                     </div>
                   </CardContent>
@@ -227,9 +305,9 @@ const Profile = () => {
               </div>
 
               {/* Chart Section */}
-              <Card className="bg-gradient-to-r from-[#F8FAFC] to-[#FAF2FF] border border-slate-200/80 shadow-sm mb-6 overflow-hidden">
+              <Card className="bg-white border border-slate-200/80 shadow-sm mb-6 overflow-hidden">
                 <CardHeader className="border-b border-slate-100 pb-4">
-                  <CardTitle className="text-lg font-bold text-[#2A174E]">Attendance Consistency (Last 6 Months)</CardTitle>
+                  <CardTitle className="text-lg font-bold text-slate-800">Attendance Consistency (Last 6 Months)</CardTitle>
                 </CardHeader>
                 <CardContent className="pt-6 pb-4 overflow-x-auto overflow-y-hidden">
                   <div className="w-full h-[260px] min-w-[600px] overflow-hidden">
@@ -243,25 +321,68 @@ const Profile = () => {
 
               {/* Table Section */}
               <Card className="border border-slate-200/80 shadow-sm bg-white mb-6 overflow-hidden">
-                <CardHeader className="border-b border-slate-100 py-4 px-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-50/50">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-2 bg-[#2A174E]/10 rounded-lg text-[#2A174E] shrink-0">
-                      <BadgeOutlinedIcon className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg font-bold text-[#2A174E]">Personal Attendance Logs</CardTitle>
-                      <p className="text-xs text-slate-400 font-medium">Historical records of daily time ins, time outs, and attendance status</p>
+                <CardHeader className="border-b border-slate-100 py-4 px-6 bg-slate-50/50 space-y-4">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 bg-slate-100 rounded-lg text-slate-700 shrink-0">
+                        <BadgeOutlinedIcon className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-lg font-bold text-slate-800">Personal Attendance Logs</CardTitle>
+                        <p className="text-xs text-slate-500 font-medium">Historical records of daily time ins, time outs, and attendance status</p>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 w-full sm:w-auto">
-                    <div className="relative w-full sm:w-64">
+
+                  {/* Filter Controls Bar */}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1">
+                    <div className="relative flex-1 min-w-[200px]">
                       <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
                       <Input 
-                        placeholder="Search date or status..." 
-                        className="pl-9 h-9 text-xs bg-white border-slate-200 focus-visible:ring-[#2A174E]"
+                        placeholder="Search date, time, status..." 
+                        className="pl-9 h-9 text-xs bg-white border-slate-200 focus-visible:ring-slate-400"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)} 
                       />
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Select value={statusFilter} onValueChange={setStatusFilter}>
+                        <SelectTrigger className="h-9 w-full sm:w-[160px] text-xs bg-white border-slate-200">
+                          <SelectValue placeholder="All Statuses" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="All">All Statuses</SelectItem>
+                          <SelectItem value="On Time">On Time / Present</SelectItem>
+                          <SelectItem value="Late">Late</SelectItem>
+                          <SelectItem value="Absent">Absent</SelectItem>
+                          <SelectItem value="Half Day">Half Day</SelectItem>
+                          <SelectItem value="On-Field">On Field</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <Select value={monthFilter} onValueChange={setMonthFilter}>
+                        <SelectTrigger className="h-9 w-full sm:w-[170px] text-xs bg-white border-slate-200">
+                          <SelectValue placeholder="All Months" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="All">All Months</SelectItem>
+                          {availableMonths.map((m) => (
+                            <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      {isFiltering && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleClearFilters}
+                          className="h-9 px-2.5 text-xs text-slate-500 hover:text-rose-600 hover:bg-rose-50 font-medium"
+                        >
+                          <X className="h-3.5 w-3.5 mr-1" /> Clear
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardHeader>
@@ -269,13 +390,13 @@ const Profile = () => {
                 <CardContent className="p-0 flex flex-col justify-between min-h-[460px]">
                   <div className="overflow-x-auto flex-1">
                     <Table>
-                      <TableHeader className="bg-[#2A174E]">
+                      <TableHeader className="bg-slate-50/80 border-b border-slate-200">
                         <TableRow className="h-11 hover:bg-transparent border-b-0">
-                          <TableHead className="font-bold text-white uppercase text-[10px] tracking-wider py-3.5 px-6">Date</TableHead>
-                          <TableHead className="font-bold text-white text-center uppercase text-[10px] tracking-wider py-3.5">Time In</TableHead>
-                          <TableHead className="font-bold text-white text-center uppercase text-[10px] tracking-wider py-3.5">Time Out</TableHead>
-                          <TableHead className="font-bold text-white text-center uppercase text-[10px] tracking-wider py-3.5">Log Type</TableHead>
-                          <TableHead className="font-bold text-white text-center uppercase text-[10px] tracking-wider py-3.5 px-6">Attendance Status</TableHead>
+                          <TableHead className="font-semibold text-slate-600 uppercase text-[11px] tracking-wider py-3.5 px-6">Date</TableHead>
+                          <TableHead className="font-semibold text-slate-600 text-center uppercase text-[11px] tracking-wider py-3.5">Time In</TableHead>
+                          <TableHead className="font-semibold text-slate-600 text-center uppercase text-[11px] tracking-wider py-3.5">Time Out</TableHead>
+                          <TableHead className="font-semibold text-slate-600 text-center uppercase text-[11px] tracking-wider py-3.5">Log Type</TableHead>
+                          <TableHead className="font-semibold text-slate-600 text-center uppercase text-[11px] tracking-wider py-3.5 px-6">Attendance Status</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -285,16 +406,18 @@ const Profile = () => {
                             const isPresent = rawStatus.includes("present") || rawStatus.includes("on time");
                             const isLate = rawStatus.includes("late");
                             const isAbsent = rawStatus.includes("absent");
+                            const isHalfDay = rawStatus.includes("half");
+                            const isOnField = rawStatus.includes("field");
 
                             return (
                               <TableRow key={log.sessionId || index} className="h-12 border-b border-slate-100 hover:bg-slate-50/70 transition-colors">
                                 <TableCell className="py-2.5 px-6">
-                                  <span className="font-bold text-[#2A174E] text-xs block">
-                                    {log.log_Date ? new Date(log.log_Date).toLocaleDateString("en-US", { weekday: "short", year: "numeric", month: "short", day: "numeric" }) : "—"}
+                                  <span className="font-semibold text-slate-800 text-xs block">
+                                    {log.log_Date ? new Date(log.log_Date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", year: "numeric", month: "short", day: "numeric" }) : "—"}
                                   </span>
                                 </TableCell>
                                 <TableCell className="text-center py-2.5">
-                                  <span className="font-mono text-xs font-bold text-emerald-800 bg-emerald-50/90 border border-emerald-200/80 px-2.5 py-1 rounded-md inline-block">
+                                  <span className="font-mono text-xs font-semibold text-emerald-800 bg-emerald-50/90 border border-emerald-200/80 px-2.5 py-1 rounded-md inline-block">
                                     {formatTime12h(log.time_In)}
                                   </span>
                                 </TableCell>
@@ -304,7 +427,7 @@ const Profile = () => {
                                   </span>
                                 </TableCell>
                                 <TableCell className="text-center py-2.5">
-                                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border ${
+                                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold tracking-wide border ${
                                     log.logStatus?.includes("In")
                                       ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                                       : log.logStatus?.includes("Out")
@@ -318,14 +441,18 @@ const Profile = () => {
                                   </span>
                                 </TableCell>
                                 <TableCell className="text-center py-2.5 px-6">
-                                  <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wide shadow-2xs ${
+                                  <span className={`inline-block px-3 py-1 rounded-full text-[11px] font-semibold tracking-wide border ${
                                     isPresent
-                                      ? "bg-emerald-500 text-white"
+                                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                                       : isLate
-                                      ? "bg-amber-400 text-slate-950"
+                                      ? "bg-amber-50 text-amber-700 border-amber-200"
                                       : isAbsent
-                                      ? "bg-rose-500 text-white"
-                                      : "bg-slate-100 text-slate-600 border border-slate-200"
+                                      ? "bg-rose-50 text-rose-700 border-rose-200"
+                                      : isHalfDay
+                                      ? "bg-blue-50 text-blue-700 border-blue-200"
+                                      : isOnField
+                                      ? "bg-purple-50 text-purple-700 border-purple-200"
+                                      : "bg-slate-100 text-slate-600 border-slate-200"
                                   }`}>
                                     {log.attendanceStatus !== "—" ? log.attendanceStatus : "—"}
                                   </span>
@@ -335,8 +462,8 @@ const Profile = () => {
                           })
                         ) : (
                           <TableRow className="h-48">
-                            <TableCell colSpan={5} className="text-center py-12 text-slate-400 italic">
-                              No attendance records found.
+                            <TableCell colSpan={5} className="text-center py-12 text-slate-400 text-sm italic">
+                              {isFiltering ? "No attendance records match your filter criteria." : "No attendance records found."}
                             </TableCell>
                           </TableRow>
                         )}
