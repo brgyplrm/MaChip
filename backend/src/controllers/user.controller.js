@@ -551,12 +551,13 @@ exports.deleteUser = async (req, res) => {
 
     // 1. Get current hardware info to handle MachipId prefixing and slot deletion
     const hardwareResult = await sequelize.query(
-      `SELECT "user_MachipId", "user_FingerprintId" FROM "User_Hardware" WHERE "user_Id" = :user_Id`,
+      `SELECT "user_MachipId", "user_FingerprintId", "user_FingerprintId2" FROM "User_Hardware" WHERE "user_Id" = :user_Id`,
       { replacements: { user_Id }, type: QueryTypes.SELECT }
     );
     
     const currentMachipId = hardwareResult.length > 0 ? hardwareResult[0].user_MachipId : null;
     const currentFpSlot = hardwareResult.length > 0 ? hardwareResult[0].user_FingerprintId : null;
+    const currentFpSlot2 = hardwareResult.length > 0 ? hardwareResult[0].user_FingerprintId2 : null;
     // Append unique suffix to MachipId to free it up for others
     const archivedMachipId = currentMachipId ? `${currentMachipId}-ARCHIVED-${user_Id}` : null;
 
@@ -574,6 +575,8 @@ exports.deleteUser = async (req, res) => {
              "user_MachipId" = :archivedMachipId, 
              "user_FingerprintId" = NULL, 
              "user_FingerprintTemplate" = NULL,
+             "user_FingerprintId2" = NULL,
+             "user_FingerprintTemplate2" = NULL,
              "updatedAt" = :now
          WHERE "user_Id" = :user_Id`,
         { replacements: { user_Id, now: nowStr, archivedMachipId }, type: QueryTypes.UPDATE },
@@ -581,6 +584,9 @@ exports.deleteUser = async (req, res) => {
 
       if (currentFpSlot) {
         queueSlotDeletion(currentFpSlot);
+      }
+      if (currentFpSlot2) {
+        queueSlotDeletion(currentFpSlot2);
       }
 
       const user = await sequelize.query(`SELECT * FROM "User" WHERE "user_Id" = :user_Id`, { replacements: { user_Id }, type: QueryTypes.SELECT });
@@ -1739,7 +1745,32 @@ exports.batchRegisterUsers = async (req, res) => {
       return res.status(400).json({ error: "CSV file is empty or missing data." });
     }
 
-    const headers = lines[0].split(',').map(h => h.trim());
+    // Helper to parse CSV lines safely supporting quotes and commas
+    const parseCsvLine = (line) => {
+      const result = [];
+      let current = '';
+      let inQuotes = false;
+      for (let idx = 0; idx < line.length; idx++) {
+        const char = line[idx];
+        if (char === '"') {
+          if (inQuotes && line[idx + 1] === '"') {
+            current += '"';
+            idx++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (char === ',' && !inQuotes) {
+          result.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      result.push(current.trim());
+      return result;
+    };
+
+    const headers = parseCsvLine(lines[0]);
     const usersData = [];
 
     // Map headers to indices
@@ -1753,9 +1784,23 @@ exports.batchRegisterUsers = async (req, res) => {
       }
     }
 
-    // Role and Status Maps
-    const roleMap = { "Admin Manager": 1, "Supervisor": 2, "Employee": 3, "Admin Accountant": 4 };
-    const statusMap = { "Regular": 1, "Probationary": 2 };
+    // Role and Status Maps (case-insensitive)
+    const roleMap = {
+      "admin manager": 1,
+      "supervisor": 2,
+      "employee": 3,
+      "admin accountant": 4,
+      "admin": 1
+    };
+    const statusMap = {
+      "regular": 1,
+      "probationary": 2,
+      "active": 1,
+      "resigned": 3,
+      "terminated": 4,
+      "separated": 5,
+      "retired": 6
+    };
 
     // Bank Normalization Map
     const bankMap = {
@@ -1783,8 +1828,12 @@ exports.batchRegisterUsers = async (req, res) => {
     const currentYear = now.getFullYear();
 
     for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].split(',').map(c => c.trim());
-      if (cols.length < headers.length) continue;
+      const cols = parseCsvLine(lines[i]);
+      if (cols.length < headers.length) {
+        results.failed++;
+        results.errors.push(`Row ${i + 1}: Column count mismatch (expected ${headers.length}, got ${cols.length})`);
+        continue;
+      }
 
       const userData = {};
       headers.forEach((h, idx) => {
@@ -1820,8 +1869,31 @@ exports.batchRegisterUsers = async (req, res) => {
         );
         const nextId = (maxIdResult.maxId ? parseInt(maxIdResult.maxId) : 0) + 1;
 
-        const roleId = roleMap[userData.user_Role] || 3;
-        const statusId = statusMap[userData.user_EmploymentStatus] || 1;
+        const roleKey = (userData.user_Role || "").toLowerCase().trim();
+        const statusKey = (userData.user_EmploymentStatus || "").toLowerCase().trim();
+        const roleId = roleMap[roleKey] || 3;
+        const statusId = statusMap[statusKey] || 1;
+
+        // Normalize Tax Status (DB is VARCHAR(5)): map "Single" -> "S", "Married" -> "M"
+        let normalizedTax = (userData.taxStatus || "S").trim().toUpperCase();
+        if (normalizedTax.startsWith("M")) normalizedTax = "M";
+        else if (normalizedTax.startsWith("S")) normalizedTax = "S";
+        else normalizedTax = normalizedTax.substring(0, 5);
+
+        // Normalize solo parent boolean
+        const soloParentStr = String(userData.is_solo_parent || "").toLowerCase().trim();
+        const isSoloParentBool = soloParentStr === "true" || soloParentStr === "1" || soloParentStr === "yes";
+
+        // Normalize hire date format (YYYY-MM-DD)
+        let normalizedHireDate = userData.hireDate ? userData.hireDate.trim() : null;
+        if (normalizedHireDate && !/^\d{4}-\d{2}-\d{2}$/.test(normalizedHireDate)) {
+          const parsedDate = new Date(normalizedHireDate);
+          if (!isNaN(parsedDate.getTime())) {
+            normalizedHireDate = parsedDate.toISOString().split('T')[0];
+          } else {
+            normalizedHireDate = null;
+          }
+        }
 
         // Bank Normalization
         let normalizedBank = userData.bank_Company || "UnionBank of the Philippines";
@@ -1872,11 +1944,11 @@ exports.batchRegisterUsers = async (req, res) => {
                 statusId,
                 department: userData.department || null,
                 position: userData.position || null,
-                hireDate: userData.hireDate || null,
-                taxStatus: userData.taxStatus || "S",
+                hireDate: normalizedHireDate,
+                taxStatus: normalizedTax,
                 user_Gender: userData.user_Gender || null,
                 civil_status: userData.civil_status || "Single",
-                is_solo_parent: userData.is_solo_parent === "true" || userData.is_solo_parent === true,
+                is_solo_parent: isSoloParentBool,
                 now: nowStr
               },
               type: QueryTypes.INSERT,
@@ -1916,7 +1988,6 @@ exports.batchRegisterUsers = async (req, res) => {
           );
 
           // 5. Initialize Leave_Balance for the current year
-          const isSoloParentBool = userData.is_solo_parent === "true" || userData.is_solo_parent === true;
           const soloParentCredit = isSoloParentBool ? 7 : 0;
           await sequelize.query(
             `INSERT INTO "Leave_Balance" 
@@ -1957,7 +2028,30 @@ exports.batchRegisterUsers = async (req, res) => {
     // Clean up uploaded file
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
 
-    res.status(200).json({
+    // Audit log batch upload action
+    await logAudit(
+      req,
+      req.user?.user_Id || 1,
+      "User Management",
+      "BATCH_REGISTER_USERS",
+      "User",
+      null,
+      null,
+      { success: results.success, failed: results.failed, total: lines.length - 1, errors: results.errors.slice(0, 5) }
+    );
+
+    // If completely failed, return 400 Bad Request
+    if (results.success === 0 && results.failed > 0) {
+      return res.status(400).json({
+        error: `Batch upload failed: all ${results.failed} records failed validation.`,
+        message: `Processed ${lines.length - 1} rows. 0 succeeded, ${results.failed} failed.`,
+        results
+      });
+    }
+
+    // Return 207 Multi-Status if partial, 200 OK if completely successful
+    const statusCode = results.failed > 0 ? 207 : 200;
+    res.status(statusCode).json({
       message: `Processed ${lines.length - 1} rows. ${results.success} succeeded, ${results.failed} failed.`,
       results
     });

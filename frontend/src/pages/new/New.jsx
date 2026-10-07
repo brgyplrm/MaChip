@@ -286,7 +286,12 @@ const New = ({ inputs = [], title }) => {
       });
       const data = await response.json();
 
-      if (response.ok) {
+      if (data.cancelled) {
+        console.log("[HARDWARE] RFID scan aborted/cancelled.");
+        return;
+      }
+
+      if (response.ok && data.rfid) {
         // Check for duplicates
         const checkResponse = await fetchWithAuth(`/api/users/check-machip/${data.rfid}`, {
           signal: abortController.signal
@@ -299,6 +304,9 @@ const New = ({ inputs = [], title }) => {
         } else {
           setLocalScannedId(data.rfid);
         }
+      } else if (response.status === 400 && data.rfid) {
+        setRfidError(data.error || "This MaChip ID is already assigned to another user.");
+        setLocalScannedId(data.rfid);
       } else {
         setRfidError(data.error || "Failed to scan RFID. Please try again.");
         if (data.rfid) setLocalScannedId(data.rfid);
@@ -457,7 +465,7 @@ const New = ({ inputs = [], title }) => {
   // --- BATCH PROCESSING LOGIC ---
   const downloadCsvTemplate = () => {
     const headers = "user_FirstName,user_LastName,user_MiddleName,user_Email,user_Password,user_Role,user_EmploymentStatus,bank_Company,bank_AccountName,account_Number,department,position,hireDate,taxStatus,user_Gender,civil_status,is_solo_parent\n";
-    const sample = "Juan,Cruz,Dela,juan.cruz@example.com,password123,Employee,Regular,BDO Unibank (BDO),Juan Dela Cruz,1234567890,IT,Developer,2026-01-01,S,Male,Single,false\n";
+    const sample = "Juan,Cruz,Dela,juan.cruz@example.com,Password123!,Employee,Regular,BDO Unibank (BDO),Juan Dela Cruz,123456789012,IT,Developer,2026-01-01,S,Male,Single,false\n";
     const csvContent = "\uFEFF" + headers + sample;
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
@@ -507,10 +515,18 @@ const New = ({ inputs = [], title }) => {
   const handleConfirmReview = async (finalData) => {
     setBatchLoading(true);
     
-    // Convert back to CSV
-    const headers = Object.keys(finalData[0]).join(',');
-    const rows = finalData.map(item => Object.values(item).join(',')).join('\n');
-    const csvContent = headers + '\n' + rows;
+    // Safely convert back to CSV supporting quotes and commas
+    const headers = Object.keys(finalData[0] || {});
+    const escapeCsv = (val) => {
+      const s = String(val ?? "");
+      if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+        return `"${s.replace(/"/g, '""')}"`;
+      }
+      return s;
+    };
+    const headerLine = headers.join(',');
+    const rows = finalData.map(item => headers.map(h => escapeCsv(item[h])).join(',')).join('\n');
+    const csvContent = headerLine + '\n' + rows;
     
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const file = new File([blob], "batch_users.csv", { type: 'text/csv' });
@@ -524,13 +540,22 @@ const New = ({ inputs = [], title }) => {
         body: formData,
       });
 
-      if (response.ok) {
-        setToast({ message: "Batch upload successful!", type: "success" });
+      const resData = await response.json();
+
+      if (response.ok && (!resData.results || resData.results.failed === 0)) {
+        setToast({ message: resData.message || `Successfully registered ${finalData.length} users!`, type: "success" });
         setIsReviewModalOpen(false);
         setTimeout(() => navigate("/users"), 1500);
+      } else if (resData.results && resData.results.success > 0 && resData.results.failed > 0) {
+        setToast({
+          message: `Partial success: ${resData.results.success} added, ${resData.results.failed} failed. First error: ${resData.results.errors?.[0]}`,
+          type: "warning"
+        });
+        setIsReviewModalOpen(false);
+        setTimeout(() => navigate("/users"), 2000);
       } else {
-        const err = await response.json();
-        setToast({ message: err.error || "Batch upload failed.", type: "error" });
+        const firstError = resData.results?.errors?.[0] || resData.error || resData.message || "Batch upload failed.";
+        setToast({ message: firstError, type: "error" });
       }
     } catch (error) {
        setToast({ message: "Connection error.", type: "error" });

@@ -5,10 +5,8 @@
 // ── CUSTOM BITMAP & UI FRAME DRAWERS ─────────────────────────────
 inline void drawFrame1UI() {
   clearSpiBusPins();
-  delayMicroseconds(50);
-  digitalWrite(TFT_CS, LOW); // Claim bus cleanly for TFT output
   tft.drawBitmap(0, 0, epd_bitmap_Frame_1, 320, 240, ST77XX_WHITE, ST77XX_BLACK);
-  digitalWrite(TFT_CS, HIGH); // Release bus back to general pool
+  clearSpiBusPins();
   isFrontDisplayInReady = true;
 }
 
@@ -16,8 +14,6 @@ inline void drawFrame1UI() {
 inline void update2FACountdown(int secondsLeft) {
   if (secondsLeft < 0) secondsLeft = 0;
   clearSpiBusPins();
-  delayMicroseconds(20);
-  digitalWrite(TFT_CS, LOW);
 
   // Wipe only the countdown text bounding box to prevent ghosting
   tft.fillRect(20, 201, 280, 16, ST77XX_BLACK);
@@ -33,14 +29,11 @@ inline void update2FACountdown(int secondsLeft) {
   tft.setCursor(timerX, 205);
   tft.print(timerStr);
 
-  digitalWrite(TFT_CS, HIGH);
+  clearSpiBusPins();
 }
 
 inline void draw2FAChallengeUI(String employeeName, int secondsLeft = 15) {
   clearSpiBusPins();
-  delayMicroseconds(50);
-  digitalWrite(TFT_CS, LOW); // Claim bus cleanly for TFT output
-
   isFrontDisplayInReady = false;
 
   // 1. Render Frame 2 base template (Fingerprint icon, banner, instructions, border)
@@ -73,7 +66,7 @@ inline void draw2FAChallengeUI(String employeeName, int secondsLeft = 15) {
   tft.setCursor(timerX, 205);
   tft.print(timerStr);
 
-  digitalWrite(TFT_CS, HIGH);
+  clearSpiBusPins();
 }
 
 // ── NON-BLOCKING RFID PULSE ANIMATION (112x80 at X=200, Y=78) ─────
@@ -92,23 +85,19 @@ inline void tickRfidPulseAnimation() {
   uint8_t frameIdx = (pulseStep < 4) ? pulseStep : 3;
 
   clearSpiBusPins();
-  delayMicroseconds(20);
-  digitalWrite(TFT_CS, LOW);
   tft.drawBitmap(200, 78, epd_rfid_pulse_frames[frameIdx], 112, 80, RFID_PULSE_COLOR, ST77XX_BLACK);
-  digitalWrite(TFT_CS, HIGH);
+  clearSpiBusPins();
 }
 
 // ── LANDSCAPE OPTIMIZED NON-BLOCKING UI LAYOUT DRAWERS ───────────
 inline void updateFrontDisplay(String header, String message, uint16_t color) {
   clearSpiBusPins();
-  delayMicroseconds(50);
-  digitalWrite(TFT_CS, LOW); // Claim bus cleanly for TFT output
   
   if (header == "READY") {
     isFrontDisplayInReady = true;
     // Render the custom 320x240 image2cpp Frame 1 UI layout
     tft.drawBitmap(0, 0, epd_bitmap_Frame_1, 320, 240, ST77XX_WHITE, ST77XX_BLACK);
-    digitalWrite(TFT_CS, HIGH);
+    clearSpiBusPins();
     return;
   }
 
@@ -140,7 +129,7 @@ inline void updateFrontDisplay(String header, String message, uint16_t color) {
   tft.setTextSize(2);
   tft.println(message);
   
-  digitalWrite(TFT_CS, HIGH); // Release bus back to general pool
+  clearSpiBusPins();
 }
 
 inline void updateBackDisplay(String line1, String line2) {

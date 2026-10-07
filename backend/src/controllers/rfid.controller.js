@@ -85,6 +85,22 @@ function notifyEsp32Cancel() {
   }
 }
 
+// Global flag to reset TFT screen on next ESP32 poll
+let pendingScreenReset = false;
+
+function notifyEsp32ResetScreen() {
+  if (lastEsp32Ip && lastEsp32Ip !== "127.0.0.1" && lastEsp32Ip !== "::1" && lastEsp32Ip !== "localhost") {
+    const targetUrl = `http://${lastEsp32Ip}/api/reset-screen`;
+    console.log(`[HARDWARE] Pushing reset-screen signal directly to ESP32: ${targetUrl}`);
+    fetch(targetUrl, {
+      method: "POST",
+      signal: AbortSignal.timeout(1500)
+    }).catch(err => {
+      console.log(`[HARDWARE] Direct screen reset push status: ${err.message}`);
+    });
+  }
+}
+
 // Global anti-rapid tap cache (UID -> timestamp)
 const recentTaps = new Map();
 const RAPID_TAP_COOLDOWN = 10000; // 10 seconds
@@ -101,6 +117,7 @@ exports.getHardwareStatus = (req, res) => {
   
   res.status(200).json({
     connected: isConnected,
+    ip: lastEsp32Ip || null,
     lastSeen: lastEsp32Heartbeat ? new Date(lastEsp32Heartbeat).toISOString() : null,
     msSinceLastSeen: lastEsp32Heartbeat ? (now - lastEsp32Heartbeat) : null
   });
@@ -109,11 +126,15 @@ exports.getHardwareStatus = (req, res) => {
 exports.clearFingerprintSession = async (req, res) => {
   console.log("[ENROLL] Clearing all enrollment sessions (RFID/FP)");
 
-  // Fire immediate cancel signal to ESP32 over LAN
-  notifyEsp32Cancel();
+  const hadActiveSession = fpCaptureSession.isCapturing || captureSession.isCapturing;
 
-  // Only queue hardware rollback deletion IF the enrollment was cancelled/failed BEFORE completion
-  if (fpCaptureSession.scannedSlot && !fpCaptureSession.success && fpCaptureSession.type === "FP") {
+  // Only fire cancel signal to ESP32 if an active capture session is in progress
+  if (hadActiveSession) {
+    notifyEsp32Cancel();
+  }
+
+  // Only queue hardware rollback deletion IF a physical template was actually stored in R307 memory
+  if (fpCaptureSession.hasStoredModel && !fpCaptureSession.success && fpCaptureSession.type === "FP" && fpCaptureSession.scannedSlot) {
     if (!pendingDeleteSlots.includes(fpCaptureSession.scannedSlot)) {
       pendingDeleteSlots.push(fpCaptureSession.scannedSlot);
     }
@@ -128,14 +149,19 @@ exports.clearFingerprintSession = async (req, res) => {
   fpCaptureSession.userId = null;
   fpCaptureSession.expiresAt = null;
   fpCaptureSession.success = false;
+  fpCaptureSession.hasStoredModel = false;
   fpCaptureSession.template = null;
   fpCaptureSession.type = null;
 
   // Clear in-memory RFID session
   captureSession.isCapturing = false;
-  captureSession.scannedUid = null;
-  captureSession.userId = null;
-  captureSession.expiresAt = null;
+  const isHardwareClear = req && req.originalUrl && req.originalUrl.includes('/fingerprint/session/clear');
+  // Preserve scannedUid if it was captured and waiting to be consumed by generateRfid
+  if (!isHardwareClear || !captureSession.scannedUid) {
+    captureSession.scannedUid = null;
+    captureSession.userId = null;
+    captureSession.expiresAt = null;
+  }
 
   // Clear in-memory Visitor session
   visitorAccessSession.isPending = false;
@@ -165,6 +191,22 @@ exports.clearFingerprintSession = async (req, res) => {
 
 exports.resetAllEnrollmentSessions = async () => {
   return exports.clearFingerprintSession(null, null);
+};
+
+exports.prepareEnrollmentSession = (type, userId) => {
+  console.log(`[ENROLL] Preparing ${type || 'RFID'} enrollment session for user: ${userId || 'temp'}`);
+  captureSession.scannedUid = null;
+  captureSession.isCapturing = true;
+  captureSession.userId = userId || "temp_registration";
+  captureSession.expiresAt = Date.now() + 60000;
+
+  fpCaptureSession.isCapturing = (type === 'FP');
+  fpCaptureSession.template = null;
+  fpCaptureSession.success = false;
+  fpCaptureSession.hasStoredModel = false;
+  fpCaptureSession.expiresAt = Date.now() + 60000;
+  fpCaptureSession.type = type;
+  pendingDeleteSlots = [];
 };
 exports.getSessionStatus = async (req, res) => {
   const deviceId = req.headers["x-esp32-id"] || "esp32-01";
@@ -214,14 +256,24 @@ exports.scanRFID = async (req, res) => {
     const regSession = await System_State.findOne({ where: { key: 'REGISTRATION_SESSION' } });
     const isGenericCapture = captureSession.isCapturing && (Date.now() < captureSession.expiresAt);
 
-    if (regSession || isGenericCapture) {
-      console.log(`[RFID-ADMIN] Intercept Triggered. UID: ${uid}`);
+    let isRfidRegSession = false;
+    if (regSession) {
+      try {
+        const sessionData = JSON.parse(regSession.value);
+        isRfidRegSession = (sessionData.type === 'RFID');
+      } catch (e) {
+        isRfidRegSession = true;
+      }
+    }
+
+    if ((regSession && isRfidRegSession) || isGenericCapture) {
+      console.log(`[RFID-ADMIN] Intercept Triggered. UID: ${baseCardUid}`);
       
-      captureSession.scannedUid = uid;
+      captureSession.scannedUid = baseCardUid;
       captureSession.isCapturing = false;
       
       // Clear database session to release hardware
-      if (regSession) {
+      if (regSession && isRfidRegSession) {
         await System_State.destroy({ where: { key: 'REGISTRATION_SESSION' } });
       }
       
@@ -229,7 +281,7 @@ exports.scanRFID = async (req, res) => {
         success: false, // Prevents solenoid activation
         isCapture: true, 
         mode: 'RFID_REG_SUCCESS',
-        rfid: uid,
+        rfid: baseCardUid,
         message: "CAPTURE OK"
       });
     }
@@ -986,12 +1038,22 @@ exports.generateRfid = async (req, res) => {
   const { userId } = req.query;
   const targetUserId = userId || "temp_registration";
   console.log(`[RFID-ADMIN] >>> STARTING RFID capture for User: ${targetUserId}`);
+
+  // Ensure database registration session is active so ESP32 background polls do not cancel it
+  try {
+    await System_State.upsert({
+      key: 'REGISTRATION_SESSION',
+      value: JSON.stringify({ userId: targetUserId, type: 'RFID' })
+    });
+  } catch (err) {
+    console.error("[RFID-ADMIN] Failed to ensure REGISTRATION_SESSION in DB:", err.message);
+  }
   
   captureSession = { 
     isCapturing: true, 
     scannedUid: null, 
     userId: targetUserId,
-    expiresAt: Date.now() + 25000 
+    expiresAt: Date.now() + 60000 // Extended to 60s
   };
   
   const startTime = Date.now();
@@ -1007,38 +1069,32 @@ exports.generateRfid = async (req, res) => {
 
   req.on("close", () => {
     cleanup();
-    if (captureSession.userId === targetUserId) {
-      console.log(`[RFID-ADMIN] Client closed connection for User: ${targetUserId}. Halting capture session.`);
+    if (!res.writableEnded && !captureSession.scannedUid && captureSession.userId === targetUserId) {
+      console.log(`[RFID-ADMIN] Client closed connection for User: ${targetUserId}. Halting in-memory capture.`);
       captureSession.isCapturing = false;
-      captureSession.scannedUid = null;
     }
   });
 
   const checkInterval = setInterval(() => {
     attempts++;
 
-    // Check if capture was cancelled externally (via clearFingerprintSession or modal cancel)
-    if (!captureSession.isCapturing) {
-      console.log(`[RFID-ADMIN] Capture session cancelled for User: ${targetUserId}`);
-      cleanup();
-      if (!res.headersSent) {
-        return res.status(200).json({ cancelled: true, message: "RFID capture cancelled" });
-      }
-      return;
-    }
-
+    // 1. PRIORITY: Check if a UID was scanned (Success case)
     if (captureSession.scannedUid) {
       const uid = captureSession.scannedUid;
       console.log(`[RFID-ADMIN] Detected UID: ${uid} after ${attempts} checks.`);
       captureSession.scannedUid = null;
       captureSession.isCapturing = false;
       cleanup();
+      System_State.destroy({ where: { key: 'REGISTRATION_SESSION' } }).catch(() => {});
       
       User.findOne({ 
         include: [{
           model: User_Hardware,
           as: 'hardware',
-          where: { user_MachipId: uid }
+          where: sequelize.where(
+            sequelize.fn('LOWER', sequelize.col('hardware.user_MachipId')),
+            uid.toLowerCase()
+          )
         }],
         where: { deletedAt: null } 
       }).then(user => {
@@ -1055,10 +1111,22 @@ exports.generateRfid = async (req, res) => {
       return;
     }
 
-    if (Date.now() - startTime > 25000) {
-      console.log(`[RFID-ADMIN] Capture TIMEOUT after 25s.`);
+    // 2. Only if NO UID was scanned, check if capture was cancelled externally
+    if (!captureSession.isCapturing) {
+      console.log(`[RFID-ADMIN] Capture session cancelled for User: ${targetUserId}`);
+      cleanup();
+      if (!res.headersSent) {
+        return res.status(200).json({ cancelled: true, message: "RFID capture cancelled" });
+      }
+      return;
+    }
+
+    // 3. Timeout check (60s)
+    if (Date.now() - startTime > 60000) {
+      console.log(`[RFID-ADMIN] Capture TIMEOUT after 60s.`);
       cleanup();
       captureSession.isCapturing = false;
+      System_State.destroy({ where: { key: 'REGISTRATION_SESSION' } }).catch(() => {});
       return res.status(408).json({ error: "Scan timeout. Please try again." });
     }
   }, 500);
@@ -1201,6 +1269,18 @@ exports.getFingerprintSession = async (req, res) => {
   lastEsp32Heartbeat = now;
   trackEsp32Ip(req);
 
+  // 0. Check TFT Screen Reset command (High Priority)
+  if (pendingScreenReset) {
+    pendingScreenReset = false;
+    console.log("[HARDWARE] Dispatching RESET_SCREEN command to ESP32 via session poll.");
+    return res.status(200).json({
+      active: true,
+      slotId: 0,
+      userId: "RESET_SCREEN",
+      type: "RESET_SCREEN"
+    });
+  }
+
   // 0. Check Visitor Access (High Priority)
   if (visitorAccessSession.isPending && Date.now() < visitorAccessSession.expiresAt) {
     // Consume the trigger immediately so it doesn't loop
@@ -1307,18 +1387,41 @@ exports.getFingerprintSession = async (req, res) => {
         });
       }
     } else {
-      // If DB has no active REGISTRATION_SESSION, flush any lingering in-memory capture flags
-      if (fpCaptureSession.isCapturing) {
+      // If DB has no active REGISTRATION_SESSION, only flush flags if they have expired
+      const isFpStillValid = fpCaptureSession.isCapturing && fpCaptureSession.expiresAt && Date.now() < fpCaptureSession.expiresAt;
+      const isRfidStillValid = captureSession.isCapturing && captureSession.expiresAt && Date.now() < captureSession.expiresAt;
+
+      if (!isFpStillValid && fpCaptureSession.isCapturing) {
         fpCaptureSession.isCapturing = false;
         fpCaptureSession.expiresAt = null;
       }
-      if (captureSession.isCapturing) {
+      if (!isRfidStillValid && captureSession.isCapturing) {
         captureSession.isCapturing = false;
         captureSession.expiresAt = null;
       }
     }
   } catch (err) {
     console.error("[GET FP SESSION ERROR]:", err);
+  }
+
+  // If in-memory FP session is actively capturing and valid, keep ESP32 informed
+  if (fpCaptureSession.isCapturing && fpCaptureSession.expiresAt && Date.now() < fpCaptureSession.expiresAt) {
+    return res.status(200).json({
+      active: true,
+      slotId: fpCaptureSession.scannedSlot || 1,
+      userId: fpCaptureSession.userId || "temp_registration",
+      type: fpCaptureSession.type || "FP"
+    });
+  }
+
+  // If in-memory RFID session is actively capturing and valid, keep ESP32 informed
+  if (captureSession.isCapturing && captureSession.expiresAt && Date.now() < captureSession.expiresAt) {
+    return res.status(200).json({
+      active: true,
+      slotId: 1,
+      userId: captureSession.userId || "temp_registration",
+      type: "RFID"
+    });
   }
 
   return res.status(200).json({ active: false });
@@ -1337,10 +1440,17 @@ exports.confirmFingerprintEnroll = async (req, res) => {
    }
 
   // Handle captureSession for RFID New User Wizard
-  if (captureSession.isCapturing && template) {
+  const isRfidUid = template && typeof template === 'string' && template.length <= 32;
+  if ((captureSession.isCapturing || isRfidUid) && template) {
       console.log(`[FP-RECEIVE] Handled via captureSession (RFID Wizard): ${template}`);
       captureSession.scannedUid = template;
       captureSession.isCapturing = false;
+      try {
+        await System_State.destroy({ where: { key: 'REGISTRATION_SESSION' } });
+        console.log("[FP-RECEIVE] Cleared REGISTRATION_SESSION from database");
+      } catch (err) {
+        console.error("[FP-RECEIVE] Failed to clear REGISTRATION_SESSION:", err);
+      }
       return res.status(200).json({ success: true });
   }
 
@@ -1350,6 +1460,7 @@ exports.confirmFingerprintEnroll = async (req, res) => {
     const finalSlotId = (slotId && parseInt(slotId) > 0) ? parseInt(slotId) : fpCaptureSession.scannedSlot;
     
     fpCaptureSession.success = success;
+    fpCaptureSession.hasStoredModel = Boolean(success && template);
     fpCaptureSession.isCapturing = false; // STOP the session so ESP32 doesn't loop
     
     // Clear the database registration session as well
@@ -1637,3 +1748,58 @@ exports.confirmVisitorAccess = async (req, res) => {
     res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 };
+
+exports.resetTftScreen = async (req, res) => {
+  const adminId = req.user?.user_Id || 1;
+  console.log(`[HARDWARE] Reset TFT Screen requested by Admin: ${adminId}`);
+
+  // 1. Flag for next ESP32 poll
+  pendingScreenReset = true;
+
+  // 2. Clear any active enrollment or capture sessions
+  try {
+    await exports.clearFingerprintSession(null, null);
+  } catch (err) {
+    console.warn("[HARDWARE] Notice: clearFingerprintSession error during reset:", err.message);
+  }
+
+  // 3. Push immediate direct signals to ESP32 over LAN
+  notifyEsp32ResetScreen();
+  notifyEsp32Cancel();
+
+  // 4. Broadcast event via Socket.IO
+  try {
+    const io = getIO();
+    if (io) {
+      io.emit("HARDWARE_SCREEN_RESET", {
+        adminId,
+        timestamp: new Date().toISOString(),
+        message: "TFT screen reset to default state"
+      });
+    }
+  } catch (ioErr) {
+    // Socket broadcast is best-effort
+  }
+
+  // 5. Audit Log
+  try {
+    await logAudit(
+      req,
+      adminId,
+      "Hardware Control",
+      "RESET_TFT_SCREEN",
+      "User_Hardware",
+      null,
+      null,
+      { action: "reset_tft_screen", status: "SUCCESS" }
+    );
+  } catch (auditErr) {
+    console.warn("[HARDWARE AUDIT NOTICE]:", auditErr.message);
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: "TFT screen reset command dispatched. Display returning to scan RFID default state."
+  });
+};
+

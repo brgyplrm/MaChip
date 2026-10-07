@@ -18,13 +18,19 @@ const char CONSOLE_HTML[] PROGMEM = R"rawliteral(
     #terminal { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 12px; height: 75vh; overflow-y: scroll; white-space: pre-wrap; font-size: 13px; line-height: 1.4; color: #7ee787; }
     .btn { background: #238636; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; margin-top: 10px; }
     .btn:hover { background: #2ea043; }
+    .btn-danger { background: #da3633; margin-right: 8px; }
+    .btn-danger:hover { background: #b62324; }
     .header-bar { display: flex; justify-content: space-between; align-items: center; }
   </style>
 </head>
 <body>
   <div class="header-bar">
     <h2>MAChip Hardware Live Serial Monitor</h2>
-    <button class="btn" onclick="clearLogs()">Clear Terminal</button>
+    <div>
+      <button class="btn btn-danger" onclick="resetSensor()">Wipe R307 Sensor</button>
+      <button class="btn" onclick="discoverServer()">Discover Server</button>
+      <button class="btn" onclick="clearLogs()">Clear Terminal</button>
+    </div>
   </div>
   <div id="terminal">Loading streaming logs...</div>
 
@@ -43,6 +49,24 @@ const char CONSOLE_HTML[] PROGMEM = R"rawliteral(
 
     async function clearLogs() {
       await fetch('/console/clear', { method: 'POST' });
+      fetchLogs();
+    }
+
+    async function discoverServer() {
+      const res = await fetch('/console/discover', { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        alert(data.message + '\n' + data.serverUrl);
+      }
+      fetchLogs();
+    }
+
+    async function resetSensor() {
+      if (!confirm("Are you sure you want to completely wipe all fingerprint templates stored in the physical R307 optical sensor memory?")) return;
+      const res = await fetch('/console/reset-sensor', { method: 'POST' });
+      if (res.ok) {
+        alert("Sensor memory wipe command executed!");
+      }
       fetchLogs();
     }
 
@@ -90,11 +114,65 @@ inline void handleConsoleClear() {
   webServer.send(200, "application/json", "{\"success\":true}");
 }
 
+inline void handleConsoleResetSensor() {
+  if (!webServer.authenticate(WEB_CONSOLE_USER, WEB_CONSOLE_PASS)) {
+    return webServer.requestAuthentication(BASIC_AUTH, "MAChip Admin Auth Required");
+  }
+  sysLog(F("[CONSOLE-RESET] Web console triggered manual R307 sensor wipe..."));
+  updateFrontDisplay("HARDWARE RESET", "Wiping sensor memory...", ST77XX_RED);
+  
+  bool wiped = (finger.emptyDatabase() == FINGERPRINT_OK);
+  if (!wiped) {
+    sysLog(F("[CONSOLE-RESET] emptyDatabase command failed. Executing slot-by-slot purge (1 to 162)..."));
+    for (int i = 1; i <= 162; i++) {
+      finger.deleteModel(i);
+    }
+    wiped = true;
+  }
+  
+  if (wiped) {
+    sysLog(F("[CONSOLE-RESET] [SUCCESS] All physical R307 fingerprint slots wiped clean!"));
+    updateFrontDisplay("SUCCESS", "Sensor memory wiped.", ST77XX_GREEN);
+    provideFeedback(SUCCESS_OK);
+  } else {
+    sysLog(F("[CONSOLE-RESET] [ERROR] Failed to clear sensor memory."));
+    updateFrontDisplay("ERROR", "Failed to clear sensor.", ST77XX_RED);
+    provideFeedback(ERROR_FAIL);
+  }
+  
+  delay(1500);
+  updateFrontDisplay("READY", "Scan RFID Card to Login", ST77XX_GREEN);
+  webServer.send(200, "application/json", "{\"success\":true,\"message\":\"Sensor memory wiped clean\"}");
+}
+
+inline void handleResetScreen() {
+  sysLog(F("[REMOTE-RESET] Reset TFT screen to READY state requested by server"));
+  enrollmentMode = false;
+  fpEnrollStage = 0;
+  pendingUID = "";
+  pendingName = "";
+  last2FACountdownSec = -1;
+  pendingExpectedFingerID = -1;
+  pendingExpectedFingerID2 = -1;
+  pendingCardCounter = 0;
+  updateFrontDisplay("READY", "Scan RFID Card to Login", ST77XX_GREEN);
+  updateBackDisplay("READY", "Scan Card Out");
+  setLED(LED_SLOW_BLINK, LED_OFF);
+  webServer.send(200, "application/json", "{\"success\":true,\"message\":\"TFT screen reset to default READY state\"}");
+}
+
 inline void handleCancelEnrollment() {
-  sysLog(F("[REMOTE-CANCEL] Direct cancellation signal received from server"));
-  if (enrollmentMode) {
-    enrollmentMode = false;
-    fpEnrollStage = 0;
+  bool wasEnrolling = enrollmentMode;
+  enrollmentMode = false;
+  fpEnrollStage = 0;
+  pendingUID = "";
+  pendingName = "";
+  last2FACountdownSec = -1;
+  pendingExpectedFingerID = -1;
+  pendingExpectedFingerID2 = -1;
+  pendingCardCounter = 0;
+  if (wasEnrolling) {
+    sysLog(F("[REMOTE-CANCEL] Direct cancellation signal received from server"));
     updateFrontDisplay("CANCELLED", "Enrollment Cancelled", ST77XX_YELLOW);
     delay(500);
     updateFrontDisplay("READY", "Scan RFID Card to Login", ST77XX_GREEN);
@@ -104,6 +182,88 @@ inline void handleCancelEnrollment() {
   webServer.send(200, "application/json", "{\"success\":true,\"cancelled\":true}");
 }
 
+// ── UDP ZERO-CONFIG AUTO-DISCOVERY ─────────────────────────────────
+inline bool discoverServer(unsigned long timeoutMs = 2500) {
+  if (WiFi.status() != WL_CONNECTED) {
+    sysLog(F("[UDP-DISCOVERY] Aborted: Wi-Fi is not connected"));
+    return false;
+  }
+
+  WiFiUDP udp;
+  if (!udp.begin(4002)) {
+    sysLog(F("[UDP-DISCOVERY] Failed to bind local UDP port 4002"));
+    return false;
+  }
+
+  sysLog(F("[UDP-DISCOVERY] Broadcasting MACHIP_DISCOVER on UDP port 4001..."));
+
+  IPAddress localIp = WiFi.localIP();
+  IPAddress subnet = WiFi.subnetMask();
+  IPAddress broadcastIp(
+    (localIp[0] & subnet[0]) | (~subnet[0] & 0xFF),
+    (localIp[1] & subnet[1]) | (~subnet[1] & 0xFF),
+    (localIp[2] & subnet[2]) | (~subnet[2] & 0xFF),
+    (localIp[3] & subnet[3]) | (~subnet[3] & 0xFF)
+  );
+
+  const char* msg = "MACHIP_DISCOVER";
+
+  // 1. Send to subnet-directed broadcast address
+  udp.beginPacket(broadcastIp, 4001);
+  udp.write((const uint8_t*)msg, strlen(msg));
+  udp.endPacket();
+
+  // 2. Send to global broadcast address (255.255.255.255)
+  udp.beginPacket(IPAddress(255, 255, 255, 255), 4001);
+  udp.write((const uint8_t*)msg, strlen(msg));
+  udp.endPacket();
+
+  unsigned long start = millis();
+  bool discovered = false;
+
+  while (millis() - start < timeoutMs) {
+    int packetSize = udp.parsePacket();
+    if (packetSize > 0) {
+      char buffer[512];
+      int len = udp.read(buffer, sizeof(buffer) - 1);
+      if (len > 0) {
+        buffer[len] = '\0';
+        JsonDocument doc;
+        DeserializationError err = deserializeJson(doc, buffer);
+        if (!err && doc["serverUrl"].is<const char*>() && doc["fpUrl"].is<const char*>()) {
+          String newServer = doc["serverUrl"].as<String>();
+          String newFp = doc["fpUrl"].as<String>();
+          if (newServer.length() > 0 && newFp.length() > 0) {
+            currentServerUrl = newServer;
+            currentFpUrl = newFp;
+            sysLog("[UDP-DISCOVERY] [SUCCESS] Target Backend Server: " + currentServerUrl);
+            discovered = true;
+            break;
+          }
+        }
+      }
+    }
+    delay(20);
+  }
+
+  udp.stop();
+
+  if (!discovered) {
+    sysLog("[UDP-DISCOVERY] [TIMEOUT] Retaining profile URL: " + currentServerUrl);
+  }
+  return discovered;
+}
+
+inline void handleConsoleDiscover() {
+  if (!webServer.authenticate(WEB_CONSOLE_USER, WEB_CONSOLE_PASS)) {
+    return webServer.requestAuthentication(BASIC_AUTH, "MAChip Admin Auth Required");
+  }
+  sysLog(F("[CONSOLE] Web console triggered UDP Zero-Config discovery..."));
+  bool ok = discoverServer(2500);
+  String msg = ok ? "Auto-discovery successful" : "Auto-discovery timed out, keeping current URL";
+  webServer.send(200, "application/json", "{\"success\":" + String(ok ? "true" : "false") + ",\"serverUrl\":\"" + currentServerUrl + "\",\"message\":\"" + msg + "\"}");
+}
+
 inline void setupWebConsole() {
   if (webServerStarted) return;
 
@@ -111,8 +271,12 @@ inline void setupWebConsole() {
   webServer.on("/console", HTTP_GET, handleConsoleUI);
   webServer.on("/console/logs", HTTP_GET, handleConsoleLogs);
   webServer.on("/console/clear", HTTP_POST, handleConsoleClear);
+  webServer.on("/console/reset-sensor", HTTP_POST, handleConsoleResetSensor);
+  webServer.on("/console/discover", HTTP_POST, handleConsoleDiscover);
   webServer.on("/api/cancel", HTTP_ANY, handleCancelEnrollment);
   webServer.on("/cancel", HTTP_ANY, handleCancelEnrollment);
+  webServer.on("/api/reset-screen", HTTP_ANY, handleResetScreen);
+  webServer.on("/reset-screen", HTTP_ANY, handleResetScreen);
 
   webServer.begin();
   webServerStarted = true;
@@ -170,11 +334,14 @@ inline bool autoConnectWiFi() {
           
           sysLog("[WIFI] [CONNECTED] Linked to [" + networks[i].ssid + "] in " + String(tries * 200) + "ms!");
           sysLog("[WIFI] ESP32 Local IP: " + WiFi.localIP().toString());
-          sysLog("[NET] Target Backend Server: " + currentServerUrl);
           
           // Sync SNTP real-time clock (UTC+8 Manila)
           configTime(8 * 3600, 0, "pool.ntp.org", "time.google.com");
           sysLog(F("[NTP] Initialized SNTP synchronization (UTC+8 Manila)"));
+
+          // UDP Zero-Config Auto-Discovery
+          discoverServer(2500);
+          sysLog("[NET] Target Backend Server: " + currentServerUrl);
 
           // Immediate Server Health Verification
           HTTPClient testHttp;
@@ -213,6 +380,8 @@ inline bool autoConnectWiFi() {
       currentFpUrl = networks[i].fpEnrollUrl;
       configTime(8 * 3600, 0, "pool.ntp.org", "time.google.com");
       sysLog("[WIFI] [CONNECTED] Fallback linked to [" + networks[i].ssid + "]");
+      discoverServer(2500);
+      sysLog("[NET] Target Backend Server: " + currentServerUrl);
       updateFrontDisplay("ONLINE", "IP: " + WiFi.localIP().toString(), ST77XX_GREEN);
       updateBackDisplay("ONLINE", WiFi.localIP().toString());
       return true;

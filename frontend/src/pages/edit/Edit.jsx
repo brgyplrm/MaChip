@@ -95,7 +95,11 @@ const Edit = ({ inputs, title }) => {
       const response = await fetchWithAuth("/api/users/generateRfid");
       const data = await response.json();
 
-      if (response.ok) {
+      if (data.cancelled) {
+        return;
+      }
+
+      if (response.ok && data.rfid) {
         // Check for duplicates
         const checkResponse = await fetchWithAuth(`/api/users/check-machip/${data.rfid}`);
         const checkData = await checkResponse.json();
@@ -106,6 +110,9 @@ const Edit = ({ inputs, title }) => {
         } else {
           setLocalScannedId(data.rfid);
         }
+      } else if (response.status === 400 && data.rfid) {
+        setRfidError(data.error || "This MaChip ID is already assigned to another user.");
+        setLocalScannedId(data.rfid);
       } else {
         setRfidError(data.error || "Failed to scan RFID. Please try again.");
         if (data.rfid) setLocalScannedId(data.rfid);

@@ -22,12 +22,29 @@ const EXPLICIT_AUDITED_PATTERNS = [
   /^\/status\/\d+/i
 ];
 
+const INTERNAL_PATTERNS = [
+  /clear-fingerprint-session/i,
+  /clear-rfid-session/i,
+  /clear-hardware-session/i,
+  /reg-session/i,
+  /fingerprint\/session/i,
+  /\/session(?:\/clear|\/status)?/i,
+  /\/esp\//i,
+  /\/hardware\/status/i,
+  /\/rfid\/scan/i,
+  /\/notifications\/mark-read/i,
+  /\/notifications\/mark-all-read/i,
+  /\/test-query/i
+];
+
 const requestLogger = async (req, res, next) => {
   if (req.user && req.method !== "GET") {
-    const isExplicitlyAudited = EXPLICIT_AUDITED_PATTERNS.some(p => p.test(req.path));
+    const targetUrl = req.originalUrl || (req.baseUrl ? req.baseUrl + req.path : req.path);
+    const isExplicitlyAudited = EXPLICIT_AUDITED_PATTERNS.some(p => p.test(req.path) || p.test(targetUrl));
+    const isInternal = INTERNAL_PATTERNS.some(p => p.test(targetUrl) || p.test(req.path));
 
-    if (!isExplicitlyAudited) {
-      const module = req.baseUrl.split("/").pop() || "System";
+    if (!isExplicitlyAudited && !isInternal) {
+      const module = req.baseUrl ? req.baseUrl.split("/").pop() : "System";
       const action = `${req.method} ${req.path}`;
       const userNum = formatUserNumber(req.user.user_Id);
       const ip = getClientIp(req);

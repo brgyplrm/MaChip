@@ -49,9 +49,59 @@ bool webServerStarted = false;
 bool otaInitialized = false;
 bool isFrontDisplayInReady = false;
 
+// ── ASYNCHRONOUS STATUS & ERROR RESET TIMER ───────────────────────
+bool statusResetActive = false;
+unsigned long statusResetStartTime = 0;
+const unsigned long STATUS_RESET_DURATION = 3000;
+
+inline void triggerStatusReset(unsigned long durationMs = STATUS_RESET_DURATION) {
+  statusResetStartTime = millis();
+  statusResetActive = true;
+}
+
+inline void updateStatusReset() {
+  if (statusResetActive && !solenoidActive && !enrollmentMode && pendingUID == "") {
+    if (millis() - statusResetStartTime >= STATUS_RESET_DURATION) {
+      statusResetActive = false;
+      clearSpiBusPins();
+      setLED(LED_SLOW_BLINK, LED_OFF);
+      updateFrontDisplay("READY", "Scan RFID Card to Login", ST77XX_GREEN);
+      updateBackDisplay("READY", "Scan Card Out");
+    }
+  }
+}
+
 String webLogBuffer[LOG_MAX_ENTRIES];
 int logHead = 0;
 int logCount = 0;
+
+// ── RF SIGNAL & SENSITIVITY OPTIMIZATION HELPERS ──────────────────
+inline void applyOptimalAntennaGain(MFRC522 &reader) {
+  byte v = reader.PCD_ReadRegister(MFRC522::VersionReg);
+  if (v == 0x82 || v == 0x88 || v == 0x12) {
+    // Clone / compatible IC (Front Reader v0x82): calibrated 33 dB prevents receiver overdrive and carrier clipping
+    reader.PCD_SetAntennaGain(MFRC522::RxGain_33dB);
+  } else {
+    // Genuine NXP silicon (Back Reader v0x92): boosted 43 dB provides extended read range
+    reader.PCD_SetAntennaGain(MFRC522::RxGain_43dB);
+  }
+  reader.PCD_AntennaOn();
+}
+
+inline void reinitRfidReaders() {
+  clearSpiBusPins();
+  
+  // MFRC522 datasheet section 8.1.2: NSS (CS) must be HIGH before and during reset sequence
+  rfidIN.PCD_Init();
+  applyOptimalAntennaGain(rfidIN);
+  clearSpiBusPins();
+  
+  delayMicroseconds(50);
+  
+  rfidOUT.PCD_Init();
+  applyOptimalAntennaGain(rfidOUT);
+  clearSpiBusPins();
+}
 
 // ── INITIALIZATION ────────────────────────────────────────────────
 void setup() {
@@ -85,7 +135,7 @@ void setup() {
   clearSpiBusPins();
 
   // 3. Hardware Master SPI Bus Setup
-  SPI.begin(TFT_SCK, -1, TFT_MOSI, -1);
+  SPI.begin(TFT_SCK, RFID_MISO, TFT_MOSI, -1);
   Wire.begin(21, 22);
 
   // 4. Reset & Initialize Front Display (ST7789 2.4" SPI 240x320)
@@ -117,17 +167,9 @@ void setup() {
   digitalWrite(RST_PIN_OUT, HIGH);
   delay(50);
 
-  clearSpiBusPins();
-  SPI.setFrequency(4000000); // MFRC522 max reliable SPI clock is 4MHz
-  
-  rfidIN.PCD_Init();
-  rfidIN.PCD_SetAntennaGain(rfidIN.RxGain_max);
+  reinitRfidReaders();
   delay(20);
   byte vFront = rfidIN.PCD_ReadRegister(MFRC522::VersionReg);
-
-  clearSpiBusPins();
-  rfidOUT.PCD_Init();
-  rfidOUT.PCD_SetAntennaGain(rfidOUT.RxGain_max);
   delay(20);
   byte vBack = rfidOUT.PCD_ReadRegister(MFRC522::VersionReg);
   clearSpiBusPins();
@@ -185,7 +227,8 @@ void loop() {
 
   updateLEDs();
   updateSolenoid();
-  tickRfidPulseAnimation();
+  updateStatusReset();
+  // tickRfidPulseAnimation() disabled to prevent continuous 24MHz SPI bus saturation and 3.3V rail ripple on the front panel
 
   if (WiFi.status() != WL_CONNECTED) {
     static unsigned long lastWiFiCheck = 0;
@@ -200,6 +243,7 @@ void loop() {
 
   // Periodic Server Connection Heartbeat (Logged every 30 seconds to Web Console)
   static unsigned long lastServerHeartbeat = 0;
+  static int consecutiveHeartbeatFails = 0;
   if (WiFi.status() == WL_CONNECTED && millis() - lastServerHeartbeat > 30000) {
     lastServerHeartbeat = millis();
     HTTPClient checkHttp;
@@ -212,9 +256,16 @@ void loop() {
     checkHttp.end();
 
     if (sCode == 200) {
+      consecutiveHeartbeatFails = 0;
       sysLog("[NET-SERVER] Server Connection: ONLINE | Backend: " + currentServerUrl + " | Latency: " + String(latency) + "ms | Wi-Fi RSSI: " + String(WiFi.RSSI()) + " dBm");
     } else {
+      consecutiveHeartbeatFails++;
       sysLog("[NET-SERVER] [WARNING] Server Heartbeat: HTTP " + String(sCode) + " | URL: " + currentServerUrl);
+      if (consecutiveHeartbeatFails >= 3) {
+        sysLog(F("[NET-SERVER] Consecutive heartbeat timeouts. Running UDP Auto-Discovery..."));
+        discoverServer(2500);
+        consecutiveHeartbeatFails = 0;
+      }
     }
   }
 
@@ -222,7 +273,7 @@ void loop() {
 
   // ── BACKEND PROVISIONING POLL ────────────────────────────────────
   static unsigned long lastModalPoll = 0;
-  if (!enrollmentMode && WiFi.status() == WL_CONNECTED && millis() - lastModalPoll > 1000) {
+  if (!enrollmentMode && WiFi.status() == WL_CONNECTED && millis() - lastModalPoll > 2500) {
     lastModalPoll = millis();
     HTTPClient http;
     http.begin(currentFpUrl + "/session");
@@ -311,6 +362,25 @@ void loop() {
           clearHttp.GET(); clearHttp.end();
           updateFrontDisplay("READY", "Scan RFID Card to Login", ST77XX_GREEN);
         }
+        else if (type == "RESET_SCREEN") {
+          sysLog(F("[SCREEN-RESET] Resetting TFT screen to default clock-in state..."));
+          enrollmentMode = false;
+          fpEnrollStage = 0;
+          pendingUID = "";
+          pendingName = "";
+          last2FACountdownSec = -1;
+          pendingExpectedFingerID = -1;
+          pendingExpectedFingerID2 = -1;
+          pendingCardCounter = 0;
+          setLED(LED_SLOW_BLINK, LED_OFF);
+          updateFrontDisplay("READY", "Scan RFID Card to Login", ST77XX_GREEN);
+          updateBackDisplay("READY", "Scan Card Out");
+
+          HTTPClient clearHttp;
+          clearHttp.begin(currentFpUrl + "/session/clear");
+          signHttpRequest(clearHttp, "");
+          clearHttp.GET(); clearHttp.end();
+        }
         else {
           enrollmentMode = true;
           enrollmentUserId = doc["userId"].as<String>();
@@ -324,13 +394,7 @@ void loop() {
           updateBackDisplay("LOCKED", "Admin Management");
 
           if (enrollmentType == "RFID") {
-            clearSpiBusPins();
-            SPI.setFrequency(4000000);
-            rfidIN.PCD_Init();
-            rfidIN.PCD_SetAntennaGain(rfidIN.RxGain_max);
-            rfidOUT.PCD_Init();
-            rfidOUT.PCD_SetAntennaGain(rfidOUT.RxGain_max);
-            clearSpiBusPins();
+            reinitRfidReaders();
           }
         }
       }
@@ -340,9 +404,9 @@ void loop() {
 
   // ── ENROLLMENT PIPELINE: RFID CAPTURE ────────────────────────────
   if (enrollmentMode && enrollmentType == "RFID") {
-    // 1. Check for web app cancellation or mode switch during RFID enrollment
+    // 1. Check for web app cancellation or mode switch during RFID enrollment (polled every 3s to minimize SPI contention)
     static unsigned long lastRFIDCheck = 0;
-    if (millis() - lastRFIDCheck > 1000) {
+    if (millis() - lastRFIDCheck > 3000) {
       lastRFIDCheck = millis();
       HTTPClient httpCheck;
       httpCheck.begin(currentFpUrl + "/session");
@@ -382,21 +446,18 @@ void loop() {
       return;
     }
 
-    // 3. Check BOTH Front (rfidIN) and Back (rfidOUT) readers
+    // 3. Poll Front Reader (rfidIN) EXCLUSIVELY for enrollment
     clearSpiBusPins();
     bool cardOnFront = rfidIN.PICC_IsNewCardPresent() && rfidIN.PICC_ReadCardSerial();
     clearSpiBusPins();
-    bool cardOnBack = !cardOnFront && (rfidOUT.PICC_IsNewCardPresent() && rfidOUT.PICC_ReadCardSerial());
-    clearSpiBusPins();
 
-    if (cardOnFront || cardOnBack) {
-      MFRC522 &activeReader = cardOnFront ? rfidIN : rfidOUT;
-      String cardUid = getUIDString(activeReader);
-      uint32_t initCounter = readAndIncrementCardCounter(activeReader);
-      activeReader.PICC_HaltA(); activeReader.PCD_StopCrypto1();
+    if (cardOnFront) {
+      String cardUid = getUIDString(rfidIN);
+      uint32_t initCounter = readAndIncrementCardCounter(rfidIN);
+      rfidIN.PICC_HaltA(); rfidIN.PCD_StopCrypto1();
       clearSpiBusPins();
       
-      sysLog("[ENROLL-RFID] Card detected on " + String(cardOnFront ? "FRONT" : "BACK") + " reader: " + cardUid);
+      sysLog("[ENROLL-RFID] Card detected on FRONT reader: " + cardUid);
       if (initCounter > 0) {
         sysLog("[ENROLL-RFID] Card provisioned with Sector 1 key. Initial Counter: " + String(initCounter));
       } else {
@@ -581,16 +642,16 @@ void loop() {
   if (!enrollmentMode) {
     static unsigned long lastReaderInit = 0;
     if (millis() - lastReaderInit > 10000) {
-      clearSpiBusPins();
-      rfidIN.PCD_Init();
-      rfidOUT.PCD_Init();
-      clearSpiBusPins();
+      reinitRfidReaders();
       lastReaderInit = millis();
     }
 
     // ── FRONT INTERFACE: CLOCK-IN 2FA PIPELINE ─────────────────────
     clearSpiBusPins();
+    rfidIN.PCD_WriteRegister(MFRC522::CommandReg, MFRC522::PCD_Idle);
+    rfidIN.PCD_ClearRegisterBitMask(MFRC522::BitFramingReg, 0x80);
     bool checkInScan = rfidIN.PICC_IsNewCardPresent() && rfidIN.PICC_ReadCardSerial();
+    clearSpiBusPins();
     
     if (checkInScan) {
       provideFeedback(RFID_TAP);
@@ -646,36 +707,54 @@ void loop() {
             String errMsg = resDoc["message"] | "Access Rejected";
             String name = resDoc["employeeName"] | resDoc["name"] | "";
             String modeStr = resDoc["mode"] | "";
+            bool isCapture = resDoc["isCapture"] | false;
 
-            sysLog("[ACCESS DENIED] Card " + currentUID + ": " + errMsg);
-
-            if (modeStr == "CARD_LOCKED") {
-              updateFrontDisplay("LOCKED OUT", "Excessive 2FA Fails\nCard Locked 5 Mins", ST77XX_RED);
-              provideFeedback(ERROR_FAIL);
-            } else if (modeStr == "REPLAY_ATTACK") {
-              updateFrontDisplay("SECURITY FAULT", "Replay/Clone Card\nAccess Blocked!", ST77XX_RED);
-              provideFeedback(ERROR_FAIL);
-            } else if (modeStr == "FINGERPRINT_REQUIRED" || errMsg.indexOf("Fingerprint") >= 0) {
-              updateFrontDisplay("DENIED", (name != "" ? name + "\n" : "") + "Fingerprint Required!", ST77XX_RED);
-              provideFeedback(ERROR_FAIL); // Error Beep, solenoid remains LOCKED
-            } else if (modeStr == "ALREADY_INSIDE" || errMsg.indexOf("inside") >= 0 || errMsg.indexOf("Inside") >= 0 || errMsg.indexOf("Already") >= 0) {
-              updateFrontDisplay("ACCESS DENIED", (name != "" ? name + "\n" : "") + "Already Inside!", ST77XX_RED);
-              provideFeedback(ERROR_FAIL); // Error Beep, solenoid remains LOCKED
+            if (isCapture || modeStr == "RFID_REG_SUCCESS") {
+              sysLog("[CAPTURE OK] Front RFID " + currentUID + " captured for admin registration.");
+              updateFrontDisplay("CARD CAPTURED", "Assigned in Admin UI", ST77XX_GREEN);
+              provideFeedback(SUCCESS_OK);
+              triggerStatusReset(2500);
             } else {
-              updateFrontDisplay("DENIED", errMsg, ST77XX_RED);
-              provideFeedback(ERROR_FAIL); // Error Beep, solenoid remains LOCKED
+              sysLog("[ACCESS DENIED] Card " + currentUID + ": " + errMsg);
+
+              if (modeStr == "CARD_LOCKED") {
+                int remainingSec = resDoc["remainingSec"] | 0;
+                if (remainingSec == 0 && errMsg.indexOf("(") >= 0) {
+                  int sIdx = errMsg.indexOf("(") + 1;
+                  int eIdx = errMsg.indexOf("s)");
+                  if (sIdx > 0 && eIdx > sIdx) remainingSec = errMsg.substring(sIdx, eIdx).toInt();
+                }
+                String waitMsg = (remainingSec > 0) ? ("Security Lockout\nWait " + String(remainingSec) + "s to Tap") : (errMsg + "\nWait to Tap Again");
+                updateFrontDisplay("LOCKED OUT", waitMsg, ST77XX_RED);
+                provideFeedback(ERROR_FAIL);
+              } else if (modeStr == "REPLAY_ATTACK") {
+                updateFrontDisplay("SECURITY FAULT", "Replay/Clone Card\nAccess Blocked!", ST77XX_RED);
+                provideFeedback(ERROR_FAIL);
+              } else if (modeStr == "FINGERPRINT_REQUIRED" || errMsg.indexOf("Fingerprint") >= 0) {
+                updateFrontDisplay("DENIED", (name != "" ? name + "\n" : "") + "Fingerprint Required!", ST77XX_RED);
+                provideFeedback(ERROR_FAIL); // Error Beep, solenoid remains LOCKED
+              } else if (modeStr == "ALREADY_INSIDE" || errMsg.indexOf("inside") >= 0 || errMsg.indexOf("Inside") >= 0 || errMsg.indexOf("Already") >= 0) {
+                updateFrontDisplay("ACCESS DENIED", (name != "" ? name + "\n" : "") + "Already Inside!", ST77XX_RED);
+                provideFeedback(ERROR_FAIL); // Error Beep, solenoid remains LOCKED
+              } else {
+                updateFrontDisplay("DENIED", errMsg, ST77XX_RED);
+                provideFeedback(ERROR_FAIL); // Error Beep, solenoid remains LOCKED
+              }
+              triggerStatusReset(3000);
             }
           }
         } else {
           sysLog("[HTTP ERROR] Backend connection failed, Code: " + String(httpCode));
           updateFrontDisplay("BUS ERROR", "Database Connection Lost", ST77XX_RED);
           provideFeedback(ERROR_FAIL);
+          triggerStatusReset(3000);
         }
         http.end();
       } else {
         sysLog("[NET ERROR] WiFi disconnected during scan.");
         updateFrontDisplay("OFFLINE", "Network Pipeline Down", ST77XX_RED);
         provideFeedback(ERROR_FAIL);
+        triggerStatusReset(3000);
       }
     }
     digitalWrite(SS_PIN_IN, HIGH);
@@ -704,7 +783,7 @@ void loop() {
                 queueTransaction(pendingUID + "|" + String(finger.fingerID), "suspicious_biometric_fail", "FRONT");
                 pendingUID = ""; pendingName = ""; last2FACountdownSec = -1;
                 pendingExpectedFingerID = -1; pendingExpectedFingerID2 = -1; pendingCardCounter = 0;
-                setLED(LED_SLOW_BLINK, LED_OFF);
+                triggerStatusReset(3000);
               } else {
                 updateFrontDisplay("VERIFIED", (pendingName != "" ? pendingName + "\n" : "") + "Door Released", ST77XX_GREEN);
                 provideFeedback(SUCCESS_OK);
@@ -720,7 +799,7 @@ void loop() {
               queueTransaction(pendingUID, "suspicious_biometric_fail", "FRONT");
               pendingUID = ""; pendingName = ""; last2FACountdownSec = -1;
               pendingExpectedFingerID = -1; pendingExpectedFingerID2 = -1; pendingCardCounter = 0;
-              setLED(LED_SLOW_BLINK, LED_OFF);
+              triggerStatusReset(3000);
             }
           }
         }
@@ -730,13 +809,16 @@ void loop() {
         queueTransaction(pendingUID, "unenrolled_card_attempt", "FRONT");
         pendingUID = ""; pendingName = ""; last2FACountdownSec = -1;
         pendingExpectedFingerID = -1; pendingExpectedFingerID2 = -1; pendingCardCounter = 0;
-        setLED(LED_SLOW_BLINK, LED_OFF);
+        triggerStatusReset(3000);
       }
     }
 
     // ── BACK INTERFACE: CLOCK-OUT MODULE (RFID ONLY) ────────────────
     clearSpiBusPins();
+    rfidOUT.PCD_WriteRegister(MFRC522::CommandReg, MFRC522::PCD_Idle);
+    rfidOUT.PCD_ClearRegisterBitMask(MFRC522::BitFramingReg, 0x80);
     bool checkOutScan = rfidOUT.PICC_IsNewCardPresent() && rfidOUT.PICC_ReadCardSerial();
+    clearSpiBusPins();
     
     if (checkOutScan) {
       provideFeedback(RFID_TAP);
@@ -778,25 +860,47 @@ void loop() {
           } else {
             String errMsg = resDoc["message"] | "Rejected";
             String modeStr = resDoc["mode"] | "";
-            if (modeStr == "REPLAY_ATTACK") {
+            bool isCapture = resDoc["isCapture"] | false;
+
+            if (isCapture || modeStr == "RFID_REG_SUCCESS") {
+              updateBackDisplay("CAPTURED", "Admin Assigned");
+              provideFeedback(SUCCESS_OK);
+              triggerStatusReset(2500);
+            } else if (modeStr == "CARD_LOCKED") {
+              int remainingSec = resDoc["remainingSec"] | 0;
+              if (remainingSec == 0 && errMsg.indexOf("(") >= 0) {
+                int sIdx = errMsg.indexOf("(") + 1;
+                int eIdx = errMsg.indexOf("s)");
+                if (sIdx > 0 && eIdx > sIdx) remainingSec = errMsg.substring(sIdx, eIdx).toInt();
+              }
+              updateBackDisplay("LOCKED", (remainingSec > 0) ? ("Wait " + String(remainingSec) + "s") : errMsg);
+              provideFeedback(ERROR_FAIL);
+              triggerStatusReset(3000);
+            } else if (modeStr == "REPLAY_ATTACK") {
               updateBackDisplay("SECURITY", "Replay Blocked");
+              provideFeedback(ERROR_FAIL);
+              triggerStatusReset(3000);
             } else if (errMsg.indexOf("outside") >= 0 || errMsg.indexOf("Outside") >= 0) {
               updateBackDisplay("DENIED", "Already Outside");
+              provideFeedback(ERROR_FAIL);
+              triggerStatusReset(3000);
             } else {
               updateBackDisplay("DENIED", errMsg);
+              provideFeedback(ERROR_FAIL);
+              triggerStatusReset(3000);
             }
-            provideFeedback(ERROR_FAIL);
           }
         } else {
           updateBackDisplay("NET ERROR", "Code: " + String(httpCode));
           provideFeedback(ERROR_FAIL);
+          triggerStatusReset(3000);
           http.end();
         }
       } else {
         updateBackDisplay("OFFLINE", "Local Denied");
         provideFeedback(ERROR_FAIL);
+        triggerStatusReset(3000);
       }
-      setLED(LED_SLOW_BLINK, LED_OFF);
     }
     digitalWrite(SS_PIN_OUT, HIGH);
   }

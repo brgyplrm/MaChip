@@ -117,12 +117,16 @@ const RfidManagement = () => {
       await fetchWithAuth("/api/system/reg-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "rfid" })
+        body: JSON.stringify({ type: "RFID" })
       });
 
       // 2. Poll/Wait for hardware scan
       const response = await fetchWithAuth("/api/users/generateRfid");
       const data = await response.json();
+
+      if (data.cancelled) {
+        return;
+      }
 
       if (response.ok && data.rfid) {
         setLocalScannedId(data.rfid);

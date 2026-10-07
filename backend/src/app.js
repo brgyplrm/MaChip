@@ -60,7 +60,7 @@ app.use((req, res, next) => {
     const duration = Date.now() - start;
     const userNumber = req.user ? formatUserNumber(req.user.user_Id) : "ANONYMOUS";
     const userIdStr = req.user ? ` (ID: ${req.user.user_Id})` : "";
-    const statusIcon = res.statusCode >= 400 ? "❌" : "✅";
+    const statusIcon = res.statusCode >= 400 ? "[FAIL]" : "[OK]";
     
     // Only output to VSCode terminal if it's not a silent 1-second heartbeat poll or if an error occurred
     if (!isSilentPolling || res.statusCode >= 400) {
@@ -179,6 +179,7 @@ const { initializeStorageStructure } = require("./utils/fileStorage");
 const { initializeAnnualLeaveBalances } = require("./utils/leaveBalanceHelper");
 const { processEmailQueue } = require("./utils/emailService");
 const { processAutoSeparations } = require("./utils/separationTask");
+const { startUdpDiscovery } = require("./utils/udpDiscovery");
 
 // ── Database Connection and Background Tasks ──────────────────────────────────
 connectDB().then(async () => {
@@ -186,8 +187,9 @@ connectDB().then(async () => {
   const PORT = process.env.PORT || 4000;
   server.listen(PORT, "0.0.0.0", () => {
     console.log(`Server is running on port ${PORT} (Listening on 0.0.0.0).`);
+    startUdpDiscovery();
     console.log("==========================================================");
-    console.log(" 🌐 ESP32 SECURED WEB SERIAL CONSOLE ACCESS INFO");
+    console.log(" [*] ESP32 SECURED WEB SERIAL CONSOLE ACCESS INFO");
     console.log(" └─ Direct URL:  http://192.168.1.86/console");
     console.log(" └─ mDNS URL:    http://machip-esp32.local/console");
     console.log(" └─ Admin User:  admin");

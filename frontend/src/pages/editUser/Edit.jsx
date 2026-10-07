@@ -263,40 +263,42 @@ const Edit = () => {
     setRfidError("");
     setLocalScannedId("");
 
-    // Clear any previous conflicting session on the ESP32 first
-    await fetchWithAuth("/api/esp/fingerprint/session/clear", { method: "POST" })
-      .catch(err => console.warn("Could not clear previous session:", err));
-
-    // Wait briefly to allow the hardware to acknowledge the clear command
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    // Start session
-    fetchWithAuth("/api/system/reg-session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, type: 'RFID' })
-    }).catch(err => console.error("Failed to start RFID session:", err));
     try {
+      // Start session FIRST and await it
+      await fetchWithAuth("/api/system/reg-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, type: 'RFID' })
+      });
+
       const scanResponse = await fetchWithAuth(`/api/users/generateRfid?userId=${userId}`);
       const scanData = await scanResponse.json();
-  
+
+      if (scanData.cancelled) {
+        return;
+      }
+
       if (scanResponse.ok && scanData.rfid) {
         if (scanData.rfid === originalMachipId) {
           setLocalScannedId(scanData.rfid);
           return;
         }
-  
+
         const checkResponse = await fetchWithAuth(`/api/users/check-machip/${scanData.rfid}`);
         const checkData = await checkResponse.json();
-  
+
         if (checkResponse.ok && checkData.exists && checkData.user_Id !== parseInt(userId)) {
           setRfidError("This MaChip ID is already assigned to another user.");
           setLocalScannedId(scanData.rfid);
         } else {
           setLocalScannedId(scanData.rfid);
         }
+      } else if (scanResponse.status === 400 && scanData.rfid) {
+        setRfidError(scanData.error || "This MaChip ID is already assigned to another user.");
+        setLocalScannedId(scanData.rfid);
       } else {
         setRfidError(scanData.error || "Failed to scan RFID. Please try again.");
+        if (scanData.rfid) setLocalScannedId(scanData.rfid);
       }
     } catch (err) {
       setRfidError("Connection error during RFID scan.");

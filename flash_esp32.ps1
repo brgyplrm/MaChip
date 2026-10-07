@@ -46,13 +46,13 @@ if (-not $Port) {
 }
 
 # 2. Locate Tools
-$arduinoCli = "C:\Users\cydto\AppData\Local\Programs\Arduino IDE\resources\app\lib\backend\resources\arduino-cli.exe"
+$arduinoCli = "$env:LOCALAPPDATA\Programs\Arduino IDE\resources\app\lib\backend\resources\arduino-cli.exe"
 if (-not (Test-Path $arduinoCli)) {
     $cliCmd = Get-Command arduino-cli -ErrorAction SilentlyContinue
     if ($cliCmd) { $arduinoCli = $cliCmd.Source }
 }
 
-$esptool = "C:\Users\cydto\AppData\Local\Arduino15\packages\esp32\tools\esptool_py\5.3.1\esptool.exe"
+$esptool = "$env:LOCALAPPDATA\Arduino15\packages\esp32\tools\esptool_py\5.3.1\esptool.exe"
 if (-not (Test-Path $esptool)) {
     $foundEsptool = Get-ChildItem -Path "$env:LOCALAPPDATA\Arduino15\packages\esp32\tools\esptool_py" -Recurse -Filter "esptool.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($foundEsptool) { $esptool = $foundEsptool.FullName }

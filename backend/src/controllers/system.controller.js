@@ -492,10 +492,10 @@ exports.setRegistrationSession = async (req, res) => {
   const upperType = type ? type.toUpperCase() : null;
 
   try {
-    // Clear any previous in-memory session flags to ensure a clean transition
+    // Prepare in-memory session without sending cancel signal to ESP32
     const rfidController = require("./rfid.controller.js");
-    if (rfidController && rfidController.resetAllEnrollmentSessions) {
-      await rfidController.resetAllEnrollmentSessions();
+    if (rfidController && rfidController.prepareEnrollmentSession) {
+      rfidController.prepareEnrollmentSession(upperType, userId);
     }
 
     const [session, created] = await System_State.findOrCreate({

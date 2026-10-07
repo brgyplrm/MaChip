@@ -35,6 +35,7 @@ import SearchOffIcon from '@mui/icons-material/SearchOff';
 import EmptyState from "../../components/EmptyState";
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 
@@ -57,6 +58,38 @@ const Home = () => {
     hour12: true
   });
   const [toast, setToast] = useState({ message: "", type: "success" });
+  const [isResettingTft, setIsResettingTft] = useState(false);
+
+  const handleResetTftScreen = async () => {
+    if (isResettingTft) return;
+    setIsResettingTft(true);
+    try {
+      const response = await fetchWithAuth("/api/esp/reset-screen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setToast({
+          message: "TFT screen successfully reset to default state (Scan RFID to Clock In).",
+          type: "success"
+        });
+      } else {
+        setToast({
+          message: data?.message || "Failed to reset TFT screen.",
+          type: "error"
+        });
+      }
+    } catch (error) {
+      console.error("Error resetting TFT screen:", error);
+      setToast({
+        message: "Network error occurred while resetting TFT screen.",
+        type: "error"
+      });
+    } finally {
+      setIsResettingTft(false);
+    }
+  };
   const [stats, setStats] = useState({
     totalEmployees: 0,
     officeOccupancy: 0,
@@ -369,22 +402,54 @@ const Home = () => {
               </p>
             </div>
             
-            <div className="shadow-sm flex bg-white border border-slate-200 px-5 py-3 rounded-xl flex-col gap-1 items-start min-w-[200px] transition-all duration-200 hover:shadow-md">
-              <p className="text-[10px] font-bold text-brand-primary/60 uppercase tracking-widest mb-0.5 flex items-center gap-1.5">
-                <AccessTimeIcon sx={{ fontSize: 12 }} />
-                <span>System Time</span>
-                <span className={`w-2 h-2 rounded-full ${isMockTime ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)] animate-pulse" : "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse"}`}></span>
-              </p>
-              <div className="flex flex-col">
-                <span className="text-2xl font-black tracking-tight text-brand-primary font-mono leading-none">
-                  {formattedTime}
-                </span>
-                {isMockTime && (
-                  <span className="text-[9px] text-amber-600 font-bold uppercase tracking-wider mt-1 animate-pulse">
-                    ⚠️ Mock Mode Active
+            <div className="flex flex-wrap sm:flex-nowrap items-stretch gap-3">
+              {/* System Time Card */}
+              <div className="shadow-sm flex bg-white border border-slate-200 px-5 py-3 rounded-xl flex-col justify-between gap-1 items-start min-w-[190px] transition-all duration-200 hover:shadow-md">
+                <p className="text-[10px] font-bold text-brand-primary/60 uppercase tracking-widest mb-0.5 flex items-center gap-1.5">
+                  <AccessTimeIcon sx={{ fontSize: 12 }} />
+                  <span>System Time</span>
+                  <span className={`w-2 h-2 rounded-full ${isMockTime ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)] animate-pulse" : "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse"}`}></span>
+                </p>
+                <div className="flex flex-col">
+                  <span className="text-2xl font-black tracking-tight text-brand-primary font-mono leading-none">
+                    {formattedTime}
                   </span>
-                )}
+                  {isMockTime && (
+                    <span className="text-[9px] text-amber-600 font-bold uppercase tracking-wider mt-1 animate-pulse">
+                      ⚠️ Mock Mode Active
+                    </span>
+                  )}
+                </div>
               </div>
+
+              {/* Reset TFT Screen to Default State Button */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={handleResetTftScreen}
+                    disabled={isResettingTft}
+                    type="button"
+                    className="shadow-sm flex bg-white border border-slate-200 px-4 py-3 rounded-xl flex-col justify-between items-start min-w-[140px] transition-all duration-200 hover:shadow-md hover:border-brand-primary/40 hover:bg-slate-50/80 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed group cursor-pointer text-left"
+                    aria-label="Reset TFT Screen to Default State"
+                  >
+                    <p className="text-[10px] font-bold text-brand-primary/60 uppercase tracking-widest mb-0.5 flex items-center gap-1.5 w-full">
+                      <RestartAltIcon 
+                        sx={{ fontSize: 13 }} 
+                        className={`text-brand-primary transition-transform duration-500 ${isResettingTft ? "animate-spin" : "group-hover:rotate-180"}`} 
+                      />
+                      <span>TFT Screen</span>
+                    </p>
+                    <div className="flex items-center gap-1.5 mt-auto">
+                      <span className="text-xs sm:text-sm font-extrabold tracking-tight text-brand-primary group-hover:text-brand-primary/90 transition-colors">
+                        {isResettingTft ? "Resetting..." : "Reset Screen"}
+                      </span>
+                    </div>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                  Reset the TFT screen into the default state (Scan RFID to Clock In).
+                </TooltipContent>
+              </Tooltip>
             </div>
           </div>
 

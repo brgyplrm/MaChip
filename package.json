@@ -9,7 +9,9 @@
     "db:reset": "npm run db:reset --prefix backend",
     "backend": "npm start --prefix backend",
     "frontend": "npm run dev --prefix frontend",
-    "dev": "concurrently \"npm run backend\" \"npm run frontend\""
+    "dev": "concurrently \"npm run backend\" \"npm run frontend\"",
+    "ota": "python scripts/ota_flash.py",
+    "ota:build": "python scripts/ota_flash.py --compile"
   },
   "devDependencies": {
     "autoprefixer": "^10.5.0",

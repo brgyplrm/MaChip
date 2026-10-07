@@ -122,7 +122,7 @@ const TransactionLog = () => {
   const handleExportPDF = () => {
     const headers = ["Timestamp", "User No.", "Initiated By", "Event Category", "Description", "IP Address"];
     const data = filteredData.map(t => [
-      new Date(t.createdAt).toLocaleString(),
+      new Date(t.createdAt).toLocaleString("en-US", { timeZone: "Asia/Manila" }),
       t.initiated_By ? formatUserId(t.initiated_By) : t.user_Id ? formatUserId(t.user_Id) : "SYS",
       t.admin_FirstName 
         ? `${t.admin_FirstName} ${t.admin_LastName}`
@@ -139,7 +139,7 @@ const TransactionLog = () => {
   const handleExportCSV = () => {
     const headers = ["Timestamp", "User No.", "Initiated By", "Event Category", "Description", "IP Address"];
     const data = filteredData.map(t => [
-      new Date(t.createdAt).toLocaleString(),
+      new Date(t.createdAt).toLocaleString("en-US", { timeZone: "Asia/Manila" }),
       t.initiated_By ? formatUserId(t.initiated_By) : t.user_Id ? formatUserId(t.user_Id) : "SYS",
       t.admin_FirstName 
         ? `${t.admin_FirstName} ${t.admin_LastName}`
@@ -413,7 +413,8 @@ const TransactionLog = () => {
                             <TableRow key={t.transId} className="hover:bg-slate-50/50 border-b-slate-100 transition-colors">
                               {/* Timestamp */}
                               <TableCell className="text-slate-600 text-xs py-4 px-6 font-medium whitespace-nowrap">
-                                {new Date(t.createdAt).toLocaleString(undefined, {
+                                {new Date(t.createdAt).toLocaleString("en-US", {
+                                  timeZone: "Asia/Manila",
                                   year: 'numeric',
                                   month: 'short',
                                   day: 'numeric',
@@ -566,7 +567,8 @@ const TransactionLog = () => {
                           <AccessTimeIcon fontSize="small" className="text-amber-600" /> Timestamp
                         </div>
                         <p className="font-semibold text-slate-900 text-xs">
-                          {new Date(selectedLog.createdAt).toLocaleString(undefined, {
+                          {new Date(selectedLog.createdAt).toLocaleString("en-US", {
+                            timeZone: "Asia/Manila",
                             weekday: 'short',
                             year: 'numeric',
                             month: 'short',

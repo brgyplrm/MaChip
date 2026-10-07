@@ -149,14 +149,14 @@ const HardwareManagement = () => {
   const scanAbortControllerRef = useRef(null);
 
   useEffect(() => {
-    // Abort any pending scan when switching tabs
+    // Abort and clear only if a scan was actively underway when switching tabs
     if (scanAbortControllerRef.current) {
       scanAbortControllerRef.current.abort();
       scanAbortControllerRef.current = null;
+      fetchWithAuth("/api/system/reg-session", { method: "DELETE" }).catch(() => {});
+      fetchWithAuth("/api/users/clear-fingerprint-session", { method: "DELETE" }).catch(() => {});
     }
     setShowScanModal(false);
-    fetchWithAuth("/api/system/reg-session", { method: "DELETE" }).catch(() => {});
-    fetchWithAuth("/api/users/clear-fingerprint-session", { method: "DELETE" }).catch(() => {});
   }, [activeTab]);
 
   useEffect(() => {
@@ -197,6 +197,11 @@ const HardwareManagement = () => {
         signal: abortController.signal
       });
       const data = await response.json();
+
+      if (data.cancelled) {
+        console.log(`[HARDWARE] ${activeTab.toUpperCase()} Scan aborted/cancelled.`);
+        return;
+      }
 
       if (response.ok) {
         if (activeTab === 'rfid' && data.rfid) {

@@ -2,6 +2,7 @@ const { sequelize, User, User_Hardware } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
 const { getSystemTime, formatDateLocal } = require("../utils/systemTime.js");
 const { logTransaction } = require("../utils/logger");
+const { queueSlotDeletion } = require("./rfid.controller.js");
 
 exports.getAllRfidCards = async (req, res) => {
   try {
@@ -278,6 +279,24 @@ exports.clearFingerprint = async (req, res) => {
 
   try {
     const nowStr = new Date().toISOString();
+
+    // 1. Fetch existing hardware slots so we can instruct ESP32 to delete physical templates from R307
+    const existingHardware = await sequelize.query(
+      `SELECT "user_FingerprintId", "user_FingerprintId2" FROM "User_Hardware" WHERE "user_Id" = :userId`,
+      { replacements: { userId }, type: QueryTypes.SELECT }
+    );
+
+    if (existingHardware && existingHardware.length > 0) {
+      const hw = existingHardware[0];
+      if (parseInt(slotNumber) === 2) {
+        if (hw.user_FingerprintId2) queueSlotDeletion(hw.user_FingerprintId2);
+      } else if (parseInt(slotNumber) === 1) {
+        if (hw.user_FingerprintId) queueSlotDeletion(hw.user_FingerprintId);
+      } else {
+        if (hw.user_FingerprintId) queueSlotDeletion(hw.user_FingerprintId);
+        if (hw.user_FingerprintId2) queueSlotDeletion(hw.user_FingerprintId2);
+      }
+    }
 
     if (parseInt(slotNumber) === 2) {
       await sequelize.query(

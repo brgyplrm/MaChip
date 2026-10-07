@@ -18,7 +18,7 @@
 #include "arduino_secrets.h"
 
 // ── FIRMWARE METADATA & BUILD VERSION ───────────────────────────
-#define FIRMWARE_VERSION   "v2.6.0-UI-TESTING"
+#define FIRMWARE_VERSION   "v2.7.0-UDP-DISCOVERY"
 #define BUILD_TIMESTAMP    __DATE__ " " __TIME__
 
 // ── CRYPTOGRAPHIC & RFID HARDWARE SECURITY ───────────────────────
@@ -38,10 +38,21 @@ const byte MIFARE_ACCESS_BITS[4] = { 0xFF, 0x07, 0x80, 0x69 }; // Transport defa
 #define FP_TX              17    // ESP32 UART2 TX -> R307S RX
 
 // SPI Bus Mappings for Dual MFRC522 Modules
-#define SS_PIN_IN          5     // Front Door Select Pin
-#define SS_PIN_OUT         26    // Back Door Select Pin
-#define RST_PIN_IN         32    // Front Door Reset Pin
-#define RST_PIN_OUT        4     // Back Door Reset Pin
+#define RFID_MISO          19    // Shared MISO (Master In Slave Out) for MFRC522 readers
+// Set SWAP_RFID_READERS to true if physical front/back reader cables are swapped
+#define SWAP_RFID_READERS  false
+
+#if SWAP_RFID_READERS
+  #define SS_PIN_IN          26    // Swapped: Front Door Select Pin
+  #define SS_PIN_OUT         5     // Swapped: Back Door Select Pin
+  #define RST_PIN_IN         4     // Swapped: Front Door Reset Pin
+  #define RST_PIN_OUT        32    // Swapped: Back Door Reset Pin
+#else
+  #define SS_PIN_IN          5     // Front Door Select Pin
+  #define SS_PIN_OUT         26    // Back Door Select Pin
+  #define RST_PIN_IN         32    // Front Door Reset Pin
+  #define RST_PIN_OUT        4     // Back Door Reset Pin
+#endif
 
 // ── DISPLAY PIN DEFINITIONS ──────────────────────────────────────
 #define TFT_CS             33
@@ -132,6 +143,8 @@ extern String enrollmentType;
 extern unsigned long fpEnrollStart;
 
 extern String pendingUID;
+extern String pendingName;
+extern int last2FACountdownSec;
 extern unsigned long pendingStart;
 extern int pendingExpectedFingerID;
 extern int pendingExpectedFingerID2;

@@ -188,7 +188,7 @@ const AuditLogs = () => {
   const handleExportPDF = () => {
     const headers = ["Timestamp", "User No.", "Administrator", "Module", "Event Category", "Target", "IP Address"];
     const data = filteredLogs.map(log => [
-      new Date(log.createdAt).toLocaleString(),
+      new Date(log.createdAt).toLocaleString("en-US", { timeZone: "Asia/Manila" }),
       log.user_Id ? formatUserId(log.user_Id) : "SYS",
       log.user_FirstName ? `${log.user_FirstName} ${log.user_LastName}` : "System",
       log.module || "System",
@@ -418,7 +418,8 @@ const AuditLogs = () => {
                           <TableRow key={log.auditId} className="hover:bg-slate-50/50 border-b-slate-100 transition-colors">
                             {/* Timestamp */}
                             <TableCell className="text-slate-600 text-xs py-4 px-6 font-medium whitespace-nowrap">
-                              {new Date(log.createdAt).toLocaleString(undefined, {
+                              {new Date(log.createdAt).toLocaleString("en-US", {
+                                timeZone: "Asia/Manila",
                                 year: 'numeric',
                                 month: 'short',
                                 day: 'numeric',
@@ -579,7 +580,8 @@ const AuditLogs = () => {
                           <AccessTimeIcon fontSize="small" className="text-amber-600" /> Timestamp
                         </div>
                         <p className="font-semibold text-slate-900 text-xs">
-                          {new Date(selectedLog.createdAt).toLocaleString(undefined, {
+                          {new Date(selectedLog.createdAt).toLocaleString("en-US", {
+                            timeZone: "Asia/Manila",
                             weekday: 'short',
                             year: 'numeric',
                             month: 'short',
