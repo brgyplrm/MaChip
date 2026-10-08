@@ -1,3 +1,10 @@
+# ==============================================================================
+# MAChip .gitignore
+# Clean repository rules: excludes secrets, local builds, temporary scratch scripts,
+# and local assistant/agent tooling to preserve a clean, professional repo.
+# ==============================================================================
+
+# --- Environment & Credentials ---
 .env
 .env.*
 !.env.example
@@ -8,44 +15,83 @@ backend/.env.*
 !backend/.env.deploy.example
 firmware/MaChip_Test/arduino_secrets.h
 !firmware/MaChip_Test/arduino_secrets.h.example
+
+# --- Dependencies & Build Artifacts ---
 node_modules/
 backend/node_modules/
 frontend/node_modules/
+frontend/dist/
+
+# --- Dynamic Uploads & File Storage ---
 backend/uploads/*
 !backend/uploads/.gitkeep
-GEMINI.md
-db_reset.js
-QA_CHECKLIST.txt
-seed_attendance.js
-uploads
-db_manager.js
-test_leave_insertion.js
-/seeds/
-/backend/seeds/*
-backend/db_reset.js
-seed_users.js
-sync_db.js
-seed_requests.js
-reproduce_500.js
-reproduce_500_full.js
-test_all_attendance.js
-test_query.js
-check_config.js
-check_db.js
-request_debug.log
-backend/request_debug.log
-backend/seed_scenario.js
-backend/seed_leaves.js
-2024_mass_seed.js
-2025_mass_seed.js
-2026_mass_seed.js
-debugs
-bitmap_previewer.html
-login_proposals.html
+uploads/
 
-# Arduino / Firmware build outputs
+# --- Firmware Build Outputs ---
 firmware/**/build/
 *.bin
 *.elf
 *.map
 *.hex
+
+# --- AI Assistants, Agents & Local Tooling (Keep local, omit from remote) ---
+.agent/
+.agents/
+_agent/
+_agents/
+GEMINI.md
+AGENTS.md
+CLAUDE.md
+.claude/
+.cursor/
+.gemini/
+
+# --- Logs & Debug Dumps ---
+*.log
+**/*.log
+request_debug.log
+backend/request_debug.log
+debugs/
+**/debugs/
+
+# --- Ad-hoc Scratch, Test, & Seeding Scripts ---
+test_query.js
+backend/test_query.js
+test_*.js
+backend/test_*.js
+check_config.js
+check_db.js
+db_reset.js
+backend/db_reset.js
+db_manager.js
+sync_db.js
+reproduce_*.js
+seed_*.js
+/seeds/
+/backend/seeds/*
+backend/seed_*.js
+*mass_seed.js
+QA_CHECKLIST.txt
+
+# --- Temporary HTML Visualizers & Scratchpads ---
+bitmap_previewer.html
+login_proposals.html
+*previewer*.html
+*proposals*.html
+docs/*proposals*.html
+firmware/*previewer*.html
+frontend/public/*proposals*.html
+
+# --- IDE & OS Artifacts ---
+.vscode/
+.postman/
+.DS_Store
+Thumbs.db
+*.swp
+*.bak
+
+# --- Archives & Portability Bundles ---
+*.tar.gz
+*.tgz
+machip-agent-stack.tar.gz
+

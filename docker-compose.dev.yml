@@ -1,0 +1,25 @@
+# ==============================================================================
+# MAChip Development Docker Compose (Hot Reload Override)
+# Usage on Linux / Workstation:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+# ==============================================================================
+
+services:
+  backend:
+    environment:
+      NODE_ENV: development
+    volumes:
+      - ./backend:/app:z
+      - /app/node_modules
+    command: ["sh", "-c", "npx sequelize-cli db:migrate && npm run dev"]
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app:z
+      - /app/node_modules

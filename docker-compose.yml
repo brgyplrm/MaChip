@@ -1,0 +1,79 @@
+services:
+  # --- PostgreSQL Database ---
+  db:
+    image: postgres:16-alpine
+    container_name: machip-postgres
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-machip}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-machip_dev_pass}
+      POSTGRES_DB: ${DB_DATABASE:-machipdb_dev}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data:z
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-machip} -d $${POSTGRES_DB:-machipdb_dev}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - machip-net
+
+  # --- Node.js / Express Backend ---
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: machip-backend
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      UDP_PORT: 4001
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USERNAME: ${DB_USERNAME:-machip}
+      DB_PASSWORD: ${DB_PASSWORD:-machip_dev_pass}
+      DB_DATABASE: ${DB_DATABASE:-machipdb_dev}
+      TZ: Asia/Manila
+      JWT_SECRET: ${JWT_SECRET:-machip_jwt_dev_secret_at_least_32_characters_long}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-0123456789abcdef0123456789abcdef}
+      ESP32_API_KEY: ${ESP32_API_KEY:-machip_esp32_dev_api_key_placeholder}
+      SECRET_HMAC_KEY: ${SECRET_HMAC_KEY:-machip_esp32_dev_hmac_key_placeholder}
+      PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium
+    ports:
+      - "4000:4000"
+      - "4001:4001/udp" # UDP Discovery for ESP32 RFID/Biometric reader
+    volumes:
+      - uploads_data:/app/uploads:z
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - machip-net
+
+  # --- React Vite Frontend (Nginx Proxy) ---
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: machip-frontend
+    ports:
+      - "80:80"
+      - "5173:80" # Allows access via default Vite port or standard HTTP port
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - machip-net
+
+volumes:
+  pgdata:
+    driver: local
+  uploads_data:
+    driver: local
+
+networks:
+  machip-net:
+    driver: bridge
