@@ -11,6 +11,7 @@ import ChevronRightOutlinedIcon from '@mui/icons-material/ChevronRightOutlined';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import { fetchWithAuth } from "../../utils/api";
 import CreditCardIcon from '@mui/icons-material/CreditCard';
+import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 
 // Lucide Icons
 import { 
@@ -139,7 +140,8 @@ const EmployeeHome = () => {
     userData?.is_solo_parent === 1 ||
     userData?.is_solo_parent === "1"
   );
-  const recentRequests = dashboardStats.monthlyRequests;
+  const recentRequests = dashboardStats.monthlyRequests || [];
+  const displayedRequests = recentRequests.slice(0, 4);
   const totalDays = (att.absent || 0) + (att.onTime || 0) + (att.late || 0);
   const totalTrackedDays = totalDays || 1;
 
@@ -425,7 +427,7 @@ const EmployeeHome = () => {
                     </Card>
                   </TooltipTrigger>
                   <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
-                    Your first clock-in recorded by the RFID/biometric terminal today.
+                    Your first clock-in recorded by the RFID and biometric terminal today.
                   </TooltipContent>
                 </Tooltip>
                 </Link>
@@ -433,7 +435,7 @@ const EmployeeHome = () => {
                 <Link to="/requests" className="block outline-none hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Card className="bg-gradient-to-t from-accent-green to-[#5A6F2A] shadow-sm py-0 h-[140px] relative overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-lg block outline-none cursor-help">
+                    <Card className="bg-gradient-to-t from-[#5A6F2A] to-accent-green shadow-sm py-0 h-[140px] relative overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-lg block outline-none cursor-help">
                       <div className="absolute right-1 top-4 opacity-10">
                         <FileText size={160} className="text-white absolute -right-2 -top-2" strokeWidth={1} />
                       </div>
@@ -639,7 +641,7 @@ const EmployeeHome = () => {
                 </div>
 
                 {/* Column 2: Recent Requests */}
-                <div className="bg-white p-6 rounded-xl shadow-sm flex flex-col border-t-4 border-accent-green h-[420px] min-w-0">
+                <div className="bg-white p-5 rounded-xl shadow-sm flex flex-col border-t-4 border-accent-green h-[420px] min-w-0">
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="text-gray-500 font-medium flex items-center gap-1.5">
                       <span>Recent Requests</span>
@@ -652,27 +654,50 @@ const EmployeeHome = () => {
                         </TooltipContent>
                       </Tooltip>
                     </h2>
-                    <Link to="/requests" className="text-xs text-accent-green/60 font-semibold hover:underline hover:text-accent-green/80">View All</Link>
                   </div>
-                  <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-2">
-                    {recentRequests.length > 0 ? (
-                      recentRequests.map((req) => {
-                        const config = getRequestStatusConfig(req.status, req.emp_reqStatusId);
-                        return (
-                          <div
-                            key={req.emp_reqId}
-                            className={`flex items-center gap-3 p-3.5 rounded-lg hover:bg-slate-100 transition-colors border-l-4 ${config.borderClass} bg-slate-50/70 min-w-0`}
+                  <div className="flex-1 flex flex-col justify-between">
+                    {displayedRequests.length > 0 ? (
+                      <>
+                        <div className="space-y-2.5">
+                          {displayedRequests.map((req) => {
+                            const config = getRequestStatusConfig(req.status, req.emp_reqStatusId);
+                            const formattedDate = req.date_Filed || req.createdAt
+                              ? new Date(req.date_Filed || req.createdAt).toLocaleDateString()
+                              : "";
+
+                            return (
+                              <div
+                                key={req.emp_reqId}
+                                className={`flex items-center gap-3 p-2 rounded-lg hover:bg-[#F8FFF2] transition-colors border-l-4 ${config.borderClass} bg-slate-50/70 min-w-0`}
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-bold text-brand-primary truncate">{req.reqTypeName}</p>
+                                  <p className="text-[11px] text-gray-500 truncate">
+                                    {req.remarks ? `${req.remarks}${formattedDate ? ` • ${formattedDate}` : ""}` : (formattedDate || "No description provided")}
+                                  </p>
+                                </div>
+                                <Badge className={`shrink-0 text-[9px] uppercase px-2 py-0 border-0 ${config.badgeClass}`}>
+                                  {config.label}
+                                </Badge>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="pt-2 flex items-center justify-center">
+                          <Link 
+                            to="/requests" 
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-accent-green hover:text-brand-primary hover:underline transition-colors py-1 px-3 rounded-md hover:bg-[#F8FFF2]"
                           >
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-bold text-brand-primary truncate">{req.reqTypeName}</p>
-                              <p className="text-[10px] text-gray-500 font-medium truncate">{req.remarks || "No description provided"}</p>
-                            </div>
-                            <Badge className={`shrink-0 text-[9px] uppercase px-2 py-0 border-0 ${config.badgeClass}`}>
-                              {config.label}
-                            </Badge>
-                          </div>
-                        );
-                      })
+                            <MoreHorizIcon sx={{ fontSize: 18 }} className="text-accent-green/70" />
+                            <span>See more</span>
+                            {recentRequests.length > 4 && (
+                              <span className="text-[11px] text-gray-500 font-normal">
+                                (+{recentRequests.length - 4} more)
+                              </span>
+                            )}
+                          </Link>
+                        </div>
+                      </>
                     ) : (
                       <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-60">
                         <FileText className="h-10 w-10 mb-3" />

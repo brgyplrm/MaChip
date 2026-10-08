@@ -81,6 +81,7 @@ const routeLabels = {
   "visitorLogs" : "Visitor Access",
   "logs/edit/:userId/:date" : "Edit Attendance",
   "employee": "My Payroll",
+  "loans": "My Loans",
   "payslip": "Payslip Details",
   "13th-month": "13th Month Details",
   "payroll-details": "Computation Details",
@@ -669,6 +670,10 @@ const Sidebar = ({ children }) => {
   const isLeaveSummaryActive = location.pathname === "/payroll/leave-summary";
 
   // Employee active state variables
+  const isMyLoansActive = 
+    location.pathname === "/employee/loans" ||
+    location.pathname.startsWith("/employee/loans");
+
   const isMyPayrollActive = 
     location.pathname.startsWith("/employee/payroll") ||
     location.pathname.startsWith("/employee/payslip") ||
@@ -935,6 +940,22 @@ const Sidebar = ({ children }) => {
                       <Link to="/employee/payroll">
                         <CreditCardIcon className="!text-[22px] shrink-0" />
                         <span className="ms-3 text-[14px] group-data-[collapsible=icon]:hidden">Payroll</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
+
+                {/* My Loans - Employee Only */}
+                {(viewMode === "employee" || Number(roleId) === 3) && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton 
+                      asChild 
+                      isActive={isMyLoansActive}
+                      className={menuButtonClass(isMyLoansActive)}
+                    >
+                      <Link to="/employee/loans">
+                        <AccountBalanceIcon className="!text-[22px] shrink-0" />
+                        <span className="ms-3 text-[14px] group-data-[collapsible=icon]:hidden">My Loans</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

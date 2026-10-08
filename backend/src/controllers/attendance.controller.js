@@ -37,7 +37,7 @@ exports.getSummaryReport = async (req, res) => {
       `SELECT r."user_id", u."user_FirstName", u."user_LastName",
               COUNT(CASE WHEN r."attendance_StatusId" = 3 THEN 1 END) as "absences",
               SUM(COALESCE(r."tardiness_mins", 0)) as "tardinessMins",
-              COUNT(CASE WHEN r."attendance_StatusId" = 4 THEN 1 END) as "leaves",
+              COUNT(CASE WHEN r."attendance_StatusId" IN (4, 5) THEN 1 END) as "leaves",
               SUM(COALESCE(r."ot_hrs", 0)) as "otHrs"
        FROM "employee_Logging_report" r
        JOIN "User" u ON r."user_id" = u."user_Id"
@@ -73,7 +73,7 @@ exports.markAttendance = async (req, res) => {
     // ── BULK CLOCK OUT LOGIC ───────────────────────────────────────────────
     if (user_Id === "all" && forcedStatus === 2) {
       const activeReports = await sequelize.query(
-        `SELECT r."user_id" FROM "employee_Logging_report" r WHERE r."log_Date" = :todayStr AND r."logged_StatusId" = 1`,
+        `SELECT r."user_id" FROM "employee_Logging_report" r WHERE r."log_Date" = :todayStr AND r."logged_StatusId" IN (1, 3, 5, 10)`,
         { replacements: { todayStr }, type: QueryTypes.SELECT }
       );
 
@@ -88,7 +88,7 @@ exports.markAttendance = async (req, res) => {
       for (const report of activeReports) {
         const targetId = report.user_id;
         const totalMinutes = now.getHours() * 60 + now.getMinutes();
-        const nextStatus = (totalMinutes >= lStart && totalMinutes < lEnd) ? 3 : 2;
+        const nextStatus = (totalMinutes >= lStart && totalMinutes < lEnd) ? 2 : (totalMinutes >= 990 ? 4 : 11);
 
         await sequelize.transaction(async (t) => {
           await sequelize.query(
@@ -101,8 +101,8 @@ exports.markAttendance = async (req, res) => {
           outArr.push(timeStr);
 
           await sequelize.query(
-            `UPDATE "employee_Logging_report" SET "time_Logged_outArr" = :outArr, "logged_StatusId" = 2 WHERE "user_id" = :targetId AND "log_Date" = :todayStr`,
-            { replacements: { outArr: JSON.stringify(outArr), targetId, todayStr }, type: QueryTypes.UPDATE, transaction: t }
+            `UPDATE "employee_Logging_report" SET "time_Logged_outArr" = :outArr, "logged_StatusId" = :nextStatus WHERE "user_id" = :targetId AND "log_Date" = :todayStr`,
+            { replacements: { outArr: JSON.stringify(outArr), nextStatus, targetId, todayStr }, type: QueryTypes.UPDATE, transaction: t }
           );
         });
 
@@ -323,7 +323,7 @@ exports.markAttendance = async (req, res) => {
 
     let newLog;
     const isEntry = [1, 3, 5, 10].includes(nextStatus);
-    const repStat = isEntry ? 1 : 2;
+    const repStat = nextStatus;
 
     await sequelize.transaction(async (t) => {
       const newLogResult = await sequelize.query(
@@ -829,8 +829,8 @@ exports.StatusLogic = async (req, res) => {
         .json({ error: "No attendance record found for today" });
     }
 
-    // If already Absent (3) or On-Leave (4), don't override
-    if (log.attendance_StatusId === 3 || log.attendance_StatusId === 4) {
+    // If already Absent (3), Half Day (4), or On-Leave (5), don't override
+    if (log.attendance_StatusId === 3 || log.attendance_StatusId === 4 || log.attendance_StatusId === 5) {
       return res
         .status(200)
         .json({ message: "Attendance status finalized", data: log });
@@ -997,7 +997,7 @@ exports.getMonthlyAttendanceStats = async (req, res) => {
          EXTRACT(YEAR FROM "log_Date")::integer AS "year",
          EXTRACT(MONTH FROM "log_Date")::integer AS "month_num",
          TO_CHAR("log_Date", 'Month') AS name,
-         COUNT(*) FILTER (WHERE "attendance_StatusId" IN (1, 5, 6)) AS "OnTime",
+         COUNT(*) FILTER (WHERE "attendance_StatusId" IN (1, 6)) AS "OnTime",
          COUNT(*) FILTER (WHERE "attendance_StatusId" = 2) AS "Late",
          COUNT(*) FILTER (WHERE "attendance_StatusId" = 3) AS "Absent"
        FROM "employee_Logging_report"
@@ -1062,7 +1062,7 @@ exports.getMonthlyAttendanceStatsByUser = async (req, res) => {
          EXTRACT(YEAR FROM "log_Date")::integer AS "year",
          EXTRACT(MONTH FROM "log_Date")::integer AS "month_num",
          TO_CHAR("log_Date", 'Month') AS name,
-         COUNT(*) FILTER (WHERE "attendance_StatusId" IN (1, 5, 6)) AS "OnTime",
+         COUNT(*) FILTER (WHERE "attendance_StatusId" IN (1, 6)) AS "OnTime",
          COUNT(*) FILTER (WHERE "attendance_StatusId" = 2) AS "Late",
          COUNT(*) FILTER (WHERE "attendance_StatusId" = 3) AS "Absent"
        FROM "employee_Logging_report"
@@ -1113,8 +1113,9 @@ exports.getEmployeeDashboardStats = async (req, res) => {
     const attendanceStats = await sequelize.query(
       `SELECT 
          COUNT(*) FILTER (WHERE "attendance_StatusId" = 3) AS "absentCount",
-         COUNT(*) FILTER (WHERE "attendance_StatusId" IN (1, 5, 6)) AS "onTimeCount",
-         COUNT(*) FILTER (WHERE "attendance_StatusId" = 2) AS "lateCount"
+         COUNT(*) FILTER (WHERE "attendance_StatusId" IN (1, 6)) AS "onTimeCount",
+         COUNT(*) FILTER (WHERE "attendance_StatusId" = 2) AS "lateCount",
+         COUNT(*) FILTER (WHERE "attendance_StatusId" = 5) AS "leaveCount"
        FROM "employee_Logging_report"
        WHERE "user_id" = :user_Id 
        AND EXTRACT(YEAR FROM "log_Date") = :currentYear
@@ -1296,12 +1297,12 @@ exports.getDashboardStats = async (req, res) => {
 
     const stats = await sequelize.query(
       `SELECT
-         COUNT(*) FILTER (WHERE "logged_StatusId" = 1) AS "officeOccupancy",
-         COUNT(*) FILTER (WHERE "attendance_StatusId" IN (1, 5, 6)) AS "onTimeCount",
+         COUNT(*) FILTER (WHERE "logged_StatusId" IN (1, 3, 5, 10)) AS "officeOccupancy",
+         COUNT(*) FILTER (WHERE "attendance_StatusId" IN (1, 6)) AS "onTimeCount",
          COUNT(*) FILTER (WHERE "attendance_StatusId" = 2) AS "lateArrivalsCount",
          COUNT(*) FILTER (WHERE "attendance_StatusId" = 3) AS "absentCount",
-         COUNT(*) FILTER (WHERE "attendance_StatusId" = 4) AS "onLeaveCount",
-         COUNT(*) FILTER (WHERE "attendance_StatusId" = 5) AS "onFieldCount",
+         COUNT(*) FILTER (WHERE "attendance_StatusId" = 4) AS "halfDayCount",
+         COUNT(*) FILTER (WHERE "attendance_StatusId" = 5) AS "onLeaveCount",
          COUNT(*) FILTER (WHERE "attendance_StatusId" = 6) AS "onExemptCount",
          COUNT(*) FILTER (WHERE "time_Logged_inArr" <> '[]') AS "enteredCount",
          COUNT(*) FILTER (WHERE "time_Logged_outArr" <> '[]') AS "exitedCount"
@@ -1313,7 +1314,7 @@ exports.getDashboardStats = async (req, res) => {
 
     const yesterdayStats = await sequelize.query(
       `SELECT
-         COUNT(*) FILTER (WHERE "attendance_StatusId" IN (1, 5, 6)) AS "onTimeCount",
+         COUNT(*) FILTER (WHERE "attendance_StatusId" IN (1, 6)) AS "onTimeCount",
          COUNT(*) FILTER (WHERE "attendance_StatusId" = 2) AS "lateArrivalsCount"
        FROM "employee_Logging_report"
        WHERE "log_Date" = :yesterdayStr
@@ -1435,7 +1436,7 @@ exports.getOfficeOccupancy = async (req, res) => {
        FROM "employee_Logging_report" r
        LEFT JOIN "User" u ON u."user_Id" = r."user_id"
        WHERE r."log_Date" = :todayStr
-       AND r."logged_StatusId" = 1
+       AND r."logged_StatusId" IN (1, 3, 5, 10)
        AND r."user_id" != 999`,
       { replacements: { todayStr }, type: QueryTypes.SELECT },
     );
@@ -1885,7 +1886,28 @@ exports.updateAttendanceRecord = async (req, res) => {
     const inArrStr = JSON.stringify(inArr);
     const outArrStr = JSON.stringify(outArr);
 
-    const reportLoggedStatus = (outArr.length >= inArr.length && outArr.length > 0) ? 2 : 1;
+    let reportLoggedStatus = 1;
+    if (outArr.length >= inArr.length && outArr.length > 0) {
+      const lastOut = outArr[outArr.length - 1];
+      if (otOut && otOut !== "—") {
+        reportLoggedStatus = 6; // Overtime OUT
+      } else if (lastOut >= "17:00:00") {
+        reportLoggedStatus = 4; // Afternoon OUT
+      } else if (lastOut >= "11:30:00" && lastOut < "13:30:00") {
+        reportLoggedStatus = 2; // Morning OUT
+      } else {
+        reportLoggedStatus = 4; // Afternoon OUT default
+      }
+    } else if (inArr.length > 0) {
+      const lastIn = inArr[inArr.length - 1];
+      if (otIn && otIn !== "—") {
+        reportLoggedStatus = 5; // Overtime IN
+      } else if (lastIn >= "12:00:00") {
+        reportLoggedStatus = 3; // Afternoon IN
+      } else {
+        reportLoggedStatus = 1; // Morning IN
+      }
+    }
 
     // 3. Update the record
     await sequelize.query(
@@ -1909,7 +1931,7 @@ exports.updateAttendanceRecord = async (req, res) => {
     );
 
     // ── 7. RESOLVE LEAVE CONFLICTS (VOID LOGIC) ──────────────────────────────
-    if (reportLoggedStatus === 2) {
+    if ([2, 4, 6, 11].includes(Number(reportLoggedStatus))) {
       resolveLeaveConflict(user_Id, date)
         .then(res => {
           if (res.refundAmount > 0) console.log(`[LEAVE-AUTO] ${res.message} for user ${user_Id}`);

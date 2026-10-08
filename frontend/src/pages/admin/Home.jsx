@@ -404,7 +404,7 @@ const Home = () => {
             
             <div className="flex flex-wrap sm:flex-nowrap items-stretch gap-3">
               {/* System Time Card */}
-              <div className="shadow-sm flex bg-white border border-slate-200 px-5 py-3 rounded-xl flex-col justify-between gap-1 items-start min-w-[190px] transition-all duration-200 hover:shadow-md">
+              <div className="shadow-sm flex bg-white border border-slate-200 px-5 py-3 rounded-xl flex-col justify-between gap-1 items-start min-w-[190px] transition-all duration-200 ">
                 <p className="text-[10px] font-bold text-brand-primary/60 uppercase tracking-widest mb-0.5 flex items-center gap-1.5">
                   <AccessTimeIcon sx={{ fontSize: 12 }} />
                   <span>System Time</span>
@@ -425,7 +425,7 @@ const Home = () => {
               {/* Reset TFT Screen to Default State Button */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <button
+                  {/* <button
                     onClick={handleResetTftScreen}
                     disabled={isResettingTft}
                     type="button"
@@ -444,7 +444,7 @@ const Home = () => {
                         {isResettingTft ? "Resetting..." : "Reset Screen"}
                       </span>
                     </div>
-                  </button>
+                  </button> */}
                 </TooltipTrigger>
                 <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
                   Reset the TFT screen into the default state (Scan RFID to Clock In).
@@ -530,13 +530,13 @@ const Home = () => {
                           <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-white/70 hover:text-white cursor-help" />
                         </TooltipTrigger>
                         <TooltipContent className="bg-slate-900 text-white border-slate-800">
-                          Estimated net payout for the current month. Includes government deductions (SSS, PhilHealth, Pag-IBIG) and tax withholdings.
+                          Estimated net payout for the current month. Excludes government deductions (SSS, PhilHealth, Pag-IBIG) and tax withholdings.
                         </TooltipContent>
                       </Tooltip>
                     </div>
                     <p className="text-4xl font-bold text-white">{statsLoading ? "..." : `₱${(stats.projectedPayroll || 0).toLocaleString()}`}</p>
                   </div>
-                  <p className="text-xs font-semibold text-white/70 italic mt-4">Estimated net payout after deductions</p>
+                  <p className="text-xs font-semibold text-white/70 italic mt-4">Estimated net payout before deductions</p>
                 </CardContent>
               </Card>
             </Link>
@@ -626,7 +626,6 @@ const Home = () => {
             <div className="bg-white p-5 rounded-xl shadow-sm flex flex-col border-t-4 border-accent-green min-w-0">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-gray-500 font-medium">Pending Requests</h2>
-                <Link to="/adminRequests" className="text-xs text-accent-green/60 font-semibold hover:underline hover:text-accent-green/80">View All</Link>
               </div>
               <div className="flex-1 space-y-3">
                 {pendingRequests.length > 0 ? (
@@ -668,7 +667,7 @@ const Home = () => {
                       })}
                     </div>
                     {Number(stats.pendingCount) > 3 && (
-                      <div className="pt-1 flex items-center justify-center">
+                      <div className="pt-7 flex items-center justify-center">
                         <Link 
                           to="/adminRequests" 
                           className="inline-flex items-center gap-1.5 text-xs font-semibold text-accent-green hover:text-brand-primary hover:underline transition-colors py-1 px-3 rounded-md hover:bg-[#F8FFF2]"
@@ -823,7 +822,7 @@ const Home = () => {
               </CardContent>
             </Tabs>
           </Card>
-          <div className="h-4"></div>
+          <div className="h-2"></div>
 
           {/* Occupancy List Section */}
           <div className="w-full mt-3">

@@ -217,7 +217,7 @@ const Login = () => {
               Next Payroll Cutoff
             </div>
             <div className="text-[13.5px] font-bold text-[#c7db34] flex items-center gap-1.5">
-              <span>📅</span> 15th (Processed on 10th)
+               15th (Processed on 10th)
             </div>
             <div className="text-[11px] text-purple-200/60 mt-0.5">
               Automated Batch Processing

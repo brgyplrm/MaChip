@@ -146,25 +146,34 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
           const lastName = log.user_LastName ?? "";
           const fullName = `${firstName} ${lastName}`.trim();
 
+          const rawStatusName = log.loggedStatusName ?? "—";
+          let displayType = rawStatusName;
+          if (log.attendance_StatusId === 8 || log.attendanceStatusName === "Irregular") {
+            displayType = rawStatusName?.startsWith("Irregular") 
+              ? rawStatusName 
+              : `Irregular ${[1, 3, 5, 10].includes(log.logged_StatusId) ? "Clock In" : "Clock Out"}`;
+          } else if (rawStatusName === "Morning IN") {
+            displayType = "Clock In";
+          } else if (rawStatusName === "Morning OUT") {
+            displayType = "Clock Out";
+          }
+
           return {
-            user_loggingId: log.user_loggingId,
-            user_Id: u_Id,
-            user_Id_formatted: formatUserId(u_Id),
-            first_name: firstName || "—",
-            last_name: lastName || "—",
-            fullName: fullName || "—",
-            machip_id: log.user_MachipId || "—",
-            log_Date: log.log_Date ? String(log.log_Date).split('T')[0] : "—",
-            time: formatTime12h(log.time_Logged),
-            log_type: (log.attendance_StatusId === 8 || log.attendanceStatusName === "Irregular")
-              ? (log.loggedStatusName?.startsWith("Irregular") 
-                  ? log.loggedStatusName 
-                  : `Irregular ${[1, 3, 5, 10].includes(log.logged_StatusId) ? "Clock In" : "Clock Out"}`)
-              : (log.loggedStatusName ?? "—"),
-            action: log.attendanceStatusName ?? "—",
-            attendance_StatusId: log.attendance_StatusId,
-            logged_StatusId: log.logged_StatusId,
-          };
+              user_loggingId: log.user_loggingId,
+              user_Id: u_Id,
+              user_Id_formatted: formatUserId(u_Id),
+              first_name: firstName || "—",
+              last_name: lastName || "—",
+              fullName: fullName || "—",
+              machip_id: log.user_MachipId || "—",
+              log_Date: log.log_Date ? String(log.log_Date).split('T')[0] : "—",
+              time: formatTime12h(log.time_Logged),
+              log_type: displayType,
+              raw_log_type: rawStatusName,
+              action: log.attendanceStatusName ?? "—",
+              attendance_StatusId: log.attendance_StatusId,
+              logged_StatusId: log.logged_StatusId,
+            };
         });
         setLogData(mapped);
       }
@@ -306,13 +315,45 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
       item.fullName?.toLowerCase().includes(query) ||
       item.action?.toLowerCase().includes(query) ||
       item.log_type?.toLowerCase().includes(query) ||
+      item.raw_log_type?.toLowerCase().includes(query) ||
       item.machip_id?.toLowerCase().includes(query);
 
     const matchesUser = selectedUser === "all" || item.user_Id?.toString() === selectedUser;
-    const matchesStatus = statusFilter === "All" || 
-      (statusFilter.toLowerCase() === "irregular" 
-        ? (item.action?.toLowerCase() === "irregular" || item.attendance_StatusId === 8 || item.log_type?.toLowerCase().includes("irregular")) 
-        : item.log_type?.toLowerCase().includes(statusFilter.toLowerCase()));
+    
+    let matchesStatus = true;
+    if (statusFilter !== "All") {
+      const filterLower = statusFilter.toLowerCase();
+      if (filterLower === "irregular") {
+        matchesStatus = item.action?.toLowerCase() === "irregular" || 
+                        item.attendance_StatusId === 8 || 
+                        item.log_type?.toLowerCase().includes("irregular");
+      } else if (filterLower === "system" || filterLower === "system generated") {
+        matchesStatus = item.log_type?.toLowerCase().includes("system") || 
+                        item.raw_log_type?.toLowerCase().includes("system") ||
+                        item.logged_StatusId === 7;
+      } else if (filterLower === "clock in" || filterLower === "in") {
+        matchesStatus = item.log_type?.toLowerCase().includes("in") || 
+                        [1, 3, 5, 10].includes(item.logged_StatusId);
+      } else if (filterLower === "clock out" || filterLower === "out") {
+        matchesStatus = item.log_type?.toLowerCase().includes("out") || 
+                        [2, 4, 6, 11].includes(item.logged_StatusId);
+      } else if (filterLower === "morning in" || filterLower === "manual") {
+        matchesStatus = item.raw_log_type === "Morning IN" || 
+                        item.logged_StatusId === 1 || 
+                        item.log_type === "Clock In";
+      } else if (filterLower === "morning out" || filterLower === "manual_out") {
+        matchesStatus = item.raw_log_type === "Morning OUT" || 
+                        item.logged_StatusId === 2 || 
+                        item.log_type === "Clock Out";
+      } else if (filterLower === "afternoon in") {
+        matchesStatus = item.raw_log_type === "Afternoon IN" || item.logged_StatusId === 3;
+      } else if (filterLower === "afternoon out") {
+        matchesStatus = item.raw_log_type === "Afternoon OUT" || item.logged_StatusId === 4;
+      } else {
+        matchesStatus = item.log_type?.toLowerCase().includes(filterLower) ||
+                        item.raw_log_type?.toLowerCase().includes(filterLower);
+      }
+    }
 
     return matchesSearch && matchesUser && matchesStatus && matchesDate && matchesTime;
   });
@@ -456,7 +497,8 @@ const toggleMachipVisibility = (rowId) => {
               <Tabs value={viewMode} onValueChange={(val) => {
                 setViewMode(val);
                 setSearchParams({ view: val });
-              }}  className="w-full sm:w-[250px] xl:w-[250px]">
+                setStatusFilter("All");
+              }} className="w-full sm:w-[250px] xl:w-[250px]">
                 <TabsList className="grid w-full grid-cols-2 h-11 bg-slate-200/60 rounded-lg">
                   <TabsTrigger value="raw" className="data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-md! font-semibold text-slate-500 transition-all rounded-md">
                     Raw Logs
@@ -603,7 +645,7 @@ const toggleMachipVisibility = (rowId) => {
                 </div>
                 
                 <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
-                  <Select value={selectedUser} onValueChange={setSelectedUser}>
+                  {/* <Select value={selectedUser} onValueChange={setSelectedUser}>
                     <SelectTrigger className="w-full sm:w-[180px] border-slate-200 bg-slate-50">
                       <SelectValue placeholder="All Users" />
                     </SelectTrigger>
@@ -615,7 +657,7 @@ const toggleMachipVisibility = (rowId) => {
                         </SelectItem>
                       ))}
                     </SelectContent>
-                  </Select>
+                  </Select> */}
 
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
                     <SelectTrigger className="w-full sm:w-[150px] border-slate-200 bg-slate-50">
@@ -625,9 +667,14 @@ const toggleMachipVisibility = (rowId) => {
                       <SelectItem value="All">All {viewMode === "raw" ? "Types" : "Statuses"}</SelectItem>
                       {viewMode === "raw" ? (
                         <>
-                          <SelectItem value="in">Clock In</SelectItem>
-                          <SelectItem value="out">Clock Out</SelectItem>
-                          <SelectItem value="irregular">Irregular</SelectItem>
+                          <SelectItem value="Clock In">Clock In</SelectItem>
+                          <SelectItem value="Clock Out">Clock Out</SelectItem>
+                          <SelectItem value="Morning In">Morning In</SelectItem>
+                          <SelectItem value="Morning Out">Morning Out</SelectItem>
+                          <SelectItem value="Afternoon In">Afternoon In</SelectItem>
+                          <SelectItem value="Afternoon Out">Afternoon Out</SelectItem>
+                          <SelectItem value="System Generated">System Generated</SelectItem>
+                          <SelectItem value="Irregular">Irregular</SelectItem>
                         </>
                       ) : (
                         <>
@@ -768,7 +815,7 @@ const toggleMachipVisibility = (rowId) => {
                                       ? (row.log_type.startsWith("Irregular") 
                                           ? row.log_type 
                                           : `Irregular ${[1, 3, 5, 10].includes(row.logged_StatusId) || row.log_type.toLowerCase().includes("in") ? "Clock In" : "Clock Out"}`)
-                                      : row.log_type}
+                                      : (row.log_type === "Morning IN" ? "Clock In" : row.log_type === "Morning OUT" ? "Clock Out" : row.log_type)}
                                   </Badge>
                                 </TableCell>
 

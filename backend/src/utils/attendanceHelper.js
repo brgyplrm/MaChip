@@ -196,6 +196,7 @@ async function calculateAndStoreAttendanceUnits(userId, logDate) {
     // Clamp to shift boundaries for REGULAR hours calculation
     if (firstIn && firstIn < shiftStart && !isNightShiftAllowed) firstIn = shiftStart;
     if (!dayOT && lastOut && lastOut > shiftEnd && !isNightShiftAllowed) lastOut = shiftEnd;
+    if (dayOT && dayOT.HrTo && lastOut > dayOT.HrTo) lastOut = dayOT.HrTo;
     
     let stats = { reg_hrs: 0, nd_hrs: 0, ot_hrs: 0, hol_hrs: 0, totalPayableHours: 0 };
     if (!firstIn || !lastOut || (firstIn >= shiftEnd && !dayOT && !isNightShiftAllowed)) {
@@ -212,8 +213,17 @@ async function calculateAndStoreAttendanceUnits(userId, logDate) {
       stats.hol_hrs = 0;
       stats.totalPayableHours = 0;
     } else {
-      // Threshold check: Zero out regular payable hours if below workHourThreshold (default 4.0 hrs)
-      const threshold = settings?.workHourThreshold !== undefined ? parseFloat(settings.workHourThreshold) : 4.0;
+      // Threshold check: Zero out regular payable hours if below workHourThreshold
+      // Half-Day attendees (status 4) or approved half-day leave have a reduced threshold of 3.0 hrs
+      const hasHalfDayLeave = await sequelize.query(
+        `SELECT er."emp_reqId" FROM "emp_Request" er
+         LEFT JOIN "HalfDay_Leave" hd ON er."emp_reqId" = hd."emp_reqId"
+         WHERE er."user_Id" = :userId AND er."emp_reqStatusId" = 2 AND (er."emp_reqTypeId" = 7 OR hd."DateOfLeave" = :logDate) LIMIT 1`,
+        { replacements: { userId, logDate }, type: QueryTypes.SELECT }
+      );
+      const isHalfDay = report.attendance_StatusId === 4 || hasHalfDayLeave.length > 0;
+      const baseThreshold = settings?.workHourThreshold !== undefined ? parseFloat(settings.workHourThreshold) : 4.0;
+      const threshold = isHalfDay ? 3.0 : baseThreshold;
       const isExempt = Boolean(user?.is_time_exempt) || (user?.user_RoleId === 1);
       if (!isExempt && stats.reg_hrs < threshold) {
         stats.reg_hrs = 0;
@@ -221,7 +231,18 @@ async function calculateAndStoreAttendanceUnits(userId, logDate) {
       }
     }
 
-    await report.update({ reg_hrs: stats.reg_hrs, nd_hrs: stats.nd_hrs, ot_hrs: stats.ot_hrs, holiday_hrs: stats.hol_hrs, total_payable_hrs: stats.totalPayableHours });
+    const updateData = {
+      reg_hrs: stats.reg_hrs,
+      nd_hrs: stats.nd_hrs,
+      ot_hrs: stats.ot_hrs,
+      holiday_hrs: stats.hol_hrs,
+      total_payable_hrs: stats.totalPayableHours
+    };
+    if (dayOT && stats.ot_hrs > 0 && lastOut >= shiftEnd) {
+      updateData.logged_StatusId = 6; // Overtime OUT
+    }
+
+    await report.update(updateData);
     return { success: true, stats };
   } catch (error) { return { success: false, error: error.message }; }
 }
@@ -320,6 +341,7 @@ function timeToMins(timeStr) {
 async function ensureAbsentsMarked(dateOverride = null) {
   try {
     const settings = await SystemSettings.findOne();
+    const shiftEndTime = settings?.morningShiftEnd || "17:30:00";
     const now = await getSystemTime();
     const todayStr = dateOverride instanceof Date ? formatDateLocal(dateOverride) : (dateOverride || formatDateLocal(now));
     
@@ -376,7 +398,7 @@ async function ensureAbsentsMarked(dateOverride = null) {
             time_Logged_inArr: standardInArr,
             time_Logged_outArr: standardOutArr,
             attendance_StatusId: 6, // Exempt
-            logged_StatusId: 2, // Closed
+            logged_StatusId: 4, // Closed (Afternoon OUT)
             reg_hrs: 8,
             total_payable_hrs: 8
           });
@@ -393,7 +415,7 @@ async function ensureAbsentsMarked(dateOverride = null) {
             time_Logged_inArr: standardInArr,
             time_Logged_outArr: standardOutArr,
             attendance_StatusId: 6,
-            logged_StatusId: 2,
+            logged_StatusId: 4, // Closed (Afternoon OUT)
             reg_hrs: 8,
             total_payable_hrs: 8
           });
@@ -424,6 +446,52 @@ async function ensureAbsentsMarked(dateOverride = null) {
         if (existingReport.attendance_StatusId === 8) {
            await existingReport.update({ attendance_StatusId: 3 });
            console.log(`[ABSENT-AUTO] User ${userId} flagged as Absent (Only Irregular logs found) on ${todayStr}`);
+        } else if (existingReport.attendance_StatusId === 3) {
+          // Check if an approved request (Leave or On-field) now exists for this date
+          const approvedRequestCheck = await sequelize.query(`
+            SELECT er."emp_reqTypeId"
+            FROM "emp_Request" er
+            LEFT JOIN "Vacation_Leave" vl ON er."emp_reqId" = vl."emp_reqId"
+            LEFT JOIN "Sick_Leave" sl ON er."emp_reqId" = sl."emp_reqId"
+            LEFT JOIN "Emergency_Leave" el ON er."emp_reqId" = el."emp_reqId"
+            LEFT JOIN "HalfDay_Leave" hd ON er."emp_reqId" = hd."emp_reqId"
+            LEFT JOIN "Statutory_Leave" st ON er."emp_reqId" = st."emp_reqId"
+            LEFT JOIN "Onfield_Work" ow ON er."emp_reqId" = ow."emp_reqId"
+            WHERE er."user_Id" = :userId AND er."emp_reqStatusId" = 2
+              AND (:todayStr BETWEEN vl."StartDate" AND vl."EndDate"
+                   OR :todayStr BETWEEN sl."StartDate" AND sl."EndDate"
+                   OR (:todayStr >= el."DateOfLeave" AND :todayStr <= (el."DateOfLeave" + INTERVAL '1 day' * (GREATEST(1, el."NoDays") - 1))::date)
+                   OR hd."DateOfLeave" = :todayStr
+                   OR :todayStr BETWEEN st."StartDate" AND st."EndDate"
+                   OR ow."DateonField" = :todayStr)
+            LIMIT 1
+          `, { replacements: { userId, todayStr }, type: QueryTypes.SELECT });
+
+          if (approvedRequestCheck.length > 0) {
+            const typeId = approvedRequestCheck[0].emp_reqTypeId;
+            const repairedStatusId = (typeId === 2) ? 1 : (typeId === 7 ? 4 : 5);
+            await existingReport.update({ attendance_StatusId: repairedStatusId });
+            await sequelize.query(
+              `UPDATE "user_logging" 
+               SET "attendance_StatusId" = :repairedStatusId 
+               WHERE "user_id" = :userId AND "log_Date"::date = :todayStr::date AND "attendance_StatusId" = 3`,
+              { replacements: { repairedStatusId, userId, todayStr }, type: QueryTypes.UPDATE }
+            );
+            await calculateAndStoreAttendanceUnits(userId, todayStr);
+            console.log(`[AUTO-REPAIR] User ${userId} upgraded from Absent to Status ${repairedStatusId} on ${todayStr}`);
+          }
+        } else if (existingReport.attendance_StatusId === 1 || existingReport.attendance_StatusId === 2) {
+          // Check for single-session morning attendees who abandoned the afternoon
+          const inArr = JSON.parse(existingReport.time_Logged_inArr || "[]");
+          const outArr = JSON.parse(existingReport.time_Logged_outArr || "[]");
+          const lastOut = outArr[outArr.length - 1];
+          const hasAfternoonScan = outArr.some(t => t >= "13:30:00") || inArr.some(t => t >= "12:30:00");
+          if (!hasAfternoonScan && lastOut && lastOut < "13:30:00" && inArr.length > 0) {
+            // Half Day: Worked morning only
+            await existingReport.update({ attendance_StatusId: 4 });
+            await calculateAndStoreAttendanceUnits(userId, todayStr);
+            console.log(`[HALF-DAY-AUTO] User ${userId} updated to Half Day on ${todayStr}`);
+          }
         }
         continue;
       }
@@ -460,7 +528,7 @@ async function ensureAbsentsMarked(dateOverride = null) {
         WHERE er."user_Id" = :userId AND er."emp_reqStatusId" = 2
           AND (:todayStr BETWEEN vl."StartDate" AND vl."EndDate"
                OR :todayStr BETWEEN sl."StartDate" AND sl."EndDate"
-               OR el."DateOfLeave" = :todayStr
+               OR (:todayStr >= el."DateOfLeave" AND :todayStr <= (el."DateOfLeave" + INTERVAL '1 day' * (GREATEST(1, el."NoDays") - 1))::date)
                OR hd."DateOfLeave" = :todayStr
                OR :todayStr BETWEEN st."StartDate" AND st."EndDate"
                OR ow."DateonField" = :todayStr)
@@ -469,7 +537,7 @@ async function ensureAbsentsMarked(dateOverride = null) {
 
       if (approvedRequest.length > 0) {
         const typeId = approvedRequest[0].emp_reqTypeId;
-        const statusId = (typeId === 2) ? 5 : 4; // 5 for On-field, 4 for On-leave
+        const statusId = (typeId === 2) ? 1 : (typeId === 7 ? 4 : 5); // 1 for On-field (worked), 4 for Half-Day, 5 for On-leave
         
         await employee_Logging_report.create({
           user_id: userId,
@@ -484,7 +552,7 @@ async function ensureAbsentsMarked(dateOverride = null) {
         await user_logging.create({
           user_id: userId,
           log_Date: todayStr,
-          time_Logged: "00:00:00",
+          time_Logged: shiftEndTime,
           logged_StatusId: 7, // System Generated
           attendance_StatusId: statusId
         });
@@ -505,7 +573,7 @@ async function ensureAbsentsMarked(dateOverride = null) {
         await user_logging.create({
           user_id: userId,
           log_Date: todayStr,
-          time_Logged: "00:00:00",
+          time_Logged: shiftEndTime,
           logged_StatusId: 7, // System Generated
           attendance_StatusId: 3
         });

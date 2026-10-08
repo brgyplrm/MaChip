@@ -64,6 +64,9 @@ router.get("/my-payslip/:payrollId/dtr", authMiddleware, payrollController.downl
 router.get("/my-thirteenth-history", authMiddleware, payrollController.getMyThirteenthMonthHistory);
 router.get("/my-separation", authMiddleware, payrollController.getMySeparationPay);
 router.get("/my-retirement", authMiddleware, payrollController.getMyRetirementPay);
+router.get("/my-loans", authMiddleware, payrollController.getMyLoans);
+router.get("/my-loans/:id/ledger", authMiddleware, payrollController.getMyLoanLedger);
+router.get("/my-loans/:id/pdf", authMiddleware, payrollController.downloadMyLoanPDF);
 router.get("/user/:user_Id", requireStaff, payrollController.getPayrollByUser);
 router.get("/:payrollId", requireStaff, payrollController.getPayrollById);
 router.put("/update/:payrollId", requireAdmin, payrollController.updatePayroll);

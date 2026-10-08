@@ -34,6 +34,7 @@ import EmployeePayslip from "./pages/emp_payroll/EmployeePayslip";
 import EmployeePayrollHistory from "./pages/emp_payroll/EmployeePayrollHistory";
 import ThirteenthMonthDetails from "./pages/emp_payroll/ThirteenthMonthDetails";
 import PayrollComputationDetails from "./pages/emp_payroll/PayrollComputationDetails";
+import EmployeeLoans from "./pages/emp_loans/EmployeeLoans";
 import Notifications from "./pages/notifications/Notifications";
 import Profile from "./pages/profile/Profile";
 import Settings from "./pages/settings/Settings";
@@ -400,6 +401,15 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={[1, 2, 3, 4]}>
               <PayrollComputationDetails />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/employee/loans"
+          element={
+            <ProtectedRoute allowedRoles={[1, 2, 3, 4]}>
+              <EmployeeLoans />
             </ProtectedRoute>
           }
         />

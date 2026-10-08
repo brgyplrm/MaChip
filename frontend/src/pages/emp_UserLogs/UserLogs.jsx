@@ -46,7 +46,7 @@ const UserLogs = () => {
     const parts = String(timeStr).substring(0, 5).split(":");
     if (parts.length < 2) return false;
     const mins = (parseInt(parts[0], 10) || 0) * 60 + (parseInt(parts[1], 10) || 0);
-    return mins >= 720;
+    return mins >= 750;
   };
 
   const [toast, setToast] = useState({ message: "", type: "success" });

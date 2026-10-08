@@ -428,14 +428,24 @@ const Profile = () => {
                                 </TableCell>
                                 <TableCell className="text-center py-2.5">
                                   <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold tracking-wide border ${
-                                    log.logStatus?.includes("In")
+                                    log.logStatus === "Overtime OUT"
+                                      ? "bg-purple-50 text-purple-700 border-purple-200"
+                                      : log.logStatus === "Afternoon OUT"
+                                      ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                                      : log.logStatus?.includes("In")
                                       ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                                       : log.logStatus?.includes("Out")
                                       ? "bg-indigo-50 text-indigo-700 border-indigo-200"
                                       : "bg-slate-100 text-slate-600 border-slate-200"
                                   }`}>
                                     <span className={`w-1.5 h-1.5 rounded-full ${
-                                      log.logStatus?.includes("In") ? "bg-emerald-500" : log.logStatus?.includes("Out") ? "bg-indigo-500" : "bg-slate-400"
+                                      log.logStatus === "Overtime OUT"
+                                        ? "bg-purple-500"
+                                        : log.logStatus?.includes("In")
+                                        ? "bg-emerald-500"
+                                        : log.logStatus?.includes("Out")
+                                        ? "bg-indigo-500"
+                                        : "bg-slate-400"
                                     }`} />
                                     {log.logStatus || "—"}
                                   </span>

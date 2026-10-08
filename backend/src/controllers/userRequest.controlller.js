@@ -390,7 +390,7 @@ exports.UpdateUserRequest = async (req, res) => {
       );
     } else if (typeId === 5) {
       await sequelize.query(
-        `UPDATE "Log_Correction" SET "logDate" = :logDate, "claimedIn" = :claimedIn, "claimedOut" = :claimedOut, "reason" = :reason WHERE "emp_reqId" = :requestId`,
+        `UPDATE "LogCorrection_Request" SET "logDate" = :logDate, "claimedIn" = :claimedIn, "claimedOut" = :claimedOut, "reason" = :reason WHERE "emp_reqId" = :requestId`,
         { 
           replacements: { 
             logDate: req.body.logDate || request.logDate || null, 
@@ -596,6 +596,43 @@ exports.getCalendarReport = async (req, res) => {
       { replacements, type: QueryTypes.SELECT }
     );
 
+    // 4.5 Fetch Emergency Leaves
+    const emergencyLeaves = await sequelize.query(
+      `SELECT er."emp_reqId" as "id", 'Leave' as "type", el."DateOfLeave" as "date", u."user_FirstName" || ' ' || u."user_LastName" as "name", 'Emergency Leave' as "details", el."DateOfLeave" as "endDate", el."NoDays" as "hours"
+       FROM "Emergency_Leave" el
+       JOIN "emp_Request" er ON el."emp_reqId" = er."emp_reqId"
+       JOIN "User" u ON er."user_Id" = u."user_Id"
+       WHERE er."emp_reqStatusId" = 2 
+       AND el."DateOfLeave" BETWEEN :startDate AND :endDate
+       ${userFilter}`,
+      { replacements, type: QueryTypes.SELECT }
+    );
+
+    // 4.6 Fetch Half-Day Leaves
+    const halfDayLeaves = await sequelize.query(
+      `SELECT er."emp_reqId" as "id", 'Leave' as "type", hd."DateOfLeave" as "date", u."user_FirstName" || ' ' || u."user_LastName" as "name", ('Half-Day Leave (' || hd."period" || ')') as "details", hd."DateOfLeave" as "endDate", 0.5 as "hours"
+       FROM "HalfDay_Leave" hd
+       JOIN "emp_Request" er ON hd."emp_reqId" = er."emp_reqId"
+       JOIN "User" u ON er."user_Id" = u."user_Id"
+       WHERE er."emp_reqStatusId" = 2 
+       AND hd."DateOfLeave" BETWEEN :startDate AND :endDate
+       ${userFilter}`,
+      { replacements, type: QueryTypes.SELECT }
+    );
+
+    // 4.7 Fetch Statutory Leaves
+    const statutoryLeaves = await sequelize.query(
+      `SELECT er."emp_reqId" as "id", 'Leave' as "type", st."StartDate" as "date", u."user_FirstName" || ' ' || u."user_LastName" as "name", rt."reqTypeName" as "details", st."EndDate" as "endDate", st."NoDays" as "hours"
+       FROM "Statutory_Leave" st
+       JOIN "emp_Request" er ON st."emp_reqId" = er."emp_reqId"
+       JOIN "request_Type" rt ON er."emp_reqTypeId" = rt."reqTypeId"
+       JOIN "User" u ON er."user_Id" = u."user_Id"
+       WHERE er."emp_reqStatusId" = 2 
+       AND (st."StartDate" BETWEEN :startDate AND :endDate OR st."EndDate" BETWEEN :startDate AND :endDate)
+       ${userFilter}`,
+      { replacements, type: QueryTypes.SELECT }
+    );
+
     // 5. Fetch Overtime
     const overtime = await sequelize.query(
       `SELECT er."emp_reqId" as "id", 'Overtime' as "type", ot."OT_DateOf" as "date", u."user_FirstName" || ' ' || u."user_LastName" as "name", CAST(ot."Total_Hrs" AS TEXT) || ' hrs OT' as "details", NULL as "endDate", ot."Total_Hrs" as "hours"
@@ -608,7 +645,7 @@ exports.getCalendarReport = async (req, res) => {
       { replacements, type: QueryTypes.SELECT }
     );
 
-    const allEvents = [...holidays, ...dueDates, ...fieldWorks, ...vacationLeaves, ...sickLeaves, ...overtime].sort((a, b) => {
+    const allEvents = [...holidays, ...dueDates, ...fieldWorks, ...vacationLeaves, ...sickLeaves, ...emergencyLeaves, ...halfDayLeaves, ...statutoryLeaves, ...overtime].sort((a, b) => {
       if (!a.date || !b.date) return 0;
       return new Date(a.date) - new Date(b.date);
     });
@@ -2182,6 +2219,113 @@ exports.UpdateStatusRequest = async (req, res) => {
     }
     // --------------------------------------------------
 
+    // --- AUTO-UPDATE ATTENDANCE FOR APPROVED LEAVES ---
+    if (finalStatusId === 2 && [3, 4, 6, 7, 8, 9, 10, 11, 12].includes(Number(typeId))) {
+      let leaveDatesResult = [];
+      if (typeId === 3) {
+        leaveDatesResult = await sequelize.query(
+          `SELECT "StartDate"::text as "startDate", "EndDate"::text as "endDate" FROM "Vacation_Leave" WHERE "emp_reqId" = :emp_reqId`,
+          { replacements: { emp_reqId }, type: QueryTypes.SELECT }
+        );
+      } else if (typeId === 4) {
+        leaveDatesResult = await sequelize.query(
+          `SELECT "StartDate"::text as "startDate", "EndDate"::text as "endDate" FROM "Sick_Leave" WHERE "emp_reqId" = :emp_reqId`,
+          { replacements: { emp_reqId }, type: QueryTypes.SELECT }
+        );
+      } else if (typeId === 6) {
+        leaveDatesResult = await sequelize.query(
+          `SELECT "DateOfLeave"::text as "startDate", "DateOfLeave"::text as "endDate", "NoDays" FROM "Emergency_Leave" WHERE "emp_reqId" = :emp_reqId`,
+          { replacements: { emp_reqId }, type: QueryTypes.SELECT }
+        );
+      } else if (typeId === 7) {
+        leaveDatesResult = await sequelize.query(
+          `SELECT "DateOfLeave"::text as "startDate", "DateOfLeave"::text as "endDate" FROM "HalfDay_Leave" WHERE "emp_reqId" = :emp_reqId`,
+          { replacements: { emp_reqId }, type: QueryTypes.SELECT }
+        );
+      } else if ([8, 9, 10, 11, 12].includes(Number(typeId))) {
+        leaveDatesResult = await sequelize.query(
+          `SELECT "StartDate"::text as "startDate", "EndDate"::text as "endDate" FROM "Statutory_Leave" WHERE "emp_reqId" = :emp_reqId`,
+          { replacements: { emp_reqId }, type: QueryTypes.SELECT }
+        );
+      }
+
+      if (leaveDatesResult.length > 0) {
+        const { startDate, endDate, NoDays } = leaveDatesResult[0];
+        const statusId = (Number(typeId) === 7) ? 4 : 5; // 4 for Half Day, 5 for On Leave
+        
+        let start = new Date(startDate);
+        let end = new Date(endDate);
+        if (typeId === 6 && NoDays && Number(NoDays) > 1) {
+          end.setDate(start.getDate() + Number(NoDays) - 1);
+        }
+
+        const [sy, sm, sd] = startDate.split('-').map(Number);
+        const ey = end.getFullYear();
+        const em = end.getMonth();
+        const ed = end.getDate();
+        let curr = new Date(Date.UTC(sy, sm - 1, sd));
+        const endUTC = new Date(Date.UTC(ey, em, ed));
+
+        const { calculateAndStoreAttendanceUnits } = require("../utils/attendanceHelper");
+
+        while (curr <= endUTC) {
+          const dateStr = curr.toISOString().split('T')[0];
+          
+          if (statusId === 4) {
+            await sequelize.query(`
+              INSERT INTO "employee_Logging_report" 
+                ("user_id", "log_Date", "time_Logged_inArr", "time_Logged_outArr", "attendance_StatusId", "logged_StatusId")
+              VALUES (:userId, :dateStr, '[]', '[]', 4, 2)
+              ON CONFLICT ("user_id", "log_Date") 
+              DO UPDATE SET 
+                "attendance_StatusId" = 4,
+                "logged_StatusId" = 2
+            `, { replacements: { userId: requesterId, dateStr }, type: QueryTypes.INSERT });
+          } else {
+            await sequelize.query(`
+              INSERT INTO "employee_Logging_report" 
+                ("user_id", "log_Date", "time_Logged_inArr", "time_Logged_outArr", "attendance_StatusId", "logged_StatusId")
+              VALUES (:userId, :dateStr, '[]', '[]', :statusId, 2)
+              ON CONFLICT ("user_id", "log_Date") 
+              DO UPDATE SET 
+                "attendance_StatusId" = :statusId,
+                "logged_StatusId" = 2
+            `, { replacements: { userId: requesterId, dateStr, statusId }, type: QueryTypes.INSERT });
+          }
+
+          // If user_logging had an Absent record (status 3), repair it to statusId
+          await sequelize.query(`
+            UPDATE "user_logging" 
+            SET "attendance_StatusId" = :statusId 
+            WHERE "user_id" = :userId AND "log_Date"::date = :dateStr::date AND "attendance_StatusId" = 3
+          `, { replacements: { statusId, userId: requesterId, dateStr }, type: QueryTypes.UPDATE });
+
+          // Ensure audit log exists in user_logging
+          const existingLogs = await sequelize.query(`
+            SELECT "user_loggingId" FROM "user_logging" WHERE "user_id" = :userId AND "log_Date"::date = :dateStr::date LIMIT 1
+          `, { replacements: { userId: requesterId, dateStr }, type: QueryTypes.SELECT });
+
+          if (existingLogs.length === 0) {
+            await sequelize.query(`
+              INSERT INTO "user_logging" ("user_id", "log_Date", "time_Logged", "logged_StatusId", "attendance_StatusId")
+              VALUES (:userId, :dateStr, '17:30:00', 7, :statusId)
+            `, { replacements: { userId: requesterId, dateStr, statusId }, type: QueryTypes.INSERT });
+          }
+
+          try {
+            await calculateAndStoreAttendanceUnits(requesterId, dateStr);
+          } catch (syncErr) {
+            console.error(`[LEAVE-SYNC-ERR] Failed calculating units for ${requesterId} on ${dateStr}:`, syncErr.message);
+          }
+
+          curr.setUTCDate(curr.getUTCDate() + 1);
+        }
+
+        await logTransaction(requesterId, operatorId, "LEAVE_ATTENDANCE_APPLIED", `Attendance updated to On Leave (${statusId === 4 ? 'Half Day' : 'On Leave'}) for approved request #${emp_reqId}`, { startDate, endDate: end.toISOString().split('T')[0], statusId });
+      }
+    }
+    // --------------------------------------------------
+
     // --- AUTO-CREATE LOAN DEDUCTION FOR ENROLLMENT ---
     if (finalStatusId === 2 && typeId === 14) {
       const loanDetails = await sequelize.query(
@@ -2516,12 +2660,34 @@ exports.UpdateStatusRequest = async (req, res) => {
           noHrs: requestInfo.NoHrs
         }).catch(err => console.error("[ONFIELD EMAIL FAILED]:", err.message));
       }
+
+      // C. Retroactive Attendance Recalculation Hook (Overtime, Onfield, HalfDay)
+      if ([1, 2, 7].includes(Number(requestInfo.emp_reqTypeId))) {
+        try {
+          const { calculateAndStoreAttendanceUnits } = require("../utils/attendanceHelper");
+          const targetDateRaw = requestInfo.OT_D || requestInfo.DateonField || requestInfo.HD_D;
+          if (targetDateRaw) {
+            const targetDateStr = typeof targetDateRaw === 'string' ? targetDateRaw.substring(0, 10) : targetDateRaw.toISOString().split('T')[0];
+            calculateAndStoreAttendanceUnits(requestInfo.user_Id, targetDateStr)
+              .then(() => console.log(`[ATTENDANCE-AUTO-SYNC] Synchronized attendance units for User ${requestInfo.user_Id} on ${targetDateStr}`))
+              .catch(err => console.error(`[ATTENDANCE-AUTO-SYNC-ERR]`, err));
+          }
+        } catch (syncErr) {
+          console.error("[AUTO-SYNC-ERR]", syncErr);
+        }
+      }
     }
 
     // [SOCKET] Trigger real-time UI updates
-    const io = getIO();
-    io.emit("REQUEST_STATUS_UPDATED");
-    io.to(`user_${requestInfo.user_Id}`).emit("NOTIFICATION_UPDATE");
+    try {
+      const io = getIO();
+      if (io) {
+        io.emit("REQUEST_STATUS_UPDATED");
+        io.to(`user_${requestInfo.user_Id}`).emit("NOTIFICATION_UPDATE");
+      }
+    } catch (socketErr) {
+      // Gracefully ignore if socket server is not bound
+    }
 
     res.status(200).json({ message: "Request status updated successfully" });
   } catch (error) {
@@ -2787,11 +2953,11 @@ exports.getLeaveSummary = async (req, res) => {
     // 3. Fetch Approved Leave Requests (VL/SL/EL/HD/Statutory)
     const leaves = await sequelize.query(
       `SELECT er."user_Id", er."emp_reqTypeId", 
-              vl."StartDate" as "vS", vl."NoDays" as "vD", 
-              sl."StartDate" as "sS", sl."NoDays" as "sD", 
+              vl."StartDate" as "vS", vl."EndDate" as "vE", vl."NoDays" as "vD", 
+              sl."StartDate" as "sS", sl."EndDate" as "sE", sl."NoDays" as "sD", 
               el."DateOfLeave" as "eS", el."NoDays" as "eD", 
               hd."DateOfLeave" as "hS",
-              st."StartDate" as "stS", st."NoDays" as "stD"
+              st."StartDate" as "stS", st."EndDate" as "stE", st."NoDays" as "stD"
        FROM "emp_Request" er
        LEFT JOIN "Vacation_Leave" vl ON er."emp_reqId" = vl."emp_reqId"
        LEFT JOIN "Sick_Leave" sl ON er."emp_reqId" = sl."emp_reqId"
@@ -2895,7 +3061,18 @@ exports.getLeaveSummary = async (req, res) => {
             // fallback to 1 if parsing fails? No, keep 0.
           }
         }
-        else if (a.attendance_StatusId === 3) resData.absences[month] += 1;
+        else if (a.attendance_StatusId === 3) {
+          const aDateStr = typeof a.log_Date === 'string' ? a.log_Date.substring(0, 10) : new Date(a.log_Date).toISOString().split('T')[0];
+          const hasApprovedLeave = leaves.some(l => {
+            if (l.user_Id !== user.user_Id) return false;
+            const sDate = (l.vS || l.sS || l.eS || l.hS || l.stS || '').substring(0, 10);
+            const eDate = (l.vE || l.sE || l.eS || l.hS || l.stE || sDate || '').substring(0, 10);
+            return sDate && eDate && aDateStr >= sDate && aDateStr <= eDate;
+          });
+          if (!hasApprovedLeave) {
+            resData.absences[month] += 1;
+          }
+        }
       });
 
       return resData;
@@ -2958,8 +3135,10 @@ exports.DeleteRequest = async (req, res) => {
       else if (typeId === 2) await sequelize.query(`DELETE FROM "Onfield_Work" WHERE "emp_reqId" = :requestId`, { replacements: { requestId }, transaction: t });
       else if (typeId === 3) await sequelize.query(`DELETE FROM "Vacation_Leave" WHERE "emp_reqId" = :requestId`, { replacements: { requestId }, transaction: t });
       else if (typeId === 4) await sequelize.query(`DELETE FROM "Sick_Leave" WHERE "emp_reqId" = :requestId`, { replacements: { requestId }, transaction: t });
+      else if (typeId === 5) await sequelize.query(`DELETE FROM "LogCorrection_Request" WHERE "emp_reqId" = :requestId`, { replacements: { requestId }, transaction: t });
       else if (typeId === 6) await sequelize.query(`DELETE FROM "Emergency_Leave" WHERE "emp_reqId" = :requestId`, { replacements: { requestId }, transaction: t });
       else if (typeId === 7) await sequelize.query(`DELETE FROM "HalfDay_Leave" WHERE "emp_reqId" = :requestId`, { replacements: { requestId }, transaction: t });
+      else if ([8, 9, 10, 11, 12].includes(typeId)) await sequelize.query(`DELETE FROM "Statutory_Leave" WHERE "emp_reqId" = :requestId`, { replacements: { requestId }, transaction: t });
       else if (typeId === 13 || typeId === 14) await sequelize.query(`DELETE FROM "Loan_Request" WHERE "emp_reqId" = :requestId`, { replacements: { requestId }, transaction: t });
 
       await sequelize.query(`DELETE FROM "emp_Request" WHERE "emp_reqId" = :requestId`, { replacements: { requestId }, transaction: t });

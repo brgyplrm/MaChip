@@ -249,14 +249,18 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     { replacements: { user_Id }, type: QueryTypes.SELECT }
   );
   leaveRecords.forEach(lr => {
-    let curr = new Date(lr.StartDate);
-    let end = new Date(lr.EndDate);
+    const sStr = typeof lr.StartDate === 'string' ? lr.StartDate.substring(0, 10) : new Date(lr.StartDate).toISOString().split('T')[0];
+    const eStr = typeof lr.EndDate === 'string' ? lr.EndDate.substring(0, 10) : new Date(lr.EndDate).toISOString().split('T')[0];
+    const [sy, sm, sd] = sStr.split('-').map(Number);
+    const [ey, em, ed] = eStr.split('-').map(Number);
+    let curr = new Date(Date.UTC(sy, sm - 1, sd));
+    const end = new Date(Date.UTC(ey, em - 1, ed));
     while(curr <= end) {
       approvedLeaveDaysMap.set(curr.toISOString().split('T')[0], { 
         withPay: lr.WithPayID === 1,
         amount: parseFloat(lr.amount)
       });
-      curr.setDate(curr.getDate() + 1);
+      curr.setUTCDate(curr.getUTCDate() + 1);
     }
   });
 
@@ -305,9 +309,27 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     const log = logMap[dateStr];
     const isOnField = onfieldMap.has(dateStr);
     
+    // Check whether actual physical work punches exist
+    let hasActualPunches = false;
+    if (log) {
+      try {
+        const inArr = JSON.parse(log.time_Logged_inArr || "[]");
+        const outArr = JSON.parse(log.time_Logged_outArr || "[]");
+        hasActualPunches = (inArr.length > 0 && inArr.some(t => t && t !== "—")) || (outArr.length > 0 && outArr.some(t => t && t !== "—"));
+      } catch (e) {
+        hasActualPunches = false;
+      }
+    }
+
     // Status 7 is Incidental Visit (<3hrs on leave), should be ignored for worked time
-    const isExcludedStatus = log && (parseInt(log.att_status) === 3 || parseInt(log.att_status) === 7);
-    const worked = (!!log && !isExcludedStatus) || isOnField;
+    // Status 3 is Absent
+    // Status 5 is On Leave (if without actual work scans and no stored units, treat as unworked so leave credits apply)
+    const isExcludedStatus = log && (
+      parseInt(log.att_status) === 3 || 
+      parseInt(log.att_status) === 7 ||
+      (parseInt(log.att_status) === 5 && !hasActualPunches && parseFloat(log.total_units || 0) <= 0)
+    );
+    const worked = (!!log && !isExcludedStatus && (hasActualPunches || parseFloat(log.total_units || 0) > 0)) || isOnField;
     const isLeave = approvedLeaveDaysMap.has(dateStr);
 
     if (worked) {
@@ -364,8 +386,13 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
       if (dayPortion < 1.0 && !isPresident) {
         if (isLeave) {
           const leaveData = approvedLeaveDaysMap.get(dateStr);
-          if (leaveData.withPay) paidLeave_Days += (1.0 - dayPortion);
-          else unpaidLeave_Days += (1.0 - dayPortion);
+          const leavePortion = Math.min(1.0 - dayPortion, leaveData.amount || 1.0);
+          if (leaveData.withPay) {
+            paidLeave_Days += leavePortion;
+            total_payable_units += leavePortion * 8; // Credit payable hours for the paid leave portion
+          } else {
+            unpaidLeave_Days += leavePortion;
+          }
         } else {
           absence_Days += (1.0 - dayPortion);
         }
@@ -483,7 +510,7 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
       const presenceLog = await sequelize.query(
         `SELECT "time_Logged" FROM "user_logging"
          WHERE "user_id" = :user_Id AND "log_Date"::date = :dateStr::date
-         AND "logged_StatusId" IN (2, 6)
+         AND "logged_StatusId" IN (2, 4, 6, 11)
          AND "time_Logged" > :otStart
          ORDER BY "time_Logged" DESC LIMIT 1`,
         { replacements: { user_Id, dateStr, otStart: req.HrFrom }, type: QueryTypes.SELECT }
@@ -621,7 +648,7 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
         const presenceLog = await sequelize.query(
           `SELECT "time_Logged" FROM "user_logging"
            WHERE "user_id" = :user_Id AND "log_Date"::date = :dateStr::date
-           AND "logged_StatusId" IN (2, 6)
+           AND "logged_StatusId" IN (2, 4, 6, 11)
            AND "time_Logged" > :otStart
            ORDER BY "time_Logged" DESC LIMIT 1`,
           { replacements: { user_Id, dateStr, otStart: req.HrFrom }, type: QueryTypes.SELECT }
@@ -5443,4 +5470,244 @@ exports.getPayrollStatusAlerts = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+/**
+ * Gets active and past loan records for the authenticated employee with Proposal 5 metrics.
+ */
+exports.getMyLoans = async (req, res) => {
+  const userId = req.user.user_Id;
+  try {
+    const loans = await sequelize.query(
+      `SELECT ld.*, 
+              u."user_FirstName", u."user_LastName", u."user_Email"
+       FROM "Loan_Deductions" ld
+       JOIN "User" u ON u."user_Id" = ld."userId"
+       WHERE ld."userId" = :userId
+       ORDER BY CASE WHEN ld."status" = 'active' THEN 1 ELSE 2 END, ld."contractDate" DESC`,
+      { replacements: { userId }, type: QueryTypes.SELECT }
+    );
+
+    const now = await getSystemTime();
+
+    const formatDateLocal = (date) => {
+      if (!date) return "";
+      const d = new Date(date);
+      const YYYY = d.getFullYear();
+      const MM = String(d.getMonth() + 1).padStart(2, "0");
+      const DD = String(d.getDate()).padStart(2, "0");
+      return `${YYYY}-${MM}-${DD}`;
+    };
+
+    const mapTypeInfo = (dT) => {
+      if (dT === 'sss_loan') return { title: 'SSS Salary Loan', institution: 'Social Security System', category: 'Government Statutory', color: 'purple', badgeClass: 'badge-purple' };
+      if (dT === 'sss_emergency') return { title: 'SSS Emergency Loan', institution: 'Social Security System', category: 'Government Statutory', color: 'purple', badgeClass: 'badge-purple' };
+      if (dT === 'sss_conso') return { title: 'SSS Conso Loan', institution: 'Social Security System', category: 'Government Statutory', color: 'purple', badgeClass: 'badge-purple' };
+      if (dT === 'calamity') return { title: 'SSS Calamity Loan', institution: 'Social Security System', category: 'Government Statutory', color: 'purple', badgeClass: 'badge-purple' };
+      if (dT === 'hdmf_loan') return { title: 'Pag-IBIG Multi-Purpose Loan', institution: 'HDMF Fund', category: 'Government Statutory', color: 'green', badgeClass: 'badge-success' };
+      if (dT === 'hdmf_calamity') return { title: 'Pag-IBIG Calamity Loan', institution: 'HDMF Fund', category: 'Government Statutory', color: 'green', badgeClass: 'badge-success' };
+      if (dT === 'eastwest') return { title: 'EastWest Personal Loan', institution: 'EastWest Bank', category: 'Commercial Bank', color: 'blue', badgeClass: 'badge-info' };
+      if (dT === 'cash_advance') return { title: 'Company Cash Advance', institution: 'MAC-J Ltd. Internal Benefit', category: 'Company Benefit', color: 'gold', badgeClass: 'badge-warning' };
+      return { title: 'Institutional Loan', institution: 'Financial Institution', category: 'Company Benefit', color: 'gold', badgeClass: 'badge-warning' };
+    };
+
+    let totalOutstanding = 0;
+    let nextCutoffDeduction = 0;
+
+    const mappedLoans = loans.map(loan => {
+      const typeInfo = mapTypeInfo(loan.deductionType);
+      const totalAmt = parseFloat(loan.totalAmount || 0);
+      const remBal = parseFloat(loan.remainingBalance || 0);
+      const cutoffAmt = parseFloat(loan.deductionPerCutoff || 0);
+      const isActive = loan.status === 'active';
+
+      if (isActive) {
+        totalOutstanding += remBal;
+        nextCutoffDeduction += cutoffAmt;
+      }
+
+      const cutoffsRemaining = cutoffAmt > 0 ? Math.max(0, Math.ceil(remBal / cutoffAmt)) : 0;
+      const totalCutoffs = cutoffAmt > 0 ? Math.round(totalAmt / cutoffAmt) : (loan.monthsToPay ? loan.monthsToPay * 2 : 0);
+      const cutoffsPaid = Math.max(0, totalCutoffs - cutoffsRemaining);
+      const progressPct = totalAmt > 0 ? Math.min(100, Math.max(0, Math.round(((totalAmt - remBal) / totalAmt) * 100))) : 100;
+
+      let projectedDate = new Date(now);
+      let count = cutoffsRemaining;
+      while (count > 0) {
+        if (projectedDate.getDate() < 15) {
+          projectedDate.setDate(15);
+        } else {
+          projectedDate = new Date(projectedDate.getFullYear(), projectedDate.getMonth() + 1, 0);
+          projectedDate.setDate(projectedDate.getDate() + 1);
+        }
+        count--;
+      }
+      const payoffDateStr = cutoffsRemaining === 0 ? (loan.renewalDate || formatDateLocal(now)) : formatDateLocal(projectedDate);
+
+      return {
+        id: loan.id,
+        loanId: loan.id,
+        deductionType: loan.deductionType,
+        title: typeInfo.title,
+        institution: loan.provider || typeInfo.institution,
+        category: typeInfo.category,
+        color: typeInfo.color,
+        badgeClass: typeInfo.badgeClass,
+        reference: loan.reference || `${loan.deductionType.toUpperCase()}-${loan.id}`,
+        status: loan.status,
+        contractDate: loan.contractDate,
+        renewalDate: loan.renewalDate,
+        totalAmount: totalAmt.toFixed(2),
+        totalDeducted: parseFloat(loan.totalDeducted || 0).toFixed(2),
+        remainingBalance: remBal.toFixed(2),
+        deductionPerCutoff: cutoffAmt.toFixed(2),
+        cutoffsRemaining,
+        totalCutoffs,
+        cutoffsPaid,
+        progressPct,
+        payoffDate: payoffDateStr,
+        notes: loan.notes
+      };
+    });
+
+    const activeList = mappedLoans.filter(l => l.status === 'active');
+
+    let earliestPayoff = null;
+    if (activeList.length > 0) {
+      const sortedByPayoff = [...activeList].sort((a, b) => new Date(a.payoffDate) - new Date(b.payoffDate));
+      const first = sortedByPayoff[0];
+      earliestPayoff = {
+        title: first.title,
+        payoffDate: first.payoffDate,
+        cutoffsRemaining: first.cutoffsRemaining,
+        freedPerCutoff: parseFloat(first.deductionPerCutoff).toFixed(2),
+        freedMonthly: (parseFloat(first.deductionPerCutoff) * 2).toFixed(2)
+      };
+    }
+
+    let debtFreeTarget = null;
+    if (activeList.length > 0) {
+      const sortedByPayoff = [...activeList].sort((a, b) => new Date(b.payoffDate) - new Date(a.payoffDate));
+      const last = sortedByPayoff[0];
+      debtFreeTarget = {
+        title: last.title,
+        payoffDate: last.payoffDate,
+        totalRestoredMonthly: (nextCutoffDeduction * 2).toFixed(2)
+      };
+    }
+
+    const reliefPhases = [];
+    if (activeList.length > 0) {
+      const sortedByMaturity = [...activeList].sort((a, b) => new Date(a.payoffDate) - new Date(b.payoffDate));
+      let currentRunningCutoff = nextCutoffDeduction;
+      let cumulativeFreedMonthly = 0;
+
+      reliefPhases.push({
+        phaseNumber: 1,
+        title: `Phase 1: Now`,
+        cutoffDateStr: formatDateLocal(now),
+        activeLoansCount: activeList.length,
+        deductionPerCutoff: currentRunningCutoff.toFixed(2),
+        freedMonthly: "0.00",
+        description: `All ${activeList.length} loans deducting concurrently.`
+      });
+
+      sortedByMaturity.forEach((l, idx) => {
+        const freedCutoff = parseFloat(l.deductionPerCutoff);
+        currentRunningCutoff = Math.max(0, currentRunningCutoff - freedCutoff);
+        cumulativeFreedMonthly += (freedCutoff * 2);
+
+        const isLast = idx === sortedByMaturity.length - 1;
+        reliefPhases.push({
+          phaseNumber: idx + 2,
+          title: isLast ? `Phase ${idx + 2}: 100% Debt-Free` : `Phase ${idx + 2}: ${l.title} Cleared`,
+          cutoffDateStr: l.payoffDate,
+          activeLoansCount: Math.max(0, activeList.length - (idx + 1)),
+          deductionPerCutoff: currentRunningCutoff.toFixed(2),
+          freedMonthly: cumulativeFreedMonthly.toFixed(2),
+          isDebtFree: isLast,
+          description: isLast 
+            ? `Complete freedom! Full salary retained (+PHP ${cumulativeFreedMonthly.toFixed(2)}/mo).`
+            : `${l.title} cleared! +PHP ${(freedCutoff * 2).toFixed(2)}/mo restored to take-home pay.`
+        });
+      });
+    }
+
+    res.status(200).json({
+      loans: mappedLoans,
+      summary: {
+        totalOutstanding: totalOutstanding.toFixed(2),
+        nextCutoffDeduction: nextCutoffDeduction.toFixed(2),
+        activeLoansCount: activeList.length,
+        completedLoansCount: mappedLoans.filter(l => l.status !== 'active').length,
+        earliestPayoff,
+        debtFreeTarget,
+        reliefPhases
+      }
+    });
+  } catch (error) {
+    console.error("[getMyLoans Error]:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Gets the deduction ledger audit history for a specific loan owned by the authenticated employee.
+ */
+exports.getMyLoanLedger = async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user.user_Id;
+  try {
+    const loanResult = await sequelize.query(
+      `SELECT ld.*, u."user_FirstName", u."user_LastName" 
+       FROM "Loan_Deductions" ld 
+       JOIN "User" u ON u."user_Id" = ld."userId" 
+       WHERE ld."id" = :id AND ld."userId" = :userId`,
+      { replacements: { id, userId }, type: QueryTypes.SELECT }
+    );
+
+    if (loanResult.length === 0) {
+      return res.status(404).json({ error: "Loan account not found or access denied." });
+    }
+    const loan = loanResult[0];
+
+    const history = await sequelize.query(
+      `SELECT ldh.*, p."period_Start", p."period_End", pp."label" as "periodLabel"
+       FROM "Loan_Deduction_History" ldh
+       LEFT JOIN "Payroll" p ON p."payrollId" = ldh."payrollId"
+       LEFT JOIN "PayrollPeriod" pp ON pp."periodId" = p."periodId"
+       WHERE ldh."loanDeductionId" = :id
+       ORDER BY ldh."deductionDate" DESC, ldh."id" DESC`,
+      { replacements: { id }, type: QueryTypes.SELECT }
+    );
+
+    res.status(200).json({ loan, history });
+  } catch (error) {
+    console.error("[getMyLoanLedger Error]:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Downloads official individual loan statement PDF with zero-trust ownership validation.
+ */
+exports.downloadMyLoanPDF = async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user.user_Id;
+  try {
+    const loanResult = await sequelize.query(
+      `SELECT ld.* FROM "Loan_Deductions" ld WHERE ld."id" = :id AND ld."userId" = :userId`,
+      { replacements: { id, userId }, type: QueryTypes.SELECT }
+    );
+    if (loanResult.length === 0) {
+      return res.status(404).json({ error: "Loan account not found or access denied." });
+    }
+    return exports.downloadIndividualLoanPDF(req, res);
+  } catch (error) {
+    console.error("[downloadMyLoanPDF Error]:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.computePeriodStats = computePeriodStats;
+
 

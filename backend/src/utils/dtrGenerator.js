@@ -97,13 +97,13 @@ const buildDTRHTML = (employee, dtrData, period_Start, period_End, fullStats) =>
     const dailyTotal =
       !isSunday && log ? (log.hoursWorkedFormatted || formatDuration(log.hoursWorked) || "") : "";
 
-    // Helper to verify if punch belongs to afternoon/PM period (>= 12:00 PM)
+    // Helper to verify if punch belongs to afternoon/PM period (>= 12:30 PM)
     const isPMPunch = (timeStr) => {
       if (!timeStr || timeStr === "—" || timeStr === "00:00") return false;
       const parts = String(timeStr).substring(0, 5).split(":");
       if (parts.length < 2) return false;
       const mins = (parseInt(parts[0], 10) || 0) * 60 + (parseInt(parts[1], 10) || 0);
-      return mins >= 720;
+      return mins >= 750;
     };
 
     const isIrregularDay = log?.status === "Irregular" || 

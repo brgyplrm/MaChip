@@ -102,7 +102,7 @@ const OccupancyList = () => {
               Updated {lastUpdated.toLocaleTimeString()}
             </span>
           )}
-          <button
+          {/* <button
             className="flex items-center justify-center w-[30px] h-[30px] rounded-full bg-white/10 hover:enabled:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 cursor-pointer"
             onClick={fetchOccupancy}
             disabled={loading}
@@ -112,7 +112,7 @@ const OccupancyList = () => {
               fontSize="small"
               className={loading ? "animate-spin" : ""}
             />
-          </button>
+          </button> */}
         </div>
       </div>
 

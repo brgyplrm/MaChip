@@ -910,7 +910,7 @@ exports.scanRFID = async (req, res) => {
 
     // 5. Update Reporting
     const isEntry = [1, 3, 5, 10].includes(nextStatus);
-    const reportLoggedStatus = isEntry ? 1 : 2;
+    const reportLoggedStatus = nextStatus;
 
     const existingReport = await sequelize.query(
       `SELECT * FROM "employee_Logging_report"
