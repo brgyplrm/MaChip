@@ -4,7 +4,7 @@ const userController = require("../controllers/user.controller.js");
 const rfidController = require("../controllers/rfid.controller.js");
 const authController = require("../controllers/auth.controller.js");
 const upload = require("../middleware/upload.js");
-const { requireAdmin, requireStaff, requireRole } = require("../middleware/roleCheck.js");
+const { requireAdmin, requireStaff, requireRole, requireSelfOrStaff } = require("../middleware/roleCheck.js");
 
 // URL will be: http://localhost:4000/api/users/registerUser
 router.post("/registerUser", requireAdmin, upload.single("user_ProfilePic"), userController.registerUser);
@@ -60,7 +60,7 @@ router.get("/check-fingerprint/:slot", requireStaff, userController.checkFingerp
 router.get("/summary/:userId", requireStaff, userController.getEmployeeSummary);
 
 // GET user by user_Id
-router.get("/:user_Id", userController.viewUserById);
+router.get("/:user_Id", requireSelfOrStaff("user_Id"), userController.viewUserById);
 
 // DELETE user by user_Id (soft delete — sets deletedAt)
 router.delete("/deleteUser/:user_Id", requireAdmin, userController.deleteUser);

@@ -6,12 +6,23 @@
 
 const crypto = require('crypto');
 
+// In-memory replay cache to prevent duplicate signature submissions within the skew window
+const seenSignatures = new Map();
+
+function cleanSeenSignatures(now) {
+    for (const [sig, ts] of seenSignatures.entries()) {
+        if (now - ts > 120) {
+            seenSignatures.delete(sig);
+        }
+    }
+}
+
 /**
  * espValidator.js
  * Enhanced middleware to ensure requests come from an authorized ESP32.
  * Implements:
  * 1. API Key Validation
- * 2. Anti-Replay Protection (Timestamp Check)
+ * 2. Anti-Replay Protection (Timestamp Check & Replay Cache)
  * 3. Cryptographic Integrity (HMAC-SHA256 Signature)
  * 4. Payload Confidentiality (AES-128 Decryption)
  */
@@ -28,11 +39,10 @@ const espValidator = (req, res, next) => {
     const signature = req.headers['x-esp32-signature'];
     const timestamp = req.headers['x-esp32-timestamp'];
 
-    // Fallback for legacy/non-secure requests during transition
+    // Require signature and timestamp for all state-changing requests (POST, PUT, DELETE, PATCH)
     if (!signature || !timestamp) {
-        // Allow GET requests without signature (mostly polling) 
-        // OR POST requests where the body is already decrypted/plaintext
-        if (req.method === 'GET' || (req.body && !req.body.encryptedData)) {
+        // Allow GET requests without signature for polling/session checks
+        if (req.method === 'GET') {
             return next();
         }
         return res.status(403).json({ success: false, message: "Secure communication required (Missing Sig/TS)." });
@@ -85,6 +95,14 @@ const espValidator = (req, res, next) => {
         console.error(`[SEC] Signature Mismatch! Expected: ${expectedSignature.slice(0, 8)}..., Received: ${signature.slice(0, 8)}...`);
         return res.status(403).json({ success: false, message: "Invalid cryptographic signature." });
     }
+
+    // Check for replay of identical signature within the 120s skew window
+    cleanSeenSignatures(now);
+    if (seenSignatures.has(signature)) {
+        console.error(`[SEC] Replay attack detected for signature: ${signature.slice(0, 8)}...`);
+        return res.status(403).json({ success: false, message: "Replay attack detected: Duplicate request signature." });
+    }
+    seenSignatures.set(signature, now);
 
     // 4. AES-128 Payload Decryption
     if (req.body && req.body.encryptedData) {

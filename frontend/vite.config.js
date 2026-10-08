@@ -26,6 +26,11 @@ export default defineConfig({
         proxyTimeout: 60000,
         timeout: 60000,
       },
+      "/socket.io": {
+        target: "http://127.0.0.1:4000",
+        ws: true,
+        changeOrigin: true,
+      },
     },
   },
 });

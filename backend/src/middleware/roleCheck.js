@@ -50,10 +50,40 @@ const requireOps = requireRole(1, 2, "Admin Manager", "Supervisor");
  */
 const requireStaff = requireRole(1, 2, 4, "Admin Manager", "Supervisor", "Admin Accountant", "Admin");
 
+/**
+ * Self or Staff Level
+ * Allows: The user themselves (matching req.params[paramKey]) OR Staff (Roles 1, 2, 4)
+ */
+const requireSelfOrStaff = (paramKey = "user_Id") => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ error: "Authentication required." });
+    }
+
+    const currentUserId = parseInt(req.user.user_Id, 10);
+    const targetUserId = parseInt(req.params[paramKey], 10);
+    const userRoleName = req.user.user_Role;
+    const userRoleId = parseInt(req.user.user_RoleId, 10);
+
+    const isStaff = [1, 2, 4].includes(userRoleId) ||
+      ["Admin Manager", "Supervisor", "Admin Accountant", "Admin"].includes(userRoleName);
+    const isSelf = !isNaN(targetUserId) && currentUserId === targetUserId;
+
+    if (!isSelf && !isStaff) {
+      console.warn(`[ROLE CHECK] Forbidden: User ${req.user.user_Id} tried to access profile of User ${targetUserId}.`);
+      return res.status(403).json({ error: "Forbidden: You are only authorized to access your own profile." });
+    }
+
+    next();
+  };
+};
+
 module.exports = {
   requireRole,
   requireMaster,
   requireAdmin,
   requireOps,
-  requireStaff
+  requireStaff,
+  requireSelfOrStaff
 };
+

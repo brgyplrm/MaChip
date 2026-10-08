@@ -48,6 +48,6 @@ router.put("/update/:requestId", authMiddleware, UpdateUserRequest);
 router.post("/notify-supervisor/:requestId", authMiddleware, notifySupervisor);
 router.post("/ping-approver/:requestId", requireStaff, pingApprover);
 router.post("/:requestId/ping-approver", requireStaff, pingApprover);
-router.delete("/delete/:requestId", DeleteRequest);
+router.delete("/delete/:requestId", authMiddleware, DeleteRequest);
 
 module.exports = router;

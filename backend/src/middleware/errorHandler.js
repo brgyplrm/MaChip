@@ -9,7 +9,7 @@
 const errorHandler = (err, req, res, next) => {
   console.error(`[SYSTEM ERROR] ${new Date().toISOString()}:`, {
     message: err.message,
-    stack: process.env.NODE_ENV === "production" ? "🥞" : err.stack,
+    stack: process.env.NODE_ENV === "production" ? "[STACK_HIDDEN_PRODUCTION]" : err.stack,
     path: req.path,
     method: req.method,
   });
@@ -29,8 +29,13 @@ const errorHandler = (err, req, res, next) => {
 
   // Default error response
   const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
+  const isProduction = process.env.NODE_ENV === "production";
+  const clientMessage = (statusCode === 500 && isProduction)
+    ? "An unexpected internal server error occurred. Please contact the administrator."
+    : (err.message || "An unexpected internal server error occurred.");
+
   res.status(statusCode).json({
-    error: err.message || "An unexpected internal server error occurred.",
+    error: clientMessage,
   });
 };
 

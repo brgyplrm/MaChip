@@ -20,6 +20,15 @@ const { computeMonthlyShares, computePeriodTax } = require("../utils/govtDeducti
 const { generatePayrollSummaryPDF } = require("../utils/payrollSummaryGenerator");
 const { generateGovLoanReportPDF, generateIndividualLoanPDF, generateEastwestLoanReportPDF } = require("../utils/loanReportGenerator");
 const { queueSlotDeletion } = require("./rfid.controller");
+const { 
+  toCents, 
+  fromCents, 
+  roundMoney, 
+  addMoney, 
+  subtractMoney, 
+  multiplyMoney, 
+  divideMoney 
+} = require("../utils/financialHelper");
 const archiver = require("archiver");
 archiver.registerFormat("zip-encryptable", require("archiver-zip-encryptable"));
 
@@ -859,16 +868,16 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
 
   gDed = user[0]?.globe_Deduction || 0;
 
-  const ratePerHr = dailyRate / WORK_HRS_PER_DAY;
-  const ratePerMin = ratePerHr / 60;
+  const ratePerHr = divideMoney(dailyRate, WORK_HRS_PER_DAY);
+  const ratePerMin = divideMoney(ratePerHr, 60);
 
   // 1. Basic Pay (Assumption: Full Attendance Basic)
-  const potentialBasicPay = (stats.totalScheduledDays * dailyRate);
+  const potentialBasicPay = multiplyMoney(stats.totalScheduledDays, dailyRate);
 
   // 2. Holiday Premiums (Using Precise Units)
-  const legalHol_Amnt = (stats.legal_hol_hrs || 0) * ratePerHr;
-  const specialHol_Amnt = (stats.special_hol_hrs || 0) * ratePerHr;
-  const total_hol_Amnt = legalHol_Amnt + specialHol_Amnt;
+  const legalHol_Amnt = multiplyMoney(stats.legal_hol_hrs || 0, ratePerHr);
+  const specialHol_Amnt = multiplyMoney(stats.special_hol_hrs || 0, ratePerHr);
+  const total_hol_Amnt = addMoney(legalHol_Amnt, specialHol_Amnt);
 
   // 3. OT & Night Diff
   // Retrieve settings to get dynamic multipliers
@@ -876,8 +885,8 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   const nsdRate = parseFloat(settings?.payrollRates?.otNightRates?.nsdRate ?? 10) / 100; // e.g. 0.10
   const ordinaryOTRate = parseFloat(settings?.payrollRates?.otNightRates?.ordinaryOT ?? 25) / 100; // e.g. 0.25 (Total: 1.25)
   
-  const OT_Rate = ratePerHr * (1 + ordinaryOTRate);
-  const ND_OT_Rate = ratePerHr * (1 + ordinaryOTRate) * (1 + nsdRate); // Logic: 1.25x * 1.1x = 1.375x
+  const OT_Rate = multiplyMoney(ratePerHr, 1 + ordinaryOTRate);
+  const ND_OT_Rate = multiplyMoney(ratePerHr, (1 + ordinaryOTRate) * (1 + nsdRate)); // Logic: 1.25x * 1.1x = 1.375x
 
   // Logic to separate regular night diff from OT night diff
   // nd_hrs in stats is the total night hours (10PM-6AM)
@@ -886,15 +895,15 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   const regular_OT_hrs = Math.max(0, stats.ot_hrs - night_OT_hrs);
   const regular_night_hrs = Math.max(0, stats.nd_hrs - night_OT_hrs);
 
-  const OT_Amnt = regular_OT_hrs * OT_Rate;
-  const nightOT_Amnt = night_OT_hrs * ND_OT_Rate;
-  const nightDiff_Amnt = regular_night_hrs * ratePerHr * nsdRate;
+  const OT_Amnt = multiplyMoney(regular_OT_hrs, OT_Rate);
+  const nightOT_Amnt = multiplyMoney(night_OT_hrs, ND_OT_Rate);
+  const nightDiff_Amnt = multiplyMoney(regular_night_hrs * ratePerHr, nsdRate);
 
   console.log(`[DEBUG PAYROLL] stats: ot_hrs=${stats.ot_hrs}, nd_hrs=${stats.nd_hrs}`);
   console.log(`[DEBUG PAYROLL] split: regular_OT_hrs=${regular_OT_hrs}, night_OT_hrs=${night_OT_hrs}, regular_night_hrs=${regular_night_hrs}`);
   console.log(`[DEBUG PAYROLL] amounts: OT_Amnt=${OT_Amnt}, nightOT_Amnt=${nightOT_Amnt}, nightDiff_Amnt=${nightDiff_Amnt}`);
 
-  const total_OT_Amnt = OT_Amnt + nightOT_Amnt;
+  const total_OT_Amnt = addMoney(OT_Amnt, nightOT_Amnt);
   
   // 4. Attendance Deductions (Exempt if is_time_exempt is enabled)
   const isPresident = user[0]?.is_time_exempt === true;
@@ -904,34 +913,34 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
     stats.unpaidLeave_Days = 0;
   }
 
-  const absence_Amnt = isPresident ? 0 : (stats.absence_Days * dailyRate); 
-  const tardiness_Amnt = isPresident ? 0 : (stats.tardiness_Mins * ratePerMin);
-  const unpaidLeave_Amnt = isPresident ? 0 : (stats.unpaidLeave_Days * dailyRate);
+  const absence_Amnt = isPresident ? 0 : multiplyMoney(stats.absence_Days, dailyRate); 
+  const tardiness_Amnt = isPresident ? 0 : multiplyMoney(stats.tardiness_Mins, ratePerMin);
+  const unpaidLeave_Amnt = isPresident ? 0 : multiplyMoney(stats.unpaidLeave_Days, dailyRate);
   const specialHol_Adj = 0;
 
-  const incentives = parseFloat(customIncentives || 0); 
-  const allowance = parseFloat(customAllowance || 0);
+  const incentives = roundMoney(customIncentives || 0); 
+  const allowance = roundMoney(customAllowance || 0);
 
   // 4. Actual Earnings & Adjustments
   // "Gross Earnings" should be the potential pay + premiums before ANY deductions (absences/tardiness)
   // This ensures the math (Gross - Total Deductions = Net) is transparent on the payslip.
-  let grossEarnings = potentialBasicPay + legalHol_Amnt + specialHol_Amnt + nightDiff_Amnt + OT_Amnt + nightOT_Amnt + incentives;
+  let grossEarnings = addMoney(potentialBasicPay, legalHol_Amnt, specialHol_Amnt, nightDiff_Amnt, OT_Amnt, nightOT_Amnt, incentives);
   if (isNaN(grossEarnings) || grossEarnings < 0) grossEarnings = 0;
 
   // Actual Basic Pay for internal record (Potential - Absences)
-  const basicPay = isPresident ? potentialBasicPay : (potentialBasicPay - absence_Amnt - unpaidLeave_Amnt);
+  const basicPay = isPresident ? potentialBasicPay : Math.max(0, subtractMoney(potentialBasicPay, absence_Amnt, unpaidLeave_Amnt));
 
   // 5. Government Deductions
-  const govtTotal = grossEarnings > 0 ? (parseFloat(sss_Share || 0) + parseFloat(philhealth_Share || 0) + parseFloat(hdmf_Share || 0)) : 0;
+  const govtTotal = grossEarnings > 0 ? addMoney(sss_Share, philhealth_Share, hdmf_Share) : 0;
   
   // 6. Other Deductions
-  const personalLoanCombined = parseFloat(advAmnt || 0) + parseFloat(ewLoan || 0);
-  const otherTotal = grossEarnings > 0 ? (parseFloat(hCard || 0) + parseFloat(sLoan || 0) + parseFloat(hLoan || 0) + parseFloat(cLoan || 0) + personalLoanCombined + parseFloat(gDed || 0) + parseFloat(mpSave || 0)) : 0;
+  const personalLoanCombined = addMoney(advAmnt, ewLoan);
+  const otherTotal = grossEarnings > 0 ? addMoney(hCard, sLoan, hLoan, cLoan, personalLoanCombined, gDed, mpSave) : 0;
 
   let Tax_Ded_Final = 0;
   if (grossEarnings > 0 && isMidMonth) {
-    if (parseFloat(tax_Share || 0) > 0) {
-      Tax_Ded_Final = parseFloat(tax_Share);
+    if (toCents(tax_Share) > 0) {
+      Tax_Ded_Final = roundMoney(tax_Share);
     } else {
       const { computePeriodTaxAsync } = require("../utils/govtDeductions");
       Tax_Ded_Final = await computePeriodTaxAsync(grossEarnings, govtTotal, period_End, period_Start, true);
@@ -940,10 +949,10 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
  
 
   // Total Deductions includes everything: Absences, Tardiness, Gov't, and Loans
-  const totalDeductions = absence_Amnt + tardiness_Amnt + unpaidLeave_Amnt + govtTotal + otherTotal + Tax_Ded_Final;
+  const totalDeductions = addMoney(absence_Amnt, tardiness_Amnt, unpaidLeave_Amnt, govtTotal, otherTotal, Tax_Ded_Final);
 
   // Final Net Pay calculation: (Gross - Total Deductions) + Non-taxable Allowance
-  let netPay = (grossEarnings - totalDeductions) + allowance;
+  let netPay = addMoney(subtractMoney(grossEarnings, totalDeductions), allowance);
   if (isNaN(netPay) || netPay < 0) netPay = 0;
 
   const decoratedHolidayBreakdown = (stats.holidayBreakdown || []).map(h => {
@@ -1227,9 +1236,9 @@ exports.getPayrollPreviewBatch = async (req, res) => {
     let totalDeductions = 0;
 
     for (const item of results) {
-      totalNetPay += parseFloat(item.netPay || 0);
-      totalEarnings += parseFloat(item.totalEarnings || 0);
-      totalDeductions += parseFloat(item.totalDeductions || 0);
+      totalNetPay = addMoney(totalNetPay, item.netPay);
+      totalEarnings = addMoney(totalEarnings, item.totalEarnings);
+      totalDeductions = addMoney(totalDeductions, item.totalDeductions);
     }
 
     res.status(200).json({
@@ -1527,7 +1536,7 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
           );
           if (activeLoan.length > 0) {
             const loanId = activeLoan[0].id;
-            const newBalance = Math.max(0, parseFloat(activeLoan[0].remainingBalance) - m.amount);
+            const newBalance = Math.max(0, subtractMoney(activeLoan[0].remainingBalance, m.amount));
             const status = newBalance <= 0 ? 'completed' : 'active';
 
             await sequelize.query(
@@ -1561,6 +1570,39 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
        WHERE "user_Id" = :user_Id AND "date" = :period_End`,
       { replacements: { payrollId, user_Id: emp.user_Id, period_End }, type: QueryTypes.UPDATE }
     );
+
+    // 2.7 DOLE Art. 113 Non-Statutory Deduction Authorization Verification & Audit
+    const hasNonStatutory = (parseFloat(fullStats.eastwest_Loan || 0) > 0 || parseFloat(fullStats.advances_Amnt || 0) > 0);
+    if (hasNonStatutory) {
+      try {
+        const approvedReq = await sequelize.query(
+          `SELECT "emp_reqId" FROM "emp_Request" 
+           WHERE "user_Id" = :user_Id AND "emp_reqTypeId" IN (13, 14) AND "emp_reqStatusId" = 2 
+           ORDER BY "emp_reqId" DESC LIMIT 1`,
+          { replacements: { user_Id: emp.user_Id }, type: QueryTypes.SELECT }
+        );
+        const isAuthorizedByRequest = approvedReq.length > 0;
+        await logAudit(
+          req,
+          req?.user?.user_Id || 1,
+          "Payroll",
+          "DEDUCTION_AUTHORIZATION_VERIFY",
+          "Payroll",
+          payrollId,
+          null,
+          {
+            userId: emp.user_Id,
+            eastwest_Loan: fullStats.eastwest_Loan,
+            advances_Amnt: fullStats.advances_Amnt,
+            compliance: "DOLE Art. 113 & DO 195",
+            authorizedByEmployeeRequest: isAuthorizedByRequest,
+            authorizationBasis: isAuthorizedByRequest ? `Approved Employee Request #${approvedReq[0].emp_reqId}` : "Administrative Profile Record"
+          }
+        );
+      } catch (authLogErr) {
+        console.warn(`[DOLE AUDIT WARN] Failed to log deduction authorization for User ${emp.user_Id}:`, authLogErr.message);
+      }
+    }
 
     // 3. Maxicare Auto-record
     if (fullStats.healthCard_Amnt > 0) {
@@ -2097,7 +2139,7 @@ exports.generatePayroll = async (req, res) => {
           );
           if (activeLoan.length > 0) {
             const loanId = activeLoan[0].id;
-            const newBalance = Math.max(0, parseFloat(activeLoan[0].remainingBalance) - m.amount);
+            const newBalance = Math.max(0, subtractMoney(activeLoan[0].remainingBalance, m.amount));
             const status = newBalance <= 0 ? 'completed' : 'active';
 
             await sequelize.query(
@@ -2131,6 +2173,39 @@ exports.generatePayroll = async (req, res) => {
        WHERE "user_Id" = :user_Id AND "date" = :period_End`,
       { replacements: { payrollId, user_Id, period_End }, type: QueryTypes.UPDATE }
     );
+
+    // 2.7 DOLE Art. 113 Non-Statutory Deduction Authorization Verification & Audit
+    const hasNonStatutory = (parseFloat(fullStats.eastwest_Loan || 0) > 0 || parseFloat(fullStats.advances_Amnt || 0) > 0);
+    if (hasNonStatutory) {
+      try {
+        const approvedReq = await sequelize.query(
+          `SELECT "emp_reqId" FROM "emp_Request" 
+           WHERE "user_Id" = :user_Id AND "emp_reqTypeId" IN (13, 14) AND "emp_reqStatusId" = 2 
+           ORDER BY "emp_reqId" DESC LIMIT 1`,
+          { replacements: { user_Id }, type: QueryTypes.SELECT }
+        );
+        const isAuthorizedByRequest = approvedReq.length > 0;
+        await logAudit(
+          req,
+          req?.user?.user_Id || 1,
+          "Payroll",
+          "DEDUCTION_AUTHORIZATION_VERIFY",
+          "Payroll",
+          payrollId,
+          null,
+          {
+            userId,
+            eastwest_Loan: fullStats.eastwest_Loan,
+            advances_Amnt: fullStats.advances_Amnt,
+            compliance: "DOLE Art. 113 & DO 195",
+            authorizedByEmployeeRequest: isAuthorizedByRequest,
+            authorizationBasis: isAuthorizedByRequest ? `Approved Employee Request #${approvedReq[0].emp_reqId}` : "Administrative Profile Record"
+          }
+        );
+      } catch (authLogErr) {
+        console.warn(`[DOLE AUDIT WARN] Failed to log deduction authorization for User ${user_Id}:`, authLogErr.message);
+      }
+    }
 
     // 3. Maxicare Auto-record
     if (fullStats.healthCard_Amnt > 0) {
@@ -2867,16 +2942,16 @@ exports.updatePayrollFull = async (req, res) => {
     const oldPayroll = await sequelize.query(`SELECT p.*, pe.*, pd.* FROM "Payroll" p LEFT JOIN "Payroll_Earnings" pe ON pe."payrollId" = p."payrollId" LEFT JOIN "Payroll_Deductions" pd ON pd."payrollId" = p."payrollId" WHERE p."payrollId" = :payrollId LIMIT 1`, { replacements: { payrollId }, type: QueryTypes.SELECT });
     if (oldPayroll.length === 0) return res.status(404).json({ error: "Not found." });
 
-    const govtTotal  = (parseFloat(SSS_Ded || 0) + parseFloat(Philhealth_Ded || 0) + parseFloat(HDMF_Ded || 0));
-    const taxTotal   = parseFloat(Tax_Ded || 0);
-    const otherTotal = (parseFloat(healthCard_Amnt || 0) + parseFloat(SSS_Loan || 0) + parseFloat(HDMF_Loan || 0) + parseFloat(calamityLoan_Amnt || 0) + parseFloat(multiPurposeSavings || 0) + parseFloat(advances_Amnt || 0) + parseFloat(globe_Deduction || 0));
-    const attendanceDed = (parseFloat(absence_Amnt || 0) + parseFloat(tardiness_Amnt || 0) + parseFloat(unpaidLeave_Amnt || 0));
+    const govtTotal  = addMoney(SSS_Ded, Philhealth_Ded, HDMF_Ded);
+    const taxTotal   = roundMoney(Tax_Ded || 0);
+    const otherTotal = addMoney(healthCard_Amnt, SSS_Loan, HDMF_Loan, calamityLoan_Amnt, multiPurposeSavings, advances_Amnt, globe_Deduction);
+    const attendanceDed = addMoney(absence_Amnt, tardiness_Amnt, unpaidLeave_Amnt);
     
     // Net Pay = (Taxable Income) - (Other + Tax) + Allowance
-    const taxableIncome = parseFloat(totalEarnings || 0) - attendanceDed - govtTotal;
-    const computedNet = taxableIncome - (otherTotal + taxTotal) + parseFloat(allowance || 0);
+    const taxableIncome = subtractMoney(totalEarnings, attendanceDed, govtTotal);
+    const computedNet = addMoney(subtractMoney(taxableIncome, otherTotal, taxTotal), allowance);
 
-    const computedTotalDed = govtTotal + taxTotal + otherTotal + attendanceDed + parseFloat(req.body.eastwest_Loan || 0);
+    const computedTotalDed = addMoney(govtTotal, taxTotal, otherTotal, attendanceDed, req.body.eastwest_Loan || 0);
 
     await sequelize.query(`UPDATE "Payroll" SET "dailyRate"=:dailyRate, "ratePerHr"=:ratePerHr, "NoDays_Worked"=:NoDays_Worked, "NoHrs_Worked"=:NoHrs_Worked, "basicPay"=:basicPay, "totalEarnings"=:totalEarnings, "totalDeductions"=:totalDed, "netPay"=:netPay, "status"=:status, "updatedAt"=:now WHERE "payrollId" = :payrollId`, { replacements: { payrollId, dailyRate, ratePerHr, NoDays_Worked, NoHrs_Worked, basicPay, totalEarnings, totalDed: computedTotalDed, netPay: computedNet, status, now: nowStr }, type: QueryTypes.UPDATE });
     
@@ -3679,13 +3754,15 @@ exports.generateSeparationPay = async (req, res) => {
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
 
-    const backPayTotal = parseFloat(previewRes.backPay.prorated13thMonth || 0) + 
-                         parseFloat(previewRes.backPay.leaveConversion || 0) + 
-                         parseFloat(previewRes.backPay.finalWorkedSalary || 0);
+    const backPayTotal = addMoney(
+      previewRes.backPay.prorated13thMonth,
+      previewRes.backPay.leaveConversion,
+      previewRes.backPay.finalWorkedSalary
+    );
 
-    const grandTotal = parseFloat(selectedCause.amount) + backPayTotal;
-    const loanDeductions = parseFloat(previewRes.loanDeductions || 0);
-    const netAmount = Math.max(0, grandTotal - loanDeductions);
+    const grandTotal = addMoney(selectedCause.amount, backPayTotal);
+    const loanDeductions = roundMoney(previewRes.loanDeductions || 0);
+    const netAmount = Math.max(0, subtractMoney(grandTotal, loanDeductions));
 
     const result = await sequelize.query(
       `INSERT INTO "Payroll_Separation" 
@@ -4131,13 +4208,15 @@ exports.generateRetirementPay = async (req, res) => {
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
 
-    const backPayTotal = parseFloat(previewRes.backPay.prorated13thMonth || 0) + 
-                         parseFloat(previewRes.backPay.leaveConversion || 0) + 
-                         parseFloat(previewRes.backPay.finalWorkedSalary || 0);
+    const backPayTotal = addMoney(
+      previewRes.backPay.prorated13thMonth,
+      previewRes.backPay.leaveConversion,
+      previewRes.backPay.finalWorkedSalary
+    );
 
-    const grandTotal = parseFloat(previewRes.totalAmount) + backPayTotal;
-    const loanDeductions = parseFloat(previewRes.loanDeductions || 0);
-    const netAmount = Math.max(0, grandTotal - loanDeductions);
+    const grandTotal = addMoney(previewRes.totalAmount, backPayTotal);
+    const loanDeductions = roundMoney(previewRes.loanDeductions || 0);
+    const netAmount = Math.max(0, subtractMoney(grandTotal, loanDeductions));
 
     const result = await sequelize.query(
       `INSERT INTO "Payroll_Retirement" 
@@ -4317,9 +4396,11 @@ exports.updateRetirementDate = async (req, res) => {
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
 
-    const backPayTotal = parseFloat(previewRes.backPay.prorated13thMonth || 0) + 
-                         parseFloat(previewRes.backPay.leaveConversion || 0) + 
-                         parseFloat(previewRes.backPay.finalWorkedSalary || 0);
+    const backPayTotal = addMoney(
+      previewRes.backPay.prorated13thMonth,
+      previewRes.backPay.leaveConversion,
+      previewRes.backPay.finalWorkedSalary
+    );
 
     // 3. Update DB
     await sequelize.query(

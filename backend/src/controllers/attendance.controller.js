@@ -90,19 +90,21 @@ exports.markAttendance = async (req, res) => {
         const totalMinutes = now.getHours() * 60 + now.getMinutes();
         const nextStatus = (totalMinutes >= lStart && totalMinutes < lEnd) ? 3 : 2;
 
-        await sequelize.query(
-          `INSERT INTO "user_logging" ("user_id", "log_Date", "time_Logged", "logged_StatusId") VALUES (:targetId, :todayStr, :timeStr, :nextStatus)`,
-          { replacements: { targetId, todayStr, timeStr, nextStatus }, type: QueryTypes.INSERT }
-        );
+        await sequelize.transaction(async (t) => {
+          await sequelize.query(
+            `INSERT INTO "user_logging" ("user_id", "log_Date", "time_Logged", "logged_StatusId") VALUES (:targetId, :todayStr, :timeStr, :nextStatus)`,
+            { replacements: { targetId, todayStr, timeStr, nextStatus }, type: QueryTypes.INSERT, transaction: t }
+          );
 
-        const rep = await sequelize.query(`SELECT "time_Logged_outArr" FROM "employee_Logging_report" WHERE "user_id" = :targetId AND "log_Date" = :todayStr`, { replacements: { targetId, todayStr }, type: QueryTypes.SELECT });
-        const outArr = JSON.parse(rep[0].time_Logged_outArr || "[]");
-        outArr.push(timeStr);
+          const rep = await sequelize.query(`SELECT "time_Logged_outArr" FROM "employee_Logging_report" WHERE "user_id" = :targetId AND "log_Date" = :todayStr`, { replacements: { targetId, todayStr }, type: QueryTypes.SELECT, transaction: t });
+          const outArr = JSON.parse(rep[0]?.time_Logged_outArr || "[]");
+          outArr.push(timeStr);
 
-        await sequelize.query(
-          `UPDATE "employee_Logging_report" SET "time_Logged_outArr" = :outArr, "logged_StatusId" = 2 WHERE "user_id" = :targetId AND "log_Date" = :todayStr`,
-          { replacements: { outArr: JSON.stringify(outArr), targetId, todayStr }, type: QueryTypes.UPDATE }
-        );
+          await sequelize.query(
+            `UPDATE "employee_Logging_report" SET "time_Logged_outArr" = :outArr, "logged_StatusId" = 2 WHERE "user_id" = :targetId AND "log_Date" = :todayStr`,
+            { replacements: { outArr: JSON.stringify(outArr), targetId, todayStr }, type: QueryTypes.UPDATE, transaction: t }
+          );
+        });
 
         // Trigger calculation
         calculateAndStoreAttendanceUnits(targetId, todayStr).catch(err => console.error(`[BULK-CALC-ERR] User ${targetId}:`, err));
@@ -319,31 +321,45 @@ exports.markAttendance = async (req, res) => {
       attendanceVal = 4; // Half Day (PM arrival)
     }
 
-    const newLogResult = await sequelize.query(`INSERT INTO "user_logging" ("user_id", "log_Date", "time_Logged", "logged_StatusId", "attendance_StatusId") VALUES (:target_user_Id, :log_Date, :time_Logged, :logged_StatusId, :attendance_StatusId) RETURNING *`, { replacements: { target_user_Id, log_Date: todayStart, time_Logged: timeStr, logged_StatusId: nextStatus, attendance_StatusId: attendanceVal }, type: QueryTypes.INSERT });
-    const newLog = newLogResult[0][0];
-
+    let newLog;
     const isEntry = [1, 3, 5, 10].includes(nextStatus);
     const repStat = isEntry ? 1 : 2;
-    const existing = await sequelize.query(`SELECT * FROM "employee_Logging_report" WHERE "user_id" = :target_user_Id AND "log_Date" = :todayStr`, { replacements: { target_user_Id, todayStr }, type: QueryTypes.SELECT });
-    if (!existing[0]) {
-      const inArr = isEntry ? [timeStr] : []; const outArr = !isEntry ? [timeStr] : [];
-      await sequelize.query(`INSERT INTO "employee_Logging_report" ("user_id", "log_Date", "time_Logged_inArr", "time_Logged_outArr", "attendance_StatusId", "logged_StatusId") VALUES (:target_user_Id, :todayStr, :inArr, :outArr, :attendance_StatusId, :repStat)`, { replacements: { target_user_Id, todayStr, inArr: JSON.stringify(inArr), outArr: JSON.stringify(outArr), attendance_StatusId: attendanceVal, repStat }, type: QueryTypes.INSERT });
-    } else {
-      const inArr = JSON.parse(existing[0].time_Logged_inArr || "[]"); const outArr = JSON.parse(existing[0].time_Logged_outArr || "[]");
-      if (isEntry && !inArr.includes(timeStr)) inArr.push(timeStr); else if (!isEntry && !outArr.includes(timeStr)) outArr.push(timeStr);
-      await sequelize.query(
-        `UPDATE "employee_Logging_report" 
-         SET "time_Logged_inArr" = :inArr, 
-             "time_Logged_outArr" = :outArr, 
-             "logged_StatusId" = :repStat, 
-             "attendance_StatusId" = CASE 
-                WHEN "attendance_StatusId" IS NULL OR "attendance_StatusId" = 3 OR ("attendance_StatusId" = 8 AND :attendance_StatusId IN (1, 2, 4, 6)) THEN :attendance_StatusId 
-                ELSE "attendance_StatusId" 
-             END
-         WHERE "user_id" = :target_user_Id AND "log_Date" = :todayStr`, 
-        { replacements: { inArr: JSON.stringify(inArr), outArr: JSON.stringify(outArr), repStat, attendance_StatusId: attendanceVal, target_user_Id, todayStr }, type: QueryTypes.UPDATE }
+
+    await sequelize.transaction(async (t) => {
+      const newLogResult = await sequelize.query(
+        `INSERT INTO "user_logging" ("user_id", "log_Date", "time_Logged", "logged_StatusId", "attendance_StatusId") VALUES (:target_user_Id, :log_Date, :time_Logged, :logged_StatusId, :attendance_StatusId) RETURNING *`,
+        { replacements: { target_user_Id, log_Date: todayStart, time_Logged: timeStr, logged_StatusId: nextStatus, attendance_StatusId: attendanceVal }, type: QueryTypes.INSERT, transaction: t }
       );
-    }
+      newLog = newLogResult[0][0];
+
+      const existing = await sequelize.query(
+        `SELECT * FROM "employee_Logging_report" WHERE "user_id" = :target_user_Id AND "log_Date" = :todayStr`,
+        { replacements: { target_user_Id, todayStr }, type: QueryTypes.SELECT, transaction: t }
+      );
+
+      if (!existing[0]) {
+        const inArr = isEntry ? [timeStr] : []; const outArr = !isEntry ? [timeStr] : [];
+        await sequelize.query(
+          `INSERT INTO "employee_Logging_report" ("user_id", "log_Date", "time_Logged_inArr", "time_Logged_outArr", "attendance_StatusId", "logged_StatusId") VALUES (:target_user_Id, :todayStr, :inArr, :outArr, :attendance_StatusId, :repStat)`,
+          { replacements: { target_user_Id, todayStr, inArr: JSON.stringify(inArr), outArr: JSON.stringify(outArr), attendance_StatusId: attendanceVal, repStat }, type: QueryTypes.INSERT, transaction: t }
+        );
+      } else {
+        const inArr = JSON.parse(existing[0].time_Logged_inArr || "[]"); const outArr = JSON.parse(existing[0].time_Logged_outArr || "[]");
+        if (isEntry && !inArr.includes(timeStr)) inArr.push(timeStr); else if (!isEntry && !outArr.includes(timeStr)) outArr.push(timeStr);
+        await sequelize.query(
+          `UPDATE "employee_Logging_report" 
+           SET "time_Logged_inArr" = :inArr, 
+               "time_Logged_outArr" = :outArr, 
+               "logged_StatusId" = :repStat, 
+               "attendance_StatusId" = CASE 
+                  WHEN "attendance_StatusId" IS NULL OR "attendance_StatusId" = 3 OR ("attendance_StatusId" = 8 AND :attendance_StatusId IN (1, 2, 4, 6)) THEN :attendance_StatusId 
+                  ELSE "attendance_StatusId" 
+               END
+           WHERE "user_id" = :target_user_Id AND "log_Date" = :todayStr`, 
+          { replacements: { inArr: JSON.stringify(inArr), outArr: JSON.stringify(outArr), repStat, attendance_StatusId: attendanceVal, target_user_Id, todayStr }, type: QueryTypes.UPDATE, transaction: t }
+        );
+      }
+    });
 
     calculateAndStoreAttendanceUnits(target_user_Id, todayStr).catch(err => console.error(`[ATTENDANCE-CALC-ERR] User ${target_user_Id}:`, err));
 
@@ -410,6 +426,7 @@ exports.viewUserLogs = async (req, res) => {
          r.*,
          u."user_ShiftId",
          u."user_RoleId",
+         u."is_time_exempt",
          a."statusName" AS "attendanceStatusName",
          l."statusName" AS "loggedStatusName"
        FROM "employee_Logging_report" r
@@ -590,7 +607,7 @@ exports.viewUserLogs = async (req, res) => {
           stats.totalPayableHours = 0;
         } else {
           const threshold = settings?.workHourThreshold !== undefined ? parseFloat(settings.workHourThreshold) : 4.0;
-          const isExempt = Boolean(user?.is_time_exempt) || (user?.user_RoleId === 1);
+          const isExempt = Boolean(report?.is_time_exempt) || (report?.user_RoleId === 1);
           if (!isExempt && stats.reg_hrs < threshold) {
             stats.reg_hrs = 0;
             stats.totalPayableHours = Math.round((stats.ot_hrs + stats.nd_hrs + stats.holiday_hrs) * 100) / 100;
@@ -743,6 +760,18 @@ exports.viewAllAttendance = async (req, res) => {
 // ── Delete All Logs ───────────────────────────────────────────────────────────
 exports.deleteAllLogs = async (req, res) => {
   try {
+    if (process.env.NODE_ENV === "production") {
+      return res.status(403).json({ 
+        error: "Bulk deletion of attendance records is strictly prohibited in production (DOLE 3-Year Retention / CTPAT Compliance)." 
+      });
+    }
+
+    if (!req.user || !req.user.user_Id) {
+      return res.status(401).json({ error: "Authentication required." });
+    }
+
+    const currentAdminId = req.user.user_Id;
+
     await sequelize.query(`DELETE FROM "employee_Logging_report"`, {
       type: QueryTypes.DELETE,
     });
@@ -750,13 +779,22 @@ exports.deleteAllLogs = async (req, res) => {
       type: QueryTypes.DELETE,
     });
 
-    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
-    await logAudit(req, currentAdminId, "Attendance", "DELETE_ALL_ATTENDANCE", "user_logging", null, null, null);
+    await logAudit(
+      req, 
+      currentAdminId, 
+      "Attendance", 
+      "DELETE_ALL_ATTENDANCE", 
+      "user_logging", 
+      null, 
+      null, 
+      { warning: "Development wipe of employee_Logging_report and user_logging" }
+    );
 
     res
       .status(200)
       .json({ message: "All attendance logs have been deleted successfully." });
   } catch (error) {
+    console.error("[DELETE ALL LOGS ERROR]:", error.message);
     res.status(500).json({ error: error.message });
   }
 };
@@ -1563,6 +1601,7 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
       const isIrregularOrIncidental = currentAttendanceStatusId === 7 || currentAttendanceStatusId === 8;
       const isExplicitAbsent = currentAttendanceStatusId === 3;
 
+      const otStartTime = dayOT ? dayOT.HrFrom.substring(0, 5) : null;
       const regularInArr = !isNightShiftAllowed 
         ? inArr.filter(t => t.substring(0, 5) >= "05:30" || (otStartTime && t.substring(0, 5) >= otStartTime)) 
         : inArr;
@@ -1570,7 +1609,6 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
         ? outArr.filter(t => t.substring(0, 5) >= "05:30" || (otStartTime && t.substring(0, 5) >= otStartTime)) 
         : outArr;
 
-      const otStartTime = dayOT ? dayOT.HrFrom.substring(0, 5) : null;
       let { morning_In, morning_Out, afternoon_In, afternoon_Out } = mapLogsToBuckets(regularInArr, regularOutArr, settings, otStartTime);
       
       // MIXED LOG/FILTER LOGIC: Only show the row if there's regular work OR a valid request OR explicitly absent OR recognized attendance

@@ -522,8 +522,26 @@ exports.viewUserById = async (req, res) => {
       { replacements: { user_Id }, type: QueryTypes.SELECT },
     );    if (user.length > 0) {
       const userData = user[0];
+
+      // SECURITY FIX (T-001): Never leak password hash in API responses
+      delete userData.user_Password;
+
       if (userData.account_Number) {
-        userData.account_Number = decrypt(userData.account_Number);
+        const decryptedAccount = decrypt(userData.account_Number);
+        const requesterId = req.user ? parseInt(req.user.user_Id, 10) : null;
+        const requesterRoleId = req.user ? parseInt(req.user.user_RoleId, 10) : null;
+        const requesterRoleName = req.user ? req.user.user_Role : "";
+        const isOwner = requesterId === parseInt(userData.user_Id, 10);
+        const isFinanceOrAdmin = [1, 4].includes(requesterRoleId) ||
+          ["Admin Manager", "Admin Accountant", "Admin"].includes(requesterRoleName);
+
+        if (isOwner || isFinanceOrAdmin) {
+          userData.account_Number = decryptedAccount;
+        } else {
+          userData.account_Number = decryptedAccount && decryptedAccount.length > 4
+            ? `****${decryptedAccount.slice(-4)}`
+            : "****";
+        }
       }
       res.status(200).json(userData);
     } else {

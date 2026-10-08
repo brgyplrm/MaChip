@@ -52,10 +52,8 @@ export const RealTimeProvider = ({ children }) => {
   }, [socket, currentUserId]);
 
   useEffect(() => {
-    // Determine backend URL (fallback if running on same host)
-    const backendUrl = window.location.origin.includes(":5173") 
-      ? window.location.origin.replace(":5173", ":4000") 
-      : window.location.origin;
+    // Connect through current origin (proxied by Vite to backend in dev, or same host in prod)
+    const backendUrl = window.location.origin;
 
     const newSocket = io(backendUrl, {
       withCredentials: true,

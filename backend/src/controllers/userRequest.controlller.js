@@ -2916,11 +2916,20 @@ exports.getLeaveSummary = async (req, res) => {
 
 exports.DeleteRequest = async (req, res) => {
   const { requestId } = req.params;
-  const adminId = req.headers["x-admin-id"] || 1;
 
   try {
+    if (!req.user || !req.user.user_Id) {
+      return res.status(401).json({ error: "Authentication required." });
+    }
+
+    const currentUserId = parseInt(req.user.user_Id, 10);
+    const currentUserRoleId = parseInt(req.user.user_RoleId, 10);
+    const currentUserRoleName = req.user.user_Role;
+
     const request = await sequelize.query(
-      `SELECT "emp_reqTypeId" FROM "emp_Request" WHERE "emp_reqId" = :requestId`,
+      `SELECT "emp_reqId", "user_Id", "emp_reqTypeId", "emp_reqStatusId" 
+       FROM "emp_Request" 
+       WHERE "emp_reqId" = :requestId`,
       { replacements: { requestId }, type: QueryTypes.SELECT }
     );
 
@@ -2928,19 +2937,49 @@ exports.DeleteRequest = async (req, res) => {
       return res.status(404).json({ error: "Request not found." });
     }
 
-    const typeId = request[0].emp_reqTypeId;
-    if (typeId === 1) await sequelize.query(`DELETE FROM "Overtime_Request" WHERE "emp_reqId" = :requestId`, { replacements: { requestId } });
-    else if (typeId === 2) await sequelize.query(`DELETE FROM "Onfield_Work" WHERE "emp_reqId" = :requestId`, { replacements: { requestId } });
-    else if (typeId === 3) await sequelize.query(`DELETE FROM "Vacation_Leave" WHERE "emp_reqId" = :requestId`, { replacements: { requestId } });
-    else if (typeId === 4) await sequelize.query(`DELETE FROM "Sick_Leave" WHERE "emp_reqId" = :requestId`, { replacements: { requestId } });
-    else if (typeId === 6) await sequelize.query(`DELETE FROM "Emergency_Leave" WHERE "emp_reqId" = :requestId`, { replacements: { requestId } });
-    else if (typeId === 7) await sequelize.query(`DELETE FROM "HalfDay_Leave" WHERE "emp_reqId" = :requestId`, { replacements: { requestId } });
-    else if (typeId === 13 || typeId === 14) await sequelize.query(`DELETE FROM "Loan_Request" WHERE "emp_reqId" = :requestId`, { replacements: { requestId } });
+    const reqRecord = request[0];
+    const isStaffOrAdmin = [1, 2, 4].includes(currentUserRoleId) || 
+      ["Admin Manager", "Supervisor", "Admin Accountant", "Admin"].includes(currentUserRoleName);
+    const isOwner = currentUserId === parseInt(reqRecord.user_Id, 10);
 
-    await sequelize.query(`DELETE FROM "emp_Request" WHERE "emp_reqId" = :requestId`, { replacements: { requestId } });
+    // Enforce ownership / staff authorization
+    if (!isOwner && !isStaffOrAdmin) {
+      return res.status(403).json({ error: "Forbidden: You are not authorized to delete this request." });
+    }
+
+    // Employees can only delete their own Pending (1) or Resubmit (5) requests
+    if (!isStaffOrAdmin && ![1, 5].includes(parseInt(reqRecord.emp_reqStatusId, 10))) {
+      return res.status(400).json({ error: "Cannot delete a request that has already been approved or processed." });
+    }
+
+    await sequelize.transaction(async (t) => {
+      const typeId = reqRecord.emp_reqTypeId;
+      if (typeId === 1) await sequelize.query(`DELETE FROM "Overtime_Request" WHERE "emp_reqId" = :requestId`, { replacements: { requestId }, transaction: t });
+      else if (typeId === 2) await sequelize.query(`DELETE FROM "Onfield_Work" WHERE "emp_reqId" = :requestId`, { replacements: { requestId }, transaction: t });
+      else if (typeId === 3) await sequelize.query(`DELETE FROM "Vacation_Leave" WHERE "emp_reqId" = :requestId`, { replacements: { requestId }, transaction: t });
+      else if (typeId === 4) await sequelize.query(`DELETE FROM "Sick_Leave" WHERE "emp_reqId" = :requestId`, { replacements: { requestId }, transaction: t });
+      else if (typeId === 6) await sequelize.query(`DELETE FROM "Emergency_Leave" WHERE "emp_reqId" = :requestId`, { replacements: { requestId }, transaction: t });
+      else if (typeId === 7) await sequelize.query(`DELETE FROM "HalfDay_Leave" WHERE "emp_reqId" = :requestId`, { replacements: { requestId }, transaction: t });
+      else if (typeId === 13 || typeId === 14) await sequelize.query(`DELETE FROM "Loan_Request" WHERE "emp_reqId" = :requestId`, { replacements: { requestId }, transaction: t });
+
+      await sequelize.query(`DELETE FROM "emp_Request" WHERE "emp_reqId" = :requestId`, { replacements: { requestId }, transaction: t });
+    });
+
+    // Append-only audit log
+    await logAudit(
+      req,
+      currentUserId,
+      "Requests",
+      "DELETE_REQUEST",
+      "emp_Request",
+      requestId,
+      reqRecord,
+      null
+    );
 
     res.status(200).json({ message: "Request deleted successfully." });
   } catch (error) {
+    console.error("[DELETE REQUEST ERROR]:", error.message);
     res.status(500).json({ error: error.message });
   }
 };

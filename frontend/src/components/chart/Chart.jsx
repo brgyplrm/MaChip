@@ -42,8 +42,8 @@ const Chart = ({ aspect, title, userId }) => {
   return (
     <div className="chart h-full w-full flex flex-col !bg-transparent !shadow-none !border-none overflow-hidden">
       {title && <div className="title">{title}</div>}
-      <div className="flex-1 min-h-0 w-full h-full overflow-hidden">
-        <ResponsiveContainer width="100%" height="100%" aspect={aspect}>
+      <div className="flex-1 min-h-[250px] w-full h-full overflow-hidden">
+        <ResponsiveContainer width="100%" height={aspect ? undefined : "100%"} minHeight={250} minWidth={0} aspect={aspect || undefined}>
           <AreaChart
             width={730}
             height={250}

@@ -35,7 +35,7 @@ const PayrollFinancialBarGraph = ({ payrolls }) => {
         <CardDescription>Breakdown of disbursements for HMO, Loans, and other corporate deductions</CardDescription>
       </CardHeader>
       <CardContent className="h-[400px]">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={250}>
           <BarChart
             data={data}
             margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
