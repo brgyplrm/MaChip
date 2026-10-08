@@ -95,3 +95,12 @@ Thumbs.db
 *.tgz
 machip-agent-stack.tar.gz
 
+# --- Internal Audit Reports & Defect Triage Dumps ---
+docs/checklists/*_AUDIT_REPORT*.md
+docs/checklists/*_findings*.md
+docs/checklists/*_triage*.md
+docs/audit_reports/
+*_findings*.md
+*_triage*.md
+
+
