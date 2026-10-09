@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   User, Shield, ShieldAlert, Bell, Server, DollarSign, Settings,
-  Clock, Briefcase, FileText, Landmark, Eye, EyeOff, Edit3, Info, Grid, LayoutList, Save, X
+  Clock, Briefcase, FileText, Landmark, Eye, EyeOff, Edit3, Info, Grid, LayoutList, Save, X, Calendar
 } from 'lucide-react';
 import ConfigurationPreviewModal from './ConfigurationPreviewModal';
 
@@ -189,6 +189,7 @@ export default function PayrollConfiguration({ data, onUpdate }) {
       payrollRemindersEnabled: localData.batchRules?.remindersEnabled ?? localData.payrollRemindersEnabled ?? true,
       payrollWeekendRule: localData.batchRules?.weekendRule ?? localData.payrollWeekendRule ?? 'PRECEDING_FRIDAY',
       payrollGracePeriodDays: localData.batchRules?.gracePeriodDays ?? localData.payrollGracePeriodDays ?? 7,
+      taxEvaluationMode: localData.batchRules?.taxEvaluationMode ?? localData.taxEvaluationMode ?? 'PROJECTED_MONTHLY',
       payrollRates: {
         ...localData,
         laborRates: Object.fromEntries(Object.entries(localData.laborRates).map(([k, v]) => [k, sanitize(v)])),
@@ -482,6 +483,7 @@ export default function PayrollConfiguration({ data, onUpdate }) {
                   autoRelease: localData.batchRules?.autoRelease ?? localData.payrollAutoRelease ?? false,
                   remindersEnabled: localData.batchRules?.remindersEnabled ?? localData.payrollRemindersEnabled ?? true,
                   weekendRule: localData.batchRules?.weekendRule ?? localData.payrollWeekendRule ?? 'PRECEDING_FRIDAY',
+                  taxEvaluationMode: localData.batchRules?.taxEvaluationMode ?? localData.taxEvaluationMode ?? 'PROJECTED_MONTHLY',
                 }} 
                 isEditing={isEditing} 
                 onChange={(f, v) => {
@@ -492,6 +494,7 @@ export default function PayrollConfiguration({ data, onUpdate }) {
                   if (f === 'autoRelease') setLocalData(prev => ({ ...prev, payrollAutoRelease: v }));
                   if (f === 'remindersEnabled') setLocalData(prev => ({ ...prev, payrollRemindersEnabled: v }));
                   if (f === 'weekendRule') setLocalData(prev => ({ ...prev, payrollWeekendRule: v }));
+                  if (f === 'taxEvaluationMode') setLocalData(prev => ({ ...prev, taxEvaluationMode: v }));
                 }} 
               />
             )}
@@ -1320,6 +1323,7 @@ function BatchRulesView({ data, isEditing, onChange }) {
   const autoRelease = Boolean(data?.autoRelease);
   const remindersEnabled = Boolean(data?.remindersEnabled ?? true);
   const weekendRule = data?.weekendRule || "PRECEDING_FRIDAY";
+  const taxEvaluationMode = data?.taxEvaluationMode || "PROJECTED_MONTHLY";
 
   return (
     <div className="space-y-6 text-left">
@@ -1475,6 +1479,39 @@ function BatchRulesView({ data, isEditing, onChange }) {
             </div>
             <p className="text-[11px] text-slate-400 italic">
               When set to Preceding Friday, if the 15th falls on Sunday, payday releases on Friday the 13th, and the preceding Thursday is set as the audit & manual batch verification day.
+            </p>
+          </div>
+        </div>
+
+        {/* Card 6: Withholding Tax Assessment Method */}
+        <div className="bg-slate-50 border border-slate-200 p-5 rounded-xl space-y-4 md:col-span-2">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-purple-100 text-purple-700 rounded-lg">
+              <FileText className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-slate-800">Withholding Tax Assessment Method (BIR Monthly Schedule)</h4>
+              <p className="text-xs text-slate-500">Determine whether semi-monthly cutoff taxable income is projected to full month or directly assessed against BIR Monthly brackets.</p>
+            </div>
+          </div>
+
+          <div className="space-y-2 pt-2">
+            <label className="text-xs font-semibold text-slate-700 block">Assessment Policy</label>
+            <div className="flex items-center space-x-3">
+              <select
+                value={taxEvaluationMode}
+                disabled={!isEditing}
+                onChange={(e) => onChange('taxEvaluationMode', e.target.value)}
+                className={`w-96 px-3 py-2 bg-white border border-slate-300 rounded-lg font-semibold text-sm ${isEditing ? 'cursor-pointer' : 'cursor-not-allowed opacity-80'}`}
+              >
+                <option value="PROJECTED_MONTHLY">Projected Monthly (Period Taxable × 2, 100% in 1st Period)</option>
+                <option value="DIRECT_CUTOFF">Direct Cutoff Assessment (Direct Evaluation, NO × 2)</option>
+              </select>
+            </div>
+            <p className="text-[11px] text-slate-400 italic">
+              {taxEvaluationMode === 'DIRECT_CUTOFF'
+                ? "Direct Cutoff Assessment evaluates cutoff taxable income directly against the Monthly BIR Table without multiplying by 2 (e.g. ₱36,684.67 evaluated in Bracket 3 = ₱2,545.33 tax)."
+                : "Projected Monthly evaluates true monthly earning capacity by doubling cutoff income (Period Taxable × 2) against the Monthly BIR Table, deducting 100% of monthly withholding tax in the 1st period and ₱0 in the 2nd period."}
             </p>
           </div>
         </div>

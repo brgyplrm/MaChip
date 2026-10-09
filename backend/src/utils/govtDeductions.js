@@ -299,9 +299,25 @@ exports.computePeriodTaxAsync = async (grossPay, govtDeductionsTotal, periodEndD
     }
   }
 
+  let taxEvaluationMode = 'PROJECTED_MONTHLY';
+  try {
+    const { SystemSettings } = require("../config/sequelize.js");
+    const settings = await SystemSettings.findOne({ attributes: ['taxEvaluationMode', 'payrollRates'] });
+    if (settings?.taxEvaluationMode) {
+      taxEvaluationMode = settings.taxEvaluationMode;
+    } else if (settings?.payrollRates?.batchRules?.taxEvaluationMode) {
+      taxEvaluationMode = settings.payrollRates.batchRules.taxEvaluationMode;
+    }
+  } catch (e) {
+    // Fallback to PROJECTED_MONTHLY
+  }
+
+  const isDirectMode = (taxEvaluationMode === 'DIRECT_CUTOFF');
+
   // Monthly Equivalent Taxable Income:
-  // Evaluated against the Official Monthly Table brackets:
-  const monthlyTaxable = isSemiMonthly ? (periodTaxableIncome * 2) : periodTaxableIncome;
+  // If isDirectMode (Direct Cutoff Assessment), evaluate periodTaxableIncome directly against BIR Monthly brackets.
+  // If PROJECTED_MONTHLY (default), project semi-monthly taxable income to full month (* 2).
+  const monthlyTaxable = (isSemiMonthly && !isDirectMode) ? (periodTaxableIncome * 2) : periodTaxableIncome;
 
   try {
     const { WithholdingTax_Table } = require("../config/sequelize.js");

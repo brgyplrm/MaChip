@@ -51,6 +51,7 @@ const PayrollDetails = () => {
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
   const [taxRefTable, setTaxRefTable] = useState([]);
+  const [taxEvaluationMode, setTaxEvaluationMode] = useState("PROJECTED_MONTHLY");
 
   useEffect(() => {
     fetchWithAuth("/api/system/reference-data/tax")
@@ -64,6 +65,15 @@ const PayrollDetails = () => {
         }
       })
       .catch(err => console.warn("[DetailsPayroll] Could not load tax ref table:", err));
+
+    fetchWithAuth("/api/system/settings")
+      .then(res => res.json())
+      .then(s => {
+        if (s?.taxEvaluationMode) {
+          setTaxEvaluationMode(s.taxEvaluationMode);
+        }
+      })
+      .catch(err => console.warn("[DetailsPayroll] Could not load settings:", err));
   }, []);
 
   const handleResendEmail = async () => {
@@ -556,7 +566,7 @@ const PayrollDetails = () => {
     };
 
     const mode2Tax = computeTaxFromTable(taxable);
-    const isDirectMode = Math.abs(eeTax - mode2Tax) < 1.0;
+    const isDirectMode = (taxEvaluationMode === "DIRECT_CUTOFF") || Math.abs(eeTax - mode2Tax) < 1.0;
     const evalMonthly = isDirectMode ? taxable : (taxable * 2);
 
     const matchedBracket = activeTable.find(b => evalMonthly >= parseFloat(b.range_Min) && evalMonthly <= parseFloat(b.range_Max)) ||
@@ -807,7 +817,7 @@ const PayrollDetails = () => {
     };
 
     const mode2Tax = computeTaxFromTable(taxable);
-    const isDirectMode = Math.abs(eeTax - mode2Tax) < 1.0;
+    const isDirectMode = (taxEvaluationMode === "DIRECT_CUTOFF") || Math.abs(eeTax - mode2Tax) < 1.0;
     const evalMonthly = isDirectMode ? taxable : (taxable * 2);
 
     const matchedBracket = activeTable.find(b => evalMonthly >= parseFloat(b.range_Min) && evalMonthly <= parseFloat(b.range_Max)) ||

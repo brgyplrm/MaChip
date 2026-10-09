@@ -141,9 +141,12 @@ async function calculateMultiBucketHours(firstIn, lastOut, logDate, userShiftId,
     const otMult = isOT ? (settings.overtimeRate || 1.25) : 1.0;
     const ndMult = isNightDiff ? (settings.nightDiffRate || 1.1) : 1.0;
     totalUnits += (baseMult * otMult * ndMult);
-    regUnits += 1;
+    if (!isOT) {
+      regUnits += 1;
+    } else {
+      otUnits += 1;
+    }
     if (baseMult > 1.0) holUnits += (baseMult - 1);
-    if (isOT) otUnits += (baseMult * (otMult - 1));
     if (isNightDiff) ndUnits += (baseMult * otMult * (ndMult - 1));
   }
   result.reg_hrs = Math.round((regUnits / 60) * 100) / 100;

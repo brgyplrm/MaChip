@@ -298,6 +298,12 @@ exports.updateSystemSettings = async (req, res) => {
     if (req.body.payrollWeekendRule !== undefined) {
       updateData.payrollWeekendRule = String(req.body.payrollWeekendRule);
     }
+    if (req.body.taxEvaluationMode !== undefined) {
+      const mode = String(req.body.taxEvaluationMode);
+      if (['PROJECTED_MONTHLY', 'DIRECT_CUTOFF'].includes(mode)) {
+        updateData.taxEvaluationMode = mode;
+      }
+    }
 
     // 6. Maxicare / HMO
     if (req.body.maxicareTotalGross !== undefined) updateData.maxicareTotalGross = parseFloat(req.body.maxicareTotalGross);

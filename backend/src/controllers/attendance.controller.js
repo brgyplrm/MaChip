@@ -1903,6 +1903,20 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
       const ot_In = (dayOT && dayOT.HrFrom && !isIrregularOrIncidental && !isExplicitAbsent) ? dayOT.HrFrom.substring(0, 5) : "—";
       const ot_Out = (dayOT && dayOT.HrFrom && !isIrregularOrIncidental && !isExplicitAbsent && outArr.length > 0 && outArr[outArr.length-1] && outArr[outArr.length-1].substring(0,5) > dayOT.HrFrom.substring(0,5)) ? outArr[outArr.length-1].substring(0,5) : "—";
 
+      let finalAfternoonOut = isIrregularOrIncidental ? "—" : (afternoon_Out !== "—" ? afternoon_Out : (effectiveOut !== "—" && effectiveOut !== effectiveIn ? effectiveOut : afternoon_Out));
+      // If approved overtime exists and employee worked into it continuously, cap afternoon out at overtime start (e.g. 17:30)
+      if (dayOT && dayOT.HrFrom && ot_Out !== "—" && finalAfternoonOut !== "—") {
+        const otStartTimeStr = dayOT.HrFrom.substring(0, 5);
+        if (finalAfternoonOut > otStartTimeStr) {
+          finalAfternoonOut = otStartTimeStr;
+        }
+      }
+
+      // Calculate total daily hours worked (regular hours + approved overtime hours)
+      const dayRegHrs = parseFloat(hoursObj.reg_hrs || 0);
+      const dayOtHrs = (dayOT && ot_Out !== "—") ? parseFloat(hoursObj.ot_hrs || dayOT.Total_Hrs || 0) : parseFloat(hoursObj.ot_hrs || 0);
+      const totalDailyHrs = Math.round((dayRegHrs + dayOtHrs) * 100) / 100;
+
       return {
         sessionId: `${r.user_id}-${dateStr}`,
         user_Id: r.user_id,
@@ -1912,15 +1926,17 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
         morning_In: isIrregularOrIncidental ? "—" : (morning_In !== "—" ? morning_In : (afternoon_In === "—" && effectiveIn !== "—" ? effectiveIn : morning_In)),
         morning_Out: isIrregularOrIncidental ? "—" : morning_Out,
         afternoon_In: isIrregularOrIncidental ? "—" : afternoon_In,
-        afternoon_Out: isIrregularOrIncidental ? "—" : (afternoon_Out !== "—" ? afternoon_Out : (effectiveOut !== "—" && effectiveOut !== effectiveIn ? effectiveOut : afternoon_Out)),
+        afternoon_Out: finalAfternoonOut,
         ot_In: isIrregularOrIncidental ? "—" : ot_In,
         ot_Out: isIrregularOrIncidental ? "—" : ot_Out,
         time_In: effectiveIn,
         time_Out: ot_Out !== "—" ? ot_Out : effectiveOut,
         inArr,
         outArr,
-        hoursWorked: hoursObj.reg_hrs || 0,
-        hoursWorkedFormatted: formatDuration(hoursObj.reg_hrs || 0),
+        reg_hrs: dayRegHrs,
+        ot_hrs: dayOtHrs,
+        hoursWorked: totalDailyHrs,
+        hoursWorkedFormatted: formatDuration(totalDailyHrs),
         status: (currentAttendanceStatusName === "Exempt" || currentAttendanceStatusName === "Present") ? "On Time" : (isLeaveStatus ? "On Leave" : (currentAttendanceStatusName || (hoursObj.reg_hrs > 0 ? "On Time" : "—"))),
         shiftId: r.user_ShiftId,
         buckets: hoursObj.buckets,
@@ -1981,7 +1997,7 @@ exports.getAttendanceReport = async (req, res) => {
         if (user.length > 0) {
           const dailyRate = parseFloat(user[0].dailyRate || 0);
           const ratePerHr = dailyRate / 8;
-          const reg_hrs = logs.reduce((sum, l) => sum + parseFloat(l.hoursWorked || 0), 0);
+          const reg_hrs = logs.reduce((sum, l) => sum + parseFloat(l.reg_hrs || 0), 0);
           
           payrollSummary = {
             reg_hrs,
