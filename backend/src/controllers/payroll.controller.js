@@ -1560,7 +1560,7 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
               const loanId = activeLoan[0].id;
               // Guard against duplicate deduction history for the same payrollId and loanId
               const existingDedHist = await sequelize.query(
-                `SELECT "historyId" FROM "Loan_Deduction_History" WHERE "loanDeductionId" = :loanId AND "payrollId" = :payrollId LIMIT 1`,
+                `SELECT id FROM "Loan_Deduction_History" WHERE "loanDeductionId" = :loanId AND "payrollId" = :payrollId LIMIT 1`,
                 { replacements: { loanId, payrollId }, type: QueryTypes.SELECT }
               );
 
@@ -2173,22 +2173,29 @@ exports.generatePayroll = async (req, res) => {
           );
           if (activeLoan.length > 0) {
             const loanId = activeLoan[0].id;
-            const newBalance = Math.max(0, subtractMoney(activeLoan[0].remainingBalance, m.amount));
-            const status = newBalance <= 0 ? 'completed' : 'active';
-
-            await sequelize.query(
-              `UPDATE "Loan_Deductions" SET "remainingBalance" = :newBalance, "status" = :status, "updatedAt" = :now
-               WHERE id = :loanId`,
-              { replacements: { newBalance, status, loanId, now: nowStr }, type: QueryTypes.UPDATE }
+            const existingDedHist = await sequelize.query(
+              `SELECT id FROM "Loan_Deduction_History" WHERE "loanDeductionId" = :loanId AND "payrollId" = :payrollId LIMIT 1`,
+              { replacements: { loanId, payrollId }, type: QueryTypes.SELECT }
             );
 
-            console.log(`[DEBUG LOAN] User ${user_Id}: Deducted ${m.amount} for ${m.label}. New Balance: ${newBalance}`);
+            if (existingDedHist.length === 0) {
+              const newBalance = Math.max(0, subtractMoney(activeLoan[0].remainingBalance, m.amount));
+              const status = newBalance <= 0 ? 'completed' : 'active';
 
-            await sequelize.query(
-              `INSERT INTO "Loan_Deduction_History" ("loanDeductionId", "payrollId", "amountDeducted", "balanceAfter", "deductionDate", "createdAt")
-               VALUES (:loanId, :payrollId, :amount, :balanceAfter, :date, :now)`,
-              { replacements: { loanId, payrollId, amount: m.amount, balanceAfter: newBalance, date: period_End, now: nowStr }, type: QueryTypes.INSERT }
-            );
+              await sequelize.query(
+                `UPDATE "Loan_Deductions" SET "remainingBalance" = :newBalance, "status" = :status, "updatedAt" = :now
+                 WHERE id = :loanId`,
+                { replacements: { newBalance, status, loanId, now: nowStr }, type: QueryTypes.UPDATE }
+              );
+
+              console.log(`[DEBUG LOAN] User ${user_Id}: Deducted ${m.amount} for ${m.label}. New Balance: ${newBalance}`);
+
+              await sequelize.query(
+                `INSERT INTO "Loan_Deduction_History" ("loanDeductionId", "payrollId", "amountDeducted", "balanceAfter", "deductionDate", "createdAt")
+                 VALUES (:loanId, :payrollId, :amount, :balanceAfter, :date, :now)`,
+                { replacements: { loanId, payrollId, amount: m.amount, balanceAfter: newBalance, date: period_End, now: nowStr }, type: QueryTypes.INSERT }
+              );
+            }
           }
         }
       }
@@ -5967,5 +5974,6 @@ exports.downloadMyLoanPDF = async (req, res) => {
 };
 
 exports.computePeriodStats = computePeriodStats;
+exports.calculatePayrollStats = calculatePayrollStats;
 
 

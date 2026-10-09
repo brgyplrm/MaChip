@@ -50,6 +50,21 @@ const PayrollDetails = () => {
   const [isAuditExpanded, setIsAuditExpanded] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
+  const [taxRefTable, setTaxRefTable] = useState([]);
+
+  useEffect(() => {
+    fetchWithAuth("/api/system/reference-data/tax")
+      .then(res => res.json())
+      .then(data => {
+        if (data?.records && Array.isArray(data.records)) {
+          const activeMonthly = data.records.filter(r => r.isActive && r.periodType === "monthly");
+          if (activeMonthly.length > 0) {
+            setTaxRefTable(activeMonthly);
+          }
+        }
+      })
+      .catch(err => console.warn("[DetailsPayroll] Could not load tax ref table:", err));
+  }, []);
 
   const handleResendEmail = async () => {
     if (!payroll?.payrollId || String(payroll.payrollId).includes("PREVIEW")) return;
@@ -517,35 +532,62 @@ const PayrollDetails = () => {
   const renderWithholdingTax = () => {
     const taxable = Math.max(0, (parseFloat(payroll.totalEarnings || 0) - (eeSSS + eePH + eeHD)));
     
-    // Check if actual tax matches Mode 2 (Direct Cutoff Evaluation)
-    let mode2Tax = 0;
-    if (taxable > 666667) mode2Tax = 200833.33 + (taxable - 666667) * 0.35;
-    else if (taxable > 166667) mode2Tax = 40833.33 + (taxable - 166667) * 0.32;
-    else if (taxable > 66667) mode2Tax = 10833.33 + (taxable - 66667) * 0.30;
-    else if (taxable > 33333) mode2Tax = 2500.00 + (taxable - 33333) * 0.25;
-    else if (taxable > 20833) mode2Tax = (taxable - 20833) * 0.20;
+    // Dynamic evaluation against Settings Reference Table (taxRefTable)
+    const defaultBrackets = [
+      { id: 1, range_Min: 0, range_Max: 20833, baseTax: 0, excessRate: 0, excessOver: 0 },
+      { id: 2, range_Min: 20833.01, range_Max: 33332, baseTax: 0, excessRate: 0.15, excessOver: 20833 },
+      { id: 3, range_Min: 33333, range_Max: 66666, baseTax: 1875, excessRate: 0.20, excessOver: 33333 },
+      { id: 4, range_Min: 66667, range_Max: 166666, baseTax: 8541.80, excessRate: 0.25, excessOver: 66667 },
+      { id: 5, range_Min: 166667, range_Max: 666666, baseTax: 33541.80, excessRate: 0.30, excessOver: 166667 },
+      { id: 6, range_Min: 666667, range_Max: 99999999, baseTax: 183541.80, excessRate: 0.35, excessOver: 666667 }
+    ];
 
+    const activeTable = (taxRefTable && taxRefTable.length > 0) ? taxRefTable : defaultBrackets;
+
+    const computeTaxFromTable = (inc) => {
+      if (inc <= 0) return 0;
+      const b = activeTable.find(r => inc >= parseFloat(r.range_Min) && inc <= parseFloat(r.range_Max)) ||
+        [...activeTable].reverse().find(r => inc >= parseFloat(r.range_Min)) ||
+        activeTable[0];
+      const base = parseFloat(b.baseTax || 0);
+      const over = parseFloat(b.excessOver || 0);
+      const rate = parseFloat(b.excessRate || 0);
+      return base + (Math.max(0, inc - over) * rate);
+    };
+
+    const mode2Tax = computeTaxFromTable(taxable);
     const isDirectMode = Math.abs(eeTax - mode2Tax) < 1.0;
     const evalMonthly = isDirectMode ? taxable : (taxable * 2);
 
-    let bracketLabel = "Bracket 1 (₱20,833 & below - Tax Exempt)";
-    let rateText = "₱0.00 (Exempt)";
-    
-    if (evalMonthly > 666667) {
-      bracketLabel = "Bracket 6 (₱666,667 & above)";
-      rateText = "₱200,833.33 + 35%";
-    } else if (evalMonthly > 166667) {
-      bracketLabel = "Bracket 5 (₱166,667 - ₱666,666)";
-      rateText = "₱40,833.33 + 32%";
-    } else if (evalMonthly > 66667) {
-      bracketLabel = "Bracket 4 (₱66,667 - ₱166,666)";
-      rateText = "₱10,833.33 + 30%";
-    } else if (evalMonthly > 33333) {
-      bracketLabel = "Bracket 3 (₱33,333 - ₱66,666)";
-      rateText = "₱2,500.00 + 25%";
-    } else if (evalMonthly > 20833) {
-      bracketLabel = "Bracket 2 (₱20,833 - ₱33,332)";
-      rateText = "₱0.00 + 20%";
+    const matchedBracket = activeTable.find(b => evalMonthly >= parseFloat(b.range_Min) && evalMonthly <= parseFloat(b.range_Max)) ||
+      [...activeTable].reverse().find(b => evalMonthly >= parseFloat(b.range_Min)) ||
+      activeTable[0];
+
+    const bracketIdx = activeTable.indexOf(matchedBracket) + 1;
+    const bracketMin = parseFloat(matchedBracket.range_Min);
+    const bracketMax = parseFloat(matchedBracket.range_Max);
+    const baseTaxVal = parseFloat(matchedBracket.baseTax || 0);
+    const excessRateVal = parseFloat(matchedBracket.excessRate || 0);
+
+    const bracketLabel = (baseTaxVal === 0 && excessRateVal === 0)
+      ? `Bracket ${bracketIdx} (₱${formatMoney(bracketMax)} & below - Tax Exempt)`
+      : `Bracket ${bracketIdx} (₱${formatMoney(bracketMin)} - ${bracketMax >= 9999999 ? "above" : "₱" + formatMoney(bracketMax)})`;
+
+    const rateText = (baseTaxVal === 0 && excessRateVal === 0)
+      ? "₱0.00 (Exempt)"
+      : `₱${formatMoney(baseTaxVal)} + ${(excessRateVal * 100).toFixed(0)}%`;
+
+    const monthlyProjectedTax = computeTaxFromTable(evalMonthly);
+
+    let deductionSubtext = "Monthly Tax ÷ 2";
+    if (isDirectMode) {
+      deductionSubtext = "Direct Cutoff Assessment";
+    } else if (Math.abs(eeTax - monthlyProjectedTax) < 1.0 && eeTax > 0) {
+      deductionSubtext = "1st Cutoff (100% Monthly Tax)";
+    } else if (eeTax === 0 && monthlyProjectedTax > 0) {
+      deductionSubtext = "2nd Cutoff (Deducted in 1st Period)";
+    } else if (Math.abs(eeTax - (monthlyProjectedTax / 2)) < 1.0 && eeTax > 0) {
+      deductionSubtext = "Monthly Tax ÷ 2";
     }
 
     return (
@@ -613,7 +655,7 @@ const PayrollDetails = () => {
           <div className="mt-6 border border-purple-200 bg-purple-50/50 rounded-xl p-4 text-left space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-purple-900 uppercase tracking-wide flex items-center gap-1.5">
-                <span>🏛️ BIR Tax Withholding Bracket Breakdown</span>
+                <span>BIR Tax Withholding Bracket Breakdown</span>
               </span>
               <Badge className="bg-purple-700 text-white font-bold text-[10px]">
                 {bracketLabel}
@@ -650,7 +692,7 @@ const PayrollDetails = () => {
                   ₱{formatMoney(eeTax)}
                 </p>
                 <p className="text-[9px] text-slate-400">
-                  {isDirectMode ? "Direct Cutoff Assessment" : "Monthly Tax ÷ 2"}
+                  {deductionSubtext}
                 </p>
               </div>
             </div>
@@ -741,36 +783,48 @@ const PayrollDetails = () => {
     const totalAllDeductions = totalTimeDeductions + totalEEShare + totalLoans + totalMisc;
     const taxable = Math.max(0, (parseFloat(payroll.totalEarnings || 0) - (eeSSS + eePH + eeHD)));
 
-    // BIR Tax evaluation math for audit details
-    let mode2Tax = 0;
-    if (taxable > 666667) mode2Tax = 200833.33 + (taxable - 666667) * 0.35;
-    else if (taxable > 166667) mode2Tax = 40833.33 + (taxable - 166667) * 0.32;
-    else if (taxable > 66667) mode2Tax = 10833.33 + (taxable - 66667) * 0.30;
-    else if (taxable > 33333) mode2Tax = 2500.00 + (taxable - 33333) * 0.25;
-    else if (taxable > 20833) mode2Tax = (taxable - 20833) * 0.20;
+    // Dynamic evaluation against Settings Reference Table (taxRefTable)
+    const defaultBrackets = [
+      { id: 1, range_Min: 0, range_Max: 20833, baseTax: 0, excessRate: 0, excessOver: 0 },
+      { id: 2, range_Min: 20833.01, range_Max: 33332, baseTax: 0, excessRate: 0.15, excessOver: 20833 },
+      { id: 3, range_Min: 33333, range_Max: 66666, baseTax: 1875, excessRate: 0.20, excessOver: 33333 },
+      { id: 4, range_Min: 66667, range_Max: 166666, baseTax: 8541.80, excessRate: 0.25, excessOver: 66667 },
+      { id: 5, range_Min: 166667, range_Max: 666666, baseTax: 33541.80, excessRate: 0.30, excessOver: 166667 },
+      { id: 6, range_Min: 666667, range_Max: 99999999, baseTax: 183541.80, excessRate: 0.35, excessOver: 666667 }
+    ];
 
+    const activeTable = (taxRefTable && taxRefTable.length > 0) ? taxRefTable : defaultBrackets;
+
+    const computeTaxFromTable = (inc) => {
+      if (inc <= 0) return 0;
+      const b = activeTable.find(r => inc >= parseFloat(r.range_Min) && inc <= parseFloat(r.range_Max)) ||
+        [...activeTable].reverse().find(r => inc >= parseFloat(r.range_Min)) ||
+        activeTable[0];
+      const base = parseFloat(b.baseTax || 0);
+      const over = parseFloat(b.excessOver || 0);
+      const rate = parseFloat(b.excessRate || 0);
+      return base + (Math.max(0, inc - over) * rate);
+    };
+
+    const mode2Tax = computeTaxFromTable(taxable);
     const isDirectMode = Math.abs(eeTax - mode2Tax) < 1.0;
     const evalMonthly = isDirectMode ? taxable : (taxable * 2);
 
-    let bracketLabel = "Bracket 1 (Exempt)";
-    let rateText = "₱0.00 (Exempt)";
-    
-    if (evalMonthly > 666667) {
-      bracketLabel = "Bracket 6 (₱666,667+)";
-      rateText = "₱200,833.33 + 35%";
-    } else if (evalMonthly > 166667) {
-      bracketLabel = "Bracket 5 (₱166,667 - ₱666,666)";
-      rateText = "₱40,833.33 + 32%";
-    } else if (evalMonthly > 66667) {
-      bracketLabel = "Bracket 4 (₱66,667 - ₱166,666)";
-      rateText = "₱10,833.33 + 30%";
-    } else if (evalMonthly > 33333) {
-      bracketLabel = "Bracket 3 (₱33,333 - ₱66,666)";
-      rateText = "₱2,500.00 + 25%";
-    } else if (evalMonthly > 20833) {
-      bracketLabel = "Bracket 2 (₱20,833 - ₱33,332)";
-      rateText = "₱0.00 + 20%";
-    }
+    const matchedBracket = activeTable.find(b => evalMonthly >= parseFloat(b.range_Min) && evalMonthly <= parseFloat(b.range_Max)) ||
+      [...activeTable].reverse().find(b => evalMonthly >= parseFloat(b.range_Min)) ||
+      activeTable[0];
+
+    const bracketIdx = activeTable.indexOf(matchedBracket) + 1;
+    const baseTaxVal = parseFloat(matchedBracket.baseTax || 0);
+    const excessRateVal = parseFloat(matchedBracket.excessRate || 0);
+
+    const bracketLabel = (baseTaxVal === 0 && excessRateVal === 0)
+      ? `Bracket ${bracketIdx} (Exempt)`
+      : `Bracket ${bracketIdx} (₱${formatMoney(matchedBracket.range_Min)} - ${parseFloat(matchedBracket.range_Max) >= 9999999 ? "above" : "₱" + formatMoney(matchedBracket.range_Max)})`;
+
+    const rateText = (baseTaxVal === 0 && excessRateVal === 0)
+      ? "₱0.00 (Exempt)"
+      : `₱${formatMoney(baseTaxVal)} + ${(excessRateVal * 100).toFixed(0)}%`;
 
     return (
       <>
@@ -1041,7 +1095,7 @@ const PayrollDetails = () => {
 
                   <div className="p-2.5 bg-purple-50/70 rounded-lg border border-purple-100 space-y-1.5">
                     <div className="flex justify-between items-center">
-                      <span className="font-bold text-purple-900 text-xs">🏛️ BIR Tax Withholding Schedule</span>
+                      <span className="font-bold text-purple-900 text-xs">BIR Tax Withholding Schedule</span>
                       <Badge className="bg-purple-700 text-white text-[9px] px-1.5 py-0 border-0">{bracketLabel}</Badge>
                     </div>
                     <div className="flex justify-between text-[11px] text-slate-600 pt-0.5">

@@ -476,28 +476,30 @@ const PayrollPeriod = () => {
         </div>
         <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto mt-4 md:mt-0 items-center">
             {periods.length > 0 && (
-              <Select 
-                value={selectedPeriod?.periodId ? String(selectedPeriod.periodId) : ""} 
-                onValueChange={handlePeriodChange}
-              >
-                <SelectTrigger className="w-full sm:w-[230px] bg-white border-slate-200 text-slate-700 font-medium shadow-sm">
-                  <SelectValue placeholder="Select Period" />
-                </SelectTrigger>
-                <SelectContent className="max-h-64">
-                  {periods.map(period => (
-                    <SelectItem key={period.periodId} value={String(period.periodId)}>
-                      <div className="flex items-center justify-between w-full gap-2">
-                        <span>{period.label || `${period.startDate} to ${period.endDate}`}</span>
-                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
-                          period.status === 'Draft' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
-                        }`}>
-                          {period.status}
-                        </span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              // <Select 
+              //   value={selectedPeriod?.periodId ? String(selectedPeriod.periodId) : ""} 
+              //   onValueChange={handlePeriodChange}
+              // >
+              //   <SelectTrigger className="w-full sm:w-[230px] bg-white border-slate-200 text-slate-700 font-medium shadow-sm">
+              //     <SelectValue placeholder="Select Period" />
+              //   </SelectTrigger>
+              //   <SelectContent className="max-h-64">
+              //     {periods.map(period => (
+              //       <SelectItem key={period.periodId} value={String(period.periodId)}>
+              //         <div className="flex items-center justify-between w-full gap-2">
+              //           <span>{period.label || `${period.startDate} to ${period.endDate}`}</span>
+              //           <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+              //             period.status === 'Draft' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+              //           }`}>
+              //             {period.status}
+              //           </span>
+              //         </div>
+              //       </SelectItem>
+              //     ))}
+              //   </SelectContent>
+              // </Select>
+
+              ""
             )}
 
             <Tooltip>
