@@ -98,7 +98,7 @@ const PayrollAlertBanner = ({ className = "" }) => {
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <Link
-                  to={alert.periodId ? `/payroll/periods?periodId=${alert.periodId}` : "/payroll/periods"}
+                  to={alert.periodId ? `/payroll/payrollPeriod?periodId=${alert.periodId}` : "/payroll/payrollPeriod"}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-sm transition-colors"
                 >
                   Review Batch <ArrowForwardIcon className="h-3.5 w-3.5" />
@@ -149,7 +149,7 @@ const PayrollAlertBanner = ({ className = "" }) => {
               </div>
               <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
                 <Link
-                  to={alert.periodId ? `/payroll/periods?periodId=${alert.periodId}` : "/payroll/periods"}
+                  to={alert.periodId ? `/payroll/payrollPeriod?periodId=${alert.periodId}` : "/payroll/payrollPeriod"}
                   className="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-brand-primary font-bold text-xs rounded-lg shadow-sm hover:bg-slate-100 transition-all"
                 >
                   Review & Process <ArrowForwardIcon className="h-3.5 w-3.5" />

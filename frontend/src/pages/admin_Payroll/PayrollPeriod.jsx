@@ -257,6 +257,32 @@ const PayrollPeriod = () => {
     } catch (err) { console.error(err); }
   };
 
+  const formatMoney = (val) => {
+    return Number(val || 0).toLocaleString("en-PH", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+  };
+
+  const handlePeriodChange = async (periodIdVal) => {
+    const pId = parseInt(periodIdVal);
+    const found = periods.find(p => p.periodId === pId);
+    if (!found) return;
+    setSelectedPeriod(found);
+    setLoading(true);
+    try {
+      if (found.status === 'Draft') {
+        await fetchLivePreview(found);
+      } else {
+        await fetchSavedPayrolls(found);
+      }
+    } catch (err) {
+      console.error("Error switching period:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleBatchProcess = async () => {
     if (!selectedPeriod) return;
     try {
@@ -448,7 +474,32 @@ const PayrollPeriod = () => {
             </div>
           </div>
         </div>
-        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto mt-4 md:mt-0">
+        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto mt-4 md:mt-0 items-center">
+            {periods.length > 0 && (
+              <Select 
+                value={selectedPeriod?.periodId ? String(selectedPeriod.periodId) : ""} 
+                onValueChange={handlePeriodChange}
+              >
+                <SelectTrigger className="w-full sm:w-[230px] bg-white border-slate-200 text-slate-700 font-medium shadow-sm">
+                  <SelectValue placeholder="Select Period" />
+                </SelectTrigger>
+                <SelectContent className="max-h-64">
+                  {periods.map(period => (
+                    <SelectItem key={period.periodId} value={String(period.periodId)}>
+                      <div className="flex items-center justify-between w-full gap-2">
+                        <span>{period.label || `${period.startDate} to ${period.endDate}`}</span>
+                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                          period.status === 'Draft' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                        }`}>
+                          {period.status}
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className="inline-block w-full sm:w-auto">
@@ -604,7 +655,7 @@ const PayrollPeriod = () => {
                   <div className="flex items-center gap-1.5 mb-2">
                     <p className="text-[13px] font-bold text-accent-green uppercase tracking-wider">Total Earnings</p>
                   </div>
-                  <p className="text-3xl font-bold text-accent-green">₱{stats.totalEarnings.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+                  <p className="text-3xl font-bold text-accent-green">₱{formatMoney(stats.totalEarnings)}</p>
                 </div>
                 <p className="text-xs text-accent-green/70 italic mt-4">Gross pay including OT and allowances</p>
               </div>
@@ -620,13 +671,10 @@ const PayrollPeriod = () => {
                   <div className="flex items-center gap-1.5 mb-2">
                     <p className="text-[13px] font-bold text-status-danger uppercase tracking-wider">Total Deductions</p>
                   </div>
-                  <p className="text-3xl font-bold text-status-danger">₱{stats.totalDeductions.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+                  <p className="text-3xl font-bold text-status-danger">₱{formatMoney(stats.totalDeductions)}</p>
                 </div>
                 <p className="text-xs text-status-danger/70 italic mt-4">Withholdings including taxes and loans</p>
               </div>
-              {/* <div className="bg-accent-gold/20 text-accent-gold p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
-                <KeyboardDoubleArrowDownIcon className="h-6 w-6" />
-              </div> */}
               </CardContent>
             </Card>
  
@@ -637,16 +685,8 @@ const PayrollPeriod = () => {
                   <div>
                     <div className="flex items-center gap-1.5 mb-2">
                     <p className="text-[13px] font-bold text-brand-primary uppercase tracking-wider">Total Net Pay</p>
-                    {/* <Tooltip>
-                      <TooltipTrigger asChild>
-                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-brand-primary/60 hover:text-brand-primary cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
-                        Estimated total net payout amount for the selected draft cycle.
-                      </TooltipContent>
-                    </Tooltip> */}
                   </div>
-                  <p className="text-3xl font-bold text-brand-primary">₱{stats.totalNetPay.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
+                  <p className="text-3xl font-bold text-brand-primary">₱{formatMoney(stats.totalNetPay)}</p>
                 </div>
                 <p className="text-xs text-brand-primary/70 italic mt-4">Calculated total distribution amount</p>
               </div>
@@ -871,10 +911,10 @@ const PayrollPeriod = () => {
                             <div className="font-semibold text-brand-primary">{p.user_FirstName || p.userName} {p.user_LastName || ""}</div>
                             <div className="text-xs text-slate-400 font-mono">ID: {formatUserId(p.user_Id)}</div>
                           </TableCell>
-                          <TableCell className="py-4 text-slate-700">₱{parseFloat(fixedBasic || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</TableCell>
-                          <TableCell className="py-4 text-green-600 font-semibold">+₱{parseFloat(p.grossEarnings || p.totalEarnings || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</TableCell>
-                          <TableCell className="py-4 text-red-500 font-semibold">-₱{parseFloat(p.totalDeductions || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</TableCell>
-                          <TableCell className="py-4 font-bold text-slate-900">₱{parseFloat(p.netPay || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</TableCell>
+                          <TableCell className="py-4 text-slate-700">₱{formatMoney(fixedBasic)}</TableCell>
+                          <TableCell className="py-4 text-green-600 font-semibold">+₱{formatMoney(p.grossEarnings || p.totalEarnings)}</TableCell>
+                          <TableCell className="py-4 text-red-500 font-semibold">-₱{formatMoney(p.totalDeductions)}</TableCell>
+                          <TableCell className="py-4 font-bold text-slate-900">₱{formatMoney(p.netPay)}</TableCell>
                           <TableCell className="py-4">
                             <Badge variant="secondary" className={`font-semibold uppercase tracking-wide ${badgeStyle}`}>
                               {statusLabel}

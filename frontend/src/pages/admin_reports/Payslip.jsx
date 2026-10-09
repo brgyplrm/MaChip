@@ -56,6 +56,10 @@ const Payslip = () => {
     pdf.save(`Payslip_${payroll?.user_LastName}_${id}.pdf`);
   };
 
+  const formatMoney = (val) => {
+    return `₱${parseFloat(val || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
   if (loading) return (
   <div className="home payslipPage">
     <Sidebar>
@@ -164,48 +168,48 @@ if (!payroll) return (
               </thead>
               <tbody>
                 <tr>
-                  <td>Pay this period</td><td>{payroll.NoHrs_Worked}</td><td>{parseFloat(payroll.basicPay).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                  <td>Absences</td><td>{payroll.absence_Hrs || "0"}</td><td>{parseFloat(payroll.absence_Amnt || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                  <td>Pay this period</td><td>{payroll.NoHrs_Worked}</td><td>{formatMoney(payroll.basicPay)}</td>
+                  <td>Absences</td><td>{payroll.absence_Hrs || "0"}</td><td>{formatMoney(payroll.absence_Amnt)}</td>
                 </tr>
                 <tr>
-                  <td>Overtime pay</td><td>{payroll.OT_Hrs || "0"}</td><td>{parseFloat(payroll.OT_Amnt || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                  <td>Tardiness</td><td>{payroll.tardiness_Mins || "0"}m</td><td>{parseFloat(payroll.tardiness_Amnt || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                  <td>Overtime pay</td><td>{payroll.OT_Hrs || "0"}</td><td>{formatMoney(payroll.OT_Amnt)}</td>
+                  <td>Tardiness</td><td>{payroll.tardiness_Mins || "0"}m</td><td>{formatMoney(payroll.tardiness_Amnt)}</td>
                 </tr>
                 <tr>
-                  <td>Restday OT</td><td>{payroll.restDay_OT_Hrs || "0"}</td><td>{parseFloat(payroll.restDay_OT_Amnt || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                  <td>SSS</td><td></td><td>{parseFloat(payroll.SSS_Ded || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                  <td>Restday OT</td><td>{payroll.restDay_OT_Hrs || "0"}</td><td>{formatMoney(payroll.restDay_OT_Amnt)}</td>
+                  <td>SSS</td><td></td><td>{formatMoney(payroll.SSS_Ded)}</td>
                 </tr>
                 <tr>
-                  <td>Night Differential</td><td>{payroll.nightDiff_Hrs || "0"}</td><td>{parseFloat(payroll.nightDiff_Amnt || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                  <td>Philhealth</td><td></td><td>{parseFloat(payroll.Philhealth_Ded || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                  <td>Night Differential</td><td>{payroll.nightDiff_Hrs || "0"}</td><td>{formatMoney(payroll.nightDiff_Amnt)}</td>
+                  <td>Philhealth</td><td></td><td>{formatMoney(payroll.Philhealth_Ded)}</td>
                 </tr>
                 <tr>
-                  <td>Special Holiday</td><td>{payroll.specialHol_Hrs || "0"}</td><td>{parseFloat(payroll.specialHol_Amnt || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                  <td>HDMF</td><td></td><td>{parseFloat(payroll.HDMF_Ded || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                  <td>Special Holiday</td><td>{payroll.specialHol_Hrs || "0"}</td><td>{formatMoney(payroll.specialHol_Amnt)}</td>
+                  <td>HDMF</td><td></td><td>{formatMoney(payroll.HDMF_Ded)}</td>
                 </tr>
                 <tr>
-                  <td>Incentives</td><td></td><td>{parseFloat(payroll.incentives || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                  <td>Tax</td><td></td><td>{parseFloat(payroll.Tax_Ded || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                  <td>Incentives</td><td></td><td>{formatMoney(payroll.incentives)}</td>
+                  <td>Tax</td><td></td><td>{formatMoney(payroll.Tax_Ded)}</td>
                 </tr>
                 <tr>
-                  <td>Allowance</td><td></td><td>{parseFloat(payroll.allowance || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                  <td>SSS Loan</td><td></td><td>{parseFloat(payroll.SSS_Loan || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                  <td>Allowance</td><td></td><td>{formatMoney(payroll.allowance)}</td>
+                  <td>SSS Loan</td><td></td><td>{formatMoney(payroll.SSS_Loan)}</td>
                 </tr>
                 <tr>
-                  <td>Bonus</td><td></td><td>{parseFloat(payroll.Bonus || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                  <td>HDMF Loan</td><td></td><td>{parseFloat(payroll.HDMF_Loan || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                  <td>Bonus</td><td></td><td>{formatMoney(payroll.Bonus)}</td>
+                  <td>HDMF Loan</td><td></td><td>{formatMoney(payroll.HDMF_Loan)}</td>
                 </tr>
                 <tr>
-                  <td>Others</td><td></td><td>{parseFloat(payroll.Other_Earnings || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                  <td>Others</td><td></td><td>{parseFloat(payroll.Other_Deductions || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                  <td>Others</td><td></td><td>{formatMoney(payroll.Other_Earnings)}</td>
+                  <td>Others</td><td></td><td>{formatMoney(payroll.Other_Deductions)}</td>
                 </tr>
                 <tr className="subtotal">
-                  <td><strong>Total Pay</strong></td><td></td><td><strong>{parseFloat(payroll.totalEarnings).toLocaleString(undefined, {minimumFractionDigits: 2})}</strong></td>
-                  <td>Total deduction</td><td></td><td>{parseFloat(payroll.totalDeductions).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                  <td><strong>Total Pay</strong></td><td></td><td><strong>{formatMoney(payroll.totalEarnings)}</strong></td>
+                  <td>Total deduction</td><td></td><td>{formatMoney(payroll.totalDeductions)}</td>
                 </tr>
                 <tr className="netPayRow">
                   <td colSpan="3"></td>
-                  <td><strong>Net Pay</strong></td><td></td><td className="underline"><strong>{parseFloat(payroll.netPay).toLocaleString(undefined, {minimumFractionDigits: 2})}</strong></td>
+                  <td><strong>Net Pay</strong></td><td></td><td className="underline"><strong>{formatMoney(payroll.netPay)}</strong></td>
                 </tr>
               </tbody>
             </table>
@@ -216,19 +220,19 @@ if (!payroll) return (
                 <tbody>
                   <tr>
                     <td className="border border-slate-200 p-2 w-1/2">YTD Gross Earnings</td>
-                    <td className="border border-slate-200 p-2 text-right font-bold">₱{parseFloat(payroll.ytdGross || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                    <td className="border border-slate-200 p-2 text-right font-bold">{formatMoney(payroll.ytdGross)}</td>
                   </tr>
                   <tr>
                     <td className="border border-slate-200 p-2 w-1/2">YTD Total Non-Taxable</td>
-                    <td className="border border-slate-200 p-2 text-right font-bold">₱{parseFloat(payroll.ytdNonTaxable || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                    <td className="border border-slate-200 p-2 text-right font-bold">{formatMoney(payroll.ytdNonTaxable)}</td>
                   </tr>
                   <tr>
                     <td className="border border-slate-200 p-2 w-1/2">YTD Total Deductions</td>
-                    <td className="border border-slate-200 p-2 text-right font-bold">({parseFloat(payroll.ytdDeductions || 0).toLocaleString(undefined, {minimumFractionDigits: 2})})</td>
+                    <td className="border border-slate-200 p-2 text-right font-bold">({formatMoney(payroll.ytdDeductions)})</td>
                   </tr>
                   <tr>
                     <td className="border border-slate-200 p-2 w-1/2">YTD BIR (Withholding Tax)</td>
-                    <td className="border border-slate-200 p-2 text-right font-bold">({parseFloat(payroll.ytdBIR || 0).toLocaleString(undefined, {minimumFractionDigits: 2})})</td>
+                    <td className="border border-slate-200 p-2 text-right font-bold">({formatMoney(payroll.ytdBIR)})</td>
                   </tr>
                 </tbody>
               </table>

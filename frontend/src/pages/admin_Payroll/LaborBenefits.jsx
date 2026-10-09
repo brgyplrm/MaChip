@@ -2,7 +2,7 @@ import React from "react";
 import Sidebar from "../../components/Sidebar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ChevronLeft } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -12,6 +12,15 @@ import SeparationPay from "./subtabs/SeparationPay";
 import RetirementPay from "./subtabs/RetirementPay";
 
 const LaborBenefits = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const validTabs = ["13th-month", "separation", "retirement"];
+  const currentTab = searchParams.get("tab");
+  const activeTab = validTabs.includes(currentTab) ? currentTab : "13th-month";
+
+  const handleTabChange = (val) => {
+    setSearchParams({ tab: val });
+  };
+
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
@@ -50,7 +59,7 @@ const LaborBenefits = () => {
           </div>
 
           {/* Unified Tab Structure */}
-          <Tabs defaultValue="13th-month" className="w-full">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
             <TabsList className="mb-4 grid w-full grid-cols-3 md:w-auto md:inline-flex bg-slate-100 p-1 rounded-lg border border-slate-200/50">
               <TabsTrigger value="13th-month" className="font-bold text-xs uppercase px-6">
                 <Tooltip>

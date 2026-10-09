@@ -16,7 +16,6 @@ import SearchOffIcon from '@mui/icons-material/SearchOff';
 import EmptyState from "../../components/EmptyState";
 import PayrollAlertBanner from "../../components/PayrollAlertBanner";
 import { Link } from "react-router-dom";
-import CreatePeriodModal from "../../components/createperiodmodal/CreatePeriodModal";
 import { fetchWithAuth } from "../../utils/api";
 import { useSystemTime } from "../../context/SystemTimeContext";
 import ReceiptOutlinedIcon from '@mui/icons-material/ReceiptOutlined';
@@ -52,7 +51,6 @@ const Payroll = () => {
   const { systemToday } = useSystemTime();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [activePeriod, setActivePeriod] = useState(null);
   const [upcomingPeriods, setUpcomingPeriods] = useState([]);
   const [allPeriods, setAllPeriods] = useState([]);
@@ -124,32 +122,6 @@ const Payroll = () => {
     return periods;
   };
 
-  const handleCreatePeriod = async (periodData) => {
-    try {
-      const response = await fetchWithAuth("/api/system/payroll-periods", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          startDate: periodData.startDate,
-          endDate: periodData.endDate,
-          label: periodData.label || `${periodData.month} ${periodData.year}`
-        })
-      });
-
-      if (response.ok) {
-        setIsCreateModalOpen(false);
-        setToast({ message: "Payroll period created successfully.", type: "success" });
-        fetchActive();
-      } else {
-        const errData = await response.json().catch(() => ({}));
-        setToast({ message: errData.error || "Failed to save payroll period.", type: "error" });
-      }
-    } catch (error) {
-      console.error("Error saving period:", error);
-      setToast({ message: "Network error saving period: " + error.message, type: "error" });
-    }
-  };
-
   const fetchActive = async () => {
     setRefreshing(true);
     try {
@@ -179,7 +151,7 @@ const Payroll = () => {
             endDate: active.endDate,
             status: active.status,
             employees: active.employeeCount,
-            amount: `₱${parseFloat(active.totalAmount).toLocaleString()}`
+            amount: `₱${(parseFloat(active.totalAmount) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
           });
         } else {
           setActivePeriod(null);
@@ -319,20 +291,24 @@ const Payroll = () => {
                 View individual base daily rates, bank accounts, and payroll classifications.
               </TooltipContent>
             </Tooltip>
-            {/* <Button 
-              variant="outline" 
-              className="w-full sm:w-auto bg-brand-primary-light text-brand-primary border-[#c4b5e8] hover:bg-[#e0d4f5] transition-colors"
-              onClick={() => setIsCreateModalOpen(true)}
-            >
-              <EventNoteIcon className="mr-2 h-4 w-4" /> Payroll Schedule
-            </Button> */}
-            {/* <Button 
-              className="w-full sm:w-auto bg-brand-primary text-white hover:bg-brand-primary-hover"
-              onClick={fetchActive}
-              disabled={refreshing}
-            >
-              <RefreshIcon className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-            </Button> */}
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-block w-full sm:w-auto">
+                  <Button 
+                    variant="outline"
+                    className="w-full sm:w-auto border-brand-primary/20 text-brand-primary hover:bg-brand-primary/5 transition-colors"
+                    onClick={fetchActive}
+                    disabled={refreshing}
+                  >
+                    <RefreshIcon className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
+                Refresh active periods and payroll metrics.
+              </TooltipContent>
+            </Tooltip>
           </div>
         </div>
 
@@ -566,7 +542,7 @@ const Payroll = () => {
                               {new Date(p.startDate).toLocaleDateString()} - {new Date(p.endDate).toLocaleDateString()}
                             </TableCell>
                             <TableCell className="text-slate-700 py-4 font-medium">{p.employeeCount || 0}</TableCell>
-                            <TableCell className="font-semibold text-slate-800 py-4">₱{(parseFloat(p.totalAmount) || 0).toLocaleString()}</TableCell>
+                            <TableCell className="font-semibold text-slate-800 py-4">₱{(parseFloat(p.totalAmount) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                             <TableCell className="py-4">
                               <Badge variant="secondary" className={badgeStyle}>{p.status}</Badge>
                             </TableCell>

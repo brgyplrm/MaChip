@@ -9,6 +9,7 @@ const { logAudit } = require("../utils/logger");
 const { encrypt, decrypt } = require("../utils/encryption");
 const { computeMonthlyShares } = require("../utils/govtDeductions");
 const { queueSlotDeletion } = require("./rfid.controller");
+const { roundMoney } = require("../utils/financialHelper");
 
 // ── Get Next User ID ──────────────────────────────────────────────────────────
 exports.getAuditLogs = async (req, res) => {
@@ -584,6 +585,10 @@ exports.viewArchivedUsers = async (req, res) => {
 // ── View User By ID ───────────────────────────────────────────────────────────
 exports.viewUserById = async (req, res) => {
   const { user_Id } = req.params;
+  const parsedUserId = parseInt(user_Id, 10);
+  if (!user_Id || isNaN(parsedUserId) || parsedUserId <= 0) {
+    return res.status(400).json({ error: "Invalid user_Id: must be a positive integer." });
+  }
   try {
     const user = await sequelize.query(
       `SELECT u.*, 
@@ -608,7 +613,7 @@ exports.viewUserById = async (req, res) => {
        LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
        LEFT JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
        WHERE u."user_Id" = :user_Id AND u."deletedAt" IS NULL`,
-      { replacements: { user_Id }, type: QueryTypes.SELECT },
+      { replacements: { user_Id: parsedUserId }, type: QueryTypes.SELECT },
     );    if (user.length > 0) {
       const userData = user[0];
 
@@ -1609,6 +1614,10 @@ exports.getMasterlist = async (req, res) => {
 // ── Update Daily Rate ─────────────────────────────────────────────────────────
 exports.updateDailyRate = async (req, res) => {
   const { user_Id } = req.params;
+  if (!user_Id || isNaN(parseInt(user_Id)) || parseInt(user_Id) <= 0) {
+    return res.status(400).json({ error: "Invalid employee ID: must be a positive integer." });
+  }
+
   const {
     newDailyRate, sss_Share, philhealth_Share, hdmf_Share,
     healthCard_Amnt, SSS_Loan, HDMF_Loan, calamityLoan_Amnt,
@@ -1619,8 +1628,9 @@ exports.updateDailyRate = async (req, res) => {
   }
   const parsed = parseFloat(newDailyRate);
   if (isNaN(parsed) || parsed < 0) {
-    return res.status(400).json({ error: "newDailyRate must be a positive number." });
+    return res.status(400).json({ error: "newDailyRate must be a non-negative number." });
   }
+  const roundedRate = roundMoney(parsed);
 
   try {
     let existing;
@@ -1646,6 +1656,8 @@ exports.updateDailyRate = async (req, res) => {
 
     const currentRate = parseFloat(existing[0].dailyRate) || 0;
     const oldRateData = { ...existing[0] };
+    delete oldRateData.user_Password;
+    delete oldRateData.resetPasswordToken;
 
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
@@ -1661,10 +1673,10 @@ exports.updateDailyRate = async (req, res) => {
     // explicitly provided NEW manual values that are different from both the old ones 
     // and the default calculation. For simplicity, if the rate changed and the 
     // provided shares are NaN, or if they match the OLD shares, we recompute.
-    const rateChanged = Math.abs(parsed - currentRate) > 0.01;
+    const rateChanged = Math.abs(roundedRate - currentRate) > 0.01;
     
     if (rateChanged || isNaN(finalSSS) || isNaN(finalPH) || isNaN(finalHD)) {
-      const shares = await computeMonthlyShares(parsed);
+      const shares = await computeMonthlyShares(roundedRate);
       
       // If SSS was not provided OR it matches the old rate's SSS, update it to the new one
       if (isNaN(finalSSS) || (rateChanged && finalSSS === parseFloat(existing[0].sss_Share))) {
@@ -1706,7 +1718,7 @@ exports.updateDailyRate = async (req, res) => {
            WHERE "user_Id" = :user_Id AND "deletedAt" IS NULL`,
           {
             replacements: { 
-              newDailyRate: parsed, 
+              newDailyRate: roundedRate, 
               now: nowStr, 
               user_Id 
             },

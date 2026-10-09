@@ -18,11 +18,11 @@ const MANAGEMENT_TITLES = [
 ];
 
 exports.GetUserNotifications = async (req, res) => {
-  const userId = parseInt(req.params.userId);
+  const userId = parseInt(req.params.userId, 10);
   const { viewMode } = req.query; // management or employee
 
-  if (isNaN(userId)) {
-    return res.status(400).json({ error: "Invalid User Id" });
+  if (isNaN(userId) || userId <= 0) {
+    return res.status(400).json({ error: "Invalid User Id: must be a positive integer." });
   }
 
   try {
@@ -60,14 +60,20 @@ exports.GetUserNotifications = async (req, res) => {
 
 exports.MarkAllAsRead = async (req, res) => {
   const { userId, viewMode } = req.body;
+  const parsedUserId = parseInt(userId, 10);
 
-  if (!userId) {
-    return res.status(400).json({ error: "User Id is required" });
+  if (!userId || isNaN(parsedUserId) || parsedUserId <= 0) {
+    return res.status(400).json({ error: "User Id must be a positive integer." });
+  }
+
+  // Zero-trust check: non-staff can only mark their own notifications as read
+  if (req.user && ![1, 2, 4].includes(parseInt(req.user.user_RoleId, 10)) && parseInt(req.user.user_Id, 10) !== parsedUserId) {
+    return res.status(403).json({ error: "Forbidden: You cannot modify other users' notifications." });
   }
 
   try {
     let query = `UPDATE "Notification" SET "isRead" = true WHERE "user_Id" = :userId`;
-    let replacements = { userId, managementTitles: MANAGEMENT_TITLES };
+    let replacements = { userId: parsedUserId, managementTitles: MANAGEMENT_TITLES };
 
     if (viewMode === "employee") {
       query += ` AND ("title" NOT IN (:managementTitles) AND "title" NOT LIKE 'Pending Action%' AND "title" NOT LIKE 'Pending Request%' AND "title" NOT LIKE 'Pending Approver%')`;
@@ -81,7 +87,7 @@ exports.MarkAllAsRead = async (req, res) => {
     });
 
     // [SOCKET] Trigger real-time unread count update
-    getIO().to(`user_${userId}`).emit("NOTIFICATION_UPDATE");
+    getIO().to(`user_${parsedUserId}`).emit("NOTIFICATION_UPDATE");
 
     res.status(200).json({ message: "All notifications marked as read" });
   } catch (error) {
@@ -91,18 +97,27 @@ exports.MarkAllAsRead = async (req, res) => {
 
 exports.MarkAsRead = async (req, res) => {
   const { notifId } = req.params;
+  const parsedNotifId = parseInt(notifId, 10);
 
-  if (!notifId) {
-    return res.status(400).json({ error: "Notification Id is required" });
+  if (!notifId || isNaN(parsedNotifId) || parsedNotifId <= 0) {
+    return res.status(400).json({ error: "Notification Id must be a positive integer." });
   }
 
   try {
-    const notif = await sequelize.query(`SELECT "user_Id" FROM "Notification" WHERE "notifId" = :notifId`, { replacements: { notifId }, type: QueryTypes.SELECT });
+    const notif = await sequelize.query(`SELECT "user_Id" FROM "Notification" WHERE "notifId" = :notifId`, { replacements: { notifId: parsedNotifId }, type: QueryTypes.SELECT });
+    if (notif.length === 0) {
+      return res.status(404).json({ error: "Notification not found." });
+    }
+
+    // Zero-trust check: non-staff can only mark their own notification as read
+    if (req.user && ![1, 2, 4].includes(parseInt(req.user.user_RoleId, 10)) && parseInt(req.user.user_Id, 10) !== parseInt(notif[0].user_Id, 10)) {
+      return res.status(403).json({ error: "Forbidden: You cannot modify other users' notifications." });
+    }
     
     await sequelize.query(
       `UPDATE "Notification" SET "isRead" = true WHERE "notifId" = :notifId`,
       {
-        replacements: { notifId },
+        replacements: { notifId: parsedNotifId },
         type: QueryTypes.UPDATE,
       }
     );
@@ -118,11 +133,11 @@ exports.MarkAsRead = async (req, res) => {
 };
 
 exports.GetUnreadCount = async (req, res) => {
-  const userId = parseInt(req.params.userId);
+  const userId = parseInt(req.params.userId, 10);
   const { viewMode } = req.query;
 
-  if (isNaN(userId)) {
-    return res.status(400).json({ error: "Invalid User Id" });
+  if (isNaN(userId) || userId <= 0) {
+    return res.status(400).json({ error: "Invalid User Id: must be a positive integer." });
   }
 
   try {

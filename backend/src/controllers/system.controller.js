@@ -154,6 +154,12 @@ exports.getSystemSettings = async (req, res) => {
 
 exports.updateMandatedWage = async (req, res) => {
   const { mandatedMinimumWage, mandatedWageEffectiveDate } = req.body;
+  if (mandatedMinimumWage !== undefined) {
+    const parsedWage = parseFloat(mandatedMinimumWage);
+    if (isNaN(parsedWage) || parsedWage < 0) {
+      return res.status(400).json({ error: "mandatedMinimumWage must be a non-negative number." });
+    }
+  }
   try {
     const settings = await SystemSettings.findOne();
     if (!settings) {
@@ -174,6 +180,39 @@ exports.updateMandatedWage = async (req, res) => {
 
 exports.updateSystemSettings = async (req, res) => {
   try {
+    // Validate numerical inputs
+    if (req.body.mandatedMinimumWage !== undefined) {
+      const wage = parseFloat(req.body.mandatedMinimumWage);
+      if (isNaN(wage) || wage < 0) return res.status(400).json({ error: "mandatedMinimumWage must be a non-negative number." });
+    }
+    if (req.body.hardwareBufferWindow !== undefined && req.body.hardwareBufferWindow !== null) {
+      const buf = parseInt(req.body.hardwareBufferWindow, 10);
+      if (isNaN(buf) || buf < 0) return res.status(400).json({ error: "hardwareBufferWindow must be a non-negative integer." });
+    }
+    if (req.body.archivedRetentionYears !== undefined && req.body.archivedRetentionYears !== null) {
+      const ret = parseInt(req.body.archivedRetentionYears, 10);
+      if (isNaN(ret) || ret < 0) return res.status(400).json({ error: "archivedRetentionYears must be a non-negative integer." });
+    }
+    if (req.body.workHourThreshold !== undefined) {
+      const wht = parseFloat(req.body.workHourThreshold);
+      if (isNaN(wht) || wht < 0) return res.status(400).json({ error: "workHourThreshold must be a non-negative number." });
+    }
+
+    const multiplierFields = [
+      'ordinaryDayRate', 'specialDayRate', 'restDayRate', 'regularHolidayRate',
+      'nightDiffRate', 'overtimeRate', 'doubleRegularHolidayRate',
+      'specialDayRestDayRate', 'doubleSpecialDayRate', 'doubleSpecialDayRestDayRate',
+      'regularHolidayRestDayRate', 'doubleRegularHolidayRestDayRate'
+    ];
+    for (const field of multiplierFields) {
+      if (req.body[field] !== undefined) {
+        const val = parseFloat(req.body[field]);
+        if (isNaN(val) || val < 0) {
+          return res.status(400).json({ error: `${field} must be a non-negative number.` });
+        }
+      }
+    }
+
     const settings = await SystemSettings.findOne();
     let oldSettings = settings ? settings.toJSON() : null;
     let newSettings;
@@ -232,12 +271,6 @@ exports.updateSystemSettings = async (req, res) => {
     if (req.body.workHourThreshold !== undefined) updateData.workHourThreshold = parseFloat(req.body.workHourThreshold);
 
     // 4. Labor Multipliers
-    const multiplierFields = [
-      'ordinaryDayRate', 'specialDayRate', 'restDayRate', 'regularHolidayRate',
-      'nightDiffRate', 'overtimeRate', 'doubleRegularHolidayRate',
-      'specialDayRestDayRate', 'doubleSpecialDayRate', 'doubleSpecialDayRestDayRate',
-      'regularHolidayRestDayRate', 'doubleRegularHolidayRestDayRate'
-    ];
     multiplierFields.forEach(field => {
       if (req.body[field] !== undefined) {
         updateData[field] = parseFloat(req.body[field]);
@@ -348,8 +381,27 @@ exports.getSystemTime = async (req, res) => {
 exports.createPayrollPeriod = async (req, res) => {
     try {
         const { startDate, endDate, label } = req.body;
+        if (!startDate || !endDate) {
+            return res.status(400).json({ error: "startDate and endDate are required." });
+        }
+        if (startDate > endDate) {
+            return res.status(400).json({ error: "Invalid date range: startDate cannot be after endDate." });
+        }
+
+        const existing = await PayrollPeriod.findOne({
+            where: { startDate, endDate }
+        });
+        if (existing) {
+            return res.status(409).json({ error: "A payroll period with this date range already exists.", period: existing });
+        }
+
         console.log("[DEBUG] Creating payroll period:", { startDate, endDate, label });
-        const period = await PayrollPeriod.create({ startDate, endDate, label });
+        const period = await PayrollPeriod.create({ 
+            startDate, 
+            endDate, 
+            label: label || `${startDate} - ${endDate}`,
+            status: 'Draft'
+        });
 
         const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
         await logAudit(req, currentAdminId, "System Settings", "CREATE_PAYROLL_PERIOD", "PayrollPeriod", period.periodId, null, period.toJSON());
@@ -426,13 +478,13 @@ exports.getPayrollPeriods = async (req, res) => {
                 ${isStaff ? `,
                 -- If Draft, show eligible employees. If not, show processed count.
                 (CASE 
-                    WHEN pp."status" = 'Draft' THEN (SELECT COUNT(*)::int FROM "User" WHERE "deletedAt" IS NULL AND "dailyRate" > 0)
+                    WHEN pp."status" = 'Draft' THEN (SELECT COUNT(*)::int FROM "User" WHERE "deletedAt" IS NULL AND "dailyRate" > 0 AND "user_Id" != 999 AND ("hireDate" IS NULL OR "hireDate" <= pp."endDate"::date))
                     ELSE (SELECT COUNT(*)::int FROM "Payroll" p2 WHERE p2."periodId" = pp."periodId")
                 END) AS "employeeCount",
                 -- If Draft, show potential total (Daily Rate * Work Days). If not, show actual total.
                 (CASE 
                     WHEN pp."status" = 'Draft' THEN (
-                        COALESCE((SELECT SUM("dailyRate") FROM "User" WHERE "deletedAt" IS NULL AND "dailyRate" > 0), 0) * 
+                        COALESCE((SELECT SUM("dailyRate") FROM "User" WHERE "deletedAt" IS NULL AND "dailyRate" > 0 AND "user_Id" != 999 AND ("hireDate" IS NULL OR "hireDate" <= pp."endDate"::date)), 0) * 
                         (SELECT COUNT(*)::int FROM (
                             SELECT generate_series(pp."startDate"::date, pp."endDate"::date, '1 day'::interval) AS d
                         ) days WHERE extract(dow from d) <> 0)
@@ -462,7 +514,21 @@ exports.getAuditLogs = async (req, res) => {
        ORDER BY a."createdAt" DESC`,
       { type: QueryTypes.SELECT }
     );
-    res.status(200).json(logs);
+    const sanitized = logs.map(log => {
+      const copy = { ...log };
+      if (copy.old_Value && typeof copy.old_Value === 'object') {
+        delete copy.old_Value.user_Password;
+        delete copy.old_Value.resetPasswordToken;
+        delete copy.old_Value.resetPasswordExpires;
+      }
+      if (copy.new_Value && typeof copy.new_Value === 'object') {
+        delete copy.new_Value.user_Password;
+        delete copy.new_Value.resetPasswordToken;
+        delete copy.new_Value.resetPasswordExpires;
+      }
+      return copy;
+    });
+    res.status(200).json(sanitized);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

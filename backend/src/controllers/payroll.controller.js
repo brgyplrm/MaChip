@@ -42,6 +42,9 @@ exports.downloadBatchZip = async (req, res) => {
   if (!period_Start || !period_End) {
     return res.status(400).json({ error: "period_Start and period_End are required." });
   }
+  if (period_Start > period_End) {
+    return res.status(400).json({ error: "Invalid date range: period_Start cannot be after period_End." });
+  }
 
   try {
     const payrolls = await sequelize.query(
@@ -1195,6 +1198,9 @@ exports.getPayrollPreviewBatch = async (req, res) => {
   if (!period_Start || !period_End) {
     return res.status(400).json({ error: "period_Start and period_End are required." });
   }
+  if (period_Start > period_End) {
+    return res.status(400).json({ error: "Invalid date range: period_Start cannot be after period_End." });
+  }
 
   try {
     // 1. Fetch all active employees eligible for payroll in this period
@@ -1325,6 +1331,9 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
       { replacements: { user_Id: emp.user_Id, period_Start, period_End, periodId: periodId || -1 }, type: QueryTypes.SELECT }
     );
 
+    let payrollId;
+    let fullStats;
+
     if (existing.length > 0) {
       if (existing[0].status === 5) {
         skippedCount++;
@@ -1333,8 +1342,9 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
 
       // Recompute stats fresh from user_logging, requests, loans & rates
       const existingPayrollId = existing[0].payrollId;
+      payrollId = existingPayrollId;
       const rateToUse = customDailyRate !== null ? customDailyRate : emp.dailyRate;
-      const fullStats = await calculatePayrollStats(emp.user_Id, period_Start, period_End, rateToUse);
+      fullStats = await calculatePayrollStats(emp.user_Id, period_Start, period_End, rateToUse);
       const targetStatus = shouldRelease ? 5 : 1;
 
       await sequelize.query(
@@ -1422,120 +1432,104 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
           type: QueryTypes.UPDATE
         }
       );
+    } else {
+      // Use custom rate if provided, else use current employee rate
+      const rateToUse = customDailyRate !== null ? customDailyRate : emp.dailyRate;
+      fullStats = await calculatePayrollStats(emp.user_Id, period_Start, period_End, rateToUse);
 
-      if (shouldRelease) {
-        await sequelize.query(
-          `UPDATE "User_Deduction_Profile" SET "advances_Amnt" = 0, "updatedAt" = :now WHERE "user_Id" = :user_Id`,
-          { replacements: { user_Id: emp.user_Id, now: nowStr }, type: QueryTypes.UPDATE }
-        );
+      const initialStatus = shouldRelease ? 5 : 1;
+      const payrollResult = await sequelize.query(
+        `INSERT INTO "Payroll"
+          ("user_Id", "periodId", "period_Start", "period_End", "NoDays_Worked", "NoHrs_Worked", "totalScheduledDays",
+           "dailyRate", "previousDailyRate", "ratePerHr", "basicPay", "totalEarnings", "totalDeductions", "netPay",
+           "holidaysTotal", "holidaysRegularWorked", "holidaysSpecialWorked",
+           "status", "createdAt", "updatedAt")
+         VALUES
+          (:user_Id, :periodId, :period_Start, :period_End, :NoDays_Worked, :NoHrs_Worked, :totalScheduledDays,
+           :dailyRate, :previousDailyRate, :ratePerHr, :basicPay, :totalEarnings, :totalDed, :netPay,
+           :holidaysTotal, :holidaysRegularWorked, :holidaysSpecialWorked,
+           :initialStatus, :now, :now)
+         RETURNING "payrollId"`,
+        {
+          replacements: {
+            user_Id: emp.user_Id, periodId, period_Start, period_End,
+            NoDays_Worked: fullStats.NoDays_Worked, NoHrs_Worked: fullStats.NoHrs_Worked,
+            totalScheduledDays: fullStats.totalScheduledDays,
+            dailyRate: fullStats.dailyRate, previousDailyRate: fullStats.previousDailyRate,
+            ratePerHr: fullStats.ratePerHr,
+            basicPay: fullStats.basicPay, totalEarnings: fullStats.totalEarnings, 
+            totalDed: fullStats.totalDeductions, netPay: fullStats.netPay,
+            holidaysTotal: fullStats.holidaysTotal || 0,
+            holidaysRegularWorked: fullStats.legalHol_Days || 0,
+            holidaysSpecialWorked: fullStats.specialHol_Days || 0,
+            initialStatus,
+            now: nowStr
+          },
+          type: QueryTypes.INSERT
+        }
+      );
 
-        newPayrollsForEmail.push({
-          emp,
-          payrollId: existingPayrollId,
-          fullStats
-        });
-      }
+      payrollId = payrollResult[0][0].payrollId;
 
-      processedCount++;
-      continue;
+      await sequelize.query(
+        `INSERT INTO "Payroll_Earnings" ("payrollId", "user_Id", "OT_Hrs", "OT_Amnt", "nightOT_Hrs", "nightOT_Amnt", "nightDiff_Hrs", "nightDiff_Amnt", "legalHol_Amnt", "specialHol_Amnt", "specialHol_Adj")
+         VALUES (:payrollId, :user_Id, :OT_Hrs, :OT_Amnt, :nightOT_Hrs, :nightOT_Amnt, :nightDiff_Hrs, :nightDiff_Amnt, :legalHol_Amnt, :specialHol_Amnt, :specialHol_Adj)`,
+        { 
+          replacements: { 
+            payrollId, user_Id: emp.user_Id, 
+            OT_Hrs: fullStats.OT_Hrs, OT_Amnt: fullStats.OT_Amnt,
+            nightOT_Hrs: fullStats.nightOT_Hrs, nightOT_Amnt: fullStats.nightOT_Amnt,
+            nightDiff_Hrs: fullStats.nightDiff_Hrs, nightDiff_Amnt: fullStats.nightDiff_Amnt,
+            legalHol_Amnt: fullStats.legalHol_Amnt, specialHol_Amnt: fullStats.specialHol_Amnt, specialHol_Adj: fullStats.specialHol_Adj
+          },
+          type: QueryTypes.INSERT 
+        }
+      );
+
+      await sequelize.query(
+        `INSERT INTO "Payroll_Deductions"
+          ("payrollId", "absence_Hrs", "absence_Amnt", "tardiness_Mins", "tardiness_Amnt", 
+           "unpaidLeave_Days", "unpaidLeave_Amnt", "paidLeave_Days",
+           "SSS_Ded", "Philhealth_Ded", "HDMF_Ded", "Tax_Ded",
+           "SSS_Ded_ER", "Philhealth_Ded_ER", "HDMF_Ded_ER",
+           "healthCard_Amnt", "SSS_Loan", "HDMF_Loan", "calamityLoan_Amnt", 
+           "multiPurposeSavings", "advances_Amnt", "globe_Deduction", "eastwest_Loan")
+         VALUES
+          (:payrollId, :absence_Hrs, :absence_Amnt, :tardiness_Mins, :tardiness_Amnt, 
+           :unpaidLeave_Days, :unpaidLeave_Amnt, :paidLeave_Days,
+           :sss, :ph, :hd, :tax,
+           :sssER, :phER, :hdER,
+           :hc, :sl, :hl, :cl, :ms, :aa, :gd, :el)`,
+        {
+          replacements: {
+            payrollId,
+            absence_Hrs: (fullStats.absence_Days) * 8,
+            absence_Amnt: fullStats.absence_Amnt,
+            tardiness_Mins: fullStats.tardiness_Mins,
+            tardiness_Amnt: fullStats.tardiness_Amnt,
+            unpaidLeave_Days: fullStats.unpaidLeave_Days,
+            unpaidLeave_Amnt: fullStats.unpaidLeave_Amnt,
+            paidLeave_Days: fullStats.paidLeave_Days,
+            sss: fullStats.SSS_Ded,
+            ph: fullStats.Philhealth_Ded,
+            hd: fullStats.HDMF_Ded,
+            tax: fullStats.Tax_Ded,
+            sssER: fullStats.SSS_Ded_ER,
+            phER: fullStats.Philhealth_Ded_ER,
+            hdER: fullStats.HDMF_Ded_ER,
+            hc: fullStats.healthCard_Amnt,
+            sl: fullStats.SSS_Loan,
+            hl: fullStats.HDMF_Loan,
+            cl: fullStats.calamityLoan_Amnt,
+            ms: fullStats.multiPurposeSavings,
+            aa: fullStats.advances_Amnt,
+            gd: fullStats.globe_Deduction,
+            el: fullStats.eastwest_Loan
+          },
+          type: QueryTypes.INSERT
+        }
+      );
     }
-
-    // Use custom rate if provided, else use current employee rate
-    const rateToUse = customDailyRate !== null ? customDailyRate : emp.dailyRate;
-    const fullStats = await calculatePayrollStats(emp.user_Id, period_Start, period_End, rateToUse);
-
-    const initialStatus = shouldRelease ? 5 : 1;
-    const payrollResult = await sequelize.query(
-      `INSERT INTO "Payroll"
-        ("user_Id", "periodId", "period_Start", "period_End", "NoDays_Worked", "NoHrs_Worked", "totalScheduledDays",
-         "dailyRate", "previousDailyRate", "ratePerHr", "basicPay", "totalEarnings", "totalDeductions", "netPay",
-         "holidaysTotal", "holidaysRegularWorked", "holidaysSpecialWorked",
-         "status", "createdAt", "updatedAt")
-       VALUES
-        (:user_Id, :periodId, :period_Start, :period_End, :NoDays_Worked, :NoHrs_Worked, :totalScheduledDays,
-         :dailyRate, :previousDailyRate, :ratePerHr, :basicPay, :totalEarnings, :totalDed, :netPay,
-         :holidaysTotal, :holidaysRegularWorked, :holidaysSpecialWorked,
-         :initialStatus, :now, :now)
-       RETURNING "payrollId"`,
-      {
-        replacements: {
-          user_Id: emp.user_Id, periodId, period_Start, period_End,
-          NoDays_Worked: fullStats.NoDays_Worked, NoHrs_Worked: fullStats.NoHrs_Worked,
-          totalScheduledDays: fullStats.totalScheduledDays,
-          dailyRate: fullStats.dailyRate, previousDailyRate: fullStats.previousDailyRate,
-          ratePerHr: fullStats.ratePerHr,
-          basicPay: fullStats.basicPay, totalEarnings: fullStats.totalEarnings, 
-          totalDed: fullStats.totalDeductions, netPay: fullStats.netPay,
-          holidaysTotal: fullStats.holidaysTotal || 0,
-          holidaysRegularWorked: fullStats.legalHol_Days || 0,
-          holidaysSpecialWorked: fullStats.specialHol_Days || 0,
-          initialStatus,
-          now: nowStr
-        },
-        type: QueryTypes.INSERT
-      }
-    );
-
-    const payrollId = payrollResult[0][0].payrollId;
-
-    await sequelize.query(
-      `INSERT INTO "Payroll_Earnings" ("payrollId", "user_Id", "OT_Hrs", "OT_Amnt", "nightOT_Hrs", "nightOT_Amnt", "nightDiff_Hrs", "nightDiff_Amnt", "legalHol_Amnt", "specialHol_Amnt", "specialHol_Adj")
-       VALUES (:payrollId, :user_Id, :OT_Hrs, :OT_Amnt, :nightOT_Hrs, :nightOT_Amnt, :nightDiff_Hrs, :nightDiff_Amnt, :legalHol_Amnt, :specialHol_Amnt, :specialHol_Adj)`,
-      { 
-        replacements: { 
-          payrollId, user_Id: emp.user_Id, 
-          OT_Hrs: fullStats.OT_Hrs, OT_Amnt: fullStats.OT_Amnt,
-          nightOT_Hrs: fullStats.nightOT_Hrs, nightOT_Amnt: fullStats.nightOT_Amnt,
-          nightDiff_Hrs: fullStats.nightDiff_Hrs, nightDiff_Amnt: fullStats.nightDiff_Amnt,
-          legalHol_Amnt: fullStats.legalHol_Amnt, specialHol_Amnt: fullStats.specialHol_Amnt, specialHol_Adj: fullStats.specialHol_Adj
-        },
-        type: QueryTypes.INSERT 
-      }
-    );
-
-    await sequelize.query(
-      `INSERT INTO "Payroll_Deductions"
-        ("payrollId", "absence_Hrs", "absence_Amnt", "tardiness_Mins", "tardiness_Amnt", 
-         "unpaidLeave_Days", "unpaidLeave_Amnt", "paidLeave_Days",
-         "SSS_Ded", "Philhealth_Ded", "HDMF_Ded", "Tax_Ded",
-         "SSS_Ded_ER", "Philhealth_Ded_ER", "HDMF_Ded_ER",
-         "healthCard_Amnt", "SSS_Loan", "HDMF_Loan", "calamityLoan_Amnt", 
-         "multiPurposeSavings", "advances_Amnt", "globe_Deduction", "eastwest_Loan")
-       VALUES
-        (:payrollId, :absence_Hrs, :absence_Amnt, :tardiness_Mins, :tardiness_Amnt, 
-         :unpaidLeave_Days, :unpaidLeave_Amnt, :paidLeave_Days,
-         :sss, :ph, :hd, :tax,
-         :sssER, :phER, :hdER,
-         :hc, :sl, :hl, :cl, :ms, :aa, :gd, :el)`,
-      {
-        replacements: {
-          payrollId,
-          absence_Hrs: (fullStats.absence_Days) * 8,
-          absence_Amnt: fullStats.absence_Amnt,
-          tardiness_Mins: fullStats.tardiness_Mins,
-          tardiness_Amnt: fullStats.tardiness_Amnt,
-          unpaidLeave_Days: fullStats.unpaidLeave_Days,
-          unpaidLeave_Amnt: fullStats.unpaidLeave_Amnt,
-          paidLeave_Days: fullStats.paidLeave_Days,
-          sss: fullStats.SSS_Ded,
-          ph: fullStats.Philhealth_Ded,
-          hd: fullStats.HDMF_Ded,
-          tax: fullStats.Tax_Ded,
-          sssER: fullStats.SSS_Ded_ER,
-          phER: fullStats.Philhealth_Ded_ER,
-          hdER: fullStats.HDMF_Ded_ER,
-          hc: fullStats.healthCard_Amnt,
-          sl: fullStats.SSS_Loan,
-          hl: fullStats.HDMF_Loan,
-          cl: fullStats.calamityLoan_Amnt,
-          ms: fullStats.multiPurposeSavings,
-          aa: fullStats.advances_Amnt,
-          gd: fullStats.globe_Deduction,
-          el: fullStats.eastwest_Loan
-        },
-        type: QueryTypes.INSERT,
-      }
-    );
 
     // ── Auto-record/link to Ledger Tables ─────────────────────────────────
     // 1. Government Loans Link & Balance Update
@@ -1548,116 +1542,126 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
       );
 
       // Update Master Balances & History
-      const loanMappings = [
-        { amount: fullStats.SSS_Loan, types: ['sss_loan', 'sss_conso'], label: 'SSS Loan' },
-        { amount: fullStats.HDMF_Loan, types: ['hdmf_loan'], label: 'Pag-IBIG Loan' },
-        { amount: fullStats.calamityLoan_Amnt, types: ['calamity', 'sss_emergency', 'hdmf_calamity'], label: 'Calamity Loan' }
-      ];
+      if (shouldRelease) {
+        const loanMappings = [
+          { amount: fullStats.SSS_Loan, types: ['sss_loan', 'sss_conso'], label: 'SSS Loan' },
+          { amount: fullStats.HDMF_Loan, types: ['hdmf_loan'], label: 'Pag-IBIG Loan' },
+          { amount: fullStats.calamityLoan_Amnt, types: ['calamity', 'sss_emergency', 'hdmf_calamity'], label: 'Calamity Loan' }
+        ];
 
-      for (const m of loanMappings) {
-        if (m.amount > 0) {
-          const activeLoan = await sequelize.query(
-            `SELECT id, "remainingBalance" FROM "Loan_Deductions" 
-             WHERE "userId" = :user_Id AND "deductionType" IN (:types) AND "status" = 'active' LIMIT 1`,
-            { replacements: { user_Id: emp.user_Id, types: m.types }, type: QueryTypes.SELECT }
-          );
-          if (activeLoan.length > 0) {
-            const loanId = activeLoan[0].id;
-            const newBalance = Math.max(0, subtractMoney(activeLoan[0].remainingBalance, m.amount));
-            const status = newBalance <= 0 ? 'completed' : 'active';
-
-            await sequelize.query(
-              `UPDATE "Loan_Deductions" SET "remainingBalance" = :newBalance, "status" = :status, "updatedAt" = :now
-               WHERE id = :loanId`,
-              { replacements: { newBalance, status, loanId, now: nowStr }, type: QueryTypes.UPDATE }
+        for (const m of loanMappings) {
+          if (m.amount > 0) {
+            const activeLoan = await sequelize.query(
+              `SELECT id, "remainingBalance" FROM "Loan_Deductions" 
+               WHERE "userId" = :user_Id AND "deductionType" IN (:types) AND "status" = 'active' LIMIT 1`,
+              { replacements: { user_Id: emp.user_Id, types: m.types }, type: QueryTypes.SELECT }
             );
+            if (activeLoan.length > 0) {
+              const loanId = activeLoan[0].id;
+              // Guard against duplicate deduction history for the same payrollId and loanId
+              const existingDedHist = await sequelize.query(
+                `SELECT "historyId" FROM "Loan_Deduction_History" WHERE "loanDeductionId" = :loanId AND "payrollId" = :payrollId LIMIT 1`,
+                { replacements: { loanId, payrollId }, type: QueryTypes.SELECT }
+              );
 
-            console.log(`[DEBUG LOAN] User ${emp.user_Id}: Deducted ${m.amount} for ${m.label}. New Balance: ${newBalance}`);
+              if (existingDedHist.length === 0) {
+                const newBalance = Math.max(0, subtractMoney(activeLoan[0].remainingBalance, m.amount));
+                const status = newBalance <= 0 ? 'completed' : 'active';
 
-            await sequelize.query(
-              `INSERT INTO "Loan_Deduction_History" ("loanDeductionId", "payrollId", "amountDeducted", "balanceAfter", "deductionDate", "createdAt")
-               VALUES (:loanId, :payrollId, :amount, :balanceAfter, :date, :now)`,
-              { replacements: { loanId, payrollId, amount: m.amount, balanceAfter: newBalance, date: period_End, now: nowStr }, type: QueryTypes.INSERT }
-            );
+                await sequelize.query(
+                  `UPDATE "Loan_Deductions" SET "remainingBalance" = :newBalance, "status" = :status, "updatedAt" = :now
+                   WHERE id = :loanId`,
+                  { replacements: { newBalance, status, loanId, now: nowStr }, type: QueryTypes.UPDATE }
+                );
+
+                console.log(`[DEBUG LOAN] User ${emp.user_Id}: Deducted ${m.amount} for ${m.label}. New Balance: ${newBalance}`);
+
+                await sequelize.query(
+                  `INSERT INTO "Loan_Deduction_History" ("loanDeductionId", "payrollId", "amountDeducted", "balanceAfter", "deductionDate", "createdAt")
+                   VALUES (:loanId, :payrollId, :amount, :balanceAfter, :date, :now)`,
+                  { replacements: { loanId, payrollId, amount: m.amount, balanceAfter: newBalance, date: period_End, now: nowStr }, type: QueryTypes.INSERT }
+                );
+              }
+            }
           }
         }
       }
     }
 
-    // 2. Cash Advance Link
-    await sequelize.query(
-      `UPDATE "Payroll_Cash_Advances" SET "payrollId" = :payrollId
-       WHERE "user_Id" = :user_Id AND "date" = :period_End`,
-      { replacements: { payrollId, user_Id: emp.user_Id, period_End }, type: QueryTypes.UPDATE }
-    );
-
-    // 2.5 Eastwest / Company Loan Link
-    await sequelize.query(
-      `UPDATE "Payroll_Eastwest" SET "payrollId" = :payrollId
-       WHERE "user_Id" = :user_Id AND "date" = :period_End`,
-      { replacements: { payrollId, user_Id: emp.user_Id, period_End }, type: QueryTypes.UPDATE }
-    );
-
-    // 2.7 DOLE Art. 113 Non-Statutory Deduction Authorization Verification & Audit
-    const hasNonStatutory = (parseFloat(fullStats.eastwest_Loan || 0) > 0 || parseFloat(fullStats.advances_Amnt || 0) > 0);
-    if (hasNonStatutory) {
-      try {
-        const approvedReq = await sequelize.query(
-          `SELECT "emp_reqId" FROM "emp_Request" 
-           WHERE "user_Id" = :user_Id AND "emp_reqTypeId" IN (13, 14) AND "emp_reqStatusId" = 2 
-           ORDER BY "emp_reqId" DESC LIMIT 1`,
-          { replacements: { user_Id: emp.user_Id }, type: QueryTypes.SELECT }
-        );
-        const isAuthorizedByRequest = approvedReq.length > 0;
-        await logAudit(
-          req,
-          adminId || req?.user?.user_Id || 1,
-          "Payroll",
-          "DEDUCTION_AUTHORIZATION_VERIFY",
-          "Payroll",
-          payrollId,
-          null,
-          {
-            userId: emp.user_Id,
-            eastwest_Loan: fullStats.eastwest_Loan,
-            advances_Amnt: fullStats.advances_Amnt,
-            compliance: "DOLE Art. 113 & DO 195",
-            authorizedByEmployeeRequest: isAuthorizedByRequest,
-            authorizationBasis: isAuthorizedByRequest ? `Approved Employee Request #${approvedReq[0].emp_reqId}` : "Administrative Profile Record"
-          }
-        );
-      } catch (authLogErr) {
-        console.warn(`[DOLE AUDIT WARN] Failed to log deduction authorization for User ${emp.user_Id}:`, authLogErr.message);
-      }
-    }
-
-    // 3. Maxicare Auto-record
-    if (fullStats.healthCard_Amnt > 0) {
-      await sequelize.query(
-        `INSERT INTO "Payroll_maxicare" ("user_Id", "max_Month", "amount", "maxi_status", "createdAt", "updatedAt")
-         VALUES (:user_Id, :date, :amount, 'paid', :now, :now)
-         ON CONFLICT ("user_Id", "max_Month") DO UPDATE
-         SET "amount" = EXCLUDED."amount", "maxi_status" = 'paid', "updatedAt" = EXCLUDED."updatedAt"`,
-        { replacements: { user_Id: emp.user_Id, date: period_End, amount: fullStats.healthCard_Amnt, now: nowStr }, type: QueryTypes.INSERT }
-      );
-    }
-    // ──────────────────────────────────────────────────────────────────────
-
-    // Collect data for background email dispatch
-    newPayrollsForEmail.push({
-      emp,
-      payrollId,
-      fullStats
-    });
-
-    processedCount++;
-
     if (shouldRelease) {
+      // 2. Cash Advance Link
+      await sequelize.query(
+        `UPDATE "Payroll_Cash_Advances" SET "payrollId" = :payrollId
+         WHERE "user_Id" = :user_Id AND "date" = :period_End`,
+        { replacements: { payrollId, user_Id: emp.user_Id, period_End }, type: QueryTypes.UPDATE }
+      );
+
+      // 2.5 Eastwest / Company Loan Link
+      await sequelize.query(
+        `UPDATE "Payroll_Eastwest" SET "payrollId" = :payrollId
+         WHERE "user_Id" = :user_Id AND "date" = :period_End`,
+        { replacements: { payrollId, user_Id: emp.user_Id, period_End }, type: QueryTypes.UPDATE }
+      );
+
+      // 2.7 DOLE Art. 113 Non-Statutory Deduction Authorization Verification & Audit
+      const hasNonStatutory = (parseFloat(fullStats.eastwest_Loan || 0) > 0 || parseFloat(fullStats.advances_Amnt || 0) > 0);
+      if (hasNonStatutory) {
+        try {
+          const approvedReq = await sequelize.query(
+            `SELECT "emp_reqId" FROM "emp_Request" 
+             WHERE "user_Id" = :user_Id AND "emp_reqTypeId" IN (13, 14) AND "emp_reqStatusId" = 2 
+             ORDER BY "emp_reqId" DESC LIMIT 1`,
+            { replacements: { user_Id: emp.user_Id }, type: QueryTypes.SELECT }
+          );
+          const isAuthorizedByRequest = approvedReq.length > 0;
+          await logAudit(
+            req,
+            adminId || req?.user?.user_Id || 1,
+            "Payroll",
+            "DEDUCTION_AUTHORIZATION_VERIFY",
+            "Payroll",
+            payrollId,
+            null,
+            {
+              userId: emp.user_Id,
+              eastwest_Loan: fullStats.eastwest_Loan,
+              advances_Amnt: fullStats.advances_Amnt,
+              compliance: "DOLE Art. 113 & DO 195",
+              authorizedByEmployeeRequest: isAuthorizedByRequest,
+              authorizationBasis: isAuthorizedByRequest ? `Approved Employee Request #${approvedReq[0].emp_reqId}` : "Administrative Profile Record"
+            }
+          );
+        } catch (authLogErr) {
+          console.warn(`[DOLE AUDIT WARN] Failed to log deduction authorization for User ${emp.user_Id}:`, authLogErr.message);
+        }
+      }
+
+      // 3. Maxicare Auto-record
+      if (fullStats.healthCard_Amnt > 0) {
+        await sequelize.query(
+          `INSERT INTO "Payroll_maxicare" ("user_Id", "max_Month", "amount", "maxi_status", "createdAt", "updatedAt")
+           VALUES (:user_Id, :date, :amount, 'paid', :now, :now)
+           ON CONFLICT ("user_Id", "max_Month") DO UPDATE
+           SET "amount" = EXCLUDED."amount", "maxi_status" = 'paid', "updatedAt" = EXCLUDED."updatedAt"`,
+          { replacements: { user_Id: emp.user_Id, date: period_End, amount: fullStats.healthCard_Amnt, now: nowStr }, type: QueryTypes.INSERT }
+        );
+      }
+
+      // 4. Advances clear
       await sequelize.query(
         `UPDATE "User_Deduction_Profile" SET "advances_Amnt" = 0, "updatedAt" = :now WHERE "user_Id" = :user_Id`,
         { replacements: { user_Id: emp.user_Id, now: nowStr }, type: QueryTypes.UPDATE }
       );
+
+      // Collect data for background email dispatch
+      newPayrollsForEmail.push({
+        emp,
+        payrollId,
+        fullStats
+      });
     }
+
+    processedCount++;
   }
 
   if (shouldRelease) {
@@ -1817,6 +1821,9 @@ exports.generateBatchPayroll = async (req, res) => {
   const { period_Start, period_End, shouldRelease } = req.body;
   if (!period_Start || !period_End) {
     return res.status(400).json({ error: "period_Start and period_End are required." });
+  }
+  if (period_Start > period_End) {
+    return res.status(400).json({ error: "Invalid date range: period_Start cannot be after period_End." });
   }
 
   try {
@@ -2319,6 +2326,10 @@ exports.releasePayroll = async (req, res) => {
 // ── Resend Payroll Email ──────────────────────────────────────────────────────
 exports.resendPayrollEmail = async (req, res) => {
   const { payrollId } = req.params;
+  if (!payrollId || isNaN(parseInt(payrollId, 10)) || parseInt(payrollId, 10) <= 0) {
+    return res.status(400).json({ error: "Invalid payroll ID: must be a positive integer." });
+  }
+
   try {
     const payrolls = await sequelize.query(
       `SELECT p.*, u."user_FirstName", u."user_LastName", u."user_Email", b."account_Number"
@@ -2392,6 +2403,21 @@ exports.resendPayrollEmail = async (req, res) => {
       ]
     });
 
+    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+    await logTransaction(
+      null,
+      currentAdminId,
+      "PAYROLL_RESEND_EMAIL",
+      `Resent payslip email for payroll ID ${payrollId} (${payroll.user_FirstName} ${payroll.user_LastName})`,
+      {
+        payrollId: parseInt(payrollId, 10),
+        recipient: payroll.user_Email,
+        period_Start: payroll.period_Start,
+        period_End: payroll.period_End
+      },
+      req
+    );
+
     res.status(200).json({ message: "Payroll email resent successfully." });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -2403,6 +2429,9 @@ exports.resendBatchPayrollEmails = async (req, res) => {
   const { period_Start, period_End } = req.body;
   if (!period_Start || !period_End) {
     return res.status(400).json({ error: "period_Start and period_End are required." });
+  }
+  if (period_Start > period_End) {
+    return res.status(400).json({ error: "Invalid date range: period_Start cannot be after period_End." });
   }
 
   try {
@@ -2489,6 +2518,16 @@ exports.resendBatchPayrollEmails = async (req, res) => {
       }
     }
 
+    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+    await logTransaction(
+      null,
+      currentAdminId,
+      "BATCH_PAYROLL_RESEND_EMAILS",
+      `Resent payslip emails for period ${period_Start} to ${period_End} (sent: ${successCount}, errors: ${errors.length})`,
+      { period_Start, period_End, successCount, totalCount: payrolls.length, errorsCount: errors.length },
+      req
+    );
+
     res.status(200).json({
       message: `Successfully processed and sent ${successCount} of ${payrolls.length} payroll emails.`,
       successCount,
@@ -2560,7 +2599,9 @@ exports.getPayrollByUser = async (req, res) => {
 // ── View Payroll by ID ────────────────────────────────────────────────────────
 exports.getPayrollById = async (req, res) => {
   const { payrollId } = req.params;
-  if (isNaN(parseInt(payrollId))) return res.status(400).json({ error: "Invalid ID" });
+  if (!payrollId || isNaN(parseInt(payrollId, 10)) || parseInt(payrollId, 10) <= 0) {
+    return res.status(400).json({ error: "Invalid ID: payrollId must be a positive integer." });
+  }
 
   try {
     const payroll = await sequelize.query(
@@ -2657,6 +2698,9 @@ exports.getPayrollById = async (req, res) => {
 // ── Get Payroll Report ────────────────────────────────────────────────────────
 exports.getPayrollReport = async (req, res) => {
   const { startDate, endDate, user_Id } = req.query;
+  if (startDate && endDate && startDate > endDate) {
+    return res.status(400).json({ error: "Invalid date range: startDate cannot be after endDate." });
+  }
   try {
     let query = `
       SELECT
@@ -2745,6 +2789,9 @@ exports.downloadPayrollSummaryPDF = async (req, res) => {
 
     if (!period_Start || !period_End) {
       return res.status(400).json({ error: "Missing period parameters." });
+    }
+    if (period_Start > period_End) {
+      return res.status(400).json({ error: "Invalid date range: period_Start cannot be after period_End." });
     }
 
     // 1. Try to get saved payroll records
@@ -2851,6 +2898,12 @@ exports.downloadPayrollSummaryPDF = async (req, res) => {
 // ── Get Payroll Summary Preview (HTML) ────────────────────────────────────────
 exports.getPayrollSummaryPreview = async (req, res) => {
   let { period_Start, period_End } = req.query;
+  if (!period_Start || !period_End) {
+    return res.status(400).json({ error: "Missing required query parameters: period_Start and period_End." });
+  }
+  if (period_Start > period_End) {
+    return res.status(400).json({ error: "Invalid date range: period_Start cannot be after period_End." });
+  }
   try {
     // 1. Try to get saved payroll records
     let payrollRows = await sequelize.query(
@@ -2996,9 +3049,23 @@ exports.updatePayrollFull = async (req, res) => {
 // ── Sync Maxicare History from Matrix ─────────────────────────────────────────
 exports.syncMaxicareHistory = async (req, res) => {
   const { updates } = req.body;
-  console.log(`[DEBUG_MAXICARE_SYNC] Received ${updates?.length || 0} updates.`);
-  
   if (!Array.isArray(updates)) return res.status(400).json({ error: "Updates array required." });
+  if (updates.length === 0) return res.status(400).json({ error: "Updates array cannot be empty." });
+
+  // Strictly validate each item before processing
+  for (const item of updates) {
+    const { date, user_Id, amount } = item;
+    if (!user_Id || isNaN(parseInt(user_Id, 10)) || parseInt(user_Id, 10) <= 0) {
+      return res.status(400).json({ error: "Invalid user_Id in updates payload: must be a positive integer." });
+    }
+    const parsedAmount = parseFloat(amount);
+    if (isNaN(parsedAmount) || parsedAmount < 0) {
+      return res.status(400).json({ error: "Invalid amount in updates payload: must be a non-negative number." });
+    }
+    if (!date) {
+      return res.status(400).json({ error: "Date is required for each update item." });
+    }
+  }
 
   try {
     const { Payroll_maxicare } = require("../config/sequelize.js");
@@ -3011,8 +3078,6 @@ exports.syncMaxicareHistory = async (req, res) => {
         const isPast = date <= nowStr.split(' ')[0];
         const status = explicitStatus || (isPast ? 'paid' : 'estimated');
         
-        console.log(`[DEBUG_UPSERT] User: ${user_Id}, Date: ${date}, Status: ${status}, Amount: ${amount}`);
-
         await Payroll_maxicare.upsert({
           user_Id,
           max_Month: date,
@@ -3062,7 +3127,28 @@ exports.syncMaxicareHistory = async (req, res) => {
         console.error(`[ERROR_SYNC_ITEM] Failed for User ${user_Id} on ${date}:`, itemErr.message);
       }
     }
-    res.status(200).json({ message: "Maxicare history synced successfully." });
+
+    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+    await logAudit(
+      req,
+      currentAdminId,
+      "Payroll",
+      "MAXICARE_MATRIX_SYNC",
+      "Payroll_maxicare",
+      null,
+      null,
+      { updatedCount: updates.length }
+    );
+    await logTransaction(
+      null,
+      currentAdminId,
+      "MAXICARE_MATRIX_SYNC",
+      `Synchronized ${updates.length} Maxicare HMO deduction entries`,
+      { updatedCount: updates.length },
+      req
+    );
+
+    res.status(200).json({ message: "Maxicare history synced successfully.", updatedCount: updates.length });
   } catch (error) {
     console.error("[FATAL_MAXICARE_SYNC_ERROR]:", error.message);
     res.status(500).json({ error: error.message });
@@ -3149,6 +3235,25 @@ exports.getLoanHistory = async (req, res) => {
 exports.syncLoanHistory = async (req, res) => {
   const { updates } = req.body;
   if (!Array.isArray(updates)) return res.status(400).json({ error: "Updates array required." });
+  if (updates.length === 0) return res.status(400).json({ error: "Updates array cannot be empty." });
+
+  // Strictly validate each item before processing
+  for (const item of updates) {
+    const { date, user_Id, amount, type } = item;
+    if (!user_Id || isNaN(parseInt(user_Id, 10)) || parseInt(user_Id, 10) <= 0) {
+      return res.status(400).json({ error: "Invalid user_Id in updates payload: must be a positive integer." });
+    }
+    const parsedAmount = parseFloat(amount);
+    if (isNaN(parsedAmount) || parsedAmount < 0) {
+      return res.status(400).json({ error: "Invalid amount in updates payload: must be a non-negative number." });
+    }
+    if (!date) {
+      return res.status(400).json({ error: "Date is required for each update item." });
+    }
+    if (!type || !loanTypeMapper[type]) {
+      return res.status(400).json({ error: `Invalid or unsupported loan type in update payload: '${type}'.` });
+    }
+  }
 
   try {
     const now = await getSystemTime();
@@ -3209,7 +3314,7 @@ exports.syncLoanHistory = async (req, res) => {
         if (categoryTypes.length > 0) {
           const sumRes = await sequelize.query(
             `SELECT SUM("amount") as "total" FROM "Payroll_GovernmentLoans" 
-             WHERE "user_Id" = :user_Id AND "date" = :date AND "government_type" IN (:categoryTypes)`,
+             WHERE "user_Id" = :user_Id AND "date" = :date AND "government_type"::text IN (:categoryTypes)`,
             { replacements: { user_Id, date, categoryTypes }, type: QueryTypes.SELECT }
           );
           finalAmount = parseFloat(sumRes[0]?.total || 0);
@@ -3245,6 +3350,26 @@ exports.syncLoanHistory = async (req, res) => {
         );
       }
     }
+
+    const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+    await logAudit(
+      req,
+      currentAdminId,
+      "Payroll",
+      "LOAN_MATRIX_SYNC",
+      "Payroll_GovernmentLoans",
+      null,
+      null,
+      { updatedCount: totalUpdated, loanType: updates[0]?.type }
+    );
+    await logTransaction(
+      null,
+      currentAdminId,
+      "LOAN_MATRIX_SYNC",
+      `Synchronized ${totalUpdated} loan deduction entries for type ${updates[0]?.type || 'Loan'}`,
+      { updatedCount: totalUpdated, loanType: updates[0]?.type },
+      req
+    );
 
     res.status(200).json({ message: "History synced successfully.", updatedCount: totalUpdated });
   } catch (error) {
@@ -3286,7 +3411,10 @@ exports.getMaxicareHistory = async (req, res) => {
  */
 exports.getThirteenthMonthPreview = async (req, res) => {
   const { year } = req.query;
-  if (!year) return res.status(400).json({ error: "Year is required." });
+  const parsedYear = parseInt(year, 10);
+  if (!year || isNaN(parsedYear) || parsedYear < 2000 || parsedYear > 2100) {
+    return res.status(400).json({ error: "Invalid year parameter: must be between 2000 and 2100." });
+  }
 
   try {
     const preview = await sequelize.query(
@@ -3321,7 +3449,7 @@ exports.getThirteenthMonthPreview = async (req, res) => {
        GROUP BY u."user_Id", u."user_FirstName", u."user_LastName", tm."status", tm."amount", u."deletedAt"
        HAVING COALESCE(SUM(p."basicPay"), 0) > 0 OR tm."status" IS NOT NULL
        ORDER BY u."user_LastName" ASC`,
-      { replacements: { year: parseInt(year) }, type: QueryTypes.SELECT }
+      { replacements: { year: parsedYear }, type: QueryTypes.SELECT }
     );
 
     res.status(200).json(preview);
@@ -3336,10 +3464,13 @@ exports.getThirteenthMonthPreview = async (req, res) => {
  */
 exports.generateThirteenthMonth = async (req, res) => {
   const { year, records } = req.body; 
-  console.log(`[13TH_MONTH_GEN] Received request for year ${year} with ${records?.length} records`);
+  const parsedYear = parseInt(year, 10);
+  if (!year || isNaN(parsedYear) || parsedYear < 2000 || parsedYear > 2100) {
+    return res.status(400).json({ error: "Invalid year parameter: must be between 2000 and 2100." });
+  }
 
-  if (!year || !records || !Array.isArray(records)) {
-    return res.status(400).json({ error: "Year and records array are required." });
+  if (!records || !Array.isArray(records) || records.length === 0) {
+    return res.status(400).json({ error: "Records array is required and cannot be empty." });
   }
 
   try {
@@ -3370,7 +3501,7 @@ exports.generateThirteenthMonth = async (req, res) => {
         { 
           replacements: { 
             user_Id: rec.user_Id, 
-            year: parseInt(year), 
+            year: parsedYear, 
             totalBasicEarned: basicEarned, 
             amount: parseFloat(rec.amount || 0), 
             taxable_Excess: parseFloat(rec.taxable_Excess || 0),
@@ -3382,10 +3513,18 @@ exports.generateThirteenthMonth = async (req, res) => {
       savedCount++;
     }
 
-    console.log(`[13TH_MONTH_GEN] Saved: ${savedCount}, Skipped: ${skippedCount}`);
-
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
-    await logTransaction(null, currentAdminId, "13TH_MONTH_GEN", `Generated draft 13th month records for year ${year}`, { year, count: savedCount }, req);
+    await logAudit(
+      req,
+      currentAdminId,
+      "Payroll",
+      "13TH_MONTH_GEN",
+      "Payroll_ThirteenthMonth",
+      null,
+      null,
+      { year: parsedYear, savedCount }
+    );
+    await logTransaction(null, currentAdminId, "13TH_MONTH_GEN", `Generated draft 13th month records for year ${year}`, { year: parsedYear, count: savedCount }, req);
 
     res.status(201).json({ message: `Successfully saved ${savedCount} 13th month drafts.`, savedCount, skippedCount });
   } catch (error) {
@@ -3400,15 +3539,15 @@ exports.generateThirteenthMonth = async (req, res) => {
  */
 exports.releaseThirteenthMonth = async (req, res) => {
   const { year } = req.body;
-  console.log(`[13TH_MONTH_RELEASE] Processing release for year ${year}`);
-  
-  if (!year) return res.status(400).json({ error: "Year is required." });
+  const parsedYear = parseInt(year, 10);
+  if (!year || isNaN(parsedYear) || parsedYear < 2000 || parsedYear > 2100) {
+    return res.status(400).json({ error: "Invalid year parameter: must be between 2000 and 2100." });
+  }
 
   const t = await sequelize.transaction();
   try {
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
-    const parsedYear = parseInt(year);
 
     // 1. Fetch eligible data (same logic as preview)
     const eligibleRecords = await sequelize.query(
@@ -3465,7 +3604,17 @@ exports.releaseThirteenthMonth = async (req, res) => {
     await t.commit();
 
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
-    await logTransaction(null, currentAdminId, "13TH_MONTH_RELEASE", `Released 13th month records for year ${year}`, { year, updatedCount: eligibleRecords.length }, req);
+    await logAudit(
+      req,
+      currentAdminId,
+      "Payroll",
+      "13TH_MONTH_RELEASE",
+      "Payroll_ThirteenthMonth",
+      null,
+      null,
+      { year: parsedYear, releasedCount: eligibleRecords.length }
+    );
+    await logTransaction(null, currentAdminId, "13TH_MONTH_RELEASE", `Released 13th month records for year ${year}`, { year: parsedYear, updatedCount: eligibleRecords.length }, req);
 
     res.status(200).json({ 
       message: `Successfully released ${eligibleRecords.length} 13th month records for ${year}.`, 
@@ -3598,8 +3747,9 @@ exports.getSeparationCauses = async (req, res) => {
  */
 exports.getSeparationPayPreview = async (req, res) => {
   const { user_Id, separationDate } = req.query;
-  if (!user_Id || !separationDate) {
-    return res.status(400).json({ error: "user_Id and separationDate are required." });
+  const parsedUserId = parseInt(user_Id, 10);
+  if (!user_Id || isNaN(parsedUserId) || parsedUserId <= 0 || !separationDate) {
+    return res.status(400).json({ error: "Valid user_Id (positive integer) and separationDate are required." });
   }
 
   try {
@@ -3609,7 +3759,7 @@ exports.getSeparationPayPreview = async (req, res) => {
        FROM "User" u
        LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
        WHERE u."user_Id" = :user_Id LIMIT 1`,
-      { replacements: { user_Id }, type: QueryTypes.SELECT }
+      { replacements: { user_Id: parsedUserId }, type: QueryTypes.SELECT }
     );
 
     if (userResult.length === 0) return res.status(404).json({ error: "User not found." });
@@ -3755,14 +3905,16 @@ exports.getSeparationPayPreview = async (req, res) => {
 exports.generateSeparationPay = async (req, res) => {
   const { user_Id, separationDate, causeId, reason, status } = req.body;
   const targetStatus = status || 'Draft';
+  const parsedUserId = parseInt(user_Id, 10);
+  const parsedCauseId = parseInt(causeId, 10);
 
-  if (!user_Id || !separationDate || !causeId) {
-    return res.status(400).json({ error: "user_Id, separationDate, and causeId are required." });
+  if (!user_Id || isNaN(parsedUserId) || parsedUserId <= 0 || !separationDate || !causeId || isNaN(parsedCauseId) || parsedCauseId <= 0) {
+    return res.status(400).json({ error: "Valid user_Id, separationDate, and causeId are required." });
   }
 
   const t = await sequelize.transaction();
   try {
-    const previewRes = await exports.getSeparationPayPreview({ query: { user_Id, separationDate } }, { 
+    const previewRes = await exports.getSeparationPayPreview({ query: { user_Id: parsedUserId, separationDate } }, { 
       status: () => ({ json: (d) => d }),
       json: (d) => d
     });
@@ -3772,7 +3924,7 @@ exports.generateSeparationPay = async (req, res) => {
       return res.status(400).json({ error: previewRes.error });
     }
 
-    const selectedCause = previewRes.preview.find(p => p.causeId === parseInt(causeId));
+    const selectedCause = previewRes.preview.find(p => p.causeId === parsedCauseId);
     if (!selectedCause) {
       await t.rollback();
       return res.status(400).json({ error: "Invalid causeId." });
@@ -3805,7 +3957,7 @@ exports.generateSeparationPay = async (req, res) => {
        RETURNING "separationId"`,
       {
         replacements: {
-          user_Id,
+          user_Id: parsedUserId,
           hireDate: previewRes.hireDate,
           separationDate,
           yearsOfService: previewRes.yearsOfService,
@@ -3819,7 +3971,7 @@ exports.generateSeparationPay = async (req, res) => {
           loanDeductions,
           netAmount,
           reason: reason || selectedCause.causeName,
-          causeId,
+          causeId: parsedCauseId,
           status: targetStatus,
           now: nowStr
         },
@@ -3833,11 +3985,11 @@ exports.generateSeparationPay = async (req, res) => {
     if (targetStatus === 'Notice Served') {
       await sequelize.query(
         `UPDATE "User" SET "user_EmploymentStatusId" = 4, "updatedAt" = :now WHERE "user_Id" = :user_Id`,
-        { replacements: { user_Id, now: nowStr }, type: QueryTypes.UPDATE, transaction: t }
+        { replacements: { user_Id: parsedUserId, now: nowStr }, type: QueryTypes.UPDATE, transaction: t }
       );
 
       const user = await sequelize.query(`SELECT "user_Email", "user_FirstName", "user_LastName" FROM "User" WHERE "user_Id" = :user_Id`, {
-        replacements: { user_Id },
+        replacements: { user_Id: parsedUserId },
         type: QueryTypes.SELECT,
         transaction: t
       });
@@ -3855,7 +4007,17 @@ exports.generateSeparationPay = async (req, res) => {
     await t.commit();
 
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
-    await logTransaction(null, currentAdminId, "SEPARATION_GEN", `Generated separation pay (${targetStatus}) for user ${user_Id}`, { separationId }, req);
+    await logAudit(
+      req,
+      currentAdminId,
+      "Payroll",
+      "SEPARATION_PAY_GEN",
+      "Payroll_Separation",
+      separationId,
+      null,
+      { user_Id: parsedUserId, causeId: parsedCauseId, targetStatus }
+    );
+    await logTransaction(null, currentAdminId, "SEPARATION_GEN", `Generated separation pay (${targetStatus}) for user ${parsedUserId}`, { separationId }, req);
 
     res.status(201).json({ message: `Separation pay ${targetStatus.toLowerCase()} successfully.`, separationId });
   } catch (error) {
@@ -3869,6 +4031,10 @@ exports.generateSeparationPay = async (req, res) => {
  */
 exports.releaseSeparationPay = async (req, res) => {
   const { separationId } = req.params;
+  const parsedSepId = parseInt(separationId, 10);
+  if (!separationId || isNaN(parsedSepId) || parsedSepId <= 0) {
+    return res.status(400).json({ error: "Invalid separationId: must be a positive integer." });
+  }
   const t = await sequelize.transaction();
   try {
     const now = await getSystemTime();
@@ -3876,7 +4042,7 @@ exports.releaseSeparationPay = async (req, res) => {
 
     const record = await sequelize.query(
       `SELECT * FROM "Payroll_Separation" WHERE "separationId" = :separationId LIMIT 1`,
-      { replacements: { separationId }, type: QueryTypes.SELECT, transaction: t }
+      { replacements: { separationId: parsedSepId }, type: QueryTypes.SELECT, transaction: t }
     );
 
     if (record.length === 0) {
@@ -3959,7 +4125,17 @@ exports.releaseSeparationPay = async (req, res) => {
     }
 
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
-    await logTransaction(null, currentAdminId, "SEPARATION_RELEASE", `Released separation pay and archived user ${user_Id}`, { separationId, user_Id }, req);
+    await logAudit(
+      req,
+      currentAdminId,
+      "Payroll",
+      "SEPARATION_PAY_RELEASE",
+      "Payroll_Separation",
+      parsedSepId,
+      null,
+      { user_Id }
+    );
+    await logTransaction(null, currentAdminId, "SEPARATION_RELEASE", `Released separation pay and archived user ${user_Id}`, { separationId: parsedSepId, user_Id }, req);
 
     res.status(200).json({ message: "Separation pay released and employee archived." });
   } catch (error) {
@@ -3973,6 +4149,10 @@ exports.releaseSeparationPay = async (req, res) => {
  */
 exports.cancelSeparationPay = async (req, res) => {
   const { separationId } = req.params;
+  const parsedSepId = parseInt(separationId, 10);
+  if (!separationId || isNaN(parsedSepId) || parsedSepId <= 0) {
+    return res.status(400).json({ error: "Invalid separationId: must be a positive integer." });
+  }
   const t = await sequelize.transaction();
   try {
     const now = await getSystemTime();
@@ -3980,7 +4160,7 @@ exports.cancelSeparationPay = async (req, res) => {
 
     const record = await sequelize.query(
       `SELECT * FROM "Payroll_Separation" WHERE "separationId" = :separationId LIMIT 1`,
-      { replacements: { separationId }, type: QueryTypes.SELECT, transaction: t }
+      { replacements: { separationId: parsedSepId }, type: QueryTypes.SELECT, transaction: t }
     );
 
     if (record.length === 0) {
@@ -4004,7 +4184,7 @@ exports.cancelSeparationPay = async (req, res) => {
     // 2. Delete Separation Record
     await sequelize.query(
       `DELETE FROM "Payroll_Separation" WHERE "separationId" = :separationId`,
-      { replacements: { separationId }, type: QueryTypes.DELETE, transaction: t }
+      { replacements: { separationId: parsedSepId }, type: QueryTypes.DELETE, transaction: t }
     );
 
     // 3. Get User Email for notification
@@ -4024,7 +4204,17 @@ exports.cancelSeparationPay = async (req, res) => {
     await t.commit();
 
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
-    await logTransaction(null, currentAdminId, "SEPARATION_CANCEL", `Rescinded separation for user ${user_Id}`, { separationId, user_Id }, req);
+    await logAudit(
+      req,
+      currentAdminId,
+      "Payroll",
+      "SEPARATION_PAY_CANCEL",
+      "Payroll_Separation",
+      parsedSepId,
+      { status: record[0].status },
+      { status: "Cancelled", user_Id }
+    );
+    await logTransaction(null, currentAdminId, "SEPARATION_CANCEL", `Rescinded separation for user ${user_Id}`, { separationId: parsedSepId, user_Id }, req);
 
     res.status(200).json({ message: "Termination notice rescinded and employee status restored." });
   } catch (error) {
@@ -4061,8 +4251,9 @@ exports.getSeparationPayHistory = async (req, res) => {
  */
 exports.getRetirementPayPreview = async (req, res) => {
   const { user_Id, retirementDate } = req.query;
-  if (!user_Id || !retirementDate) {
-    return res.status(400).json({ error: "user_Id and retirementDate are required." });
+  const parsedUserId = parseInt(user_Id, 10);
+  if (!user_Id || isNaN(parsedUserId) || parsedUserId <= 0 || !retirementDate) {
+    return res.status(400).json({ error: "user_Id (positive integer) and retirementDate are required." });
   }
 
   try {
@@ -4070,7 +4261,7 @@ exports.getRetirementPayPreview = async (req, res) => {
       `SELECT u."user_Id", u."user_FirstName", u."user_LastName", u."hireDate", u."user_DOB", u."dailyRate", u."hasAvailedRetirementTax"
        FROM "User" u
        WHERE u."user_Id" = :user_Id LIMIT 1`,
-      { replacements: { user_Id }, type: QueryTypes.SELECT }
+      { replacements: { user_Id: parsedUserId }, type: QueryTypes.SELECT }
     );
 
     if (userResult.length === 0) return res.status(404).json({ error: "User not found." });
@@ -4220,12 +4411,13 @@ exports.getRetirementPayPreview = async (req, res) => {
  */
 exports.generateRetirementPay = async (req, res) => {
   const { user_Id, retirementDate } = req.body;
-  if (!user_Id || !retirementDate) {
-    return res.status(400).json({ error: "user_Id and retirementDate are required." });
+  const parsedUserId = parseInt(user_Id, 10);
+  if (!user_Id || isNaN(parsedUserId) || parsedUserId <= 0 || !retirementDate) {
+    return res.status(400).json({ error: "user_Id (positive integer) and retirementDate are required." });
   }
 
   try {
-    const previewRes = await exports.getRetirementPayPreview({ query: { user_Id, retirementDate } }, { 
+    const previewRes = await exports.getRetirementPayPreview({ query: { user_Id: parsedUserId, retirementDate } }, { 
       status: () => ({ json: (d) => d }),
       json: (d) => d
     });
@@ -4261,7 +4453,7 @@ exports.generateRetirementPay = async (req, res) => {
        RETURNING "retirementId"`,
       {
         replacements: {
-          user_Id,
+          user_Id: parsedUserId,
           hireDate: previewRes.hireDate,
           retirementDate,
           yearsOfService: previewRes.yearsOfService,
@@ -4284,7 +4476,17 @@ exports.generateRetirementPay = async (req, res) => {
     );
 
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
-    await logTransaction(null, currentAdminId, "RETIREMENT_GEN", `Generated retirement pay draft for user ${user_Id}`, { retirementId: result[0][0].retirementId }, req);
+    await logAudit(
+      req,
+      currentAdminId,
+      "Payroll",
+      "RETIREMENT_PAY_GEN",
+      "Payroll_Retirement",
+      result[0][0].retirementId,
+      null,
+      { user_Id: parsedUserId, retirementDate, netAmount }
+    );
+    await logTransaction(null, currentAdminId, "RETIREMENT_GEN", `Generated retirement pay draft for user ${parsedUserId}`, { retirementId: result[0][0].retirementId }, req);
 
     res.status(201).json({ message: "Retirement pay draft generated.", retirementId: result[0][0].retirementId });
   } catch (error) {
@@ -4297,6 +4499,10 @@ exports.generateRetirementPay = async (req, res) => {
  */
 exports.releaseRetirementPay = async (req, res) => {
   const { retirementId } = req.params;
+  const parsedRetirementId = parseInt(retirementId, 10);
+  if (!retirementId || isNaN(parsedRetirementId) || parsedRetirementId <= 0) {
+    return res.status(400).json({ error: "Invalid retirementId: must be a positive integer." });
+  }
   try {
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
@@ -4304,7 +4510,7 @@ exports.releaseRetirementPay = async (req, res) => {
     // Get the retirement record first to update user tax status later
     const retirement = await sequelize.query(
       `SELECT * FROM "Payroll_Retirement" WHERE "retirementId" = :retirementId LIMIT 1`,
-      { replacements: { retirementId }, type: QueryTypes.SELECT }
+      { replacements: { retirementId: parsedRetirementId }, type: QueryTypes.SELECT }
     );
 
     if (retirement.length === 0) return res.status(404).json({ error: "Retirement record not found." });
@@ -4316,7 +4522,7 @@ exports.releaseRetirementPay = async (req, res) => {
       // 1. Update Retirement Status
       await sequelize.query(
         `UPDATE "Payroll_Retirement" SET "status" = 'Released', "releasedAt" = :now, "updatedAt" = :now WHERE "retirementId" = :retirementId`,
-        { replacements: { retirementId, now: nowStr }, type: QueryTypes.UPDATE, transaction: t }
+        { replacements: { retirementId: parsedRetirementId, now: nowStr }, type: QueryTypes.UPDATE, transaction: t }
       );
 
       // 2. If it was tax exempt, mark user as having availed it
@@ -4375,9 +4581,19 @@ exports.releaseRetirementPay = async (req, res) => {
         { replacements: { user_Id, now: nowStr }, type: QueryTypes.UPDATE, transaction: t }
       );
 
-      // 6. Log Transaction
+      // 6. Log Transaction & Audit
       const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
-      await logTransaction(null, currentAdminId, "RETIREMENT_RELEASE", `Released retirement pay ID ${retirementId} and archived user ${user_Id}`, { retirementId, user_Id }, req);
+      await logAudit(
+        req,
+        currentAdminId,
+        "Payroll",
+        "RETIREMENT_PAY_RELEASE",
+        "Payroll_Retirement",
+        parsedRetirementId,
+        null,
+        { user_Id }
+      );
+      await logTransaction(null, currentAdminId, "RETIREMENT_RELEASE", `Released retirement pay ID ${parsedRetirementId} and archived user ${user_Id}`, { retirementId: parsedRetirementId, user_Id }, req);
 
       if (currentFpSlot) {
         queueSlotDeletion(currentFpSlot);
@@ -4397,6 +4613,10 @@ exports.releaseRetirementPay = async (req, res) => {
 exports.updateRetirementDate = async (req, res) => {
   const { retirementId } = req.params;
   const { retirementDate } = req.body;
+  const parsedRetirementId = parseInt(retirementId, 10);
+  if (!retirementId || isNaN(parsedRetirementId) || parsedRetirementId <= 0) {
+    return res.status(400).json({ error: "Invalid retirementId: must be a positive integer." });
+  }
 
   if (!retirementDate) return res.status(400).json({ error: "retirementDate is required." });
 
@@ -4404,7 +4624,7 @@ exports.updateRetirementDate = async (req, res) => {
     // 1. Fetch current record
     const record = await sequelize.query(
       `SELECT * FROM "Payroll_Retirement" WHERE "retirementId" = :retirementId LIMIT 1`,
-      { replacements: { retirementId }, type: QueryTypes.SELECT }
+      { replacements: { retirementId: parsedRetirementId }, type: QueryTypes.SELECT }
     );
 
     if (record.length === 0) return res.status(404).json({ error: "Record not found." });
@@ -4447,7 +4667,7 @@ exports.updateRetirementDate = async (req, res) => {
        WHERE "retirementId" = :retirementId`,
       {
         replacements: {
-          retirementId,
+          retirementId: parsedRetirementId,
           retirementDate,
           yearsOfService: previewRes.yearsOfService,
           totalAmount: previewRes.totalAmount,
@@ -4466,7 +4686,17 @@ exports.updateRetirementDate = async (req, res) => {
     );
 
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
-    await logTransaction(null, currentAdminId, "RETIREMENT_UPDATE", `Updated retirement date to ${retirementDate} for user ${user_Id}`, { retirementId }, req);
+    await logAudit(
+      req,
+      currentAdminId,
+      "Payroll",
+      "RETIREMENT_PAY_UPDATE_DATE",
+      "Payroll_Retirement",
+      parsedRetirementId,
+      { retirementDate: record[0].retirementDate },
+      { retirementDate, user_Id }
+    );
+    await logTransaction(null, currentAdminId, "RETIREMENT_UPDATE", `Updated retirement date to ${retirementDate} for user ${user_Id}`, { retirementId: parsedRetirementId }, req);
 
     res.status(200).json({ message: "Retirement date updated and amounts re-calculated." });
   } catch (error) {
@@ -4522,6 +4752,10 @@ exports.getActiveLoans = async (req, res) => {
  */
 exports.getLoanById = async (req, res) => {
   const { id } = req.params;
+  const parsedId = parseInt(id, 10);
+  if (!id || isNaN(parsedId) || parsedId <= 0) {
+    return res.status(400).json({ error: "Invalid loan ID: must be a positive integer." });
+  }
   try {
     const loanResult = await sequelize.query(
       `SELECT 
@@ -5027,19 +5261,30 @@ exports.getMyThirteenthMonthHistory = async (req, res) => {
  */
 exports.deleteThirteenthMonthDrafts = async (req, res) => {
   const { year } = req.params;
-  if (!year || isNaN(parseInt(year))) {
-    return res.status(400).json({ error: "A valid year is required." });
+  const parsedYear = parseInt(year, 10);
+  if (!year || isNaN(parsedYear) || parsedYear < 2000 || parsedYear > 2100) {
+    return res.status(400).json({ error: "Invalid year parameter: must be between 2000 and 2100." });
   }
 
   try {
     const deleted = await sequelize.query(
       `DELETE FROM "Payroll_ThirteenthMonth" 
        WHERE "year" = :year AND "status" = 'Draft'`,
-      { replacements: { year: parseInt(year) }, type: QueryTypes.DELETE }
+      { replacements: { year: parsedYear }, type: QueryTypes.DELETE }
     );
 
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
-    await logTransaction(null, currentAdminId, "13TH_MONTH_DISCARD_DRAFTS", `Discarded draft 13th month records for year ${year}`, { year }, req);
+    await logAudit(
+      req,
+      currentAdminId,
+      "Payroll",
+      "13TH_MONTH_DISCARD",
+      "Payroll_ThirteenthMonth",
+      null,
+      null,
+      { year: parsedYear }
+    );
+    await logTransaction(null, currentAdminId, "13TH_MONTH_DISCARD_DRAFTS", `Discarded draft 13th month records for year ${year}`, { year: parsedYear }, req);
 
     res.status(200).json({ message: `Successfully discarded draft 13th month records for year ${year}.` });
   } catch (error) {
@@ -5115,6 +5360,9 @@ exports.getGovLoanHistoryAll = async (req, res) => {
  */
 exports.downloadGovLoanReportPDF = async (req, res) => {
   const { year, type } = req.query;
+  if (year && year !== "All Years" && (isNaN(parseInt(year, 10)) || parseInt(year, 10) < 2000 || parseInt(year, 10) > 2100)) {
+    return res.status(400).json({ error: "Invalid year parameter." });
+  }
   try {
     let query = `
       SELECT 
@@ -5157,6 +5405,9 @@ exports.downloadGovLoanReportPDF = async (req, res) => {
  */
 exports.getEastwestLoanHistory = async (req, res) => {
   const { year } = req.query;
+  if (year && year !== "All Years" && (isNaN(parseInt(year, 10)) || parseInt(year, 10) < 2000 || parseInt(year, 10) > 2100)) {
+    return res.status(400).json({ error: "Invalid year parameter." });
+  }
   try {
     let query = `
       SELECT * FROM (
@@ -5212,6 +5463,9 @@ exports.getEastwestLoanHistory = async (req, res) => {
  */
 exports.downloadEastwestLoanReportPDF = async (req, res) => {
   const { year } = req.query;
+  if (year && year !== "All Years" && (isNaN(parseInt(year, 10)) || parseInt(year, 10) < 2000 || parseInt(year, 10) > 2100)) {
+    return res.status(400).json({ error: "Invalid year parameter." });
+  }
   try {
     let query = `
       SELECT * FROM (
@@ -5271,6 +5525,10 @@ exports.downloadEastwestLoanReportPDF = async (req, res) => {
  */
 exports.downloadIndividualLoanPDF = async (req, res) => {
   const { id } = req.params;
+  const parsedId = parseInt(id, 10);
+  if (!id || isNaN(parsedId) || parsedId <= 0) {
+    return res.status(400).json({ error: "Invalid loan ID: must be a positive integer." });
+  }
   try {
     // We can reuse getLoanById internal logic or call it
     const loanResult = await sequelize.query(

@@ -43,7 +43,7 @@ import {
 const ThirteenthMonth = () => {
   const { systemToday } = useSystemTime();
   const currentYear = useMemo(() => {
-    return systemToday ? systemToday.getFullYear().toString() : new Date().getFullYear().toString();
+    return systemToday ? new Date(systemToday).getFullYear().toString() : new Date().getFullYear().toString();
   }, [systemToday]);
 
   const [previewData, setPreviewData] = useState([]);

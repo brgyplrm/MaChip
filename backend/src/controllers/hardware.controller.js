@@ -58,8 +58,9 @@ exports.getAllRfidCards = async (req, res) => {
 exports.assignRfidCard = async (req, res) => {
   const { user_Id, machip_id } = req.body;
 
-  if (!user_Id || !machip_id) {
-    return res.status(400).json({ error: "User ID and Card UID are required." });
+  const parsedUserId = parseInt(user_Id, 10);
+  if (!user_Id || isNaN(parsedUserId) || parsedUserId <= 0 || !machip_id || typeof machip_id !== "string" || machip_id.trim() === "") {
+    return res.status(400).json({ error: "Valid User ID and Card UID are required." });
   }
 
   try {
@@ -105,6 +106,11 @@ const { encrypt } = require("../utils/encryption.js");
 
 exports.revokeRfidCard = async (req, res) => {
   const { userId } = req.params;
+
+  const parsedUserId = parseInt(userId, 10);
+  if (!userId || isNaN(parsedUserId) || parsedUserId <= 0) {
+    return res.status(400).json({ error: "Valid User ID is required." });
+  }
 
   try {
     const nowStr = new Date().toISOString();
@@ -188,8 +194,10 @@ exports.getAllFingerprints = async (req, res) => {
 exports.assignFingerprint = async (req, res) => {
   const { user_Id, fingerprintIndex, fingerprintTemplate, slotNumber } = req.body;
 
-  if (!user_Id || !fingerprintIndex) {
-    return res.status(400).json({ error: "User ID and Fingerprint Slot are required." });
+  const parsedUserId = parseInt(user_Id, 10);
+  const parsedFpIndex = parseInt(fingerprintIndex, 10);
+  if (!user_Id || isNaN(parsedUserId) || parsedUserId <= 0 || !fingerprintIndex || isNaN(parsedFpIndex) || parsedFpIndex <= 0) {
+    return res.status(400).json({ error: "Valid User ID and Fingerprint Slot are required." });
   }
 
   try {
@@ -277,6 +285,11 @@ exports.assignFingerprint = async (req, res) => {
 exports.clearFingerprint = async (req, res) => {
   const { userId } = req.params;
   const slotNumber = req.query.slotNumber || req.body?.slotNumber;
+
+  const parsedUserId = parseInt(userId, 10);
+  if (!userId || isNaN(parsedUserId) || parsedUserId <= 0) {
+    return res.status(400).json({ error: "Valid User ID is required." });
+  }
 
   try {
     const nowStr = new Date().toISOString();

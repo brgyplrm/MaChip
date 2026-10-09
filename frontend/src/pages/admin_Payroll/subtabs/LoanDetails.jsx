@@ -521,9 +521,9 @@ export default function LoanDetailsPage() {
                                                 </p>
                                                 <p className="text-[11px] font-extrabold text-slate-700 mt-1 whitespace-nowrap font-mono">
                                                     {isCompleted || isInProgress ? (
-                                                        <span className="text-emerald-600">₱{q.totalPaid.toLocaleString()}</span>
+                                                        <span className="text-emerald-600">{formatCurrency(q.totalPaid)}</span>
                                                     ) : (
-                                                        <span className="text-slate-400">₱{q.totalScheduled.toLocaleString()}</span>
+                                                        <span className="text-slate-400">{formatCurrency(q.totalScheduled)}</span>
                                                     )}
                                                 </p>
                                                 <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full mt-1 border shadow-2xs whitespace-nowrap ${badgeClass}`}>

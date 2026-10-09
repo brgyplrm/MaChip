@@ -65,6 +65,13 @@ const PayrollEmployeeList = () => {
     return `•••• •••• ${str.slice(-4)}`;
   };
 
+  const formatMoney = (val) => {
+    return Number(val || 0).toLocaleString("en-PH", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
   const fetchEmployees = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
@@ -385,11 +392,11 @@ const PayrollEmployeeList = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="All Rates">All Rates</SelectItem>
-                    <SelectItem value="0">No Rate (₱0)</SelectItem>
-                    <SelectItem value="1-500">₱1 - ₱500</SelectItem>
-                    <SelectItem value="501-1000">₱501 - ₱1,000</SelectItem>
-                    <SelectItem value="1001-1500">₱1,001 - ₱1,500</SelectItem>
-                    <SelectItem value="1501+">₱1,501+</SelectItem>
+                    <SelectItem value="0">No Rate (₱0.00)</SelectItem>
+                    <SelectItem value="1-500">₱1.00 - ₱500.00</SelectItem>
+                    <SelectItem value="501-1000">₱501.00 - ₱1,000.00</SelectItem>
+                    <SelectItem value="1001-1500">₱1,001.00 - ₱1,500.00</SelectItem>
+                    <SelectItem value="1501+">₱1,501.00+</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -446,9 +453,23 @@ const PayrollEmployeeList = () => {
                                   {emp.user_FirstName?.[0]}{emp.user_LastName?.[0]}
                                 </div>
                                 <div className="flex flex-col">
-                                  <span className="font-bold text-brand-primary text-sm">
-                                    {emp.user_FirstName} {emp.user_LastName}
-                                  </span>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="font-bold text-brand-primary text-sm">
+                                      {emp.user_FirstName} {emp.user_LastName}
+                                    </span>
+                                    {emp.activeLoansList && emp.activeLoansList.length > 0 && (
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 cursor-help">
+                                            {emp.activeLoansList.length} Loan{emp.activeLoansList.length > 1 ? "s" : ""}
+                                          </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs max-w-xs">
+                                          {emp.activeLoansList.map(l => `${l.deductionType}: ₱${formatMoney(l.remainingBalance)} bal`).join(" • ")}
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    )}
+                                  </div>
                                   <span className="text-xs text-slate-500 font-mono">
                                     {formatUserId(emp.user_Id)}
                                   </span>
@@ -524,7 +545,7 @@ const PayrollEmployeeList = () => {
                             <TableCell className="py-4">
                               {hasChanged ? (
                                 <span className="text-sm text-slate-400 line-through decoration-slate-300">
-                                  ₱{parseFloat(emp.previousDailyRate || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                                  ₱{formatMoney(emp.previousDailyRate)}
                                 </span>
                               ) : (
                                 <span className="text-slate-300">—</span>
@@ -534,7 +555,7 @@ const PayrollEmployeeList = () => {
                             <TableCell className="py-4">
                               <div className="flex items-center gap-2">
                                 <span className={`font-bold text-sm ${hasChanged ? (rateWentUp ? "text-green-700" : "text-red-600") : "text-brand-primary"}`}>
-                                  ₱{parseFloat(emp.dailyRate || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                                  ₱{formatMoney(emp.dailyRate)}
                                 </span>
                                 {hasChanged && (
                                   rateWentUp

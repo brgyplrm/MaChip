@@ -3016,8 +3016,12 @@ exports.GetRequestDetails = async (req, res) => {
 
 exports.getLeaveSummary = async (req, res) => {
   const { year } = req.params;
+  const parsedYear = parseInt(year, 10);
+  if (!year || isNaN(parsedYear) || parsedYear < 2000 || parsedYear > 2100) {
+    return res.status(400).json({ error: "Invalid year parameter: must be between 2000 and 2100." });
+  }
   try {
-    const currentYear = parseInt(year || new Date().getFullYear());
+    const currentYear = parsedYear;
 
     // 1. Fetch all active users with their hardware info (exclude visitor placeholder 999)
     const users = await sequelize.query(

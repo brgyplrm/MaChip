@@ -546,7 +546,7 @@ const EastwestLoan = () => {
               <div key={i} className="flex justify-between p-3 border-b text-sm">
                 <span className="text-slate-500">{d.date}</span>
                 <span className={`font-mono ${d.amount > 0 ? "font-bold text-emerald-600" : "text-slate-300"}`}>
-                  {d.amount > 0 ? d.amount.toLocaleString() : "—"}
+                  {d.amount > 0 ? peso(d.amount) : "—"}
                 </span>
               </div>
             ))}
@@ -590,7 +590,7 @@ const HeatmapLoanMatrix = ({ data, employeeList, expectedDates, isInSamePeriod }
                 return (
                   <td 
                     key={emp.key} 
-                    title={`₱${amount.toLocaleString()}`} // Simple hover to show value
+                    title={peso(amount)} // Formatted currency hover
                     className={`h-8 w-12 rounded-sm transition-all cursor-pointer ${getIntensity(amount)}`}
                   />
                 );
