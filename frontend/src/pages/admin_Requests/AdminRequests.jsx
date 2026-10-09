@@ -39,9 +39,13 @@ const AdminRequests = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const userData = JSON.parse(localStorage.getItem("userData"));
-  const [activeTab, setActiveTab] = useState("pending");
+  const [activeTab, setActiveTab] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("tab") || "pending";
+  });
   const [selectedReqId, setSelectedReqId] = useState(null); // Upgraded from selectedIdx
   const handledDeepLinkRef = useRef(null);
+  const lastHandledSearchRef = useRef("");
   const pageAlignedRef = useRef(null);
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -67,7 +71,10 @@ const AdminRequests = () => {
   // History Filter States
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("All");
-  const [statusFilter, setStatusFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("status") || "All";
+  });
   const [dateFilter, setDateFilter] = useState("");
 
   // Pagination States for the List
@@ -97,6 +104,26 @@ const AdminRequests = () => {
     window.addEventListener("dataRefresh", handleBackgroundRefresh);
     return () => window.removeEventListener("dataRefresh", handleBackgroundRefresh);
   }, []);
+
+  // Handle incoming tab/status filters from URL or navigation state
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const tabParam = searchParams.get("tab") || location.state?.activeTab;
+    const statusParam = searchParams.get("status") || location.state?.statusFilter;
+
+    if (location.search && lastHandledSearchRef.current !== location.search && (tabParam || statusParam)) {
+      if (tabParam && (tabParam === "pending" || tabParam === "completed")) {
+        setActiveTab(tabParam);
+      }
+      if (statusParam) {
+        setStatusFilter(statusParam);
+      }
+      lastHandledSearchRef.current = location.search;
+      if (!searchParams.get("requestId") && !location.state?.selectedReqId) {
+        navigate(location.pathname, { replace: true, state: {} });
+      }
+    }
+  }, [location.search, location.state, navigate, location.pathname]);
 
   // Handle incoming requestId from URL or navigation state
   useEffect(() => {
@@ -169,7 +196,7 @@ const AdminRequests = () => {
             processedBy: userData?.user_Id,
             remarks: adminNote,
             withPayId:
-              current?.emp_reqTypeId === 3 || current?.emp_reqTypeId === 4
+              [3, 4, 6, 7, 10].includes(current?.emp_reqTypeId)
                 ? parseInt(paymentStatus)
                 : null,
           }),
@@ -185,10 +212,14 @@ const AdminRequests = () => {
         setAdminNote("");
 
         if (userData?.user_RoleId === 1 && current?.emp_reqTypeId === 5 && statusId === 2) {
-          const logDate = current.LC_logDate.split("T")[0];
-          setTimeout(() => {
-            navigate(`/logs/edit/${current.user_Id}/${logDate}?from=adminRequests`);
-          }, 1500);
+          const logDate = current.LC_logDate ? current.LC_logDate.split("T")[0] : "";
+          if (logDate) {
+            setTimeout(() => {
+              navigate(`/logs/edit/${current.user_Id}/${logDate}?from=adminRequests`);
+            }, 1500);
+          } else {
+            fetchRequests();
+          }
         } else {
           fetchRequests(); 
         }
@@ -344,6 +375,27 @@ const AdminRequests = () => {
   const current = (selectedReqId && currentData.some(r => r.emp_reqId === selectedReqId))
     ? currentData.find(r => r.emp_reqId === selectedReqId)
     : (currentData[0] || null);
+
+  // Synchronize payment status with current request's filed state or balance
+  useEffect(() => {
+    if (current) {
+      const existingWithPay =
+        current.VL_WithPayID ||
+        current.SL_WithPayID ||
+        current.EL_WithPayID ||
+        current.HD_WithPayID ||
+        current.ST_WithPayID;
+      if (existingWithPay) {
+        setPaymentStatus(String(existingWithPay));
+      } else {
+        const hasBalance =
+          (current.emp_reqTypeId === 3 && (current.VL_balance || 0) >= (current.VL_NoDays || 1)) ||
+          (current.emp_reqTypeId === 4 && (current.SL_balance || 0) >= (current.SL_NoDays || 1)) ||
+          (current.emp_reqTypeId === 10 && (current.SoloParent_balance || 0) >= (current.ST_NoDays || 1));
+        setPaymentStatus(hasBalance ? "1" : "2");
+      }
+    }
+  }, [current?.emp_reqId]);
 
   const getTimeLength = (req) => {
     if (!req) return "";

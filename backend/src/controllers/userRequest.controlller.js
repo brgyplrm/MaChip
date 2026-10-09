@@ -533,15 +533,27 @@ exports.UpdateUserRequest = async (req, res) => {
 
 exports.getCalendarReport = async (req, res) => {
   let { startDate, endDate, user_Id } = req.query;
+
+  // 1. Date Inversion Guard
+  if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
+    return res.status(400).json({ message: "Start date cannot be after end date." });
+  }
+
   startDate = (startDate && startDate !== "undefined" && startDate !== "null" && startDate !== "") ? startDate : "1970-01-01";
   endDate = (endDate && endDate !== "undefined" && endDate !== "null" && endDate !== "") ? endDate : "2099-12-31";
   try {
     const replacements = { startDate, endDate };
     let userFilter = "";
 
-    if (user_Id && user_Id !== "All Employees" && user_Id !== "undefined" && user_Id !== "null" && user_Id !== "") {
+    // 2. Zero-Trust Enforced: Regular Employee (Role 3) MUST ONLY see their own personnel events
+    let effectiveUserId = user_Id;
+    if (req.user && Number(req.user.user_RoleId) === 3) {
+      effectiveUserId = req.user.user_Id;
+    }
+
+    if (effectiveUserId && effectiveUserId !== "All Employees" && effectiveUserId !== "undefined" && effectiveUserId !== "null" && effectiveUserId !== "") {
       userFilter = ` AND er."user_Id" = :user_Id`;
-      replacements.user_Id = user_Id;
+      replacements.user_Id = effectiveUserId;
     }
 
     // 1. Fetch Holidays (Holidays are global)
@@ -1805,6 +1817,9 @@ exports.GetAllRequests = async (req, res) => {
     const replacements = { currentYear };
 
     if (startDate && endDate) {
+      if (new Date(startDate) > new Date(endDate)) {
+        return res.status(400).json({ message: "Start date cannot be after end date." });
+      }
       dateFilter = ` AND er."date_Filed"::date BETWEEN :startDate AND :endDate`;
       replacements.startDate = startDate;
       replacements.endDate = endDate;
@@ -1941,7 +1956,8 @@ exports.UpdateStatusRequest = async (req, res) => {
     const nowStr = formatForSQL(now);
     const todayStr = formatDateLocal(now);
 
-    // Fetch the request and the roles of both the requester and processor
+    // Fetch the request and the roles of both the requester and processor (session identity enforced)
+    const effectiveProcessorId = req.user?.user_Id ? Number(req.user.user_Id) : Number(processedBy);
     const detailsResult = await sequelize.query(
       `SELECT 
         er.*, 
@@ -1949,10 +1965,10 @@ exports.UpdateStatusRequest = async (req, res) => {
         p."user_RoleId" AS "processorRoleId"
        FROM "emp_Request" er
        JOIN "User" u ON er."user_Id" = u."user_Id"
-       JOIN "User" p ON p."user_Id" = :processedBy
+       JOIN "User" p ON p."user_Id" = :effectiveProcessorId
        WHERE er."emp_reqId" = :emp_reqId`,
       { 
-        replacements: { emp_reqId, processedBy }, 
+        replacements: { emp_reqId, effectiveProcessorId }, 
         type: QueryTypes.SELECT 
       }
     );
@@ -1966,7 +1982,7 @@ exports.UpdateStatusRequest = async (req, res) => {
     const processorRole = Number(request.processorRoleId);
     const currentStatus = Number(request.emp_reqStatusId);
     const requesterId = Number(request.user_Id);
-    const operatorId = Number(processedBy);
+    const operatorId = effectiveProcessorId;
     const isLogCorrection = Number(request.emp_reqTypeId) === 5;
 
     console.log(`[DEBUG] UpdateStatusRequest: reqId=${emp_reqId}, requesterId=${requesterId}, operatorId=${operatorId}, requesterRole=${requesterRole}, processorRole=${processorRole}, currentStatus=${currentStatus}`);
@@ -2567,7 +2583,12 @@ exports.UpdateStatusRequest = async (req, res) => {
             `UPDATE "HalfDay_Leave" SET "WithPayID" = :withPayId WHERE "emp_reqId" = :emp_reqId`,
             { replacements: { withPayId, emp_reqId }, type: QueryTypes.UPDATE, transaction },
           );
-        } else if ([8, 9, 10, 11, 12].includes(typeId)) {
+        } else if (typeId === 10) {
+          await sequelize.query(
+            `UPDATE "Statutory_Leave" SET "WithPayID" = :withPayId WHERE "emp_reqId" = :emp_reqId`,
+            { replacements: { withPayId, emp_reqId }, type: QueryTypes.UPDATE, transaction },
+          );
+        } else if ([8, 9, 11, 12].includes(typeId)) {
           await sequelize.query(
             `UPDATE "Statutory_Leave" SET "WithPayID" = 1 WHERE "emp_reqId" = :emp_reqId`,
             { replacements: { emp_reqId }, type: QueryTypes.UPDATE, transaction },
@@ -2708,16 +2729,15 @@ exports.UpdateStatusRequest = async (req, res) => {
         }).catch(err => console.error("[ONFIELD EMAIL FAILED]:", err.message));
       }
 
-      // C. Retroactive Attendance Recalculation Hook (Overtime, Onfield, HalfDay)
-      if ([1, 2, 7].includes(Number(requestInfo.emp_reqTypeId))) {
+      // C. Retroactive Attendance Recalculation Hook (Overtime, Onfield, HalfDay, Log Correction)
+      if ([1, 2, 5, 7].includes(Number(requestInfo.emp_reqTypeId))) {
         try {
           const { calculateAndStoreAttendanceUnits } = require("../utils/attendanceHelper");
-          const targetDateRaw = requestInfo.OT_D || requestInfo.DateonField || requestInfo.HD_D;
+          const targetDateRaw = requestInfo.OT_D || requestInfo.DateonField || requestInfo.HD_D || requestInfo.LC_D;
           if (targetDateRaw) {
             const targetDateStr = typeof targetDateRaw === 'string' ? targetDateRaw.substring(0, 10) : targetDateRaw.toISOString().split('T')[0];
-            calculateAndStoreAttendanceUnits(requestInfo.user_Id, targetDateStr)
-              .then(() => console.log(`[ATTENDANCE-AUTO-SYNC] Synchronized attendance units for User ${requestInfo.user_Id} on ${targetDateStr}`))
-              .catch(err => console.error(`[ATTENDANCE-AUTO-SYNC-ERR]`, err));
+            await calculateAndStoreAttendanceUnits(requestInfo.user_Id, targetDateStr);
+            console.log(`[ATTENDANCE-AUTO-SYNC] Synchronized attendance units for User ${requestInfo.user_Id} on ${targetDateStr}`);
           }
         } catch (syncErr) {
           console.error("[AUTO-SYNC-ERR]", syncErr);
@@ -2862,6 +2882,11 @@ exports.GetLeaveBalance = async (req, res) => {
 exports.GetRequestDetails = async (req, res) => {
   const { requestId } = req.params;
 
+  const idNum = parseInt(requestId, 10);
+  if (isNaN(idNum) || idNum <= 0) {
+    return res.status(400).json({ error: "Invalid request ID format" });
+  }
+
   try {
     const now = await getSystemTime();
     const currentYear = now.getFullYear();
@@ -2904,6 +2929,11 @@ exports.GetRequestDetails = async (req, res) => {
         hd."timeRange" as "HD_timeRange",
         hd."WithPayID" as "HD_WithPayID",
         wphd."withPayName" as "HD_withPayName",
+        st."StartDate" as "ST_StartDate",
+        st."EndDate" as "ST_EndDate",
+        st."NoDays" as "ST_NoDays",
+        st."proof_File" as "ST_proof_File",
+        wpst."withPayName" as "ST_withPayName",
         ow."DateonField" as "DateonField",
         ow."NoDays" as "OW_NoDays",
         ow."NoHrs" as "OW_NoHrs",
@@ -2954,15 +2984,17 @@ exports.GetRequestDetails = async (req, res) => {
       LEFT JOIN "withPay" wpel ON el."WithPayID" = wpel."withPayId"
       LEFT JOIN "HalfDay_Leave" hd ON er."emp_reqId" = hd."emp_reqId"
       LEFT JOIN "withPay" wphd ON hd."WithPayID" = wphd."withPayId"
+      LEFT JOIN "Statutory_Leave" st ON er."emp_reqId" = st."emp_reqId"
+      LEFT JOIN "withPay" wpst ON st."WithPayID" = wpst."withPayId"
       LEFT JOIN "Onfield_Work" ow ON er."emp_reqId" = ow."emp_reqId"
       LEFT JOIN "LogCorrection_Request" lc ON er."emp_reqId" = lc."emp_reqId"
       LEFT JOIN "Loan_Request" lr ON er."emp_reqId" = lr."emp_reqId"
       LEFT JOIN "Leave_Balance" lb ON er."user_Id" = lb."user_Id" AND lb."year" = :currentYear
       LEFT JOIN "User" ap ON er."processedBy" = ap."user_Id"
       LEFT JOIN "User" rc ON er."recommendedBy" = rc."user_Id"
-      WHERE er."emp_reqId" = CAST(:requestId AS INTEGER)`,
+      WHERE er."emp_reqId" = :idNum`,
       {
-        replacements: { requestId, currentYear },
+        replacements: { idNum, currentYear },
         type: QueryTypes.SELECT,
       },
     );

@@ -15,6 +15,7 @@ import Toast from "../../components/toast/Toast";
 import { useSystemTime } from "../../context/SystemTimeContext";
 import { fetchWithAuth } from "../../utils/api";
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { formatUserId } from "../../utils/formatUserId";
 import EmptyState from "@/components/EmptyState";
 import BatchUploadReviewModal from "../../components/BatchUploadReviewModal";
@@ -35,17 +36,39 @@ import { Badge } from "@/components/ui/badge";
 
 
 const CalendarManagement = () => {
+  const navigate = useNavigate();
   const { systemToday } = useSystemTime();
   const [currentDate, setCurrentDate] = useState(new Date(systemToday.getFullYear(), systemToday.getMonth(), 1));
   const [events, setEvents] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [modalType, setModalType] = useState(null); // 'addEvent' or 'editHoliday'
   const [activeTab, setActiveTab] = useState("fieldWork"); // 'fieldWork', 'holiday', 'dueDate'
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [pickerMonth, setPickerMonth] = useState(currentDate.getMonth().toString());
   const [pickerYear, setPickerYear] = useState(currentDate.getFullYear().toString());
   const [toast, setToast] = useState({ message: "", type: "success" });
+
+  const handleSyncHolidays = async () => {
+    setIsSyncing(true);
+    try {
+      const response = await fetchWithAuth("/api/system/sync-holidays", {
+        method: "POST"
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setToast({ message: data.message || `Holidays synchronized successfully (${data.count || 0} entries).`, type: "success" });
+        fetchCalendarEvents();
+      } else {
+        setToast({ message: data.message || data.error || "Failed to sync holidays.", type: "error" });
+      }
+    } catch (err) {
+      setToast({ message: "Connection error syncing holidays.", type: "error" });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const handleOpenDatePicker = () => {
     setPickerMonth(currentDate.getMonth().toString());
@@ -497,6 +520,17 @@ const CalendarManagement = () => {
           </div>
           <div className="flex flex-wrap sm:flex-nowrap gap-2 w-full md:w-auto">
             {isAdmin && (
+              <>
+                <Button 
+                  variant="outline"
+                  disabled={isSyncing}
+                  className="w-full sm:w-auto border-slate-200 text-slate-700 hover:bg-slate-50 font-medium"
+                  onClick={handleSyncHolidays}
+                  title="Synchronize Philippine holidays from Official Gazette"
+                >
+                  <SyncIcon className={`mr-1.5 h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
+                  {isSyncing ? "Syncing..." : "Sync Holidays"}
+                </Button>
                 <Button 
                   className="w-full sm:w-auto bg-brand-primary hover:bg-[#7A52B5] text-white"
                   onClick={() => {
@@ -506,6 +540,7 @@ const CalendarManagement = () => {
                 >
                   <AddIcon className="mr-1 h-4 w-4" /> Add Calendar Event
                 </Button>
+              </>
             )}
           </div>
         </div>
@@ -1255,14 +1290,29 @@ const CalendarManagement = () => {
                             <h4 className={`text-xs font-bold uppercase tracking-wider ${config.text}`}>{type}s ({events.length})</h4>
                           </div>
                           <div className={`grid ${isSingleCategory ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"} gap-3`}>
-                            {events.map((event, idx) => (
-                              <div key={idx} className={`p-3 rounded-lg border ${config.bg} ${config.border} transition-all`}>
-                                <p className={`font-semibold text-sm ${config.text}`}>{event.name || event.details}</p>
-                                {event.type === "Field Work" && (
-                                  <p className="text-[10px] opacity-70 font-medium italic mt-1">Auto-credited: {event.hours || 8}hrs</p>
-                                )}
-                              </div>
-                            ))}
+                            {events.map((event, idx) => {
+                              const isActionable = event.id && ["Leave", "Field Work", "Overtime"].includes(event.type);
+                              return (
+                                <div 
+                                  key={idx} 
+                                  onClick={() => {
+                                    if (isActionable) {
+                                      setSelectedDayDetails(null);
+                                      navigate(`/adminRequests?requestId=${event.id}`);
+                                    }
+                                  }}
+                                  className={`p-3 rounded-lg border ${config.bg} ${config.border} transition-all ${
+                                    isActionable ? "cursor-pointer hover:shadow-sm hover:scale-[1.01]" : ""
+                                  }`}
+                                  title={isActionable ? `Click to inspect REQ-${event.id} in Requests Management` : ""}
+                                >
+                                  <p className={`font-semibold text-sm ${config.text}`}>{event.name || event.details}</p>
+                                  {event.type === "Field Work" && (
+                                    <p className="text-[10px] opacity-70 font-medium italic mt-1">Auto-credited: {event.hours || 8}hrs</p>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       );

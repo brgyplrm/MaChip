@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import Sidebar from "../../components/Sidebar";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
@@ -22,6 +23,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Skeleton } from "@/components/ui/skeleton";
 
 const EmployeeCalendar = () => {
+  const navigate = useNavigate();
   const { systemToday } = useSystemTime();
   const [currentDate, setCurrentDate] = useState(new Date(systemToday.getFullYear(), systemToday.getMonth(), 1));
   const [events, setEvents] = useState([]);
@@ -913,18 +915,33 @@ const EmployeeCalendar = () => {
                           </div>
 
                           <div className={`grid ${isSingleCategory ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"} gap-3`}>
-                            {events.map((event, idx) => (
-                              <div key={idx} className={`p-3 rounded-lg border ${config.bg} ${config.border} transition-all`}>
-                                <p className={`font-semibold text-sm ${config.text}`}>
-                                  {event.name || event.details}
-                                </p>
-                                {event.type === "Field Work" && (
-                                  <p className="text-[10px] opacity-70 font-medium italic mt-1">
-                                    Automatically credited as 8 hours on-field.
+                            {events.map((event, idx) => {
+                              const isActionable = event.id && ["Leave", "Field Work", "Overtime"].includes(event.type);
+                              return (
+                                <div 
+                                  key={idx} 
+                                  onClick={() => {
+                                    if (isActionable) {
+                                      setSelectedDayDetails(null);
+                                      navigate(`/requests/${event.id}`);
+                                    }
+                                  }}
+                                  className={`p-3 rounded-lg border ${config.bg} ${config.border} transition-all ${
+                                    isActionable ? "cursor-pointer hover:shadow-sm hover:scale-[1.01]" : ""
+                                  }`}
+                                  title={isActionable ? `Click to view details for REQ-${event.id}` : ""}
+                                >
+                                  <p className={`font-semibold text-sm ${config.text}`}>
+                                    {event.name || event.details}
                                   </p>
-                                )}
-                              </div>
-                            ))}
+                                  {event.type === "Field Work" && (
+                                    <p className="text-[10px] opacity-70 font-medium italic mt-1">
+                                      Automatically credited as 8 hours on-field.
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       );

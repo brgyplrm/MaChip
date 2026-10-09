@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import Sidebar from "../../components/Sidebar";
 import SearchIcon from "@mui/icons-material/Search";
 import FilterListIcon from '@mui/icons-material/FilterList';
@@ -24,6 +25,10 @@ import { Badge } from "@/components/ui/badge";
 import { TablePagination } from "@/components/ui/table-pagination";
 
 const RequestSummary = () => {
+  const navigate = useNavigate();
+  const userData = JSON.parse(localStorage.getItem("userData") || "{}");
+  const userRoleId = Number(userData?.user_RoleId);
+
   const defaultStartDate = useMemo(() => new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0], []);
   const defaultEndDate = useMemo(() => new Date().toISOString().split('T')[0], []);
 
@@ -31,6 +36,13 @@ const RequestSummary = () => {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
   
+  // RBAC Guard: Restrict page to Admin Manager (1), Supervisor (2), and Admin Accountant (4)
+  useEffect(() => {
+    if (!userData?.user_Id || ![1, 2, 4].includes(userRoleId)) {
+      navigate("/userRequests", { replace: true });
+    }
+  }, [navigate, userRoleId, userData?.user_Id]);
+
   // Filter States
   const [startDate, setStartDate] = useState(defaultStartDate);
   const [endDate, setEndDate] = useState(defaultEndDate);
@@ -43,19 +55,30 @@ const RequestSummary = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const fetchRequests = useCallback(async () => {
+    if (!userData?.user_Id || ![1, 2, 4].includes(userRoleId)) return;
+
+    if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
+      setToast({ message: "Start date cannot be after end date.", type: "error" });
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await fetchWithAuth(`/api/request/all?startDate=${startDate}&endDate=${endDate}`);
       if (response.ok) {
         const data = await response.json();
-        setRequests(data);
+        setRequests(Array.isArray(data) ? data : []);
+      } else {
+        const errData = await response.json().catch(() => ({}));
+        setToast({ message: errData.message || "Failed to fetch requests", type: "error" });
       }
     } catch (err) {
       console.error("Error fetching requests:", err);
+      setToast({ message: "Network error fetching requests", type: "error" });
     } finally {
       setLoading(false);
     }
-  }, [startDate, endDate]);
+  }, [startDate, endDate, userRoleId, userData?.user_Id]);
 
   useEffect(() => {
     fetchRequests();
@@ -152,46 +175,58 @@ const RequestSummary = () => {
 
         {/* Statistics Cards */}
         <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
-            <Card className="border-t-5 border-brand-primary bg-white py-0 h-full">
+            <Card 
+              onClick={() => navigate("/adminRequests?tab=pending")}
+              className="border-t-5 border-brand-primary bg-white py-0 h-full cursor-pointer hover:shadow-md transition-shadow group"
+              title="Click to view all pending requests in Requests Management"
+            >
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                   <div>
                     <p className="text-xs font-bold text-brand-primary uppercase tracking-wider mb-2">Queue Total</p>
-                    <p className="text-4xl font-bold text-brand-primary">{stats.pending}</p>
+                    <p className="text-4xl font-bold text-brand-primary group-hover:scale-105 transition-transform">{stats.pending}</p>
                   </div>
                   <p className="text-xs text-brand-primary/70 italic mt-4">Active and recommended requests</p>
                 </div>
-                <div className="bg-brand-primary/10 text-brand-primary p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                <div className="bg-brand-primary/10 text-brand-primary p-3 rounded-lg flex items-center justify-center shrink-0 self-start group-hover:bg-brand-primary group-hover:text-white transition-colors">
                   <HourglassEmptyIcon className="h-6 w-6" />
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="border-t-5 border-accent-green bg-white py-0 h-full">
+            <Card 
+              onClick={() => navigate("/adminRequests?tab=completed&status=Approved")}
+              className="border-t-5 border-accent-green bg-white py-0 h-full cursor-pointer hover:shadow-md transition-shadow group"
+              title="Click to view approved requests in Requests Management"
+            >
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                   <div>
                     <p className="text-xs font-bold text-accent-green uppercase tracking-wider mb-2">Approved History</p>
-                    <p className="text-4xl font-bold text-accent-green">{stats.approved}</p>
+                    <p className="text-4xl font-bold text-accent-green group-hover:scale-105 transition-transform">{stats.approved}</p>
                   </div>
                   <p className="text-xs text-accent-green/70 italic mt-4">Total processed and accepted</p>
                 </div>
-                <div className="bg-accent-green/10 text-accent-green p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                <div className="bg-accent-green/10 text-accent-green p-3 rounded-lg flex items-center justify-center shrink-0 self-start group-hover:bg-accent-green group-hover:text-white transition-colors">
                   <CheckCircleOutlineIcon className="h-6 w-6" />
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="border-t-5 border-accent-gold bg-white py-0 h-full">
+            <Card 
+              onClick={() => navigate("/adminRequests?tab=completed&status=Rejected")}
+              className="border-t-5 border-accent-gold bg-white py-0 h-full cursor-pointer hover:shadow-md transition-shadow group"
+              title="Click to view rejected requests in Requests Management"
+            >
               <CardContent className="px-5 py-5 flex justify-between h-full">
                 <div className="flex flex-col justify-between">
                   <div>
                     <p className="text-xs font-bold text-accent-gold uppercase tracking-wider mb-2">Rejected Records</p>
-                    <p className="text-4xl font-bold text-accent-gold">{stats.rejected}</p>
+                    <p className="text-4xl font-bold text-accent-gold group-hover:scale-105 transition-transform">{stats.rejected}</p>
                   </div>
                   <p className="text-xs text-accent-gold/70 italic mt-4">Declined historical records</p>
                 </div>
-                <div className="bg-accent-gold/20 text-accent-gold p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+                <div className="bg-accent-gold/20 text-accent-gold p-3 rounded-lg flex items-center justify-center shrink-0 self-start group-hover:bg-accent-gold group-hover:text-white transition-colors">
                   <CancelOutlinedIcon className="h-6 w-6" />
                 </div>
               </CardContent>
@@ -289,8 +324,13 @@ const RequestSummary = () => {
                   <TableBody>
                     {currentData.length > 0 ? (
                       currentData.map((req) => (
-                        <TableRow key={req.emp_reqId} className="border-b-slate-100 hover:bg-slate-50/50 transition-colors">
-                          <TableCell className="font-bold text-brand-primary py-4 px-6">REQ-{req.emp_reqId}</TableCell>
+                        <TableRow 
+                          key={req.emp_reqId} 
+                          onClick={() => navigate(`/adminRequests?requestId=${req.emp_reqId}`)}
+                          className="border-b-slate-100 hover:bg-slate-100/70 transition-colors cursor-pointer group"
+                          title={`Click to view REQ-${req.emp_reqId} in Requests Management`}
+                        >
+                          <TableCell className="font-bold text-brand-primary py-4 px-6 group-hover:underline">REQ-{req.emp_reqId}</TableCell>
                           <TableCell className="py-4">
                             <p className="font-semibold text-slate-800">{req.userName}</p>
                             <p className="text-[10px] text-slate-500 font-medium">{formatUserId(req.user_Id)}</p>

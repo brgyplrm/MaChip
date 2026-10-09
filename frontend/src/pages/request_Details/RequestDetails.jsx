@@ -17,13 +17,18 @@ import { formatDateTime, calculateDays } from "../../utils/formatTime";
 // shadcn/ui components
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import FileViewerModal from "../../components/FileViewerModal";
 
 const RequestDetails = () => {
   const navigate = useNavigate();
   const { requestId } = useParams();
+  const userData = JSON.parse(localStorage.getItem("userData") || "{}");
+  const userRoleId = Number(userData?.user_RoleId);
+
   const [request, setRequest] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState("");
 
   // File Viewer State
   const [isFileViewerOpen, setIsFileViewerOpen] = useState(false);
@@ -46,11 +51,20 @@ const RequestDetails = () => {
         if (response.ok) {
           const data = await response.json();
           setRequest(data);
+          setErrorMsg("");
         } else {
-          console.error("Failed to fetch request details");
+          const errData = await response.json().catch(() => ({}));
+          if (response.status === 403) {
+            setErrorMsg("Access Denied: You do not have permission to view this request.");
+          } else if (response.status === 400) {
+            setErrorMsg(errData.error || "Invalid request ID format.");
+          } else {
+            setErrorMsg(errData.error || "Request not found.");
+          }
         }
       } catch (error) {
         console.error("Error fetching request details:", error);
+        setErrorMsg("Network error loading request details.");
       } finally {
         setLoading(false);
       }
@@ -78,7 +92,7 @@ const RequestDetails = () => {
       <div className="flex flex-col w-full min-h-screen bg-slate-50">
         <Sidebar>
         <div className="flex-1 p-4 md:p-8 w-full max-w-5xl mx-auto flex flex-col items-center justify-center gap-4">
-          <p className="text-slate-500 italic">Request not found.</p>
+          <p className="text-slate-600 font-medium">{errorMsg || "Request not found."}</p>
           <button onClick={() => navigate(-1)} className="text-brand-primary font-semibold hover:underline">Go Back</button>
         </div>
         </Sidebar>
@@ -89,7 +103,7 @@ const RequestDetails = () => {
   const statusClass = request.status?.toLowerCase() || "pending";
   const isApproved = statusClass.includes("approve");
   const isRejected = statusClass.includes("reject");
-  const proofFile = request.SL_proof_File || request.OW_proof_File || request.LC_proof_File || request.ST_proof_File;
+  const proofFile = request.SL_proof_File || request.OW_proof_File || request.LC_proof_File || request.ST_proof_File || request.LR_proof_File || request.LR_damageProof;
 
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
@@ -110,18 +124,35 @@ const RequestDetails = () => {
               <span className="text-sm text-slate-500 font-mono mt-1 block">Request #REQ-{request.emp_reqId}</span>
             </div>
           </div>
-          <Badge 
-            className={`px-4 py-2 text-sm justify-center shadow-sm w-full sm:w-auto ${
-              isApproved ? "bg-green-500 hover:bg-green-600 text-white" :
-              isRejected ? "bg-red-500 hover:bg-red-600 text-white" :
-              "bg-amber-500 hover:bg-amber-600 text-white"
-            }`}
-          >
-            {isApproved && <CheckCircleIcon className="mr-2 h-4 w-4" />}
-            {isRejected && <CancelIcon className="mr-2 h-4 w-4" />}
-            {!isApproved && !isRejected && <HourglassEmptyIcon className="mr-2 h-4 w-4" />}
-            {request.status}
-          </Badge>
+          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+            <Badge 
+              className={`px-4 py-2 text-sm justify-center shadow-sm w-full sm:w-auto ${
+                isApproved ? "bg-green-500 hover:bg-green-600 text-white" :
+                isRejected ? "bg-red-500 hover:bg-red-600 text-white" :
+                "bg-amber-500 hover:bg-amber-600 text-white"
+              }`}
+            >
+              {isApproved && <CheckCircleIcon className="mr-2 h-4 w-4" />}
+              {isRejected && <CancelIcon className="mr-2 h-4 w-4" />}
+              {!isApproved && !isRejected && <HourglassEmptyIcon className="mr-2 h-4 w-4" />}
+              {request.status}
+            </Badge>
+
+            {[1, 2].includes(userRoleId) && (request.emp_reqStatusId === 1 || request.emp_reqStatusId === 4) && (
+              <Button
+                onClick={() => {
+                  if (request.emp_reqTypeId === 14) {
+                    navigate("/adminLoanEnrollment");
+                  } else {
+                    navigate(`/adminRequests?requestId=${request.emp_reqId}`);
+                  }
+                }}
+                className="bg-brand-primary text-white hover:bg-brand-primary-hover shadow-sm w-full sm:w-auto font-medium"
+              >
+                Process in Approvals Queue
+              </Button>
+            )}
+          </div>
         </div>
 
         <div className="space-y-6">
@@ -230,8 +261,38 @@ const RequestDetails = () => {
                 </>
               )}
 
+              {/* Government Loan Enrollment */}
+              {request.emp_reqTypeId === 14 && (
+                <>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Agency & Loan Type</label>
+                    <p className="font-semibold text-slate-800">{request.LR_agency || "—"} ({request.LR_loanType || "—"})</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Monthly Amortization</label>
+                    <p className="font-bold text-brand-primary">₱{Number(request.LR_amortization || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Term / Duration</label>
+                    <p className="font-semibold text-slate-800">{request.LR_months || request.LR_term || 0} Months</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Loan Reference / SSS No.</label>
+                    <p className="font-mono text-sm text-slate-700">{request.LR_reference || "—"}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Approval Date</label>
+                    <p className="font-semibold text-slate-800">{request.LR_approvalDate ? new Date(request.LR_approvalDate).toLocaleDateString() : "—"}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Start Month</label>
+                    <p className="font-semibold text-slate-800">{request.LR_startMonth || "—"}</p>
+                  </div>
+                </>
+              )}
+
               {/* General Leaves (VL, SL, EL, Maternity, Paternity, Solo Parent, VAWC, Special) */}
-              {![1, 2, 5, 7].includes(request.emp_reqTypeId) && (
+              {![1, 2, 5, 7, 14].includes(request.emp_reqTypeId) && (
                 <>
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Duration</label>
