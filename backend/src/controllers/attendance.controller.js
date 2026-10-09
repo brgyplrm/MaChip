@@ -1122,6 +1122,7 @@ exports.getEmployeeDashboardStats = async (req, res) => {
          COUNT(*) FILTER (WHERE "attendance_StatusId" = 3) AS "absentCount",
          COUNT(*) FILTER (WHERE "attendance_StatusId" IN (1, 6)) AS "onTimeCount",
          COUNT(*) FILTER (WHERE "attendance_StatusId" = 2) AS "lateCount",
+         COUNT(*) FILTER (WHERE "attendance_StatusId" = 4) AS "halfDayCount",
          COUNT(*) FILTER (WHERE "attendance_StatusId" = 5) AS "leaveCount"
        FROM "employee_Logging_report"
        WHERE "user_id" = :user_Id 
@@ -1157,7 +1158,16 @@ exports.getEmployeeDashboardStats = async (req, res) => {
         rt."reqTypeName",
         rs."reqStatName" as "status",
         er."date_Filed",
-        er.remarks,
+        COALESCE(
+          er.remarks,
+          vl.reason,
+          sl.reason,
+          ot.reason,
+          el.reason,
+          hd.reason,
+          ow.reason,
+          st.reason
+        ) as remarks,
         ot."OT_DateOf",
         vl."StartDate" as "VL_StartDate",
         vl."EndDate" as "VL_EndDate",
@@ -1175,6 +1185,7 @@ exports.getEmployeeDashboardStats = async (req, res) => {
       LEFT JOIN "Sick_Leave" sl ON er."emp_reqId" = sl."emp_reqId"
       LEFT JOIN "Emergency_Leave" el ON er."emp_reqId" = el."emp_reqId"
       LEFT JOIN "HalfDay_Leave" hd ON er."emp_reqId" = hd."emp_reqId"
+      LEFT JOIN "Statutory_Leave" st ON er."emp_reqId" = st."emp_reqId"
       LEFT JOIN "Onfield_Work" ow ON er."emp_reqId" = ow."emp_reqId"
       LEFT JOIN "LogCorrection_Request" lc ON er."emp_reqId" = lc."emp_reqId"
       WHERE er."user_Id" = :user_Id
@@ -1200,15 +1211,19 @@ exports.getEmployeeDashboardStats = async (req, res) => {
       { replacements: { user_Id, todayStr }, type: QueryTypes.SELECT }
     );
 
-    let todayIn = "--:-- AM";
+    let todayIn = "--:--";
     if (todayReport) {
       const inArr = safeParseArray(todayReport.time_Logged_inArr);
-      if (inArr.length > 0) {
-        const [h, m] = inArr[0].split(":");
-        const hr = parseInt(h);
-        const ampm = hr >= 12 ? "PM" : "AM";
-        const h12 = hr % 12 || 12;
-        todayIn = `${h12}:${m} ${ampm}`;
+      const firstValidIn = inArr.find(t => t && typeof t === "string" && t.trim() !== "" && t !== "—");
+      if (firstValidIn) {
+        const parts = firstValidIn.split(":");
+        if (parts.length >= 2) {
+          const hr = parseInt(parts[0], 10);
+          const m = parts[1];
+          const ampm = hr >= 12 ? "PM" : "AM";
+          const h12 = hr % 12 || 12;
+          todayIn = `${h12}:${m} ${ampm}`;
+        }
       }
     }
 
@@ -1245,34 +1260,18 @@ exports.getEmployeeDashboardStats = async (req, res) => {
         absent: parseInt(attendanceStats[0]?.absentCount || 0),
         onTime: parseInt(attendanceStats[0]?.onTimeCount || 0),
         late: parseInt(attendanceStats[0]?.lateCount || 0),
+        halfDay: parseInt(attendanceStats[0]?.halfDayCount || 0),
+        leave: parseInt(attendanceStats[0]?.leaveCount || 0),
         monthName: now.toLocaleString('default', { month: 'long' })
       },
       leaveBalance: formattedLeaveBalance,
-      recentLogs: recentLogs.filter(log => {
-        const inArr = safeParseArray(log.time_Logged_inArr);
-        const outArr = safeParseArray(log.time_Logged_outArr);
-        const hasValidLog = [...inArr, ...outArr].some(t => t.substring(0, 5) >= "06:00");
-        const hasRequest = recentRequests.some(req => {
-          const logDate = log.log_Date.split('T')[0];
-          const otDate = req.OT_DateOf ? req.OT_DateOf.split('T')[0] : null;
-          const fieldDate = req.DateonField ? req.DateonField.split('T')[0] : null;
-          const vlStart = req.VL_StartDate ? req.VL_StartDate.split('T')[0] : null;
-          const vlEnd = req.VL_EndDate ? req.VL_EndDate.split('T')[0] : null;
-          const slStart = req.SL_StartDate ? req.SL_StartDate.split('T')[0] : null;
-          const slEnd = req.SL_EndDate ? req.SL_EndDate.split('T')[0] : null;
-
-          return (otDate === logDate) || (fieldDate === logDate) || 
-                 (vlStart <= logDate && vlEnd >= logDate) || 
-                 (slStart <= logDate && slEnd >= logDate);
-        });
-        return hasValidLog || hasRequest;
-      }).map(log => {
-        const inArr = safeParseArray(log.time_Logged_inArr);
-        const outArr = safeParseArray(log.time_Logged_outArr);
+      recentLogs: recentLogs.map(log => {
+        const inArr = safeParseArray(log.time_Logged_inArr).filter(t => t && t !== "—");
+        const outArr = safeParseArray(log.time_Logged_outArr).filter(t => t && t !== "—");
         return {
           date: log.log_Date,
           status: log.attendanceStatus || "—",
-          timeIn: inArr[0] || "—",
+          timeIn: inArr.length > 0 ? inArr[0] : "—",
           timeOut: outArr.length > 0 ? outArr[outArr.length - 1] : "—"
         };
       }),

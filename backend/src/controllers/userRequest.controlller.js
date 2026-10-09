@@ -1013,11 +1013,17 @@ exports.UserCreateRequest = async (req, res) => {
       );
 
       if (balanceResult.length === 0) {
+        const [uRecord] = await sequelize.query(
+          `SELECT "is_solo_parent" FROM "User" WHERE "user_Id" = :userId`,
+          { replacements: { userId: finalUserId }, type: QueryTypes.SELECT, transaction: t }
+        );
+        const isSoloParentBool = Boolean(uRecord && (uRecord.is_solo_parent === true || uRecord.is_solo_parent === "true" || uRecord.is_solo_parent === 1 || uRecord.is_solo_parent === "1"));
+        const soloParentCredit = isSoloParentBool ? 7 : 0;
         await sequelize.query(
           `INSERT INTO "Leave_Balance" ("user_Id", "year", "VL_balance", "SL_balance", "SoloParent_balance", "VL_used", "SL_used", "SoloParent_used", "createdAt", "updatedAt")
-           VALUES (:userId, :year, 7, 7, 7, 0, 0, 0, :now, :now)`,
+           VALUES (:userId, :year, 7, 7, :soloParentCredit, 0, 0, 0, :now, :now)`,
           {
-            replacements: { userId: finalUserId, year: currentYear, now: nowStr },
+            replacements: { userId: finalUserId, year: currentYear, soloParentCredit, now: nowStr },
             type: QueryTypes.INSERT,
             transaction: t
           },

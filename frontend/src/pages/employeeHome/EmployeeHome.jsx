@@ -46,8 +46,8 @@ const EmployeeHome = () => {
   });
 
   const [dashboardStats, setDashboardStats] = useState({
-    todayIn: "--:-- AM",
-    attendance: { absent: 0, onTime: 0, late: 0, monthName: "" },
+    todayIn: "--:--",
+    attendance: { absent: 0, onTime: 0, late: 0, halfDay: 0, leave: 0, monthName: "" },
     leaveBalance: { VL_total: 7, VL_used: 0, VL_balance: 7, SL_total: 7, SL_used: 0, SL_balance: 7 },
     recentLogs: [],
     monthlyRequests: []
@@ -142,13 +142,15 @@ const EmployeeHome = () => {
   );
   const recentRequests = dashboardStats.monthlyRequests || [];
   const displayedRequests = recentRequests.slice(0, 4);
-  const totalDays = (att.absent || 0) + (att.onTime || 0) + (att.late || 0);
+  const totalDays = (att.absent || 0) + (att.onTime || 0) + (att.late || 0) + (att.halfDay || 0) + (att.leave || 0);
   const totalTrackedDays = totalDays || 1;
 
   const onTimePct = totalDays > 0 ? Math.round(((att.onTime || 0) / totalTrackedDays) * 100) : 0;
   const latePct = totalDays > 0 ? Math.round(((att.late || 0) / totalTrackedDays) * 100) : 0;
   const absentPct = totalDays > 0 ? Math.round(((att.absent || 0) / totalTrackedDays) * 100) : 0;
-  const attendanceRate = totalDays > 0 ? Math.round((((att.onTime || 0) + (att.late || 0)) / totalTrackedDays) * 100) : 100;
+  const halfDayPct = totalDays > 0 ? Math.round(((att.halfDay || 0) / totalTrackedDays) * 100) : 0;
+  const leavePct = totalDays > 0 ? Math.round(((att.leave || 0) / totalTrackedDays) * 100) : 0;
+  const attendanceRate = totalDays > 0 ? Math.round((((att.onTime || 0) + (att.late || 0) + (att.halfDay || 0) + (att.leave || 0)) / totalTrackedDays) * 100) : 100;
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat("en-PH", {
@@ -192,13 +194,13 @@ const EmployeeHome = () => {
 
   // Dynamic Greeting Logic (Match Admin)
   const getGreeting = () => {
-    const hour = new Date().getHours();
+    const hour = (systemToday || new Date()).getHours();
     if (hour < 12) return "Good morning";
     if (hour < 18) return "Good afternoon";
     return "Good evening";
   };
 
-  const currentDate = new Date().toLocaleDateString('en-US', { 
+  const currentDate = (systemToday || new Date()).toLocaleDateString('en-US', { 
     weekday: 'long', 
     month: 'long', 
     day: 'numeric', 
@@ -443,7 +445,7 @@ const EmployeeHome = () => {
                         <div>
                           <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Available Leaves</p>
                           <p className="text-4xl font-bold text-white">
-                            {(balance.VL_balance || 0) + (balance.SL_balance || 0)} <span className="text-xl opacity-80 font-medium">Days</span>
+                            {(balance.VL_balance || 0) + (balance.SL_balance || 0) + (isSoloParent ? (balance.SoloParent_balance || 0) : 0)} <span className="text-xl opacity-80 font-medium">Days</span>
                           </p>
                         </div>
                         <p className="text-xs font-semibold text-white/70 italic mt-4">
@@ -454,7 +456,7 @@ const EmployeeHome = () => {
                     </Card>
                   </TooltipTrigger>
                   <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
-                    Sum of remaining Vacation Leave (VL) and Sick Leave (SL) credits.
+                    Sum of remaining Vacation Leave (VL), Sick Leave (SL), and statutory leave credits.
                   </TooltipContent>
                 </Tooltip>
                 </Link>
@@ -600,6 +602,32 @@ const EmployeeHome = () => {
                             </TooltipTrigger>
                             <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
                               Late: {latePct}% ({att.late} {att.late === 1 ? "day" : "days"})
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                        {att.halfDay > 0 && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div 
+                                className="bg-blue-500 h-full transition-all duration-700 hover:opacity-90 cursor-help" 
+                                style={{ width: `${(att.halfDay / totalTrackedDays) * 100}%` }}
+                              />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              Half-Day: {halfDayPct}% ({att.halfDay} {att.halfDay === 1 ? "day" : "days"})
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                        {att.leave > 0 && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div 
+                                className="bg-purple-500 h-full transition-all duration-700 hover:opacity-90 cursor-help" 
+                                style={{ width: `${(att.leave / totalTrackedDays) * 100}%` }}
+                              />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              On Leave: {leavePct}% ({att.leave} {att.leave === 1 ? "day" : "days"})
                             </TooltipContent>
                           </Tooltip>
                         )}
@@ -847,9 +875,12 @@ const EmployeeHome = () => {
                           <span className="text-2xl font-black text-slate-800">{item.bal} <span className="text-sm font-semibold text-slate-400">/ {item.total}</span></span>
                         </div>
                         <div className={`h-3 ${item.light} rounded-full overflow-hidden`}>
-                          <div className={`h-full ${item.color} rounded-full transition-all duration-1000`} style={{ width: `${((item.total - item.bal) / (item.total || 1)) * 100}%` }}></div>
+                          <div className={`h-full ${item.color} rounded-full transition-all duration-1000`} style={{ width: `${(item.bal / (item.total || 1)) * 100}%` }}></div>
                         </div>
-                        <p className="text-[10px] text-slate-400 mt-2 font-medium text-right">{item.total - item.bal} days used</p>
+                        <div className="flex justify-between items-center text-[10px] text-slate-400 mt-2 font-medium">
+                          <span>{item.bal} days remaining</span>
+                          <span>{item.total - item.bal} used</span>
+                        </div>
                       </div>
                     ))}
                   </CardContent>

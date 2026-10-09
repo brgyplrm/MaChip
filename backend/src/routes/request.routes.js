@@ -15,7 +15,7 @@ const {
   notifySupervisor,
   pingApprover,
 } = require("../controllers/userRequest.controlller");
-const { requireOps, requireStaff, requireRole } = require("../middleware/roleCheck.js");
+const { requireOps, requireStaff, requireRole, requireSelfOrStaff } = require("../middleware/roleCheck.js");
 const authMiddleware = require("../middleware/auth.js");
 const upload = require("../middleware/upload");
 
@@ -42,7 +42,7 @@ router.get("/balance/:userId", (req, res, next) => {
   requireStaff(req, res, next);
 }, GetLeaveBalance);
 router.get("/details/:requestId", authMiddleware, GetRequestDetails);
-router.get("/:userId", GetUserRequests);
+router.get("/:userId", requireSelfOrStaff("userId"), GetUserRequests);
 router.put("/update-status", requireOps, UpdateStatusRequest);
 router.put("/update/:requestId", authMiddleware, UpdateUserRequest);
 router.post("/notify-supervisor/:requestId", authMiddleware, notifySupervisor);

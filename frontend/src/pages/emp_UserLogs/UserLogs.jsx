@@ -366,7 +366,11 @@ const UserLogs = () => {
         ? ""
         : ((log?.morning_In && log?.morning_In !== "—")
             ? log.morning_In
-            : (log?.time_In && log?.time_In !== "—" ? log.time_In : (log?.inArr && log.inArr.length > 0 ? log.inArr[0] : "")));
+            : (log?.afternoon_In && log?.afternoon_In !== "—"
+                ? ""
+                : (log?.time_In && log?.time_In !== "—" && !isPMPunch(log.time_In)
+                    ? log.time_In
+                    : (log?.inArr && log.inArr.length > 0 && !isPMPunch(log.inArr[0]) ? log.inArr[0] : ""))));
 
       const candidateOut = isIrregularDay
         ? ""
@@ -1091,7 +1095,11 @@ const UserLogs = () => {
                                     ? ""
                                     : ((log?.morning_In && log?.morning_In !== "—")
                                         ? log.morning_In
-                                        : (log?.time_In && log?.time_In !== "—" ? log.time_In : (log?.inArr && log.inArr.length > 0 ? log.inArr[0] : "")));
+                                        : (log?.afternoon_In && log?.afternoon_In !== "—"
+                                            ? ""
+                                            : (log?.time_In && log?.time_In !== "—" && !isPMPunch(log.time_In)
+                                                ? log.time_In
+                                                : (log?.inArr && log.inArr.length > 0 && !isPMPunch(log.inArr[0]) ? log.inArr[0] : ""))));
 
                                   const candidateOut = isIrregularDay
                                     ? ""
