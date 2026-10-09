@@ -1655,7 +1655,22 @@ exports.getFingerprintTemplate = async (req, res) => {
 
 exports.triggerVisitorAccess = async (req, res) => {
   const adminId = req.user?.user_Id || 1; 
-  const { reason } = req.body || {};
+  const { reason, password, adminPassword } = req.body || {};
+  const confirmPwd = password || adminPassword;
+
+  if (!confirmPwd) {
+    return res.status(400).json({ success: false, message: "Administrator confirmation password is required." });
+  }
+
+  const bcrypt = require("bcrypt");
+  const [adminRecord] = await sequelize.query(
+    `SELECT "user_Password" FROM "User" WHERE "user_Id" = :adminId`,
+    { replacements: { adminId }, type: QueryTypes.SELECT }
+  );
+
+  if (!adminRecord || !(await bcrypt.compare(confirmPwd, adminRecord.user_Password))) {
+    return res.status(401).json({ success: false, message: "Invalid administrator confirmation password." });
+  }
   
   console.log(`[VISITOR] Triggered by Admin: ${adminId}, Reason: ${reason || "N/A"}`);
   

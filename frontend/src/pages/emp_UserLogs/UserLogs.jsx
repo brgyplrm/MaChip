@@ -286,12 +286,10 @@ const UserLogs = () => {
     if (!userData?.user_Id || !dtrStartDate || !dtrEndDate) return;
     try {
       // Use backend filtering for the selected period
-      const response = await fetchWithAuth(`/api/attendance/all?startDate=${dtrStartDate}&endDate=${dtrEndDate}`);
+      const response = await fetchWithAuth(`/api/attendance/all?startDate=${dtrStartDate}&endDate=${dtrEndDate}&user_Id=${userData.user_Id}`);
       if (response.ok) {
         const data = await response.json();
-        // Still filter for the specific user as /all returns everything
-        const userScans = data.filter(log => String(log.user_Id ?? log.user_id) === String(userData.user_Id));
-        setRawScans(userScans);
+        setRawScans(Array.isArray(data) ? data : []);
       }
     } catch (error) {
       console.error("Error fetching raw scans:", error);

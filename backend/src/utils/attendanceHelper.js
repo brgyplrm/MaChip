@@ -176,7 +176,7 @@ async function calculateAndStoreAttendanceUnits(userId, logDate) {
     const shiftStart = isNightShiftAllowed ? (settings?.eveningShiftStart || "20:30:00") : (settings?.morningShiftStart || "08:30:00");
     const shiftEnd = isNightShiftAllowed ? (settings?.eveningShiftEnd || "05:30:00") : (settings?.morningShiftEnd || "17:30:00");
 
-    const firstRegularIn = !isNightShiftAllowed ? inArr.find(t => t.substring(0, 5) >= "05:30" && t.substring(0, 5) < shiftEnd.substring(0, 5)) : inArr[0];
+    const firstRegularIn = !isNightShiftAllowed ? inArr.find(t => t && typeof t === "string" && t.substring(0, 5) >= "05:30" && t.substring(0, 5) < shiftEnd.substring(0, 5)) : (inArr.find(t => t && typeof t === "string") || inArr[0]);
     if (report.attendance_StatusId === 8 && firstRegularIn) {
       const graceTimeStr = settings?.gracePeriod || "08:35:00";
       const graceTime = graceTimeStr.substring(0, 5);
@@ -190,8 +190,8 @@ async function calculateAndStoreAttendanceUnits(userId, logDate) {
       report.attendance_StatusId = newStatus;
     }
 
-    let firstIn = (!isNightShiftAllowed && firstRegularIn) ? firstRegularIn : inArr[0];
-    let lastOut = outArr[outArr.length - 1];
+    let firstIn = (!isNightShiftAllowed && firstRegularIn) ? firstRegularIn : inArr.find(t => t && typeof t === "string");
+    let lastOut = (outArr || []).slice().reverse().find(t => t && typeof t === "string") || null;
     
     // Clamp to shift boundaries for REGULAR hours calculation
     if (firstIn && firstIn < shiftStart && !isNightShiftAllowed) firstIn = shiftStart;
@@ -246,10 +246,9 @@ async function calculateAndStoreAttendanceUnits(userId, logDate) {
     return { success: true, stats };
   } catch (error) { return { success: false, error: error.message }; }
 }
-
 function mapLogsToBuckets(inArr, outArr, settings, otStartTime = null) {
-  let ins = (inArr || []).map(t => t.substring(0, 5)).filter(t => t && t !== "—" && t !== "00:00").sort();
-  let outs = (outArr || []).map(t => t.substring(0, 5)).filter(t => t && t !== "—" && t !== "00:00").sort();
+  let ins = (inArr || []).filter(t => t && typeof t === "string").map(t => t.substring(0, 5)).filter(t => t && t !== "—" && t !== "00:00").sort();
+  let outs = (outArr || []).filter(t => t && typeof t === "string").map(t => t.substring(0, 5)).filter(t => t && t !== "—" && t !== "00:00").sort();
   
   // Define thresholds (allow all valid timestamps across the 24-hour cycle)
   const irregularStart = "23:59";

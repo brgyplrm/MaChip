@@ -22,6 +22,8 @@ const EditAttendance = () => {
 
   const currentUser = JSON.parse(localStorage.getItem("userData") || "null");
   const isOperationalStaff = currentUser?.user_RoleId === 1 || currentUser?.user_RoleId === 2;
+  const isAdminOrAccountant = currentUser?.user_RoleId === 1 || currentUser?.user_RoleId === 4;
+  const isSelfRecord = currentUser && parseInt(currentUser?.user_Id, 10) === parseInt(userId, 10);
 
   useEffect(() => {
     if (!isOperationalStaff) {
@@ -201,7 +203,7 @@ const EditAttendance = () => {
                     <div className="bg-white p-2 rounded-lg border border-slate-100 flex flex-col justify-between shadow-sm">
                       <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Assignment Scope</span>
                       <span className="text-xs font-semibold text-slate-600 block mt-0.5 truncate">
-                        {isAdminOrAccountant ? "Management Admin" : "Standard Employee"}
+                        {formData.roleName || (isAdminOrAccountant ? "Management Admin" : "Standard Employee")}
                       </span>
                     </div>
 
@@ -223,6 +225,17 @@ const EditAttendance = () => {
 
                 {/* Right Column: Dense Form Configuration */}
                 <div className="w-full lg:w-3/4">
+                  {isSelfRecord && (
+                    <div className="mb-4 p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-2.5 text-left">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                      <div>
+                        <span className="font-bold">Self-Editing Prohibited: </span>
+                        <span>Separation-of-duties policy prevents administrators from editing their own attendance records directly. Please file a Log Correction request in the Employee portal for another administrator to review.</span>
+                      </div>
+                    </div>
+                  )}
                   <form onSubmit={handleUpdate} className="flex flex-col gap-5">
                     
                     {/* Morning Session Rows */}
@@ -293,7 +306,8 @@ const EditAttendance = () => {
                       </button>
                       <button
                         type="submit"
-                        disabled={loading}
+                        disabled={loading || isSelfRecord}
+                        title={isSelfRecord ? "Self-editing is prohibited by separation-of-duties policy" : ""}
                         className="px-5 py-2 text-xs font-bold text-white bg-brand-primary rounded-lg hover:bg-[#7A52B5] disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed transition-all shadow-sm"
                       >
                         {loading ? "Saving..." : "Save Changes"}

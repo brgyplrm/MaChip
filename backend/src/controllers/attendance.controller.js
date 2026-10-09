@@ -668,7 +668,14 @@ exports.viewAllAttendance = async (req, res) => {
       };
     }
 
-    if (user_Id) {
+    const operator = req.user;
+    const operatorRoleId = operator ? parseInt(operator.user_RoleId) : null;
+    const isStaff = [1, 2, 4].includes(operatorRoleId);
+
+    // Non-staff employees can ONLY view their own attendance punches
+    if (!isStaff && operator?.user_Id) {
+      whereClause.user_id = operator.user_Id;
+    } else if (user_Id) {
       whereClause.user_id = user_Id;
       // Strictly filter Visitor logs to only show Visitor Access statuses
       if (parseInt(user_Id) === 999) {
@@ -1705,13 +1712,20 @@ exports.getAttendanceReportInternal = getAttendanceReportInternal;
 // ── Get Attendance Report (Filtered) ──────────────────────────────────────────
 exports.getAttendanceReport = async (req, res) => {
   const { startDate, endDate, user_Id } = req.query;
+  const operator = req.user;
+  const operatorRoleId = operator ? parseInt(operator.user_RoleId) : null;
+  const isStaff = [1, 2, 4].includes(operatorRoleId);
+
+  // Non-staff employees can ONLY query their own report
+  const targetUserId = !isStaff && operator?.user_Id ? String(operator.user_Id) : user_Id;
+
   try {
-    const logs = await getAttendanceReportInternal(startDate, endDate, user_Id);
+    const logs = await getAttendanceReportInternal(startDate, endDate, targetUserId);
     
     let payrollSummary = null;
 
     // If a specific user is requested, try to fetch payroll summary
-    if (user_Id && user_Id !== "All Employees") {
+    if (targetUserId && targetUserId !== "All Employees") {
       const payroll = await sequelize.query(
         `SELECT p.*, d."tardiness_Amnt", (COALESCE(d."absence_Hrs", 0) / 8) as "absence_Days"
          FROM "Payroll" p
@@ -1720,7 +1734,7 @@ exports.getAttendanceReport = async (req, res) => {
            AND p."period_Start" = :startDate 
            AND p."period_End" = :endDate
          LIMIT 1`,
-        { replacements: { user_Id, startDate, endDate }, type: QueryTypes.SELECT }
+        { replacements: { user_Id: targetUserId, startDate, endDate }, type: QueryTypes.SELECT }
       );
 
       if (payroll.length > 0) {
@@ -1737,7 +1751,7 @@ exports.getAttendanceReport = async (req, res) => {
         // Fallback: If payroll not generated, fetch live rates from User profile
         const user = await sequelize.query(
           `SELECT "dailyRate" FROM "User" WHERE "user_Id" = :user_Id`,
-          { replacements: { user_Id }, type: QueryTypes.SELECT }
+          { replacements: { user_Id: targetUserId }, type: QueryTypes.SELECT }
         );
         if (user.length > 0) {
           const dailyRate = parseFloat(user[0].dailyRate || 0);
@@ -1772,7 +1786,7 @@ exports.getSingleAttendanceRecord = async (req, res) => {
   const { user_Id, date } = req.params;
   try {
     const report = await sequelize.query(
-      `SELECT r.*, u."user_FirstName", u."user_LastName",
+      `SELECT r.*, u."user_FirstName", u."user_LastName", u."user_RoleId", u."dailyRate",
               ot."HrFrom" AS "ot_HrFrom", 
               ot."HrTo" AS "ot_HrTo",
               er."emp_reqStatusId"
@@ -1809,9 +1823,22 @@ exports.getSingleAttendanceRecord = async (req, res) => {
     const ot_In = hasApprovedOT && r.ot_HrFrom ? (inArr.find(t => t.substring(0, 5) >= r.ot_HrFrom)?.substring(0, 5) || r.ot_HrFrom.substring(0, 5)) : "";
     const ot_Out = hasApprovedOT && r.ot_HrFrom ? (outArr.find(t => t.substring(0, 5) >= r.ot_HrFrom)?.substring(0, 5) || "") : "";
 
+    const isFinanceOrAdmin = req.user?.user_RoleId === 1 || req.user?.user_RoleId === 4;
+    const roleMap = {
+      1: "Admin Manager",
+      2: "Supervisor",
+      3: "Standard Employee",
+      4: "Admin Accountant",
+      5: "Intern",
+    };
+    const roleName = roleMap[r.user_RoleId] || "Standard Employee";
+
     res.status(200).json({
       user_Id: r.user_id,
       userName: `${r.user_FirstName} ${r.user_LastName}`,
+      user_RoleId: r.user_RoleId,
+      roleName,
+      dailyRate: isFinanceOrAdmin ? r.dailyRate : null,
       log_Date: r.log_Date,
       morning_In,
       morning_Out,
@@ -1929,6 +1956,13 @@ exports.updateAttendanceRecord = async (req, res) => {
         type: QueryTypes.UPDATE
       }
     );
+
+    // [FIX EDITATT-2] Recalculate payable hours (reg_hrs, ot_hrs, nd_hrs, holiday_hrs, total_payable_hrs)
+    try {
+      await calculateAndStoreAttendanceUnits(user_Id, date);
+    } catch (calcErr) {
+      console.error(`[ATTENDANCE-CALC-ERR] Recalculation failed for user ${user_Id} on ${date}:`, calcErr);
+    }
 
     // ── 7. RESOLVE LEAVE CONFLICTS (VOID LOGIC) ──────────────────────────────
     if ([2, 4, 6, 11].includes(Number(reportLoggedStatus))) {

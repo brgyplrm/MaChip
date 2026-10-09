@@ -51,6 +51,8 @@ const VisitorLogs = () => {
   const [confirmError, setConfirmError] = useState("");
 
   const { systemToday } = useSystemTime();
+  const currentUser = JSON.parse(localStorage.getItem("userData") || "null");
+  const isManagement = currentUser?.user_RoleId === 1 || currentUser?.user_RoleId === 4;
 
   // History Tab Filter States
   const [searchQuery, setSearchQuery] = useState("");
@@ -152,11 +154,11 @@ const VisitorLogs = () => {
         return;
       }
 
-      // 2. Trigger visitor door release with reason
+      // 2. Trigger visitor door release with reason and confirmation password
       const accessRes = await fetchWithAuth("/api/esp/visitor-access", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason: visitorReason.trim() }),
+        body: JSON.stringify({ reason: visitorReason.trim(), password: adminPassword }),
       });
       const accessData = await accessRes.json();
 
@@ -332,22 +334,32 @@ const VisitorLogs = () => {
 
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button
-                        onClick={handleOpenDoorClick}
-                        disabled={loading || confirming}
-                        className="w-full md:w-auto bg-brand-primary hover:bg-[#1f103a] text-white px-6 py-6 rounded-xl shadow-md flex items-center gap-3 transition-all transform active:scale-95 group font-bold border-0 cursor-pointer"
-                      >
-                        <LockOpenIcon className="group-hover:rotate-12 transition-transform text-white" />
-                        <div className="flex flex-col items-start text-left">
-                          <span className="text-sm font-black uppercase tracking-wider leading-none text-white">
-                            Open Door
-                          </span>
-                          <span className="text-[10px] text-purple-200 font-medium">Trigger 12V Solenoid</span>
-                        </div>
-                      </Button>
+                      <span className="w-full md:w-auto inline-block">
+                        <Button
+                          onClick={handleOpenDoorClick}
+                          disabled={loading || confirming || !isManagement}
+                          className={`w-full md:w-auto text-white px-6 py-6 rounded-xl shadow-md flex items-center gap-3 transition-all font-bold border-0 ${
+                            isManagement 
+                              ? "bg-brand-primary hover:bg-[#1f103a] cursor-pointer active:scale-95 group" 
+                              : "bg-slate-300 text-slate-500 cursor-not-allowed"
+                          }`}
+                        >
+                          <LockOpenIcon className={isManagement ? "group-hover:rotate-12 transition-transform text-white" : "text-slate-500"} />
+                          <div className="flex flex-col items-start text-left">
+                            <span className="text-sm font-black uppercase tracking-wider leading-none text-white">
+                              Open Door
+                            </span>
+                            <span className="text-[10px] text-purple-200 font-medium">
+                              {isManagement ? "Trigger 12V Solenoid" : "Management Only"}
+                            </span>
+                          </div>
+                        </Button>
+                      </span>
                     </TooltipTrigger>
                     <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
-                      Requires admin authorization to unlock entrance terminal.
+                      {isManagement 
+                        ? "Requires admin authorization to unlock entrance terminal." 
+                        : "Entrance door release is restricted to Admin Manager and Accountant."}
                     </TooltipContent>
                   </Tooltip>
                 </div>
