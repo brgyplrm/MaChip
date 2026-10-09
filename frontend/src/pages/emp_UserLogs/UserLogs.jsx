@@ -354,47 +354,66 @@ const UserLogs = () => {
 
       const log = dtrData.find((d) => d.log_Date.split("T")[0] === dateStr);
       const cell = (val) => `<td>${!isSunday && log && val && val !== "—" ? val : ""}</td>`;
-      const dailyTotal = !isSunday && log ? log.hoursWorked || "" : "";
-
-      const isIrregularDay = log?.status === "Irregular" || 
-                             log?.attendanceStatus === "Irregular" || 
-                             Number(log?.attendance_StatusId) === 8 || 
-                             Number(log?.attendanceStatusId) === 8 ||
-                             Number(log?.attendance_StatusId) === 7;
-
-      const morningInVal = isIrregularDay
-        ? ""
-        : ((log?.morning_In && log?.morning_In !== "—")
-            ? log.morning_In
-            : (log?.afternoon_In && log?.afternoon_In !== "—"
-                ? ""
-                : (log?.time_In && log?.time_In !== "—" && !isPMPunch(log.time_In)
-                    ? log.time_In
-                    : (log?.inArr && log.inArr.length > 0 && !isPMPunch(log.inArr[0]) ? log.inArr[0] : ""))));
-
-      const candidateOut = isIrregularDay
-        ? ""
-        : ((log?.afternoon_Out && log?.afternoon_Out !== "—")
-            ? log.afternoon_Out
-            : (log?.time_Out && log?.time_Out !== "—" && log.time_Out !== morningInVal && log.time_Out !== log?.morning_Out
-              ? log.time_Out
-              : (log?.outArr && log.outArr.length > 0 ? log.outArr[log.outArr.length - 1] : "")));
-
-      const afternoonOutVal = (candidateOut && isPMPunch(candidateOut) && candidateOut !== morningInVal && candidateOut !== log?.morning_Out)
-        ? candidateOut
+      const dailyTotal = !isSunday && log 
+        ? (log.hoursWorkedFormatted || (log.hoursWorked !== undefined && log.hoursWorked !== null ? `${log.hoursWorked}h 0m` : "")) 
         : "";
 
-      dayRowsHTML += `
-        <tr class="${isSunday ? "weekend" : ""}">
-          <td class="dayCol">${dayNum}</td>
-          ${cell(morningInVal)}
-          ${cell(log?.morning_Out)}
-          ${cell(log?.afternoon_In)}
-          ${cell(afternoonOutVal)}
-          ${cell(log?.ot_In)}
-          ${cell(log?.ot_Out)}
-          <td class="totalCol">${dailyTotal}</td>
-        </tr>`;
+      const isLeaveDay = log?.isLeave || 
+                         log?.status === "On Leave" || 
+                         log?.attendanceStatus === "On Leave" || 
+                         Number(log?.attendance_StatusId) === 5 || 
+                         Number(log?.attendanceStatusId) === 5;
+
+      if (isLeaveDay) {
+        dayRowsHTML += `
+          <tr class="${isSunday ? "weekend" : ""}">
+            <td class="dayCol">${dayNum}</td>
+            <td colspan="4" style="text-align: center; font-weight: bold; font-size: 11px; letter-spacing: 1px; color: #1e293b;">${log?.morning_In || "ON LEAVE"}</td>
+            ${cell(log?.ot_In)}
+            ${cell(log?.ot_Out)}
+            <td class="totalCol">${dailyTotal || "8h 0m"}</td>
+          </tr>`;
+      } else {
+        const isIrregularDay = log?.status === "Irregular" || 
+                               log?.attendanceStatus === "Irregular" || 
+                               Number(log?.attendance_StatusId) === 8 || 
+                               Number(log?.attendanceStatusId) === 8 ||
+                               Number(log?.attendance_StatusId) === 7;
+
+        const morningInVal = isIrregularDay
+          ? ""
+          : ((log?.morning_In && log?.morning_In !== "—")
+              ? log.morning_In
+              : (log?.afternoon_In && log?.afternoon_In !== "—"
+                  ? ""
+                  : (log?.time_In && log?.time_In !== "—" && !isPMPunch(log.time_In)
+                      ? log.time_In
+                      : (log?.inArr && log.inArr.length > 0 && !isPMPunch(log.inArr[0]) ? log.inArr[0] : ""))));
+
+        const candidateOut = isIrregularDay
+          ? ""
+          : ((log?.afternoon_Out && log?.afternoon_Out !== "—")
+              ? log.afternoon_Out
+              : (log?.time_Out && log?.time_Out !== "—" && log.time_Out !== morningInVal && log.time_Out !== log?.morning_Out
+                ? log.time_Out
+                : (log?.outArr && log.outArr.length > 0 ? log.outArr[log.outArr.length - 1] : "")));
+
+        const afternoonOutVal = (candidateOut && isPMPunch(candidateOut) && candidateOut !== morningInVal && candidateOut !== log?.morning_Out)
+          ? candidateOut
+          : "";
+
+        dayRowsHTML += `
+          <tr class="${isSunday ? "weekend" : ""}">
+            <td class="dayCol">${dayNum}</td>
+            ${cell(morningInVal)}
+            ${cell(log?.morning_Out)}
+            ${cell(log?.afternoon_In)}
+            ${cell(afternoonOutVal)}
+            ${cell(log?.ot_In)}
+            ${cell(log?.ot_Out)}
+            <td class="totalCol">${dailyTotal}</td>
+          </tr>`;
+      }
     }
 
     const html = `<!DOCTYPE html>
@@ -595,6 +614,8 @@ const UserLogs = () => {
     if (["ontime", "clockin", "in"].includes(s)) return "bg-green-100 text-green-800 hover:bg-green-100";
     if (["late", "clockout", "out"].includes(s)) return "bg-amber-100 text-amber-800 hover:bg-amber-100";
     if (["onfield"].includes(s)) return "bg-blue-100 text-blue-800 hover:bg-blue-100";
+    if (["onleave", "leave"].includes(s)) return "bg-purple-100 text-purple-800 border-purple-200 hover:bg-purple-100";
+    if (["halfday"].includes(s)) return "bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-100";
     if (s === "absent") return "bg-red-50 text-red-800 border-red-200 hover:bg-red-50";
     if (s === "upcoming") return "bg-white text-slate-400 border-dashed border-slate-300 hover:bg-white";
     if (s === "norecord") return "bg-slate-100 text-slate-500 hover:bg-slate-200";
@@ -608,6 +629,8 @@ const UserLogs = () => {
     if (["late"].includes(s)) return "Late: Arrival logged after the scheduled shift start time.";
     if (["clockout", "out"].includes(s)) return "Clock Out: RFID or biometric exit scan.";
     if (["onfield"].includes(s)) return "On Field: Shift on official travel, delivery, or field assignment.";
+    if (["onleave", "leave"].includes(s)) return "On Leave: Approved leave of absence with regular hours credited.";
+    if (["halfday"].includes(s)) return "Half Day: Partial shift or schedule attendance.";
     if (s === "absent") return "Absent: No shift logging recorded for this working day.";
     if (s === "upcoming") return "Upcoming: Scheduled date in the future.";
     if (s === "norecord") return "No Record: No check-in or check-out events registered.";
@@ -1085,6 +1108,30 @@ const UserLogs = () => {
                                   const log = getDtrLogsForDay(dayNum, dateStr);
                                   const getCell = (val) => (!isSunday && log ? cleanTime(val, log.systemGenerated) : "");
 
+                                  const isLeaveDay = log?.isLeave || 
+                                                     log?.status === "On Leave" || 
+                                                     log?.attendanceStatus === "On Leave" || 
+                                                     Number(log?.attendance_StatusId) === 5 || 
+                                                     Number(log?.attendanceStatusId) === 5;
+
+                                  const dailyTotalFormatted = !isSunday && log 
+                                    ? (log.hoursWorkedFormatted || (log.hoursWorked !== undefined && log.hoursWorked !== null ? `${log.hoursWorked}h 0m` : "")) 
+                                    : "";
+
+                                  if (isLeaveDay) {
+                                    return (
+                                      <tr key={dayNum} className={`text-center h-6 ${isSunday ? "bg-slate-200/50 text-slate-400" : "bg-blue-50/20"}`}>
+                                        <td className="border border-slate-400 font-bold bg-slate-50 w-8">{dayNum}</td>
+                                        <td colSpan={4} className="border border-slate-400 font-bold text-xs text-slate-800 tracking-wider">
+                                          {log?.morning_In || "ON LEAVE"}
+                                        </td>
+                                        <td className="border border-slate-400">{getCell(log?.ot_In)}</td>
+                                        <td className="border border-slate-400">{getCell(log?.ot_Out)}</td>
+                                        <td className="border border-slate-400 font-bold bg-slate-50">{dailyTotalFormatted || "8h 0m"}</td>
+                                      </tr>
+                                    );
+                                  }
+
                                   const isIrregularDay = log?.status === "Irregular" || 
                                                          log?.attendanceStatus === "Irregular" || 
                                                          Number(log?.attendance_StatusId) === 8 || 
@@ -1112,7 +1159,7 @@ const UserLogs = () => {
                                   const afternoonOutVal = (candidateOut && isPMPunch(candidateOut) && candidateOut !== morningInVal && candidateOut !== log?.morning_Out)
                                     ? candidateOut
                                     : "";
-  
+
                                   return (
                                     <tr key={dayNum} className={`text-center h-6 ${isSunday ? "bg-slate-200/50 text-slate-400" : ""}`}>
                                       <td className="border border-slate-400 font-bold bg-slate-50 w-8">{dayNum}</td>
@@ -1122,7 +1169,7 @@ const UserLogs = () => {
                                       <td className="border border-slate-400">{getCell(afternoonOutVal)}</td>
                                       <td className="border border-slate-400">{getCell(log?.ot_In)}</td>
                                       <td className="border border-slate-400">{getCell(log?.ot_Out)}</td>
-                                      <td className="border border-slate-400 font-bold bg-slate-50">{!isSunday && log ? (log.hoursWorkedFormatted || log.hoursWorked) : ""}</td>
+                                      <td className="border border-slate-400 font-bold bg-slate-50">{dailyTotalFormatted}</td>
                                     </tr>
                                   );
                                 }

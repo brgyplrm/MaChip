@@ -450,11 +450,11 @@ exports.viewUserLogs = async (req, res) => {
     // Fetch Approved Requests (OT/Leave/Field) for calculations
     const requestQuery = `
         SELECT er."user_Id", er."emp_reqTypeId", 
-               vl."StartDate" as "vStart", vl."EndDate" as "vEnd", 
-               sl."StartDate" as "sStart", sl."EndDate" as "sEnd", 
-               el."DateOfLeave" as "elDate",
-               hd."DateOfLeave" as "hdDate",
-               st."StartDate" as "stStart", st."EndDate" as "stEnd",
+               vl."StartDate" as "vStart", vl."EndDate" as "vEnd", vl."WithPayID" as "vPay",
+               sl."StartDate" as "sStart", sl."EndDate" as "sEnd", sl."WithPayID" as "sPay",
+               el."DateOfLeave" as "elDate", el."WithPayID" as "elPay",
+               hd."DateOfLeave" as "hdDate", hd."WithPayID" as "hdPay",
+               st."StartDate" as "stStart", st."EndDate" as "stEnd", st."WithPayID" as "stPay",
                ow."DateonField",
                ot."OT_DateOf", ot."HrFrom", ot."HrTo", ot."Total_Hrs"
         FROM "emp_Request" er
@@ -472,6 +472,58 @@ exports.viewUserLogs = async (req, res) => {
         replacements: { user_Id }, 
         type: QueryTypes.SELECT 
     });
+
+    // Synthesize missing leave dates into reports for this user
+    const existingDates = new Set(reports.map(r => formatDateOnly(r.log_Date)));
+    const [userProfile] = await sequelize.query(
+      `SELECT "user_ShiftId", "user_RoleId", "is_time_exempt" FROM "User" WHERE "user_Id" = :user_Id`,
+      { replacements: { user_Id }, type: QueryTypes.SELECT }
+    );
+
+    for (const req of approvedRequests) {
+      const reqType = Number(req.emp_reqTypeId);
+      if (![3, 4, 6, 7, 8, 9, 10, 11, 12].includes(reqType)) continue;
+
+      let sStr = null;
+      let eStr = null;
+      if (reqType === 3) { sStr = formatDateOnly(req.vStart); eStr = formatDateOnly(req.vEnd); }
+      else if (reqType === 4) { sStr = formatDateOnly(req.sStart); eStr = formatDateOnly(req.sEnd); }
+      else if (reqType === 6) { sStr = formatDateOnly(req.elDate); eStr = formatDateOnly(req.elDate); }
+      else if (reqType === 7) { sStr = formatDateOnly(req.hdDate); eStr = formatDateOnly(req.hdDate); }
+      else if ([8, 9, 10, 11, 12].includes(reqType)) { sStr = formatDateOnly(req.stStart); eStr = formatDateOnly(req.stEnd); }
+
+      if (!sStr || !eStr) continue;
+
+      const [sy, sm, sd] = sStr.split('-').map(Number);
+      const [ey, em, ed] = eStr.split('-').map(Number);
+      let cur = new Date(Date.UTC(sy, sm - 1, sd));
+      const endUTC = new Date(Date.UTC(ey, em - 1, ed));
+
+      while (cur <= endUTC) {
+        const dStr = cur.toISOString().split('T')[0];
+        if ((!startDate || dStr >= startDate) && (!endDate || dStr <= endDate)) {
+          if (!existingDates.has(dStr)) {
+            existingDates.add(dStr);
+            reports.push({
+              user_id: user_Id,
+              log_Date: dStr,
+              time_Logged_inArr: "[]",
+              time_Logged_outArr: "[]",
+              attendance_StatusId: reqType === 7 ? 4 : 5,
+              attendanceStatusName: reqType === 7 ? "Half Day" : "On Leave",
+              logged_StatusId: 7,
+              loggedStatusName: "System Generated",
+              reg_hrs: reqType === 7 ? 4 : 8,
+              total_payable_hrs: reqType === 7 ? 4 : 8,
+              user_ShiftId: userProfile?.user_ShiftId || 1,
+              user_RoleId: userProfile?.user_RoleId || 3,
+              is_time_exempt: userProfile?.is_time_exempt || false
+            });
+          }
+        }
+        cur.setUTCDate(cur.getUTCDate() + 1);
+      }
+    }
 
     // Helper functions for filtering and mapping
     const parseLogs = (jsonStr) => {
@@ -571,8 +623,16 @@ exports.viewUserLogs = async (req, res) => {
           stats.totalPayableHours = 8.0;
         }
 
+        const isLeaveStatus = currentAttendanceStatusId === 5;
+        if (isLeaveStatus && stats.reg_hrs === 0) {
+          stats.reg_hrs = 8.0;
+          stats.totalPayableHours = 8.0;
+          morning_In = morning_In !== "—" ? morning_In : "ON LEAVE";
+          afternoon_In = afternoon_In !== "—" ? afternoon_In : "ON LEAVE";
+        }
+
         // Fallback for older records or if recalculation is needed (Skip if absent or irregular without approved OT)
-        if (stats.totalPayableHours === 0 && !isOnField && inArr.length > 0 && outArr.length > 0 && !isAbsent && !isIrregularOrIncidental) {
+        if (stats.totalPayableHours === 0 && !isOnField && !isLeaveStatus && inArr.length > 0 && outArr.length > 0 && !isAbsent && !isIrregularOrIncidental) {
           let firstIn = (!isNightShiftAllowed && firstRegularIn) ? firstRegularIn : inArr[0];
           let lastOut = regularOutArr.length > 0 ? regularOutArr[regularOutArr.length - 1] : outArr[outArr.length - 1];
 
@@ -606,9 +666,9 @@ exports.viewUserLogs = async (req, res) => {
           stats.holiday_hrs = 0;
           stats.totalPayableHours = 0;
         } else {
-          const threshold = settings?.workHourThreshold !== undefined ? parseFloat(settings.workHourThreshold) : 4.0;
+          const threshold = currentAttendanceStatusId === 4 ? 3.0 : (settings?.workHourThreshold !== undefined ? parseFloat(settings.workHourThreshold) : 4.0);
           const isExempt = Boolean(report?.is_time_exempt) || (report?.user_RoleId === 1);
-          if (!isExempt && stats.reg_hrs < threshold) {
+          if (!isExempt && stats.reg_hrs < threshold && !isOnField && !isLeaveStatus) {
             stats.reg_hrs = 0;
             stats.totalPayableHours = Math.round((stats.ot_hrs + stats.nd_hrs + stats.holiday_hrs) * 100) / 100;
           }
@@ -645,8 +705,8 @@ exports.viewUserLogs = async (req, res) => {
             holidayFormatted: formatDuration(stats.holiday_hrs)
           },
           logStatus: report.loggedStatusName,
-          attendanceStatus: (currentAttendanceStatusName === "Exempt" || currentAttendanceStatusName === "Present") ? "On Time" : (currentAttendanceStatusName || (stats.totalPayableHours > 0 ? "On Time" : "No Record")),
-          systemGenerated: report.logged_StatusId === 7 || isOnField
+          attendanceStatus: (currentAttendanceStatusName === "Exempt" || currentAttendanceStatusName === "Present") ? "On Time" : (isLeaveStatus ? "On Leave" : (currentAttendanceStatusName || (stats.totalPayableHours > 0 ? "On Time" : "No Record"))),
+          systemGenerated: report.logged_StatusId === 7 || isOnField || isLeaveStatus
         };
       }))).filter(row => row !== null);
 
@@ -1525,13 +1585,20 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
   const effectiveStart = (startDate && startDate !== "undefined" && startDate !== "") ? startDate : "1970-01-01";
   const effectiveEnd = (endDate && endDate !== "undefined" && endDate !== "") ? endDate : "2099-12-31";
 
+  let reqUserFilter = "";
+  const reqReplacements = { effectiveStart, effectiveEnd };
+  if (user_Id && user_Id !== "All Employees" && user_Id !== "all") {
+    reqUserFilter = ` AND er."user_Id" = :user_Id`;
+    reqReplacements.user_Id = user_Id;
+  }
+
   const requestQuery = `
       SELECT er."user_Id", er."emp_reqTypeId", 
-             vl."StartDate" as "vStart", vl."EndDate" as "vEnd", 
-             sl."StartDate" as "sStart", sl."EndDate" as "sEnd", 
-             el."DateOfLeave" as "elDate",
-             hd."DateOfLeave" as "hdDate",
-             st."StartDate" as "stStart", st."EndDate" as "stEnd",
+             vl."StartDate" as "vStart", vl."EndDate" as "vEnd", vl."WithPayID" as "vPay",
+             sl."StartDate" as "sStart", sl."EndDate" as "sEnd", sl."WithPayID" as "sPay",
+             el."DateOfLeave" as "elDate", el."WithPayID" as "elPay",
+             hd."DateOfLeave" as "hdDate", hd."WithPayID" as "hdPay",
+             st."StartDate" as "stStart", st."EndDate" as "stEnd", st."WithPayID" as "stPay",
              ow."DateonField",
              ot."OT_DateOf", ot."HrFrom", ot."HrTo", ot."Total_Hrs"
       FROM "emp_Request" er
@@ -1543,6 +1610,7 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
       LEFT JOIN "Onfield_Work" ow ON er."emp_reqId" = ow."emp_reqId"
       LEFT JOIN "Overtime_Request" ot ON er."emp_reqId" = ot."emp_reqId"
       WHERE er."emp_reqStatusId" = 2
+        ${reqUserFilter}
         AND (
           (er."emp_reqTypeId" = 1 AND ot."OT_DateOf" BETWEEN :effectiveStart AND :effectiveEnd) OR
           (er."emp_reqTypeId" = 2 AND ow."DateonField" BETWEEN :effectiveStart AND :effectiveEnd) OR
@@ -1555,7 +1623,7 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
   `;
 
   const allApprovedRequests = await sequelize.query(requestQuery, { 
-      replacements: { effectiveStart, effectiveEnd }, 
+      replacements: reqReplacements, 
       type: QueryTypes.SELECT 
   });
 
@@ -1577,6 +1645,92 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
     return `${YYYY}-${MM}-${DD}`;
   };
 
+  // Synthesize missing leave dates into reports so DTR includes all approved leaves
+  const existingReportKeys = new Set(reports.map(r => `${r.user_id}-${formatDateOnly(r.log_Date)}`));
+  const userMap = new Map();
+  reports.forEach(r => {
+    if (!userMap.has(Number(r.user_id))) {
+      userMap.set(Number(r.user_id), {
+        user_FirstName: r.user_FirstName,
+        user_LastName: r.user_LastName,
+        user_MachipId: r.user_MachipId,
+        user_ShiftId: r.user_ShiftId,
+        user_RoleId: r.user_RoleId,
+        is_time_exempt: r.is_time_exempt
+      });
+    }
+  });
+
+  const missingUserIds = [...new Set(allApprovedRequests.map(req => Number(req.user_Id)).filter(uid => !userMap.has(uid)))];
+  if (missingUserIds.length > 0) {
+    const extraUsers = await sequelize.query(`
+      SELECT u."user_Id", u."user_FirstName", u."user_LastName", h."user_MachipId", u."user_ShiftId", u."user_RoleId", u."is_time_exempt"
+      FROM "User" u
+      LEFT JOIN "User_Hardware" h ON h."user_Id" = u."user_Id"
+      WHERE u."user_Id" IN (:missingUserIds)
+    `, { replacements: { missingUserIds }, type: QueryTypes.SELECT });
+    extraUsers.forEach(u => {
+      userMap.set(Number(u.user_Id), {
+        user_FirstName: u.user_FirstName,
+        user_LastName: u.user_LastName,
+        user_MachipId: u.user_MachipId,
+        user_ShiftId: u.user_ShiftId,
+        user_RoleId: u.user_RoleId,
+        is_time_exempt: u.is_time_exempt
+      });
+    });
+  }
+
+  for (const req of allApprovedRequests) {
+    const reqType = Number(req.emp_reqTypeId);
+    if (![3, 4, 6, 7, 8, 9, 10, 11, 12].includes(reqType)) continue;
+
+    let sStr = null;
+    let eStr = null;
+    if (reqType === 3) { sStr = formatDateOnly(req.vStart); eStr = formatDateOnly(req.vEnd); }
+    else if (reqType === 4) { sStr = formatDateOnly(req.sStart); eStr = formatDateOnly(req.sEnd); }
+    else if (reqType === 6) { sStr = formatDateOnly(req.elDate); eStr = formatDateOnly(req.elDate); }
+    else if (reqType === 7) { sStr = formatDateOnly(req.hdDate); eStr = formatDateOnly(req.hdDate); }
+    else if ([8, 9, 10, 11, 12].includes(reqType)) { sStr = formatDateOnly(req.stStart); eStr = formatDateOnly(req.stEnd); }
+
+    if (!sStr || !eStr) continue;
+
+    const [sy, sm, sd] = sStr.split('-').map(Number);
+    const [ey, em, ed] = eStr.split('-').map(Number);
+    let cur = new Date(Date.UTC(sy, sm - 1, sd));
+    const endUTC = new Date(Date.UTC(ey, em - 1, ed));
+
+    while (cur <= endUTC) {
+      const dStr = cur.toISOString().split('T')[0];
+      if ((!startDate || dStr >= startDate) && (!endDate || dStr <= endDate)) {
+        const key = `${req.user_Id}-${dStr}`;
+        if (!existingReportKeys.has(key)) {
+          existingReportKeys.add(key);
+          const uInfo = userMap.get(Number(req.user_Id)) || {};
+          reports.push({
+            user_id: req.user_Id,
+            log_Date: dStr,
+            time_Logged_inArr: "[]",
+            time_Logged_outArr: "[]",
+            attendance_StatusId: reqType === 7 ? 4 : 5,
+            attendanceStatusName: reqType === 7 ? "Half Day" : "On Leave",
+            logged_StatusId: 7,
+            loggedStatusName: "System Generated",
+            reg_hrs: reqType === 7 ? 4 : 8,
+            total_payable_hrs: reqType === 7 ? 4 : 8,
+            user_FirstName: uInfo.user_FirstName || "",
+            user_LastName: uInfo.user_LastName || "",
+            user_MachipId: uInfo.user_MachipId || `MACJ-${req.user_Id}`,
+            user_ShiftId: uInfo.user_ShiftId || 1,
+            user_RoleId: uInfo.user_RoleId || 3,
+            is_time_exempt: uInfo.is_time_exempt || false
+          });
+        }
+      }
+      cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+  }
+
   const results = (await Promise.all(reports
     .map(async (r) => {
       const inArr = parseLogs(r.time_Logged_inArr);
@@ -1586,6 +1740,16 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
       const userReqs = allApprovedRequests.filter(req => Number(req.user_Id) === Number(r.user_id));
       const isOnField = userReqs.some(req => Number(req.emp_reqTypeId) === 2 && formatDateOnly(req.DateonField) === dateStr);
       const dayOT = userReqs.find(req => Number(req.emp_reqTypeId) === 1 && formatDateOnly(req.OT_DateOf) === dateStr);
+
+      const dayLeave = userReqs.find(req => {
+        const reqType = Number(req.emp_reqTypeId);
+        if (reqType === 3) return formatDateOnly(req.vStart) <= dateStr && formatDateOnly(req.vEnd) >= dateStr;
+        if (reqType === 4) return formatDateOnly(req.sStart) <= dateStr && formatDateOnly(req.sEnd) >= dateStr;
+        if (reqType === 6) return formatDateOnly(req.elDate) === dateStr;
+        if (reqType === 7) return formatDateOnly(req.hdDate) === dateStr;
+        if ([8, 9, 10, 11, 12].includes(reqType)) return formatDateOnly(req.stStart) <= dateStr && formatDateOnly(req.stEnd) >= dateStr;
+        return false;
+      });
 
       const mStart = settings?.morningShiftStart?.substring(0, 5) || "08:30";
       const mEnd   = settings?.morningShiftEnd?.substring(0, 5) || "17:30";
@@ -1605,6 +1769,33 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
         currentAttendanceStatusName = currentAttendanceStatusId === 1 ? "On Time" : "Late";
       }
 
+      const isLeaveStatus = currentAttendanceStatusId === 5 || Boolean(dayLeave && Number(dayLeave.emp_reqTypeId) !== 7);
+      const isHalfDayLeave = (Boolean(dayLeave) && Number(dayLeave.emp_reqTypeId) === 7) || currentAttendanceStatusId === 4;
+
+      let isLeaveWithPay = false;
+      let isLeaveWithoutPay = false;
+
+      if (dayLeave) {
+        const reqType = Number(dayLeave.emp_reqTypeId);
+        if (reqType === 3) {
+          isLeaveWithPay = Number(dayLeave.vPay) === 1 || dayLeave.vPay === null;
+          isLeaveWithoutPay = Number(dayLeave.vPay) === 2;
+        } else if (reqType === 4) {
+          isLeaveWithPay = Number(dayLeave.sPay) === 1 || dayLeave.sPay === null;
+          isLeaveWithoutPay = Number(dayLeave.sPay) === 2;
+        } else if (reqType === 6) {
+          isLeaveWithPay = Number(dayLeave.elPay) === 1 || dayLeave.elPay === null;
+          isLeaveWithoutPay = Number(dayLeave.elPay) === 2;
+        } else if (reqType === 7) {
+          isLeaveWithPay = Number(dayLeave.hdPay) === 1 || dayLeave.hdPay === null;
+          isLeaveWithoutPay = Number(dayLeave.hdPay) === 2;
+        } else if ([8, 9, 10, 11, 12].includes(reqType)) {
+          isLeaveWithPay = true;
+        }
+      } else if (currentAttendanceStatusId === 5) {
+        isLeaveWithPay = true;
+      }
+
       const isIrregularOrIncidental = currentAttendanceStatusId === 7 || currentAttendanceStatusId === 8;
       const isExplicitAbsent = currentAttendanceStatusId === 3;
 
@@ -1621,17 +1812,7 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
       // MIXED LOG/FILTER LOGIC: Only show the row if there's regular work OR a valid request OR explicitly absent OR recognized attendance
       const hasRegularWork = morning_In !== "—" || afternoon_In !== "—" || afternoon_Out !== "—" || (dayOT && outArr.length > 0);
       const hasRecognizedStatus = [1, 2, 4, 5, 6].includes(currentAttendanceStatusId);
-      const hasRequest = userReqs.some(req => {
-        const reqType = Number(req.emp_reqTypeId);
-        if (reqType === 1) return formatDateOnly(req.OT_DateOf) === dateStr;
-        if (reqType === 2) return formatDateOnly(req.DateonField) === dateStr;
-        if (reqType === 3) return formatDateOnly(req.vStart) <= dateStr && formatDateOnly(req.vEnd) >= dateStr;
-        if (reqType === 4) return formatDateOnly(req.sStart) <= dateStr && formatDateOnly(req.sEnd) >= dateStr;
-        if (reqType === 6) return formatDateOnly(req.elDate) === dateStr;
-        if (reqType === 7) return formatDateOnly(req.hdDate) === dateStr;
-        if ([8, 9, 10, 11, 12].includes(reqType)) return formatDateOnly(req.stStart) <= dateStr && formatDateOnly(req.stEnd) >= dateStr;
-        return false;
-      });
+      const hasRequest = Boolean(dayLeave) || isOnField || Boolean(dayOT);
 
       if (!hasRegularWork && !hasRequest && !isExplicitAbsent && !hasRecognizedStatus) return null;
 
@@ -1658,6 +1839,34 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
         hoursObj.reg_hrs = 8.0;
         hoursObj.totalPayableHours = 8.0;
         hoursObj.formatted = "8h 0m"; 
+      } else if (isLeaveStatus) {
+        if (isLeaveWithPay) {
+          hoursObj.reg_hrs = 8.0;
+          hoursObj.totalPayableHours = 8.0;
+          hoursObj.formatted = "8h 0m";
+          morning_In = morning_In !== "—" ? morning_In : "ON LEAVE";
+          morning_Out = "—";
+          afternoon_In = afternoon_In !== "—" ? afternoon_In : "ON LEAVE";
+          afternoon_Out = "—";
+        } else {
+          hoursObj.reg_hrs = 0.0;
+          hoursObj.totalPayableHours = 0.0;
+          hoursObj.formatted = "0h 0m";
+          morning_In = "LEAVE (W/O PAY)";
+          morning_Out = "—";
+          afternoon_In = "LEAVE (W/O PAY)";
+          afternoon_Out = "—";
+        }
+      } else if (isHalfDayLeave && inArr.length === 0) {
+        if (isLeaveWithPay) {
+          hoursObj.reg_hrs = 4.0;
+          hoursObj.totalPayableHours = 4.0;
+          hoursObj.formatted = "4h 0m";
+          morning_In = morning_In !== "—" ? morning_In : "HALF DAY";
+          morning_Out = "—";
+          afternoon_In = afternoon_In !== "—" ? afternoon_In : "HALF DAY";
+          afternoon_Out = "—";
+        }
       }
 
       // ── INCIDENTAL VISIT (7), IRREGULAR (8), OR ABSENT (3) OVERRIDE ──
@@ -1668,6 +1877,22 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
         hoursObj.totalPayableHours = 0;
         hoursObj.reg_hrs = 0;
         hoursObj.formatted = "0h 0m";
+      }
+
+      // ── WORK HOUR THRESHOLD ENFORCEMENT (TICK-DTR-THRESH-02) ──
+      const threshold = isHalfDayLeave ? 3.0 : (parseFloat(settings?.workHourThreshold) || 4.0);
+      const isExempt = Boolean(r.is_time_exempt) || (r.user_RoleId === 1);
+
+      if (!isExempt && hoursObj.reg_hrs < threshold && !isOnField && !isLeaveStatus && !isIrregularOrIncidental && !isExplicitAbsent) {
+        if (dayLeave && Number(dayLeave.emp_reqTypeId) === 7 && isLeaveWithPay) {
+          hoursObj.reg_hrs = 4.0;
+          hoursObj.totalPayableHours = 4.0 + (hoursObj.ot_hrs || 0);
+          hoursObj.formatted = formatDuration(hoursObj.totalPayableHours);
+        } else {
+          hoursObj.reg_hrs = 0;
+          hoursObj.totalPayableHours = Math.round((hoursObj.ot_hrs + hoursObj.nd_hrs + hoursObj.hol_hrs) * 100) / 100;
+          hoursObj.formatted = formatDuration(hoursObj.totalPayableHours);
+        }
       }
       
       // Add Overtime manually if approved (apply multiplier from settings)
@@ -1696,10 +1921,11 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
         outArr,
         hoursWorked: hoursObj.reg_hrs || 0,
         hoursWorkedFormatted: formatDuration(hoursObj.reg_hrs || 0),
-        status: (currentAttendanceStatusName === "Exempt" || currentAttendanceStatusName === "Present") ? "On Time" : (currentAttendanceStatusName || (hoursObj.reg_hrs > 0 ? "On Time" : "—")),
+        status: (currentAttendanceStatusName === "Exempt" || currentAttendanceStatusName === "Present") ? "On Time" : (isLeaveStatus ? "On Leave" : (currentAttendanceStatusName || (hoursObj.reg_hrs > 0 ? "On Time" : "—"))),
         shiftId: r.user_ShiftId,
         buckets: hoursObj.buckets,
-        systemGenerated: r.logged_StatusId === 7
+        systemGenerated: r.logged_StatusId === 7 || isOnField || isLeaveStatus,
+        isLeave: isLeaveStatus
       };
     }))).filter(row => row !== null);
 

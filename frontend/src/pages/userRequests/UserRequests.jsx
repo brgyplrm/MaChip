@@ -136,6 +136,40 @@ const UserRequests = () => {
     }
   };
 
+  const formatApproverDisplay = (req) => {
+    if (!req) return "Pending Review";
+    if (req.approverName) {
+      return `${req.approverName}${req.processedBy ? ` (${formatUserId(req.processedBy)})` : ""}`;
+    }
+    if (req.processedBy) {
+      return `Authorized Management (${formatUserId(req.processedBy)})`;
+    }
+    if (req.emp_reqStatusId === 2) {
+      return "Authorized Management / System";
+    }
+    if (req.emp_reqStatusId === 3) {
+      return "Management Review";
+    }
+    if (req.emp_reqStatusId === 4) {
+      return "Cancelled by Employee";
+    }
+    return "Pending Review";
+  };
+
+  const formatRecommenderDisplay = (req) => {
+    if (!req) return "Pending Recommendation";
+    if (req.recommenderName) {
+      return `${req.recommenderName}${req.recommendedBy ? ` (${formatUserId(req.recommendedBy)})` : ""}`;
+    }
+    if (req.recommendedBy) {
+      return `Supervisor (${formatUserId(req.recommendedBy)})`;
+    }
+    if ([2, 3].includes(req.emp_reqStatusId)) {
+      return "Authorized Supervisor / System";
+    }
+    return "Pending Recommendation";
+  };
+
   const [formData, setFormData] = useState({
     user_Id: userData?.user_Id || "",
     emp_reqTypeId: "",
@@ -2668,7 +2702,7 @@ const UserRequests = () => {
                           </div>
                           <div className="space-y-1">
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Processed By</label>
-                            <p className="font-semibold text-slate-800">{currentReq.approverName ? `${currentReq.approverName} (${formatUserId(currentReq.processedBy)})` : "Pending Review"}</p>
+                            <p className="font-semibold text-slate-800">{formatApproverDisplay(currentReq)}</p>
                           </div>
                           <div className="space-y-1">
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Date Processed</label>
@@ -2681,7 +2715,7 @@ const UserRequests = () => {
                             <>
                             <div className="space-y-1">
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Processed By</label>
-                            <p className="font-semibold text-slate-800">{currentReq.approverName ? `${currentReq.approverName} (${formatUserId(currentReq.processedBy)})` : "Pending Review"}</p>
+                            <p className="font-semibold text-slate-800">{formatApproverDisplay(currentReq)}</p>
                             </div>
                             <div className="space-y-1">
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Date Processed</label>
@@ -2694,11 +2728,11 @@ const UserRequests = () => {
                             <>
                             <div className="space-y-1">
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Recommended By</label>
-                            <p className="font-semibold text-slate-800">{currentReq.recommenderName ? `${currentReq.recommenderName} (${formatUserId(currentReq.recommendedBy)})` : "Pending Recommendation"}</p>
+                            <p className="font-semibold text-slate-800">{formatRecommenderDisplay(currentReq)}</p>
                             </div>
                             <div className="space-y-1">
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Approved By</label>
-                            <p className="font-semibold text-slate-800">{currentReq.approverName ? `${currentReq.approverName} (${formatUserId(currentReq.processedBy)})` : "Pending Approval"}</p>
+                            <p className="font-semibold text-slate-800">{formatApproverDisplay(currentReq)}</p>
                             </div>
                             <div className="space-y-1">
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Date Processed</label>
