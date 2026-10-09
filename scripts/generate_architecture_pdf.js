@@ -16,6 +16,7 @@ try {
 
 /**
  * Robust, print-optimized Markdown to HTML converter with custom Table Fixer
+ * and zero whitespace-waste page flow.
  */
 function markdownToHtml(md) {
   const lines = md.split(/\r?\n/);
@@ -243,7 +244,7 @@ async function generatePdf() {
   <style>
     @page {
       size: A4;
-      margin: 16mm 14mm 16mm 14mm;
+      margin: 14mm 12mm 14mm 12mm;
     }
 
     *, *:before, *:after {
@@ -252,8 +253,8 @@ async function generatePdf() {
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      font-size: 9.5pt;
-      line-height: 1.5;
+      font-size: 9pt;
+      line-height: 1.45;
       color: #1f2328;
       background-color: #ffffff;
       margin: 0;
@@ -261,55 +262,64 @@ async function generatePdf() {
     }
 
     h1 {
-      font-size: 18pt;
+      font-size: 16pt;
       font-weight: 700;
       color: #0969da;
       border-bottom: 2px solid #0969da;
-      padding-bottom: 6px;
-      margin-top: 10px;
-      margin-bottom: 12px;
+      padding-bottom: 4px;
+      margin-top: 8px;
+      margin-bottom: 10px;
+      break-after: avoid;
       page-break-after: avoid;
     }
 
     h2 {
-      font-size: 13pt;
+      font-size: 12pt;
       font-weight: 600;
       color: #1f2328;
       border-bottom: 1px solid #d0d7de;
-      padding-bottom: 4px;
-      margin-top: 18px;
-      margin-bottom: 10px;
+      padding-bottom: 3px;
+      margin-top: 14px;
+      margin-bottom: 8px;
+      break-after: avoid;
       page-break-after: avoid;
     }
 
     h3 {
-      font-size: 11pt;
+      font-size: 10.5pt;
       font-weight: 600;
       color: #24292f;
-      margin-top: 14px;
-      margin-bottom: 6px;
+      margin-top: 10px;
+      margin-bottom: 4px;
+      break-after: avoid;
       page-break-after: avoid;
     }
 
     h4 {
-      font-size: 10pt;
+      font-size: 9.5pt;
       font-weight: 600;
       color: #0969da;
-      margin-top: 12px;
-      margin-bottom: 4px;
+      margin-top: 8px;
+      margin-bottom: 3px;
+      break-after: avoid;
       page-break-after: avoid;
     }
 
     p {
       margin-top: 0;
-      margin-bottom: 8px;
+      margin-bottom: 5px;
       text-align: justify;
+      break-inside: auto;
+      page-break-inside: auto;
+      orphans: 2;
+      widows: 2;
     }
 
-    /* ── TABLE STYLING & FIXES ── */
+    /* ── COMPACT & RESPONSIVE TABLE STYLING ── */
     .table-container {
       width: 100% !important;
-      margin: 12px 0 16px 0 !important;
+      margin: 8px 0 10px 0 !important;
+      break-inside: auto !important;
       page-break-inside: auto !important;
     }
 
@@ -318,9 +328,11 @@ async function generatePdf() {
       max-width: 100% !important;
       border-collapse: collapse !important;
       table-layout: fixed !important;
-      font-size: 8.5pt !important;
-      line-height: 1.35 !important;
+      font-size: 8pt !important;
+      line-height: 1.3 !important;
       background: #ffffff !important;
+      break-inside: auto !important;
+      page-break-inside: auto !important;
     }
 
     thead {
@@ -328,13 +340,14 @@ async function generatePdf() {
     }
 
     tr {
+      break-inside: avoid !important;
       page-break-inside: avoid !important;
       page-break-after: auto !important;
     }
 
     th, td {
       border: 1px solid #d0d7de !important;
-      padding: 5.5px 7.5px !important;
+      padding: 4px 6px !important;
       text-align: left !important;
       vertical-align: top !important;
       word-wrap: break-word !important;
@@ -357,9 +370,9 @@ async function generatePdf() {
     /* Code blocks & Inline code */
     code {
       font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-      font-size: 8pt;
+      font-size: 7.5pt;
       background-color: #eff1f3;
-      padding: 1.5px 4px;
+      padding: 1px 3.5px;
       border-radius: 3px;
       color: #cf222e;
     }
@@ -367,13 +380,14 @@ async function generatePdf() {
     pre {
       background-color: #0d1117;
       color: #e6edf3;
-      padding: 10px 12px;
-      border-radius: 6px;
-      font-size: 8pt;
-      line-height: 1.35;
+      padding: 8px 10px;
+      border-radius: 4px;
+      font-size: 7.5pt;
+      line-height: 1.3;
       overflow-x: auto;
-      margin: 10px 0;
-      page-break-inside: avoid;
+      margin: 6px 0;
+      break-inside: auto;
+      page-break-inside: auto;
     }
 
     pre code {
@@ -383,29 +397,39 @@ async function generatePdf() {
     }
 
     blockquote {
-      border-left: 3.5px solid #0969da;
-      padding: 4px 10px;
-      margin: 8px 0;
+      border-left: 3px solid #0969da;
+      padding: 3px 8px;
+      margin: 4px 0 6px 0;
       background-color: #f0f7ff;
       color: #1f2328;
-      font-size: 9pt;
-      page-break-inside: avoid;
+      font-size: 8.5pt;
+      line-height: 1.4;
+      break-inside: auto;
+      page-break-inside: auto;
     }
 
     ul, ol {
       margin-top: 2px;
-      margin-bottom: 8px;
-      padding-left: 20px;
+      margin-bottom: 5px;
+      padding-left: 18px;
     }
 
     li {
-      margin-bottom: 3px;
+      margin-bottom: 2px;
+      break-inside: auto;
+      page-break-inside: auto;
+      orphans: 2;
+      widows: 2;
     }
 
     hr {
       border: 0;
       border-top: 1px solid #d0d7de;
-      margin: 16px 0;
+      margin: 8px 0;
+      break-after: auto;
+      page-break-after: auto;
+      break-before: auto;
+      page-break-before: auto;
     }
 
     a {
@@ -433,25 +457,25 @@ ${bodyHtml}
   const page = await browser.newPage();
   await page.setContent(fullHtml, { waitUntil: 'networkidle0' });
 
-  console.log(`[PDF] Printing to A4 document with headers and footers...`);
+  console.log(`[PDF] Printing to A4 document with continuous flow and headers/footers...`);
   await page.pdf({
     path: pdfPath,
     format: 'A4',
     printBackground: true,
     margin: {
-      top: '16mm',
-      bottom: '16mm',
-      left: '14mm',
-      right: '14mm'
+      top: '14mm',
+      bottom: '14mm',
+      left: '12mm',
+      right: '12mm'
     },
     displayHeaderFooter: true,
     headerTemplate: `
-      <div style="font-family: -apple-system, sans-serif; font-size: 7.5pt; color: #8c959f; width: 100%; display: flex; justify-content: space-between; padding: 0 14mm;">
-        <span>MAChip System Architecture & Defense Guide</span>
+      <div style="font-family: -apple-system, sans-serif; font-size: 7pt; color: #8c959f; width: 100%; display: flex; justify-content: space-between; padding: 0 12mm;">
+        <span>MAChip System Architecture &amp; Defense Guide</span>
         <span>MAC-J Int'l Forwarding Ltd.</span>
       </div>`,
     footerTemplate: `
-      <div style="font-family: -apple-system, sans-serif; font-size: 7.5pt; color: #8c959f; width: 100%; text-align: center;">
+      <div style="font-family: -apple-system, sans-serif; font-size: 7pt; color: #8c959f; width: 100%; text-align: center;">
         Page <span class="pageNumber"></span> of <span class="totalPages"></span>
       </div>`
   });

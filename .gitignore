@@ -102,5 +102,11 @@ docs/checklists/*_triage*.md
 docs/audit_reports/
 *_findings*.md
 *_triage*.md
+docs
 
-
+scripts/generate_architecture_pdf.js
+scripts/generate_qa_pdf.js
+scripts/run_all_scenarios.js
+scripts/qa_harness.js
+scripts/generate_architecture_pdf.js
+scripts/generate_architecture_pdf.js
