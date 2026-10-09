@@ -579,6 +579,14 @@ const Edit = () => {
         formDataToSend.set("user_MiddleName", formData.user_MiddleName);
       }
 
+      // Explicitly append hardware tokens even if empty string so unassigning works
+      if (formData.user_MachipId !== undefined) {
+        formDataToSend.set("user_MachipId", formData.user_MachipId);
+      }
+      if (formData.user_FingerprintId !== undefined) {
+        formDataToSend.set("user_FingerprintId", formData.user_FingerprintId);
+      }
+
       // If Admin Manager, explicitly set hireDate and is_time_exempt
       if (isAdmin) {
         formDataToSend.set("is_time_exempt", formData.is_time_exempt ? "true" : "false");
@@ -595,6 +603,7 @@ const Edit = () => {
       }
 
       if (adminVerification) {
+        formDataToSend.append("adminConfirmPassword", adminVerification);
         formDataToSend.append("adminPassword", adminVerification);
       }
 
@@ -639,7 +648,7 @@ const Edit = () => {
       return;
     }
 
-    if (['Admin Manager', 'Admin Accountant'].includes(formData.user_Role) && originalRole !== formData.user_Role) {
+    if (['Admin Manager', 'Admin Accountant', 'Supervisor'].includes(formData.user_Role) && originalRole !== formData.user_Role) {
       setShowAdminConfirm(true);
     } else {
       handleUpdate();

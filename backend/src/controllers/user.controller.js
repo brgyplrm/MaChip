@@ -226,6 +226,24 @@ exports.registerUser = async (req, res) => {
     const dailyRate = parseFloat(req.body.dailyRate) || 0;
     const shares = await computeMonthlyShares(dailyRate);
 
+    const targetRoleId = parseInt(req.body.user_RoleId, 10) || 3;
+
+    // Verify Admin Password if assigning elevated roles (Admin Manager 1, Supervisor 2, Accountant 4)
+    if (targetRoleId !== 3) {
+      const { adminConfirmPassword } = req.body;
+      if (!adminConfirmPassword) {
+        return res.status(400).json({ error: "Admin confirmation password is required to assign elevated roles." });
+      }
+      const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
+      const [adminRecord] = await sequelize.query(
+        `SELECT "user_Password" FROM "User" WHERE "user_Id" = :adminId`,
+        { replacements: { adminId: currentAdminId }, type: QueryTypes.SELECT }
+      );
+      if (!adminRecord || !(await bcrypt.compare(adminConfirmPassword, adminRecord.user_Password))) {
+        return res.status(401).json({ error: "Invalid admin confirmation password." });
+      }
+    }
+
     const settings = await SystemSettings.findOne();
     let assignedShiftId = parseInt(req.body.user_ShiftId) || 1;
     if (!settings?.enableNightShift && assignedShiftId === 2) {
@@ -260,7 +278,7 @@ exports.registerUser = async (req, res) => {
             user_MiddleName: req.body.user_MiddleName || null,
             user_Email: req.body.user_Email || null,
             user_Password: hashedPassword,
-            user_RoleId: req.body.user_RoleId || 2,
+            user_RoleId: targetRoleId,
             user_EmploymentStatusId: req.body.user_EmploymentStatusId || 1,
             user_ProfilePic: req.file ? `ProfilePictures/${req.file.filename}` : null,
             department: req.body.department || null,
@@ -379,6 +397,12 @@ exports.registerUser = async (req, res) => {
       { replacements: { user_Id }, type: QueryTypes.SELECT },
     );
     const newUser = newUserResult[0];
+
+    // SECURITY FIX: Never persist or disclose password hash/tokens in response or audit log
+    delete newUser.user_Password;
+    delete newUser.resetPasswordToken;
+    delete newUser.resetPasswordExpires;
+
     if (newUser.account_Number) {
       newUser.account_Number = decrypt(newUser.account_Number);
     }
@@ -436,14 +460,53 @@ exports.viewAllUsers = async (req, res) => {
       { type: QueryTypes.SELECT },
     );
 
-    const decryptedUsers = users.map(user => {
+    const requesterId = req.user ? parseInt(req.user.user_Id, 10) : null;
+    const requesterRoleId = req.user ? parseInt(req.user.user_RoleId, 10) : null;
+    const requesterRoleName = req.user ? req.user.user_Role : "";
+    const isFinanceOrAdmin = [1, 4].includes(requesterRoleId) ||
+      ["Admin Manager", "Admin Accountant", "Admin"].includes(requesterRoleName);
+
+    const sanitizedUsers = users.map(user => {
+      // SECURITY FIX: Never leak password hashes or reset tokens in API responses
+      delete user.user_Password;
+      delete user.resetPasswordToken;
+      delete user.resetPasswordExpires;
+
       if (user.account_Number) {
-        user.account_Number = decrypt(user.account_Number);
+        const decryptedAccount = decrypt(user.account_Number);
+        const isOwner = requesterId === parseInt(user.user_Id, 10);
+        if (isOwner || isFinanceOrAdmin) {
+          user.account_Number = decryptedAccount;
+        } else {
+          user.account_Number = decryptedAccount && decryptedAccount.length > 4
+            ? `****${decryptedAccount.slice(-4)}`
+            : "****";
+        }
       }
+
+      // If requester is not finance or admin (e.g. Supervisor), mask dailyRate & deduction profile
+      if (!isFinanceOrAdmin) {
+        delete user.dailyRate;
+        delete user.previousDailyRate;
+        delete user.rateUpdatedAt;
+        delete user.sss_Share;
+        delete user.philhealth_Share;
+        delete user.hdmf_Share;
+        delete user.tax_Share;
+        delete user.healthCard_Amnt;
+        delete user.SSS_Loan;
+        delete user.HDMF_Loan;
+        delete user.calamityLoan_Amnt;
+        delete user.advances_Amnt;
+        delete user.globe_Deduction;
+        delete user.eastwest_Loan;
+        delete user.multiPurposeSavings;
+      }
+
       return user;
     });
 
-    res.status(200).json(decryptedUsers);
+    res.status(200).json(sanitizedUsers);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -479,14 +542,40 @@ exports.viewArchivedUsers = async (req, res) => {
       { type: QueryTypes.SELECT },
     );
 
-    const decryptedUsers = users.map(user => {
+    const requesterId = req.user ? parseInt(req.user.user_Id, 10) : null;
+    const requesterRoleId = req.user ? parseInt(req.user.user_RoleId, 10) : null;
+    const requesterRoleName = req.user ? req.user.user_Role : "";
+    const isFinanceOrAdmin = [1, 4].includes(requesterRoleId) ||
+      ["Admin Manager", "Admin Accountant", "Admin"].includes(requesterRoleName);
+
+    const sanitizedUsers = users.map(user => {
+      // SECURITY FIX: Never leak password hashes or reset tokens in API responses
+      delete user.user_Password;
+      delete user.resetPasswordToken;
+      delete user.resetPasswordExpires;
+
       if (user.account_Number) {
-        user.account_Number = decrypt(user.account_Number);
+        const decryptedAccount = decrypt(user.account_Number);
+        const isOwner = requesterId === parseInt(user.user_Id, 10);
+        if (isOwner || isFinanceOrAdmin) {
+          user.account_Number = decryptedAccount;
+        } else {
+          user.account_Number = decryptedAccount && decryptedAccount.length > 4
+            ? `****${decryptedAccount.slice(-4)}`
+            : "****";
+        }
       }
+
+      if (!isFinanceOrAdmin) {
+        delete user.dailyRate;
+        delete user.previousDailyRate;
+        delete user.rateUpdatedAt;
+      }
+
       return user;
     });
 
-    res.status(200).json(decryptedUsers);
+    res.status(200).json(sanitizedUsers);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -523,8 +612,10 @@ exports.viewUserById = async (req, res) => {
     );    if (user.length > 0) {
       const userData = user[0];
 
-      // SECURITY FIX (T-001): Never leak password hash in API responses
+      // SECURITY FIX (T-001): Never leak password hash or reset tokens in API responses
       delete userData.user_Password;
+      delete userData.resetPasswordToken;
+      delete userData.resetPasswordExpires;
 
       if (userData.account_Number) {
         const decryptedAccount = decrypt(userData.account_Number);
@@ -1106,6 +1197,24 @@ exports.updateUser = async (req, res) => {
         }
       }
 
+      // Verify Admin Password if elevating role to Admin Manager (1), Supervisor (2), or Admin Accountant (4)
+      if (assignedRoleId !== oldUser.user_RoleId && [1, 2, 4].includes(assignedRoleId)) {
+        const confirmPwd = adminConfirmPassword || req.body.adminPassword;
+        if (!confirmPwd) {
+          await transaction.rollback();
+          return res.status(400).json({ error: "Admin confirmation password is required to assign elevated roles." });
+        }
+        const currentAdminId = operator ? operator.user_Id : (req.headers["x-admin-id"] || 1);
+        const [adminRecord] = await sequelize.query(
+          `SELECT "user_Password" FROM "User" WHERE "user_Id" = :adminId`,
+          { replacements: { adminId: currentAdminId }, type: QueryTypes.SELECT }
+        );
+        if (!adminRecord || !(await bcrypt.compare(confirmPwd, adminRecord.user_Password))) {
+          await transaction.rollback();
+          return res.status(401).json({ error: "Invalid admin confirmation password." });
+        }
+      }
+
       const settings = await SystemSettings.findOne();
       let resolvedShiftId = isMaster ? (parseInt(req.body.user_ShiftId) || oldUser.user_ShiftId || 1) : oldUser.user_ShiftId;
       if (!settings?.enableNightShift && resolvedShiftId === 2) {
@@ -1335,6 +1444,12 @@ exports.updateUser = async (req, res) => {
     );
 
     const updatedUser = updatedUserResult[0];
+
+    // SECURITY FIX: Never leak password hash or reset tokens in API responses or audit logs
+    delete updatedUser.user_Password;
+    delete updatedUser.resetPasswordToken;
+    delete updatedUser.resetPasswordExpires;
+
     if (updatedUser.account_Number) {
       updatedUser.account_Number = decrypt(updatedUser.account_Number);
     }

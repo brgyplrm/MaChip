@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/auth.controller.js');
-const { loginLimiter } = require('../middleware/rateLimiter');
+const { loginLimiter, verifyLimiter } = require('../middleware/rateLimiter');
 
 const authMiddleware = require('../middleware/auth');
 
@@ -15,7 +15,7 @@ router.post('/logout', authController.logoutUser);
 router.get('/verify', authMiddleware, authController.verifySession);
 
 // URL will be: http://localhost:4000/api/auth/verify-password
-router.post('/verify-password', authMiddleware, authController.verifyPassword);
+router.post('/verify-password', authMiddleware, verifyLimiter, authController.verifyPassword);
 
 // Self-service password reset routes (public)
 router.post('/forgot-password', authController.forgotPassword);

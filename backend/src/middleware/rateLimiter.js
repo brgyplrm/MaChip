@@ -51,6 +51,17 @@ const loginLimiter = rateLimit({
   validate: { trustProxy: true },
 });
 
+// ── Verify Password Limiter (Re-Authentication Defense) ───────────────────────
+const verifyLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10-minute window
+  max: 10, // Maximum 10 verification attempts per 10 minutes per user bucket
+  keyGenerator: keyByUser,
+  message: { error: "Too many verification attempts. Please try again after 10 minutes." },
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { trustProxy: true, keyGeneratorIpFallback: false },
+});
+
 // ── HIGH_FREQ_ROUTES ──────────────────────────────────────────────────────────
 const HIGH_FREQ_ROUTES = [
   "/api/notifications/unread-count",
@@ -90,4 +101,4 @@ const generalLimiter = rateLimit({
   validate: { trustProxy: true, keyGeneratorIpFallback: false },
 });
 
-module.exports = { loginLimiter, generalLimiter, pollingLimiter, HIGH_FREQ_ROUTES };
+module.exports = { loginLimiter, verifyLimiter, generalLimiter, pollingLimiter, HIGH_FREQ_ROUTES };

@@ -22,6 +22,7 @@ exports.getAllRfidCards = async (req, res) => {
       FROM "User" u
       LEFT JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
       WHERE u."deletedAt" IS NULL
+        AND u."user_Id" != 999
       ORDER BY u."user_LastName" ASC`,
       { type: QueryTypes.SELECT }
     );

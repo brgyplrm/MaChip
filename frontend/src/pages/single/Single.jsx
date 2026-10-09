@@ -356,15 +356,15 @@ const Single = () => {
                       // PhilHealth
                       const ph_clamped = Math.min(Math.max(monthly, 10000), 100000);
                       const ph_total = Math.round((ph_clamped * 0.05) * 100) / 100;
-                      const ph_ee = ph_total / 2;
-                      const ph_er = ph_total / 2;
+                      const ph_ee = parseFloat(user.philhealth_Share !== undefined && user.philhealth_Share !== null ? user.philhealth_Share : (ph_total / 2));
+                      const ph_er = Math.max(0, Math.round((ph_total - ph_ee) * 100) / 100);
                       
                       // HDMF
                       const hdmf_mfs = Math.min(monthly, 10000);
                       const hdmf_ee = parseFloat(user.hdmf_Share || 0);
                       const hdmf_er = Math.round(hdmf_mfs * 0.02);
 
-                      const format = (v) => `₱${v.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
+                      const format = (v) => `₱${Number(v || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
                       return (
                         <>
@@ -412,7 +412,7 @@ const Single = () => {
               <div className="grid grid-cols-2 gap-y-4">
                 <div className="flex flex-col">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Base Daily Rate</span>
-                  <span className="text-lg font-bold text-slate-800">₱{parseFloat(user.dailyRate || 0).toLocaleString()}</span>
+                  <span className="text-lg font-bold text-slate-800">₱{Number(user.dailyRate || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
                 <div className="flex flex-col">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Department</span>

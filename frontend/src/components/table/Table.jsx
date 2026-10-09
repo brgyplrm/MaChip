@@ -48,8 +48,8 @@ const List = ({ userId }) => {
 
     fetchUserLogs();
     
-    // Set up polling
-    const interval = setInterval(fetchUserLogs, 5000);
+    // Set up polling (15s interval for smooth LAN performance)
+    const interval = setInterval(fetchUserLogs, 15000);
     return () => clearInterval(interval);
   }, [userId]);
 
