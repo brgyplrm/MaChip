@@ -681,11 +681,11 @@ const AdminLoanEnrollment = () => {
                             <span className="block text-slate-600 text-[11px] mt-0.5">{req.LR_loanType || "General Loan"}</span>
                           </td>
                           <td className="p-4 text-right font-bold text-emerald-600 text-sm">
-                            ₱{parseFloat(req.LR_amount || req.LR_balance || 0).toLocaleString()}
+                            ₱{parseFloat(req.LR_amount || req.LR_balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
                           <td className="p-4 text-right font-bold text-blue-700">
                             {req.LR_amortization && parseFloat(req.LR_amortization) > 0
-                              ? `₱${parseFloat(req.LR_amortization).toLocaleString()}`
+                              ? `₱${parseFloat(req.LR_amortization).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                               : "—"}
                           </td>
                           <td className="p-4">{req.LR_term ? `${req.LR_term} Mos` : "1 Mo"}</td>
@@ -799,7 +799,7 @@ const AdminLoanEnrollment = () => {
                       <div>
                         <span className="block text-slate-400 text-[10px] font-bold uppercase">Principal Amount / Balance</span>
                         <span className="font-black text-emerald-600 text-base">
-                          ₱{parseFloat(current.LR_amount || current.LR_balance || 0).toLocaleString()}
+                          ₱{parseFloat(current.LR_amount || current.LR_balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                       </div>
 
@@ -814,7 +814,7 @@ const AdminLoanEnrollment = () => {
                         <span className="block text-slate-400 text-[10px] font-bold uppercase">Monthly Amortization</span>
                         <span className="font-bold text-blue-700 text-sm">
                           {current.LR_amortization && parseFloat(current.LR_amortization) > 0
-                            ? `₱${parseFloat(current.LR_amortization).toLocaleString()}`
+                            ? `₱${parseFloat(current.LR_amortization).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                             : "N/A"}
                         </span>
                       </div>
@@ -834,7 +834,7 @@ const AdminLoanEnrollment = () => {
                       {current.LR_pagibigTAV > 0 && (
                         <div>
                           <span className="block text-slate-400 text-[10px] font-bold uppercase">Pag-IBIG TAV</span>
-                          <span className="font-bold text-emerald-700">₱{parseFloat(current.LR_pagibigTAV).toLocaleString()}</span>
+                          <span className="font-bold text-emerald-700">₱{parseFloat(current.LR_pagibigTAV).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
                       )}
 

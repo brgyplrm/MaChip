@@ -299,9 +299,6 @@ const PayrollComputationDetails = () => {
                   <Receipt className="h-5 w-5 text-brand-primary" />
                   Itemized Statement of Earnings & Deductions
                 </CardTitle>
-                <CardDescription className="text-xs text-slate-500 mt-0.5">
-                  Complete cutoff audit trail from timekeeping logs and statutory rate tables
-                </CardDescription>
               </div>
               <Badge variant="outline" className="bg-white text-slate-600 border-none shadow-xs text-xs font-semibold px-3 py-1 w-fit">
                 Period: {new Date(payroll.period_Start).toLocaleDateString("en-US", { month: "short", day: "numeric" })} – {new Date(payroll.period_End).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
@@ -316,7 +313,7 @@ const PayrollComputationDetails = () => {
                 <div className="p-6 space-y-6 flex flex-col justify-between">
                   <div className="space-y-6">
                     {/* Column Header */}
-                    <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    {/* <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                       <div className="flex items-center gap-2">
                         <div className="bg-emerald-50 text-emerald-700 p-1.5 rounded-lg">
                           <TrendingUp className="h-4 w-4" />
@@ -326,12 +323,11 @@ const PayrollComputationDetails = () => {
                       <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full">
                         {formatCurrency(payroll.totalEarnings)}
                       </span>
-                    </div>
+                    </div> */}
 
                     {/* Section 1: Base Compensation */}
                     <div className="space-y-3">
                       <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400">
-                        <Briefcase className="h-3.5 w-3.5 text-emerald-600" />
                         <span>Basic Compensation</span>
                       </div>
                       <div className="space-y-2 text-sm">
@@ -384,7 +380,6 @@ const PayrollComputationDetails = () => {
                     {/* Section 2: Overtime & Premium Pay */}
                     <div className="space-y-3">
                       <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400">
-                        <Clock className="h-3.5 w-3.5 text-emerald-600" />
                         <span>Overtime & Premiums</span>
                       </div>
                       <div className="space-y-2 text-sm">
@@ -479,7 +474,6 @@ const PayrollComputationDetails = () => {
                     {/* Section 3: Allowances & Incentives */}
                     <div className="space-y-3">
                       <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400">
-                        <Gift className="h-3.5 w-3.5 text-emerald-600" />
                         <span>Allowances & Supplementary Pay</span>
                       </div>
                       <div className="space-y-2 text-sm">
@@ -499,7 +493,6 @@ const PayrollComputationDetails = () => {
                   <div className="bg-emerald-50/70 p-4 rounded-xl flex justify-between items-center mt-6">
                     <div>
                       <span className="font-bold text-emerald-950 text-sm block">Total Gross Earnings</span>
-                      <span className="text-[11px] text-emerald-700">All earnings before tax and contributions</span>
                     </div>
                     <span className="font-bold text-emerald-700 text-xl">{formatCurrency(payroll.totalEarnings)}</span>
                   </div>
@@ -511,7 +504,7 @@ const PayrollComputationDetails = () => {
                 <div className="p-6 space-y-6 flex flex-col justify-between">
                   <div className="space-y-6">
                     {/* Column Header */}
-                    <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    {/* <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                       <div className="flex items-center gap-2">
                         <div className="bg-rose-50 text-rose-700 p-1.5 rounded-lg">
                           <TrendingDown className="h-4 w-4" />
@@ -521,12 +514,11 @@ const PayrollComputationDetails = () => {
                       <span className="text-xs font-bold text-rose-700 bg-rose-50 px-2.5 py-1 rounded-full">
                         -{formatCurrency(payroll.totalDeductions)}
                       </span>
-                    </div>
+                    </div> */}
 
                     {/* Section 1: Statutory Deductions */}
                     <div className="space-y-3">
                       <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400">
-                        <Building2 className="h-3.5 w-3.5 text-rose-600" />
                         <span>Government Contributions (Employee Share)</span>
                       </div>
                       <div className="space-y-2 text-sm">
@@ -560,7 +552,6 @@ const PayrollComputationDetails = () => {
                     {/* Section 2: Attendance Deductions */}
                     <div className="space-y-3">
                       <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400">
-                        <AlertCircle className="h-3.5 w-3.5 text-rose-600" />
                         <span>Attendance Penalties</span>
                       </div>
                       <div className="space-y-2 text-sm">
@@ -582,8 +573,7 @@ const PayrollComputationDetails = () => {
                     {/* Section 3: Loans & Others */}
                     <div className="space-y-3">
                       <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-400">
-                        <Wallet className="h-3.5 w-3.5 text-rose-600" />
-                        <span>Loans & Company Deductions</span>
+                          <span>Loans & Company Deductions</span>
                       </div>
                       <div className="space-y-2 text-sm">
                         <div className="flex justify-between items-center py-1 border-b border-slate-50">
@@ -616,7 +606,6 @@ const PayrollComputationDetails = () => {
                   <div className="bg-rose-50/70 p-4 rounded-xl flex justify-between items-center mt-6">
                     <div>
                       <span className="font-bold text-rose-950 text-sm block">Total Deductions</span>
-                      <span className="text-[11px] text-rose-700">Statutory shares, attendance, and loans</span>
                     </div>
                     <span className="font-bold text-rose-700 text-xl">-{formatCurrency(payroll.totalDeductions)}</span>
                   </div>
@@ -632,7 +621,7 @@ const PayrollComputationDetails = () => {
                   <div>
                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Take-Home Formula</span>
                     <span className="text-xs text-slate-700 font-medium">
-                      Gross ({formatCurrency(payroll.totalEarnings)}) – Deductions ({formatCurrency(payroll.totalDeductions)})
+                      Gross – Deductions = Net Pay ({formatCurrency(payroll.totalEarnings)} – {formatCurrency(payroll.totalDeductions)} = {formatCurrency(payroll.netPay)}) 
                     </span>
                   </div>
                 </div>
@@ -641,16 +630,6 @@ const PayrollComputationDetails = () => {
                     <span className="text-[10px] uppercase font-bold text-slate-400 block">Final Net Pay Credited</span>
                     <span className="text-2xl font-bold text-brand-primary">{formatCurrency(payroll.netPay)}</span>
                   </div>
-                  <Button 
-                    asChild
-                    variant="ghost" 
-                    className="text-brand-primary hover:bg-brand-primary/10 font-semibold text-xs gap-1.5 hidden md:flex"
-                  >
-                    <Link to={`/employee/payslip/${id}`}>
-                      <span>Back to Payslip Details</span>
-                      <ArrowRight className="h-3.5 w-3.5" />
-                    </Link>
-                  </Button>
                 </div>
               </div>
             </CardContent>
@@ -660,11 +639,11 @@ const PayrollComputationDetails = () => {
           <Card className="bg-white border-t-5 border-brand-primary shadow-sm rounded-xl py-0 text-slate-800">
             <CardHeader className="p-5 pb-3 border-b border-slate-100">
               <CardTitle className="text-base flex items-center gap-2 text-slate-800 font-semibold">
-                <CalendarDays className="h-5 w-5 text-accent-gold" />
+                <CalendarDays className="h-5 w-5 text-black" />
                 Year-To-Date (YTD) Accumulated Totals ({new Date(payroll.period_Start).getFullYear()})
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-5 grid grid-cols-2 md:grid-cols-4 gap-4">
+            <CardContent className="px-5 pb-5 grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">YTD Gross Earnings</p>
                 <p className="text-xl font-bold text-emerald-600 mt-0.5">{formatCurrency(payroll.ytdGross)}</p>

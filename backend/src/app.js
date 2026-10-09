@@ -276,13 +276,11 @@ connectDB().then(async () => {
       const hour = now.getHours();
       const minute = now.getMinutes();
 
-      // 1. Shift-End Check (Daily 5:30 PM): Mark TODAY's absences
-      if (hour === 17 && minute === 30) {
-        if (lastAbsentCheckDate !== dateStr) {
-          console.log(`[SCHEDULED] 5:30 PM: Marking today's absences...`);
-          lastAbsentCheckDate = dateStr; 
-          await ensureAbsentsMarked();
-        }
+      // 1. Shift-End Check (Daily 5:30 PM+): Mark TODAY's absences once per day
+      if ((hour > 17 || (hour === 17 && minute >= 30)) && lastAbsentCheckDate !== dateStr) {
+        console.log(`[SCHEDULED] 5:30 PM: Marking today's absences...`);
+        lastAbsentCheckDate = dateStr; 
+        await ensureAbsentsMarked();
       }
 
       // 2. Start-of-Day Sync (Daily 4:00 AM): Backfill the entire CURRENT PERIOD up to yesterday

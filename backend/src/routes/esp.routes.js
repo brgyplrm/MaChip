@@ -3,6 +3,7 @@ const router = express.Router();
 const rfidController = require("../controllers/rfid.controller.js");
 const espValidator = require("../middleware/espValidator.js");
 const authMiddleware = require("../middleware/auth.js");
+const { requireRole } = require("../middleware/roleCheck.js");
 
 // Polled by ESP32 to check if enrollment is active
 router.get("/fingerprint/session", espValidator, rfidController.getFingerprintSession);
@@ -27,9 +28,8 @@ router.get("/status", (req, res, next) => {
   return authMiddleware(req, res, next);
 }, rfidController.getHardwareStatus);
 
-// Factory Reset Hardware (Clear all fingerprints)
-router.post("/factory-reset", authMiddleware, rfidController.factoryResetHardware);
-router.get("/factory-reset-direct", rfidController.factoryResetHardware); // Easy browser/CLI trigger
+// Factory Reset Hardware: Strictly restricted to Admin Manager (Role 1)
+router.post("/factory-reset", authMiddleware, requireRole(1, "Admin Manager"), rfidController.factoryResetHardware);
 
 // Called by ESP32 to confirm enrollment success/fail and upload template
 router.post("/fingerprint/confirm", espValidator, rfidController.confirmFingerprintEnroll);
@@ -38,8 +38,8 @@ router.post("/fingerprint/enroll-confirm", espValidator, rfidController.confirmF
 // Called by ESP32 to download a template for 2FA verification
 router.get("/fingerprint/download/:uid", espValidator, rfidController.getFingerprintTemplate);
 
-// Visitor Access Routes
-router.post("/visitor-access", authMiddleware, rfidController.triggerVisitorAccess);
+// Visitor Access Routes (Restricted to Management: Role 1 and 4)
+router.post("/visitor-access", authMiddleware, requireRole(1, 4, "Admin Manager", "Admin Accountant"), rfidController.triggerVisitorAccess);
 router.post("/visitor-access/confirm", espValidator, rfidController.confirmVisitorAccess);
 
 // Reset TFT Screen to default state (Scan RFID to Clock In)

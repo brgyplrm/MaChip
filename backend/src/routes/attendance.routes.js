@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const attendanceController = require("../controllers/attendance.controller.js");
 const espValidator = require("../middleware/espValidator.js");
-const { requireAdmin } = require("../middleware/roleCheck.js");
+const { requireAdmin, requireOps, requireSelfOrStaff } = require("../middleware/roleCheck.js");
 
 // URL will be: http://localhost:3000/api/attendance/mark
 // Allow both hardware (espValidator) and authenticated web users
@@ -20,7 +20,7 @@ router.get("/report/summary", attendanceController.getSummaryReport);
 
 router.get("/occupancy", attendanceController.getOfficeOccupancy);
 
-router.get("/logs/:user_Id", attendanceController.viewUserLogs);
+router.get("/logs/:user_Id", requireSelfOrStaff("user_Id"), attendanceController.viewUserLogs);
 
 router.get("/all", attendanceController.viewAllAttendance);
 
@@ -36,7 +36,7 @@ router.get("/stats", attendanceController.getDashboardStats);
 
 router.get("/overall-stats", attendanceController.getOverallAttendanceStats);
 
-router.put("/update/:user_Id/:date", attendanceController.updateAttendanceRecord);
-router.get("/record/:user_Id/:date", attendanceController.getSingleAttendanceRecord);
+router.put("/update/:user_Id/:date", requireOps, attendanceController.updateAttendanceRecord);
+router.get("/record/:user_Id/:date", requireOps, attendanceController.getSingleAttendanceRecord);
 
 module.exports = router;

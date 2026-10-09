@@ -380,6 +380,11 @@ async function ensureAbsentsMarked(dateOverride = null) {
     for (const emp of employees) {
       const userId = emp.user_Id;
 
+      // NIGHT SHIFT SAFEGUARD: Night shift (20:30 - 05:30) employees must not be marked absent during daytime 17:30 run
+      if (settings?.enableNightShift && Number(emp.user_ShiftId) === 2) {
+        continue;
+      }
+
       // Check if already has a record in report
       const existingReport = await employee_Logging_report.findOne({ where: { user_id: userId, log_Date: todayStr } });
       

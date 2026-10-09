@@ -1281,7 +1281,7 @@ exports.getPayrollPreviewBatch = async (req, res) => {
 };
 
 // ── Generate Batch Payroll (Internal) ───────────────────────────────────────
-async function generateBatchPayrollInternal(period_Start, period_End, adminId = 1, shouldRelease = false, customDailyRate = null, targetUserId = null, awaitReleaseTasks = false) {
+async function generateBatchPayrollInternal(period_Start, period_End, adminId = 1, shouldRelease = false, customDailyRate = null, targetUserId = null, awaitReleaseTasks = false, req = null) {
   const now = await getSystemTime();
   const nowStr = formatForSQL(now);
 
@@ -1611,7 +1611,7 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
         const isAuthorizedByRequest = approvedReq.length > 0;
         await logAudit(
           req,
-          req?.user?.user_Id || 1,
+          adminId || req?.user?.user_Id || 1,
           "Payroll",
           "DEDUCTION_AUTHORIZATION_VERIFY",
           "Payroll",
@@ -1822,7 +1822,7 @@ exports.generateBatchPayroll = async (req, res) => {
   try {
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
     const releaseNow = Boolean(shouldRelease);
-    const result = await generateBatchPayrollInternal(period_Start, period_End, currentAdminId, releaseNow);
+    const result = await generateBatchPayrollInternal(period_Start, period_End, currentAdminId, releaseNow, null, null, false, req);
 
     await logTransaction(
       null, 

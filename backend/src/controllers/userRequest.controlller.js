@@ -1935,6 +1935,7 @@ exports.UpdateStatusRequest = async (req, res) => {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
+  let transaction = null;
   try {
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
@@ -1998,6 +1999,14 @@ exports.UpdateStatusRequest = async (req, res) => {
 
     const oldRequest = request; 
 
+    // Start database transaction
+    transaction = await sequelize.transaction();
+
+    let appliedLogCorrection = null;
+    let appliedLeave = null;
+    let enrolledLoan = null;
+    let datesToRecalculateUnits = [];
+
     // 1. Update the parent request status
     let updateQuery = `
         UPDATE "emp_Request"
@@ -2024,6 +2033,7 @@ exports.UpdateStatusRequest = async (req, res) => {
     await sequelize.query(updateQuery, {
       replacements,
       type: QueryTypes.UPDATE,
+      transaction,
     });
 
     // --- LEAVE BALANCE DEDUCTION/REVERSAL ---
@@ -2045,7 +2055,7 @@ exports.UpdateStatusRequest = async (req, res) => {
 
         const childRes = await sequelize.query(
           `SELECT "NoDays" FROM "${tableName}" WHERE "emp_reqId" = :emp_reqId`,
-          { replacements: { emp_reqId }, type: QueryTypes.SELECT }
+          { replacements: { emp_reqId }, type: QueryTypes.SELECT, transaction }
         );
         return childRes.length > 0 ? parseFloat(childRes[0].NoDays) : 0;
       };
@@ -2060,7 +2070,7 @@ exports.UpdateStatusRequest = async (req, res) => {
              SET "VL_balance" = GREATEST(0, "VL_balance" - :noDays),
                  "VL_used" = "VL_used" + :noDays
              WHERE "user_Id" = :userId AND "year" = :year`,
-            { replacements: { noDays, userId, year: currentYear }, type: QueryTypes.UPDATE }
+            { replacements: { noDays, userId, year: currentYear }, type: QueryTypes.UPDATE, transaction }
           );
         } else if (typeId === 4) {
           await sequelize.query(
@@ -2068,7 +2078,7 @@ exports.UpdateStatusRequest = async (req, res) => {
              SET "SL_balance" = GREATEST(0, "SL_balance" - :noDays),
                  "SL_used" = "SL_used" + :noDays
              WHERE "user_Id" = :userId AND "year" = :year`,
-            { replacements: { noDays, userId, year: currentYear }, type: QueryTypes.UPDATE }
+            { replacements: { noDays, userId, year: currentYear }, type: QueryTypes.UPDATE, transaction }
           );
         } else if (typeId === 10) {
           await sequelize.query(
@@ -2076,13 +2086,13 @@ exports.UpdateStatusRequest = async (req, res) => {
              SET "SoloParent_balance" = GREATEST(0, "SoloParent_balance" - :noDays),
                  "SoloParent_used" = "SoloParent_used" + :noDays
              WHERE "user_Id" = :userId AND "year" = :year`,
-            { replacements: { noDays, userId, year: currentYear }, type: QueryTypes.UPDATE }
+            { replacements: { noDays, userId, year: currentYear }, type: QueryTypes.UPDATE, transaction }
           );
         } else if (typeId === 6) {
           // EL: Deduct from SL first, then VL
           const balRes = await sequelize.query(
             `SELECT "SL_balance", "VL_balance" FROM "Leave_Balance" WHERE "user_Id" = :userId AND "year" = :year`,
-            { replacements: { userId, year: currentYear }, type: QueryTypes.SELECT }
+            { replacements: { userId, year: currentYear }, type: QueryTypes.SELECT, transaction }
           );
           if (balRes.length > 0) {
             let slDeduct = 0;
@@ -2101,7 +2111,7 @@ exports.UpdateStatusRequest = async (req, res) => {
                    "VL_balance" = GREATEST(0, "VL_balance" - :vlDeduct),
                    "VL_used" = "VL_used" + :vlDeduct
                WHERE "user_Id" = :userId AND "year" = :year`,
-              { replacements: { slDeduct, vlDeduct, userId, year: currentYear }, type: QueryTypes.UPDATE }
+              { replacements: { slDeduct, vlDeduct, userId, year: currentYear }, type: QueryTypes.UPDATE, transaction }
             );
           }
         }
@@ -2114,7 +2124,7 @@ exports.UpdateStatusRequest = async (req, res) => {
              SET "VL_balance" = "VL_balance" + :noDays,
                  "VL_used" = GREATEST(0, "VL_used" - :noDays)
              WHERE "user_Id" = :userId AND "year" = :year`,
-            { replacements: { noDays, userId, year: currentYear }, type: QueryTypes.UPDATE }
+            { replacements: { noDays, userId, year: currentYear }, type: QueryTypes.UPDATE, transaction }
           );
         } else if (typeId === 10) {
           await sequelize.query(
@@ -2122,7 +2132,7 @@ exports.UpdateStatusRequest = async (req, res) => {
              SET "SoloParent_balance" = "SoloParent_balance" + :noDays,
                  "SoloParent_used" = GREATEST(0, "SoloParent_used" - :noDays)
              WHERE "user_Id" = :userId AND "year" = :year`,
-            { replacements: { noDays, userId, year: currentYear }, type: QueryTypes.UPDATE }
+            { replacements: { noDays, userId, year: currentYear }, type: QueryTypes.UPDATE, transaction }
           );
         } else if (typeId === 4) {
           await sequelize.query(
@@ -2130,28 +2140,17 @@ exports.UpdateStatusRequest = async (req, res) => {
              SET "SL_balance" = "SL_balance" + :noDays,
                  "SL_used" = GREATEST(0, "SL_used" - :noDays)
              WHERE "user_Id" = :userId AND "year" = :year`,
-            { replacements: { noDays, userId, year: currentYear }, type: QueryTypes.UPDATE }
+            { replacements: { noDays, userId, year: currentYear }, type: QueryTypes.UPDATE, transaction }
           );
         } else if (typeId === 6) {
-           // Reverting EL is tricky because we don't know exactly how it was split between SL and VL.
-           // However, we can assume it was split the same way (SL first, then VL) based on the USED amounts.
-           // But a safer way is to just look at how much SL_used and VL_used were increased.
-           // For simplicity, let's just reverse the "SL first then VL" logic using the current balances as a hint,
-           // or better, just add it back to SL first up to its cap? 
-           // Actually, the system seems to have a fixed cap (7 days).
-           // Let's just restore it to SL first, then VL.
-           
            let toRestore = noDays;
-           // We can't easily know the original SL balance before deduction without more audit logs.
-           // But we can just add it back to SL.
            await sequelize.query(
              `UPDATE "Leave_Balance"
               SET "SL_balance" = "SL_balance" + :noDays,
                   "SL_used" = GREATEST(0, "SL_used" - :noDays)
               WHERE "user_Id" = :userId AND "year" = :year`,
-             { replacements: { noDays, userId, year: currentYear }, type: QueryTypes.UPDATE }
+             { replacements: { noDays, userId, year: currentYear }, type: QueryTypes.UPDATE, transaction }
            );
-           // NOTE: This might overfill SL if it was originally split, but it's a reasonable fallback.
         }
       }
     }
@@ -2160,14 +2159,12 @@ exports.UpdateStatusRequest = async (req, res) => {
     if (finalStatusId === 2 && isLogCorrection) {
       const lcDetails = await sequelize.query(
         `SELECT * FROM "LogCorrection_Request" WHERE "emp_reqId" = :emp_reqId`,
-        { replacements: { emp_reqId }, type: QueryTypes.SELECT }
+        { replacements: { emp_reqId }, type: QueryTypes.SELECT, transaction }
       );
 
       if (lcDetails.length > 0) {
         const { logDate, claimedIn, claimedOut } = lcDetails[0];
         
-        // 1. Update or Insert into employee_Logging_report
-        // Build update parts dynamically to avoid overwriting existing logs with empty ones if not provided in the request
         let updateReportQuery = `
           INSERT INTO "employee_Logging_report" 
             ("user_id", "log_Date", "time_Logged_inArr", "time_Logged_outArr", "attendance_StatusId", "logged_StatusId")
@@ -2195,7 +2192,8 @@ exports.UpdateStatusRequest = async (req, res) => {
             timeInArr,
             timeOutArr
           },
-          type: QueryTypes.INSERT
+          type: QueryTypes.INSERT,
+          transaction
         });
 
         // 2. Insert into user_logging for audit trail (In and Out)
@@ -2203,18 +2201,18 @@ exports.UpdateStatusRequest = async (req, res) => {
           await sequelize.query(
             `INSERT INTO "user_logging" ("user_id", "log_Date", "time_Logged", "logged_StatusId", "attendance_StatusId")
              VALUES (:userId, :logDate, :claimedIn, 1, 1)`,
-            { replacements: { userId: requesterId, logDate, claimedIn }, type: QueryTypes.INSERT }
+            { replacements: { userId: requesterId, logDate, claimedIn }, type: QueryTypes.INSERT, transaction }
           );
         }
         if (claimedOut) {
           await sequelize.query(
             `INSERT INTO "user_logging" ("user_id", "log_Date", "time_Logged", "logged_StatusId", "attendance_StatusId")
              VALUES (:userId, :logDate, :claimedOut, 2, 1)`,
-            { replacements: { userId: requesterId, logDate, claimedOut }, type: QueryTypes.INSERT }
+            { replacements: { userId: requesterId, logDate, claimedOut }, type: QueryTypes.INSERT, transaction }
           );
         }
 
-        await logTransaction(requesterId, operatorId, "LOG_CORRECTION_APPLIED", `Time logs corrected for ${logDate} via approved request #${emp_reqId}`, { logDate, claimedIn, claimedOut });
+        appliedLogCorrection = { requesterId, operatorId, logDate, claimedIn, claimedOut, emp_reqId };
       }
     }
     // --------------------------------------------------
@@ -2225,27 +2223,27 @@ exports.UpdateStatusRequest = async (req, res) => {
       if (typeId === 3) {
         leaveDatesResult = await sequelize.query(
           `SELECT "StartDate"::text as "startDate", "EndDate"::text as "endDate" FROM "Vacation_Leave" WHERE "emp_reqId" = :emp_reqId`,
-          { replacements: { emp_reqId }, type: QueryTypes.SELECT }
+          { replacements: { emp_reqId }, type: QueryTypes.SELECT, transaction }
         );
       } else if (typeId === 4) {
         leaveDatesResult = await sequelize.query(
           `SELECT "StartDate"::text as "startDate", "EndDate"::text as "endDate" FROM "Sick_Leave" WHERE "emp_reqId" = :emp_reqId`,
-          { replacements: { emp_reqId }, type: QueryTypes.SELECT }
+          { replacements: { emp_reqId }, type: QueryTypes.SELECT, transaction }
         );
       } else if (typeId === 6) {
         leaveDatesResult = await sequelize.query(
           `SELECT "DateOfLeave"::text as "startDate", "DateOfLeave"::text as "endDate", "NoDays" FROM "Emergency_Leave" WHERE "emp_reqId" = :emp_reqId`,
-          { replacements: { emp_reqId }, type: QueryTypes.SELECT }
+          { replacements: { emp_reqId }, type: QueryTypes.SELECT, transaction }
         );
       } else if (typeId === 7) {
         leaveDatesResult = await sequelize.query(
           `SELECT "DateOfLeave"::text as "startDate", "DateOfLeave"::text as "endDate" FROM "HalfDay_Leave" WHERE "emp_reqId" = :emp_reqId`,
-          { replacements: { emp_reqId }, type: QueryTypes.SELECT }
+          { replacements: { emp_reqId }, type: QueryTypes.SELECT, transaction }
         );
       } else if ([8, 9, 10, 11, 12].includes(Number(typeId))) {
         leaveDatesResult = await sequelize.query(
           `SELECT "StartDate"::text as "startDate", "EndDate"::text as "endDate" FROM "Statutory_Leave" WHERE "emp_reqId" = :emp_reqId`,
-          { replacements: { emp_reqId }, type: QueryTypes.SELECT }
+          { replacements: { emp_reqId }, type: QueryTypes.SELECT, transaction }
         );
       }
 
@@ -2266,8 +2264,6 @@ exports.UpdateStatusRequest = async (req, res) => {
         let curr = new Date(Date.UTC(sy, sm - 1, sd));
         const endUTC = new Date(Date.UTC(ey, em, ed));
 
-        const { calculateAndStoreAttendanceUnits } = require("../utils/attendanceHelper");
-
         while (curr <= endUTC) {
           const dateStr = curr.toISOString().split('T')[0];
           
@@ -2280,7 +2276,7 @@ exports.UpdateStatusRequest = async (req, res) => {
               DO UPDATE SET 
                 "attendance_StatusId" = 4,
                 "logged_StatusId" = 2
-            `, { replacements: { userId: requesterId, dateStr }, type: QueryTypes.INSERT });
+            `, { replacements: { userId: requesterId, dateStr }, type: QueryTypes.INSERT, transaction });
           } else {
             await sequelize.query(`
               INSERT INTO "employee_Logging_report" 
@@ -2290,7 +2286,7 @@ exports.UpdateStatusRequest = async (req, res) => {
               DO UPDATE SET 
                 "attendance_StatusId" = :statusId,
                 "logged_StatusId" = 2
-            `, { replacements: { userId: requesterId, dateStr, statusId }, type: QueryTypes.INSERT });
+            `, { replacements: { userId: requesterId, dateStr, statusId }, type: QueryTypes.INSERT, transaction });
           }
 
           // If user_logging had an Absent record (status 3), repair it to statusId
@@ -2298,30 +2294,32 @@ exports.UpdateStatusRequest = async (req, res) => {
             UPDATE "user_logging" 
             SET "attendance_StatusId" = :statusId 
             WHERE "user_id" = :userId AND "log_Date"::date = :dateStr::date AND "attendance_StatusId" = 3
-          `, { replacements: { statusId, userId: requesterId, dateStr }, type: QueryTypes.UPDATE });
+          `, { replacements: { statusId, userId: requesterId, dateStr }, type: QueryTypes.UPDATE, transaction });
 
           // Ensure audit log exists in user_logging
           const existingLogs = await sequelize.query(`
             SELECT "user_loggingId" FROM "user_logging" WHERE "user_id" = :userId AND "log_Date"::date = :dateStr::date LIMIT 1
-          `, { replacements: { userId: requesterId, dateStr }, type: QueryTypes.SELECT });
+          `, { replacements: { userId: requesterId, dateStr }, type: QueryTypes.SELECT, transaction });
 
           if (existingLogs.length === 0) {
             await sequelize.query(`
               INSERT INTO "user_logging" ("user_id", "log_Date", "time_Logged", "logged_StatusId", "attendance_StatusId")
               VALUES (:userId, :dateStr, '17:30:00', 7, :statusId)
-            `, { replacements: { userId: requesterId, dateStr, statusId }, type: QueryTypes.INSERT });
+            `, { replacements: { userId: requesterId, dateStr, statusId }, type: QueryTypes.INSERT, transaction });
           }
 
-          try {
-            await calculateAndStoreAttendanceUnits(requesterId, dateStr);
-          } catch (syncErr) {
-            console.error(`[LEAVE-SYNC-ERR] Failed calculating units for ${requesterId} on ${dateStr}:`, syncErr.message);
-          }
-
+          datesToRecalculateUnits.push({ userId: requesterId, dateStr });
           curr.setUTCDate(curr.getUTCDate() + 1);
         }
 
-        await logTransaction(requesterId, operatorId, "LEAVE_ATTENDANCE_APPLIED", `Attendance updated to On Leave (${statusId === 4 ? 'Half Day' : 'On Leave'}) for approved request #${emp_reqId}`, { startDate, endDate: end.toISOString().split('T')[0], statusId });
+        appliedLeave = { 
+          requesterId, 
+          operatorId, 
+          emp_reqId, 
+          startDate, 
+          endDate: end.toISOString().split('T')[0], 
+          statusId 
+        };
       }
     }
     // --------------------------------------------------
@@ -2330,7 +2328,7 @@ exports.UpdateStatusRequest = async (req, res) => {
     if (finalStatusId === 2 && typeId === 14) {
       const loanDetails = await sequelize.query(
         `SELECT * FROM "Loan_Request" WHERE "emp_reqId" = :emp_reqId`,
-        { replacements: { emp_reqId }, type: QueryTypes.SELECT }
+        { replacements: { emp_reqId }, type: QueryTypes.SELECT, transaction }
       );
 
       if (loanDetails.length > 0) {
@@ -2402,7 +2400,7 @@ exports.UpdateStatusRequest = async (req, res) => {
             `INSERT INTO "Payroll_Eastwest" ("user_Id", "date", "amount", "createdAt", "updatedAt")
              VALUES (:userId, :date, :amount, :now, :now)
              ON CONFLICT ("user_Id", "date") DO UPDATE SET "amount" = "Payroll_Eastwest"."amount" + EXCLUDED."amount"`,
-            { replacements: { userId: requesterId, date: targetDateStr, amount: totalAmount, now: nowStr } }
+            { replacements: { userId: requesterId, date: targetDateStr, amount: totalAmount, now: nowStr }, transaction }
           );
         }
 
@@ -2413,7 +2411,7 @@ exports.UpdateStatusRequest = async (req, res) => {
             "proRatedInterest" = :proRated, "netDisbursement" = :net,
             "monthlyAmortization" = :amort
            WHERE "emp_reqId" = :emp_reqId`,
-          { replacements: { rate: annualRate, fee: feeRate, proRated: proRatedInterest, net: netDisbursement, amort: amortMonthly, emp_reqId } }
+          { replacements: { rate: annualRate, fee: feeRate, proRated: proRatedInterest, net: netDisbursement, amort: amortMonthly, emp_reqId }, transaction }
         );
 
         // 5. Insert into master Loan_Deductions table
@@ -2432,7 +2430,8 @@ exports.UpdateStatusRequest = async (req, res) => {
               frequency,
               adminId: operatorId, now: nowStr
             },
-            type: QueryTypes.INSERT
+            type: QueryTypes.INSERT,
+            transaction
           }
         );
 
@@ -2450,7 +2449,7 @@ exports.UpdateStatusRequest = async (req, res) => {
              WHERE "userId" = :userId 
                AND "deductionType" IN (:types)
                AND "status" = 'active'`,
-            { replacements: { userId: requesterId, types: oldSSSLoanTypes, emp_reqId, now: nowStr }, type: QueryTypes.UPDATE }
+            { replacements: { userId: requesterId, types: oldSSSLoanTypes, emp_reqId, now: nowStr }, type: QueryTypes.UPDATE, transaction }
           );
 
           // 2. Remove future ledger records for old SSS loans
@@ -2460,7 +2459,7 @@ exports.UpdateStatusRequest = async (req, res) => {
              WHERE "user_Id" = :userId
                AND "government_type" IN (:govTypes)
                AND "date" > :nowDate`,
-            { replacements: { userId: requesterId, govTypes: oldSSSGovTypes, nowDate: nowStr.split(' ')[0] }, type: QueryTypes.DELETE }
+            { replacements: { userId: requesterId, govTypes: oldSSSGovTypes, nowDate: nowStr.split(' ')[0] }, type: QueryTypes.DELETE, transaction }
           );
           
           console.log(`[CONSO-DEBUG] SSS Consolidation complete for User ${requesterId}.`);
@@ -2499,7 +2498,8 @@ exports.UpdateStatusRequest = async (req, res) => {
                       amount: amortMonthly, pPaid: monthData.principalPortion, iPaid: monthData.interestPortion, 
                       now: nowStr
                     },
-                    type: QueryTypes.INSERT
+                    type: QueryTypes.INSERT,
+                    transaction
                   }
                 );
               } else {
@@ -2516,7 +2516,8 @@ exports.UpdateStatusRequest = async (req, res) => {
                         amount: perCutoff, pPaid: monthData.principalPortion / 2, iPaid: monthData.interestPortion / 2, 
                         now: nowStr
                       },
-                      type: QueryTypes.INSERT
+                      type: QueryTypes.INSERT,
+                      transaction
                     }
                   );
                 }
@@ -2526,52 +2527,50 @@ exports.UpdateStatusRequest = async (req, res) => {
             console.error("[LOAN_SCHEDULE_GEN_ERROR]:", schedErr.message);
           }
         }
-        await logTransaction(requesterId, operatorId, "LOAN_ENROLLED", `${agency} loan enrolled for ${totalAmount} via approved request #${emp_reqId}`, { agency, totalAmount });
+        enrolledLoan = { requesterId, operatorId, agency, totalAmount, emp_reqId };
       }
     }
     // --------------------------------------------------
 
     const newRequestResult = await sequelize.query(
       `SELECT * FROM "emp_Request" WHERE "emp_reqId" = :emp_reqId`,
-      { replacements: { emp_reqId }, type: QueryTypes.SELECT }
+      { replacements: { emp_reqId }, type: QueryTypes.SELECT, transaction }
     );
     const newRequest = newRequestResult[0];
 
-    await logAudit(req, processedBy, "Requests", "UPDATE_REQUEST_STATUS", "emp_Request", emp_reqId, oldRequest, newRequest);
-
     // 2. If it's a Leave request and withPayId is provided, update the child table
     if (withPayId) {
-      const request = await sequelize.query(
+      const requestTypeRes = await sequelize.query(
         `SELECT "emp_reqTypeId" FROM "emp_Request" WHERE "emp_reqId" = :emp_reqId`,
-        { replacements: { emp_reqId }, type: QueryTypes.SELECT },
+        { replacements: { emp_reqId }, type: QueryTypes.SELECT, transaction },
       );
 
-      if (request.length > 0) {
-        const typeId = request[0].emp_reqTypeId;
+      if (requestTypeRes.length > 0) {
+        const typeId = requestTypeRes[0].emp_reqTypeId;
         if (typeId === 3) {
           await sequelize.query(
             `UPDATE "Vacation_Leave" SET "WithPayID" = :withPayId WHERE "emp_reqId" = :emp_reqId`,
-            { replacements: { withPayId, emp_reqId }, type: QueryTypes.UPDATE },
+            { replacements: { withPayId, emp_reqId }, type: QueryTypes.UPDATE, transaction },
           );
         } else if (typeId === 4) {
           await sequelize.query(
             `UPDATE "Sick_Leave" SET "WithPayID" = :withPayId WHERE "emp_reqId" = :emp_reqId`,
-            { replacements: { withPayId, emp_reqId }, type: QueryTypes.UPDATE },
+            { replacements: { withPayId, emp_reqId }, type: QueryTypes.UPDATE, transaction },
           );
         } else if (typeId === 6) {
           await sequelize.query(
             `UPDATE "Emergency_Leave" SET "WithPayID" = :withPayId WHERE "emp_reqId" = :emp_reqId`,
-            { replacements: { withPayId, emp_reqId }, type: QueryTypes.UPDATE },
+            { replacements: { withPayId, emp_reqId }, type: QueryTypes.UPDATE, transaction },
           );
         } else if (typeId === 7) {
           await sequelize.query(
             `UPDATE "HalfDay_Leave" SET "WithPayID" = :withPayId WHERE "emp_reqId" = :emp_reqId`,
-            { replacements: { withPayId, emp_reqId }, type: QueryTypes.UPDATE },
+            { replacements: { withPayId, emp_reqId }, type: QueryTypes.UPDATE, transaction },
           );
         } else if ([8, 9, 10, 11, 12].includes(typeId)) {
           await sequelize.query(
             `UPDATE "Statutory_Leave" SET "WithPayID" = 1 WHERE "emp_reqId" = :emp_reqId`,
-            { replacements: { emp_reqId }, type: QueryTypes.UPDATE },
+            { replacements: { emp_reqId }, type: QueryTypes.UPDATE, transaction },
           );
         }
       }
@@ -2602,16 +2601,15 @@ exports.UpdateStatusRequest = async (req, res) => {
        LEFT JOIN "Overtime_Request" ot ON er."emp_reqId" = ot."emp_reqId"
        LEFT JOIN "LogCorrection_Request" lc ON er."emp_reqId" = lc."emp_reqId"
        WHERE er."emp_reqId" = :emp_reqId`,
-      { replacements: { emp_reqId }, type: QueryTypes.SELECT }
+      { replacements: { emp_reqId }, type: QueryTypes.SELECT, transaction }
     );
 
-    if (requestInfo) {
-      let statusName = "Pending";
-      if (finalStatusId === 2) statusName = "Approved";
-      else if (finalStatusId === 3) statusName = "Rejected";
-      else if (finalStatusId === 5) statusName = "Returned for Correction";
+    let statusName = "Pending";
+    if (finalStatusId === 2) statusName = "Approved";
+    else if (finalStatusId === 3) statusName = "Rejected";
+    else if (finalStatusId === 5) statusName = "Returned for Correction";
 
-      // A. Notify Requester
+    if (requestInfo) {
       await sequelize.query(
         `INSERT INTO "Notification" ("user_Id", "title", "message", "isRead", "targetId", "createdAt", "updatedAt")
          VALUES (:userId, :title, :message, false, :targetId, :now, :now)`,
@@ -2624,9 +2622,58 @@ exports.UpdateStatusRequest = async (req, res) => {
             now: nowStr,
           },
           type: QueryTypes.INSERT,
+          transaction
         }
       );
+    }
 
+    // Atomic transaction commit
+    await transaction.commit();
+    transaction = null;
+
+    // Post-commit audit and transaction logging
+    await logAudit(req, processedBy, "Requests", "UPDATE_REQUEST_STATUS", "emp_Request", emp_reqId, oldRequest, newRequest);
+
+    if (appliedLogCorrection) {
+      await logTransaction(
+        appliedLogCorrection.requesterId,
+        appliedLogCorrection.operatorId,
+        "LOG_CORRECTION_APPLIED",
+        `Time logs corrected for ${appliedLogCorrection.logDate} via approved request #${appliedLogCorrection.emp_reqId}`,
+        { logDate: appliedLogCorrection.logDate, claimedIn: appliedLogCorrection.claimedIn, claimedOut: appliedLogCorrection.claimedOut }
+      );
+    }
+
+    if (appliedLeave) {
+      await logTransaction(
+        appliedLeave.requesterId,
+        appliedLeave.operatorId,
+        "LEAVE_ATTENDANCE_APPLIED",
+        `Attendance updated to On Leave (${appliedLeave.statusId === 4 ? 'Half Day' : 'On Leave'}) for approved request #${appliedLeave.emp_reqId}`,
+        { startDate: appliedLeave.startDate, endDate: appliedLeave.endDate, statusId: appliedLeave.statusId }
+      );
+    }
+
+    for (const item of datesToRecalculateUnits) {
+      try {
+        const { calculateAndStoreAttendanceUnits } = require("../utils/attendanceHelper");
+        await calculateAndStoreAttendanceUnits(item.userId, item.dateStr);
+      } catch (syncErr) {
+        console.error(`[LEAVE-SYNC-ERR] Failed calculating units for ${item.userId} on ${item.dateStr}:`, syncErr.message);
+      }
+    }
+
+    if (enrolledLoan) {
+      await logTransaction(
+        enrolledLoan.requesterId,
+        enrolledLoan.operatorId,
+        "LOAN_ENROLLED",
+        `${enrolledLoan.agency} loan enrolled for ${enrolledLoan.totalAmount} via approved request #${enrolledLoan.emp_reqId}`,
+        { agency: enrolledLoan.agency, totalAmount: enrolledLoan.totalAmount }
+      );
+    }
+
+    if (requestInfo) {
       // B. Send Email Notification
       const dateStr = requestInfo.VL_S ? `${requestInfo.VL_S} to ${requestInfo.VL_E}` :
                       requestInfo.SL_S ? `${requestInfo.SL_S} to ${requestInfo.SL_E}` :
@@ -2681,7 +2728,7 @@ exports.UpdateStatusRequest = async (req, res) => {
     // [SOCKET] Trigger real-time UI updates
     try {
       const io = getIO();
-      if (io) {
+      if (io && requestInfo) {
         io.emit("REQUEST_STATUS_UPDATED");
         io.to(`user_${requestInfo.user_Id}`).emit("NOTIFICATION_UPDATE");
       }
@@ -2691,6 +2738,14 @@ exports.UpdateStatusRequest = async (req, res) => {
 
     res.status(200).json({ message: "Request status updated successfully" });
   } catch (error) {
+    if (transaction) {
+      try {
+        await transaction.rollback();
+      } catch (rbErr) {
+        console.error("[UpdateStatusRequest] Rollback failed:", rbErr.message);
+      }
+    }
+    console.error("[UpdateStatusRequest] Error:", error);
     res.status(500).json({ error: error.message });
   }
 };

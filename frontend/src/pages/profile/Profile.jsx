@@ -320,8 +320,8 @@ const Profile = () => {
               </Card>
 
               {/* Table Section */}
-              <Card className="border border-slate-200/80 shadow-sm bg-white mb-6 overflow-hidden">
-                <CardHeader className="border-b border-slate-100 py-4 px-6 bg-slate-50/50 space-y-4">
+              <Card className="py-0 border border-slate-200/80 shadow-sm bg-white mb-6 overflow-hidden">
+                <CardHeader className="border-b border-slate-100 pt-8 px-6 bg-slate-50/50 space-y-4">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-2.5">
                       <div className="p-2 bg-slate-100 rounded-lg text-slate-700 shrink-0">
@@ -395,7 +395,7 @@ const Profile = () => {
                           <TableHead className="font-semibold text-slate-600 uppercase text-[11px] tracking-wider py-3.5 px-6">Date</TableHead>
                           <TableHead className="font-semibold text-slate-600 text-center uppercase text-[11px] tracking-wider py-3.5">Time In</TableHead>
                           <TableHead className="font-semibold text-slate-600 text-center uppercase text-[11px] tracking-wider py-3.5">Time Out</TableHead>
-                          <TableHead className="font-semibold text-slate-600 text-center uppercase text-[11px] tracking-wider py-3.5">Log Type</TableHead>
+                          {/* <TableHead className="font-semibold text-slate-600 text-center uppercase text-[11px] tracking-wider py-3.5">Log Type</TableHead> */}
                           <TableHead className="font-semibold text-slate-600 text-center uppercase text-[11px] tracking-wider py-3.5 px-6">Attendance Status</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -426,7 +426,7 @@ const Profile = () => {
                                     {formatTime12h(log.time_Out)}
                                   </span>
                                 </TableCell>
-                                <TableCell className="text-center py-2.5">
+                                {/* <TableCell className="text-center py-2.5">
                                   <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold tracking-wide border ${
                                     log.logStatus === "Overtime OUT"
                                       ? "bg-purple-50 text-purple-700 border-purple-200"
@@ -449,7 +449,7 @@ const Profile = () => {
                                     }`} />
                                     {log.logStatus || "—"}
                                   </span>
-                                </TableCell>
+                                </TableCell> */}
                                 <TableCell className="text-center py-2.5 px-6">
                                   <span className={`inline-block px-3 py-1 rounded-full text-[11px] font-semibold tracking-wide border ${
                                     isPresent

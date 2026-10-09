@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fetchWithAuth } from "../utils/api";
 import CloseIcon from "@mui/icons-material/Close";
+import StaticTimePickerLandscape from "./StaticTimePickerLandscape";
 
 const calculateAmortizationStart = (dateStr, agency, loanType) => {
   if (!dateStr) return "";
@@ -113,6 +114,21 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
       }
     }
 
+    if (name === "HrFrom" || name === "HrTo") {
+      const fromTime = name === "HrFrom" ? value : newFormData.HrFrom;
+      const toTime = name === "HrTo" ? value : newFormData.HrTo;
+      if (fromTime && toTime) {
+        const [h1, m1] = fromTime.split(':').map(Number);
+        const [h2, m2] = toTime.split(':').map(Number);
+        if (!isNaN(h1) && !isNaN(m1) && !isNaN(h2) && !isNaN(m2)) {
+          const diffMinutes = (h2 * 60 + m2) - (h1 * 60 + m1);
+          if (diffMinutes > 0) {
+            newFormData.Total_Hrs = (diffMinutes / 60).toFixed(2);
+          }
+        }
+      }
+    }
+
     setFormData(newFormData);
   };
 
@@ -209,13 +225,25 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
                   <label className="text-sm font-bold text-slate-700">Total Hours</label>
                   <Input type="number" name="Total_Hrs" value={formData.Total_Hrs} onChange={handleInputChange} step="0.01" required />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-slate-700">Time From</label>
-                  <Input type="time" name="HrFrom" value={formData.HrFrom} onChange={handleInputChange} required />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-slate-700">Time To</label>
-                  <Input type="time" name="HrTo" value={formData.HrTo} onChange={handleInputChange} required />
+                <div className="space-y-2 sm:col-span-2">
+                  <label className="text-sm font-bold text-slate-700">Overtime Hours Range</label>
+                  <StaticTimePickerLandscape
+                    items={[
+                      {
+                        label: "Time From",
+                        name: "HrFrom",
+                        value: formData.HrFrom,
+                        helperText: "Select overtime start time",
+                      },
+                      {
+                        label: "Time To",
+                        name: "HrTo",
+                        value: formData.HrTo,
+                        helperText: "Select overtime end time (max 10:00 PM)",
+                      },
+                    ]}
+                    onChange={handleInputChange}
+                  />
                 </div>
               </>
             )}
@@ -258,13 +286,25 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
                   <label className="text-sm font-bold text-slate-700">Log Date</label>
                   <Input type="date" name="logDate" value={formData.logDate} onChange={handleInputChange} required />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-slate-700">Claimed In</label>
-                  <Input type="time" name="claimedIn" value={formData.claimedIn} onChange={handleInputChange} required />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-slate-700">Claimed Out</label>
-                  <Input type="time" name="claimedOut" value={formData.claimedOut} onChange={handleInputChange} required />
+                <div className="space-y-2 sm:col-span-2">
+                  <label className="text-sm font-bold text-slate-700">Corrected Attendance Times</label>
+                  <StaticTimePickerLandscape
+                    items={[
+                      {
+                        label: "Corrected In",
+                        name: "claimedIn",
+                        value: formData.claimedIn,
+                        helperText: "Select corrected check-in time",
+                      },
+                      {
+                        label: "Corrected Out",
+                        name: "claimedOut",
+                        value: formData.claimedOut,
+                        helperText: "Select corrected check-out time",
+                      },
+                    ]}
+                    onChange={handleInputChange}
+                  />
                 </div>
               </>
             )}

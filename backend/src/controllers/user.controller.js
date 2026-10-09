@@ -884,22 +884,29 @@ exports.forceDeleteUser = async (req, res) => {
     }
 
     // 4. Perform hard delete if zero dependencies and retention passed
-    await sequelize.query(
-      `DELETE FROM "User_Hardware" WHERE "user_Id" = :user_Id`,
-      { replacements: { user_Id }, type: QueryTypes.DELETE }
-    );
-    await sequelize.query(
-      `DELETE FROM "User_Banking" WHERE "user_Id" = :user_Id`,
-      { replacements: { user_Id }, type: QueryTypes.DELETE }
-    );
-    await sequelize.query(
-      `DELETE FROM "User_Deduction_Profile" WHERE "user_Id" = :user_Id`,
-      { replacements: { user_Id }, type: QueryTypes.DELETE }
-    );
-    await sequelize.query(
-      `DELETE FROM "User" WHERE "user_Id" = :user_Id`,
-      { replacements: { user_Id }, type: QueryTypes.DELETE },
-    );
+    const transaction = await sequelize.transaction();
+    try {
+      await sequelize.query(
+        `DELETE FROM "User_Hardware" WHERE "user_Id" = :user_Id`,
+        { replacements: { user_Id }, type: QueryTypes.DELETE, transaction }
+      );
+      await sequelize.query(
+        `DELETE FROM "User_Banking" WHERE "user_Id" = :user_Id`,
+        { replacements: { user_Id }, type: QueryTypes.DELETE, transaction }
+      );
+      await sequelize.query(
+        `DELETE FROM "User_Deduction_Profile" WHERE "user_Id" = :user_Id`,
+        { replacements: { user_Id }, type: QueryTypes.DELETE, transaction }
+      );
+      await sequelize.query(
+        `DELETE FROM "User" WHERE "user_Id" = :user_Id`,
+        { replacements: { user_Id }, type: QueryTypes.DELETE, transaction }
+      );
+      await transaction.commit();
+    } catch (deleteErr) {
+      await transaction.rollback();
+      throw deleteErr;
+    }
 
     await logAudit(req, currentAdminId || 1, "User Management", "PERMANENT_DELETE_USER", "User", user_Id, targetUser, null);
 

@@ -45,6 +45,7 @@ const AdminRequests = () => {
   const pageAlignedRef = useRef(null);
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [adminNote, setAdminNote] = useState("");
   const [paymentStatus, setPaymentStatus] = useState("2"); 
   const [toast, setToast] = useState({ message: "", type: "success" });
@@ -154,6 +155,8 @@ const AdminRequests = () => {
   };
 
   const handleStatusUpdate = async (emp_reqId, statusId) => {
+    if (isProcessing) return;
+    setIsProcessing(true);
     try {
       const response = await fetchWithAuth(
         "/api/request/update-status",
@@ -198,6 +201,8 @@ const AdminRequests = () => {
       }
     } catch (error) {
       setToast({ message: "Error connecting to server", type: "error" });
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -762,8 +767,8 @@ const AdminRequests = () => {
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <span className="flex-1 min-w-[110px]">
-                                      <Button className="w-full bg-green-600 hover:bg-green-700 text-white" onClick={() => handleApproveClick(current.emp_reqId)}>
-                                        <CheckCircleOutlineIcon className="mr-2 h-4 w-4" /> Approve
+                                      <Button disabled={isProcessing} className="w-full bg-green-600 hover:bg-green-700 text-white" onClick={() => handleApproveClick(current.emp_reqId)}>
+                                        <CheckCircleOutlineIcon className="mr-2 h-4 w-4" /> {isProcessing ? "Processing..." : "Approve"}
                                       </Button>
                                     </span>
                                   </TooltipTrigger>
@@ -775,7 +780,7 @@ const AdminRequests = () => {
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <span className="flex-1 min-w-[110px]">
-                                      <Button className="w-full bg-red-600 hover:bg-red-700 text-white" onClick={() => handleStatusUpdate(current.emp_reqId, 3)}>
+                                      <Button disabled={isProcessing} className="w-full bg-red-600 hover:bg-red-700 text-white" onClick={() => handleStatusUpdate(current.emp_reqId, 3)}>
                                         <CancelOutlinedIcon className="mr-2 h-4 w-4" /> Reject
                                       </Button>
                                     </span>
@@ -788,7 +793,7 @@ const AdminRequests = () => {
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <span className="flex-1 min-w-[110px]">
-                                      <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white" onClick={() => handleStatusUpdate(current.emp_reqId, 5)}>
+                                      <Button disabled={isProcessing} className="w-full bg-orange-500 hover:bg-orange-600 text-white" onClick={() => handleStatusUpdate(current.emp_reqId, 5)}>
                                         <ReplyIcon className="mr-2 h-4 w-4" /> Return
                                       </Button>
                                     </span>

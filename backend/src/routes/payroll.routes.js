@@ -54,8 +54,8 @@ router.get("/retirement/history", requireAdmin, payrollController.getRetirementP
 
 const authMiddleware = require("../middleware/auth.js");
 
-// User Records & Updates
-router.get("/all", requireStaff, payrollController.getAllPayrolls);
+// User Records & Updates (Strictly restricted to Admin Manager & Accountant)
+router.get("/all", requireAdmin, payrollController.getAllPayrolls);
 router.get("/report", requireAdmin, payrollController.getPayrollReport);
 router.get("/my-history", authMiddleware, payrollController.getMyPayrollHistory);
 router.get("/my-payslip/:payrollId", authMiddleware, payrollController.getMyPayrollById);
@@ -67,8 +67,8 @@ router.get("/my-retirement", authMiddleware, payrollController.getMyRetirementPa
 router.get("/my-loans", authMiddleware, payrollController.getMyLoans);
 router.get("/my-loans/:id/ledger", authMiddleware, payrollController.getMyLoanLedger);
 router.get("/my-loans/:id/pdf", authMiddleware, payrollController.downloadMyLoanPDF);
-router.get("/user/:user_Id", requireStaff, payrollController.getPayrollByUser);
-router.get("/:payrollId", requireStaff, payrollController.getPayrollById);
+router.get("/user/:user_Id", requireAdmin, payrollController.getPayrollByUser);
+router.get("/:payrollId", requireAdmin, payrollController.getPayrollById);
 router.put("/update/:payrollId", requireAdmin, payrollController.updatePayroll);
 router.put("/update-full/:payrollId", requireAdmin, payrollController.updatePayrollFull);
 router.put("/release/:payrollId", requireAdmin, payrollController.releasePayroll);

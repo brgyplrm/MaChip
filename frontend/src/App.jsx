@@ -496,7 +496,7 @@ function App() {
         <Route
           path="logs/edit/:userId/:date"
           element={
-            <ProtectedRoute allowedRoles={[1, 2, 4]}>
+            <ProtectedRoute allowedRoles={[1, 2]}>
               <EditAttendance />
             </ProtectedRoute>
           }
@@ -504,7 +504,7 @@ function App() {
         <Route
           path="settings"
           element={
-            <ProtectedRoute allowedRoles={[1, 2, 4]}>
+            <ProtectedRoute allowedRoles={[1, 4]}>
               <Settings />
             </ProtectedRoute>
           }

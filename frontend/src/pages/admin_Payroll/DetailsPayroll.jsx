@@ -1180,11 +1180,11 @@ const PayrollDetails = () => {
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Rate Per Hour</label>
-                <p className="font-semibold text-slate-800">₱{parseFloat(payroll.ratePerHr).toLocaleString()}</p>
+                <p className="font-semibold text-slate-800">₱{parseFloat(payroll.ratePerHr || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Daily Rate</label>
-                <p className="font-semibold text-slate-800">₱{parseFloat(payroll.dailyRate || 0).toLocaleString()}</p>
+                <p className="font-semibold text-slate-800">₱{parseFloat(payroll.dailyRate || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               </div>
             </CardContent>
           </Card>

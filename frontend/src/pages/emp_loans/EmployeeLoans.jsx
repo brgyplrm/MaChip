@@ -172,27 +172,22 @@ export default function EmployeeLoans() {
         <div className="flex flex-col w-full min-h-screen bg-slate-50/50">
           <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full space-y-6">
 
-            {/* Header section with Actions */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-xl border border-slate-200/80 shadow-xs">
+            {/* Header Section (Standard Employee Page Layout) */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
               <div>
-                <div className="flex items-center gap-2.5 mb-1">
-                  <div className="p-2 bg-brand-primary/10 text-brand-primary rounded-lg">
-                    <Landmark className="h-5 w-5" />
-                  </div>
-                  <h1 className="text-2xl sm:text-3xl font-black text-brand-primary tracking-tight">
-                    My Loan Repayments &amp; Horizon
-                  </h1>
-                </div>
-                <p className="text-sm text-slate-500">
+                <h1 className="text-2xl md:text-3xl font-bold text-brand-primary leading-tight">
+                  My Loan Repayments &amp; Horizon
+                </h1>
+                <p className="text-sm text-slate-500 mt-1">
                   Concurrent amortization schedules, step-down cashflow relief milestones, and statement ledger audit.
                 </p>
               </div>
 
-              <div className="flex items-center gap-3 w-full sm:w-auto">
+              <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
                 <Button
                   variant="outline"
                   asChild
-                  className="border-slate-200 text-slate-700 hover:text-brand-primary hover:border-brand-primary/40 font-semibold"
+                  className="w-full sm:w-auto border-slate-200 text-slate-700 hover:text-brand-primary hover:border-brand-primary/40 font-semibold shadow-xs"
                 >
                   <Link to="/requests" state={{ defaultTab: "loan" }}>
                     <PlusCircle className="mr-2 h-4 w-4 text-brand-primary" /> Apply for Loan / Advance
@@ -216,10 +211,10 @@ export default function EmployeeLoans() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
               {/* Card 1: Total Outstanding */}
               <Card className="border-t-4 border-brand-primary bg-white shadow-xs hover:shadow-md transition-shadow">
-                <CardContent className="p-5 flex flex-col justify-between h-full">
+                <CardContent className="px-4 flex flex-col justify-between h-full">
                   <div>
-                    <div className="flex items-center justify-between text-slate-500 mb-1">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Outstanding</span>
+                    <div className="flex items-center justify-between text-slate-500 mb-1.5">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Total Outstanding</span>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <HelpCircle className="h-3.5 w-3.5 text-slate-400 hover:text-brand-primary cursor-help" />
@@ -232,7 +227,7 @@ export default function EmployeeLoans() {
                     {loading ? (
                       <Skeleton className="h-8 w-32 my-1" />
                     ) : (
-                      <div className="text-2xl sm:text-3xl font-black text-brand-primary font-mono tracking-tight">
+                      <div className="text-2xl sm:text-3xl font-bold text-brand-primary font-mono">
                         PHP {summary?.totalOutstanding || "0.00"}
                       </div>
                     )}
@@ -245,10 +240,10 @@ export default function EmployeeLoans() {
 
               {/* Card 2: Next Cutoff Deduction */}
               <Card className="border-t-4 border-amber-500 bg-white shadow-xs hover:shadow-md transition-shadow">
-                <CardContent className="p-5 flex flex-col justify-between h-full">
+                <CardContent className="px-4 flex flex-col justify-between h-full">
                   <div>
-                    <div className="flex items-center justify-between text-slate-500 mb-1">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-amber-600">Next Cutoff Deduction</span>
+                    <div className="flex items-center justify-between text-slate-500 mb-1.5">
+                      <span className="text-xs font-bold uppercase tracking-wider text-amber-600">Next Cutoff Deduction</span>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <HelpCircle className="h-3.5 w-3.5 text-slate-400 hover:text-amber-600 cursor-help" />
@@ -261,7 +256,7 @@ export default function EmployeeLoans() {
                     {loading ? (
                       <Skeleton className="h-8 w-32 my-1" />
                     ) : (
-                      <div className="text-2xl sm:text-3xl font-black text-amber-700 font-mono tracking-tight">
+                      <div className="text-2xl sm:text-3xl font-bold text-amber-700 font-mono">
                         PHP {summary?.nextCutoffDeduction || "0.00"}
                       </div>
                     )}
@@ -274,10 +269,10 @@ export default function EmployeeLoans() {
 
               {/* Card 3: Earliest Payoff Milestone */}
               <Card className="border-t-4 border-emerald-500 bg-white shadow-xs hover:shadow-md transition-shadow">
-                <CardContent className="p-5 flex flex-col justify-between h-full">
+                <CardContent className="px-4 flex flex-col justify-between h-full">
                   <div>
-                    <div className="flex items-center justify-between text-slate-500 mb-1">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-600">Earliest Payoff Milestone</span>
+                    <div className="flex items-center justify-between text-slate-500 mb-1.5">
+                      <span className="text-xs font-bold uppercase tracking-wider text-emerald-600">Earliest Payoff Milestone</span>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <HelpCircle className="h-3.5 w-3.5 text-slate-400 hover:text-emerald-600 cursor-help" />
@@ -290,7 +285,7 @@ export default function EmployeeLoans() {
                     {loading ? (
                       <Skeleton className="h-8 w-32 my-1" />
                     ) : (
-                      <div className="text-2xl sm:text-3xl font-black text-emerald-700 font-mono tracking-tight">
+                      <div className="text-2xl sm:text-3xl font-bold text-emerald-700 font-mono">
                         {summary?.earliestPayoff ? summary.earliestPayoff.payoffDate : "None"}
                       </div>
                     )}
@@ -298,7 +293,6 @@ export default function EmployeeLoans() {
                   <div className="text-xs text-emerald-700 mt-3 font-medium flex items-center gap-1.5">
                     {summary?.earliestPayoff ? (
                       <>
-                        <Sparkles className="h-3.5 w-3.5 shrink-0" />
                         <span>+PHP {summary.earliestPayoff.freedPerCutoff}/cutoff freed ({summary.earliestPayoff.cutoffsRemaining} cutoffs left)</span>
                       </>
                     ) : (
@@ -310,10 +304,10 @@ export default function EmployeeLoans() {
 
               {/* Card 4: Debt-Free Target */}
               <Card className="border-t-4 border-sky-500 bg-white shadow-xs hover:shadow-md transition-shadow">
-                <CardContent className="p-5 flex flex-col justify-between h-full">
+                <CardContent className="px-4 flex flex-col justify-between h-full">
                   <div>
-                    <div className="flex items-center justify-between text-slate-500 mb-1">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-sky-600">Debt-Free Target</span>
+                    <div className="flex items-center justify-between text-slate-500 mb-1.5">
+                      <span className="text-xs font-bold uppercase tracking-wider text-sky-600">Debt-Free Target</span>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <HelpCircle className="h-3.5 w-3.5 text-slate-400 hover:text-sky-600 cursor-help" />
@@ -326,7 +320,7 @@ export default function EmployeeLoans() {
                     {loading ? (
                       <Skeleton className="h-8 w-32 my-1" />
                     ) : (
-                      <div className="text-2xl sm:text-3xl font-black text-sky-700 font-mono tracking-tight">
+                      <div className="text-2xl sm:text-3xl font-bold text-sky-700 font-mono">
                         {summary?.debtFreeTarget ? summary.debtFreeTarget.payoffDate : "Debt-Free"}
                       </div>
                     )}
@@ -352,7 +346,7 @@ export default function EmployeeLoans() {
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                     <div>
                       <div className="flex items-center gap-2">
-                        <CardTitle className="text-lg font-bold text-slate-900">
+                        <CardTitle className="text-base sm:text-lg font-bold text-slate-800">
                           Concurrent Repayment Streams
                         </CardTitle>
                         <Tooltip>
@@ -368,7 +362,7 @@ export default function EmployeeLoans() {
                         Multi-track horizon. Click any track to inspect its statement ledger drawer.
                       </p>
                     </div>
-                    <Badge variant="secondary" className="bg-brand-primary/10 text-brand-primary border-brand-primary/20 font-semibold px-3 py-1">
+                    <Badge variant="secondary" className="bg-brand-primary/10 text-brand-primary border-brand-primary/20 font-semibold px-3 py-1 text-xs">
                       {activeLoans.length} Concurrent Stream{activeLoans.length === 1 ? "" : "s"}
                     </Badge>
                   </div>
@@ -377,24 +371,20 @@ export default function EmployeeLoans() {
                   <div className="flex flex-wrap items-center gap-4 pt-4 mt-2 text-xs text-slate-600 border-t border-slate-100">
                     <span className="font-bold text-slate-400 uppercase tracking-wider text-[10px]">Loan Legend:</span>
                     <div className="flex items-center gap-1.5">
-                      <span className="h-3 w-3 rounded-full bg-purple-600 inline-block"></span>
-                      <span><strong>SSS Salary Loan</strong> (Gov Statutory)</span>
+                      <span className="h-2.5 w-2.5 rounded-full bg-purple-600 inline-block"></span>
+                      <span className="font-medium text-slate-700">SSS Salary Loan</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <span className="h-3 w-3 rounded-full bg-emerald-600 inline-block"></span>
-                      <span><strong>Pag-IBIG MPL</strong> (Gov Statutory)</span>
+                      <span className="h-2.5 w-2.5 rounded-full bg-emerald-600 inline-block"></span>
+                      <span className="font-medium text-slate-700">Pag-IBIG MPL</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <span className="h-3 w-3 rounded-full bg-sky-600 inline-block"></span>
-                      <span><strong>EastWest Loan</strong> (Commercial Bank)</span>
+                      <span className="h-2.5 w-2.5 rounded-full bg-amber-500 inline-block"></span>
+                      <span className="font-medium text-slate-700">Company Advance</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <span className="h-3 w-3 rounded-full bg-amber-500 inline-block"></span>
-                      <span><strong>Company Advance</strong> (Internal Benefit)</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="h-3 w-3 rounded-full border border-emerald-300 bg-emerald-100 inline-block"></span>
-                      <span><strong>Paid Off / Relieved</strong> (Take-Home Freed)</span>
+                      <span className="h-2.5 w-2.5 rounded-full border border-emerald-300 bg-emerald-100 inline-block"></span>
+                      <span className="font-medium text-slate-700">Paid Off / Relieved</span>
                     </div>
                   </div>
                 </CardHeader>
@@ -415,16 +405,16 @@ export default function EmployeeLoans() {
                         {/* Left Column: Loan Summary Info */}
                         <div>
                           <div className="flex items-center gap-2 mb-1">
-                            <h4 className={`font-bold text-sm ${theme.text} group-hover:underline`}>
+                            <h4 className="font-semibold text-sm text-slate-800 group-hover:text-brand-primary transition-colors">
                               {loan.title}
                             </h4>
-                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${theme.badgeBg}`}>
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium border ${theme.badgeBg}`}>
                               {loan.category.split(" ")[0]}
                             </span>
                           </div>
                           <div className="text-xs text-slate-500">
-                            <strong className="text-rose-600 font-mono">PHP {loan.deductionPerCutoff}</strong> / cutoff &bull;{" "}
-                            <span className="font-medium text-slate-600">{loan.cutoffsRemaining} cutoff{loan.cutoffsRemaining === 1 ? "" : "s"} left</span>
+                            <strong className="text-rose-600 font-mono font-semibold">PHP {loan.deductionPerCutoff}</strong> / cutoff &bull;{" "}
+                            <span className="font-normal text-slate-500">{loan.cutoffsRemaining} cutoff{loan.cutoffsRemaining === 1 ? "" : "s"} left</span>
                           </div>
                         </div>
 
@@ -432,7 +422,7 @@ export default function EmployeeLoans() {
                         <div className="relative h-12 bg-slate-100 rounded-lg overflow-hidden flex items-center shadow-inner">
                           {/* Active Repayment Progress Bar */}
                           <div
-                            className={`h-full ${theme.barBg} transition-all duration-500 flex items-center px-3 text-white text-xs font-bold tracking-wide`}
+                            className={`h-full ${theme.barBg} transition-all duration-500 flex items-center px-3 text-white text-xs font-semibold tracking-normal`}
                             style={{ width: `${progress}%` }}
                           >
                             <span className="truncate">Active (PHP {loan.deductionPerCutoff}/cutoff)</span>
@@ -440,7 +430,7 @@ export default function EmployeeLoans() {
 
                           {/* Milestone Payoff Flag */}
                           <div
-                            className={`absolute -translate-x-1/2 px-2.5 py-1 rounded-md text-[11px] font-bold shadow-xs border z-10 ${theme.flag}`}
+                            className={`absolute -translate-x-1/2 px-2.5 py-1 rounded-md text-[11px] font-semibold shadow-xs border z-10 ${theme.flag}`}
                             style={{ left: `${Math.min(92, Math.max(8, progress))}%` }}
                           >
                             Payoff: {loan.payoffDate}
@@ -449,7 +439,7 @@ export default function EmployeeLoans() {
                           {/* Relieved / Freed Take-Home Striped Zone */}
                           {progress < 100 && (
                             <div
-                              className="absolute top-0 bottom-0 right-0 bg-emerald-50/90 border-l border-emerald-300 flex items-center justify-center text-[10px] font-bold text-emerald-800 tracking-wider px-2"
+                              className="absolute top-0 bottom-0 right-0 bg-emerald-50/90 border-l border-emerald-300 flex items-center justify-center text-[10px] font-semibold text-emerald-800 tracking-wider px-2"
                               style={{ left: `${progress}%` }}
                             >
                               FREED: +PHP {(parseFloat(loan.deductionPerCutoff) * 2).toFixed(2)}/MO
@@ -465,7 +455,7 @@ export default function EmployeeLoans() {
                     <div className="mt-8 pt-6 border-t border-slate-100">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-1.5">
-                          <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                          <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wider">
                             Step-Down Relief Phases
                           </h4>
                           <Tooltip>
@@ -477,7 +467,7 @@ export default function EmployeeLoans() {
                             </TooltipContent>
                           </Tooltip>
                         </div>
-                        <span className="text-[11px] text-slate-400">Click a phase to view impact</span>
+                        <span className="text-[11px] text-slate-400 font-medium">Click a phase to view impact</span>
                       </div>
 
                       <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-thin">
@@ -496,8 +486,8 @@ export default function EmployeeLoans() {
                                     : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
                               }`}
                             >
-                              <span className="text-xs font-bold">{phase.title}</span>
-                              <span className={`text-[10px] mt-0.5 ${isSelected ? "text-purple-200" : phase.isDebtFree ? "text-emerald-700 font-semibold" : "text-slate-500"}`}>
+                              <span className={`text-xs font-semibold ${isSelected ? "text-white" : "text-slate-800"}`}>{phase.title}</span>
+                              <span className={`text-[10px] mt-0.5 ${isSelected ? "text-purple-100" : phase.isDebtFree ? "text-emerald-700 font-medium" : "text-slate-500"}`}>
                                 {phase.activeLoansCount} Loan{phase.activeLoansCount === 1 ? "" : "s"} &bull; PHP {phase.deductionPerCutoff}/cutoff
                               </span>
                             </button>
@@ -509,7 +499,6 @@ export default function EmployeeLoans() {
                       {summary.reliefPhases[activePhaseIndex] && (
                         <div className="mt-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs text-slate-700">
                           <div className="flex items-center gap-2">
-                            <Sparkles className="h-4 w-4 text-emerald-600 shrink-0" />
                             <span>{summary.reliefPhases[activePhaseIndex].description}</span>
                           </div>
                           <div className="font-mono font-bold text-emerald-700">
@@ -527,7 +516,7 @@ export default function EmployeeLoans() {
             <Card className="bg-white border-slate-200/80 shadow-xs">
               <CardHeader className="pb-3 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                 <div>
-                  <CardTitle className="text-lg font-bold text-slate-900">
+                  <CardTitle className="text-base sm:text-lg font-bold text-slate-800">
                     Loan Accounts &amp; Statement Ledgers
                   </CardTitle>
                   <p className="text-xs text-slate-500 mt-0.5">
@@ -579,10 +568,10 @@ export default function EmployeeLoans() {
                               }`}
                             >
                               <td className="py-3.5 px-4">
-                                <div className={`font-bold ${isActive ? "text-slate-900" : "text-slate-500 line-through"}`}>
+                                <div className={`font-semibold text-sm ${isActive ? "text-slate-800" : "text-slate-400 line-through"}`}>
                                   {loan.title}
                                 </div>
-                                <div className="text-xs text-slate-400 font-medium">
+                                <div className="text-xs text-slate-400 font-normal">
                                   {loan.institution}
                                 </div>
                               </td>
@@ -591,15 +580,15 @@ export default function EmployeeLoans() {
                                 {loan.reference}
                               </td>
 
-                              <td className="py-3.5 px-4 text-right font-mono font-bold text-rose-600">
+                              <td className="py-3.5 px-4 text-right font-mono font-bold text-sm text-rose-600">
                                 {isActive ? `- PHP ${loan.deductionPerCutoff}` : "PHP 0.00"}
                               </td>
 
-                              <td className="py-3.5 px-4 text-right font-mono text-slate-700">
+                              <td className="py-3.5 px-4 text-right font-mono text-sm text-slate-700">
                                 PHP {loan.totalAmount}
                               </td>
 
-                              <td className="py-3.5 px-4 text-right font-mono font-bold text-brand-primary">
+                              <td className="py-3.5 px-4 text-right font-mono font-bold text-sm text-brand-primary">
                                 PHP {loan.remainingBalance}
                               </td>
 
@@ -610,7 +599,7 @@ export default function EmployeeLoans() {
                                     style={{ width: `${loan.progressPct}%` }}
                                   />
                                 </div>
-                                <div className="text-[11px] text-slate-500 mt-1 flex justify-between">
+                                <div className="text-[11px] text-slate-500 mt-1 flex justify-between font-normal">
                                   <span>{loan.progressPct}%</span>
                                   <span>{loan.cutoffsPaid}/{loan.totalCutoffs} cutoffs</span>
                                 </div>
@@ -659,14 +648,14 @@ export default function EmployeeLoans() {
               <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto p-6 bg-white">
                 <SheetHeader className="pb-4 border-b border-slate-100">
                   <div className="flex items-center gap-2 mb-1">
-                    <Badge variant="secondary" className="bg-brand-primary/10 text-brand-primary font-bold uppercase text-[10px]">
+                    <Badge variant="secondary" className="bg-brand-primary/10 text-brand-primary font-bold uppercase text-[10px] tracking-wider">
                       {drawerData?.loan?.provider || "Official Statement"}
                     </Badge>
                   </div>
-                  <SheetTitle className="text-xl font-black text-slate-900">
+                  <SheetTitle className="text-lg font-bold text-brand-primary">
                     {drawerData?.loan ? `${drawerData.loan.deductionType.toUpperCase()} Amortization Ledger` : "Loan Ledger"}
                   </SheetTitle>
-                  <SheetDescription className="text-xs text-slate-500">
+                  <SheetDescription className="text-xs text-slate-500 font-normal">
                     Immutable append-only payroll deduction audit history for reference account #{drawerData?.loan?.reference || selectedLoanId}.
                   </SheetDescription>
                 </SheetHeader>
@@ -682,7 +671,7 @@ export default function EmployeeLoans() {
                     <div className="bg-slate-50 border border-slate-200 rounded-xl p-4.5 space-y-2.5 text-xs text-slate-700">
                       <div className="flex justify-between items-center">
                         <span className="text-slate-500 font-medium">Loan Reference:</span>
-                        <span className="font-mono font-bold text-slate-900">{drawerData.loan.reference || `REF-${drawerData.loan.id}`}</span>
+                        <span className="font-mono font-semibold text-slate-900">{drawerData.loan.reference || `REF-${drawerData.loan.id}`}</span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-slate-500 font-medium">Contract Date:</span>
@@ -696,9 +685,9 @@ export default function EmployeeLoans() {
                         <span className="text-slate-500 font-medium">Amortization / Cutoff:</span>
                         <span className="font-mono font-bold text-rose-600">- PHP {drawerData.loan.deductionPerCutoff}</span>
                       </div>
-                      <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-sm font-bold">
+                      <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-sm font-semibold">
                         <span className="text-slate-800">Remaining Balance:</span>
-                        <span className="font-mono text-brand-primary text-base">PHP {drawerData.loan.remainingBalance}</span>
+                        <span className="font-mono text-brand-primary text-base font-bold">PHP {drawerData.loan.remainingBalance}</span>
                       </div>
                     </div>
 

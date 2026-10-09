@@ -10,6 +10,7 @@ import AssessmentIcon  from "@mui/icons-material/Assessment";
 import EditIcon from "@mui/icons-material/Edit";
 import ReplyIcon from "@mui/icons-material/Reply";
 import EditRequestModal from "../../components/EditRequestModal";
+import StaticTimePickerLandscape from "../../components/StaticTimePickerLandscape";
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import FilterListIcon from '@mui/icons-material/FilterList';
@@ -938,6 +939,36 @@ const UserRequests = () => {
       if (diffDays < 3) isLateFiling = true;
     }
 
+    if (formData.emp_reqTypeId === "1") {
+      if (!formData.otDate) {
+        setToast({ message: "Please select an overtime date.", type: "warning" });
+        return;
+      }
+      if (!formData.hrFrom || !formData.hrTo) {
+        setToast({ message: "Please select both Time From and Time To for overtime.", type: "warning" });
+        return;
+      }
+    }
+
+    if (formData.emp_reqTypeId === "5") {
+      if (!formData.logCorrDate) {
+        setToast({ message: "Please select a date to correct.", type: "warning" });
+        return;
+      }
+      if (formData.correctionCategory === "Morning" && !formData.claimedIn) {
+        setToast({ message: "Please select a corrected morning time-in.", type: "warning" });
+        return;
+      }
+      if (formData.correctionCategory === "Afternoon" && !formData.claimedOut) {
+        setToast({ message: "Please select a corrected afternoon time-out.", type: "warning" });
+        return;
+      }
+      if (formData.correctionCategory === "Overtime" && (!formData.claimedIn || !formData.claimedOut)) {
+        setToast({ message: "Please select both corrected in and out times.", type: "warning" });
+        return;
+      }
+    }
+
     const formDataToSubmit = new FormData();
     formDataToSubmit.append("user_Id", userData.user_Id);
     formDataToSubmit.append("emp_reqTypeId", formData.emp_reqTypeId);
@@ -1690,16 +1721,48 @@ const UserRequests = () => {
                           <Input type="text" value={formData.currentOut || "No Log"} readOnly className="bg-slate-100 text-slate-500" />
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      {formData.correctionCategory === "Morning" ? (
                         <div className="space-y-2">
-                          <label className="text-sm font-bold text-slate-700">Corrected In</label>
-                          <Input type="time" name="claimedIn" value={formData.claimedIn} onChange={handleInputChange} required className="bg-slate-50/50" />
+                          <StaticTimePickerLandscape
+                            label="Corrected Morning Check-In"
+                            name="claimedIn"
+                            value={formData.claimedIn}
+                            onChange={handleInputChange}
+                            helperText="Select corrected morning check-in time (e.g. 08:00 AM)"
+                          />
                         </div>
+                      ) : formData.correctionCategory === "Afternoon" ? (
                         <div className="space-y-2">
-                          <label className="text-sm font-bold text-slate-700">Corrected Out</label>
-                          <Input type="time" name="claimedOut" value={formData.claimedOut} onChange={handleInputChange} required className="bg-slate-50/50" />
+                          <StaticTimePickerLandscape
+                            label="Corrected Afternoon Check-Out"
+                            name="claimedOut"
+                            value={formData.claimedOut}
+                            onChange={handleInputChange}
+                            helperText="Select corrected afternoon check-out time (e.g. 05:00 PM)"
+                          />
                         </div>
-                      </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <label className="text-sm font-bold text-slate-700">Corrected Attendance Times</label>
+                          <StaticTimePickerLandscape
+                            items={[
+                              {
+                                label: "Corrected In",
+                                name: "claimedIn",
+                                value: formData.claimedIn,
+                                helperText: "Select corrected check-in time",
+                              },
+                              {
+                                label: "Corrected Out",
+                                name: "claimedOut",
+                                value: formData.claimedOut,
+                                helperText: "Select corrected check-out time",
+                              },
+                            ]}
+                            onChange={handleInputChange}
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -1709,33 +1772,31 @@ const UserRequests = () => {
                         <label className="text-sm font-bold text-slate-700">Overtime Date</label>
                         <Input type="date" name="otDate" value={formData.otDate} onChange={handleInputChange} required className="bg-slate-50/50" />
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <label className="text-sm font-bold text-slate-700">Time From</label>
-                          <Input 
-                            type="time" 
-                            name="hrFrom" 
-                            min={isSaturday(formData.otDate) ? "12:30" : "17:30"} 
-                            max="22:00" 
-                            value={formData.hrFrom} 
-                            onChange={handleInputChange} 
-                            required 
-                            className="bg-slate-50/50" 
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-sm font-bold text-slate-700">Time To</label>
-                          <Input 
-                            type="time" 
-                            name="hrTo" 
-                            min={isSaturday(formData.otDate) ? "12:30" : "17:30"} 
-                            max="22:00" 
-                            value={formData.hrTo} 
-                            onChange={handleInputChange} 
-                            required 
-                            className="bg-slate-50/50" 
-                          />
-                        </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-slate-700">Overtime Hours Range</label>
+                        <StaticTimePickerLandscape
+                          items={[
+                            {
+                              label: "Time From",
+                              name: "hrFrom",
+                              value: formData.hrFrom,
+                              minTime: isSaturday(formData.otDate) ? "12:30" : "17:30",
+                              maxTime: "22:00",
+                              helperText: isSaturday(formData.otDate)
+                                ? "Saturday Overtime starts at 12:30 PM (12:30)"
+                                : "Standard weekday Overtime starts at 5:30 PM (17:30)",
+                            },
+                            {
+                              label: "Time To",
+                              name: "hrTo",
+                              value: formData.hrTo,
+                              minTime: isSaturday(formData.otDate) ? "12:30" : "17:30",
+                              maxTime: "22:00",
+                              helperText: "Regular Overtime is capped at 10:00 PM (22:00)",
+                            },
+                          ]}
+                          onChange={handleInputChange}
+                        />
                       </div>
                       <div className="space-y-2">
                         <label className="text-sm font-bold text-slate-700">Total Regular Overtime Hours</label>

@@ -21,13 +21,13 @@ const EditAttendance = () => {
   const backPath = fromPath === "/adminRequests" ? "/adminRequests" : "/logs?view=day";
 
   const currentUser = JSON.parse(localStorage.getItem("userData") || "null");
-  const isAdminOrAccountant = currentUser?.user_RoleId === 1 || currentUser?.user_RoleId === 4;
+  const isOperationalStaff = currentUser?.user_RoleId === 1 || currentUser?.user_RoleId === 2;
 
   useEffect(() => {
-    if (!isAdminOrAccountant) {
+    if (!isOperationalStaff) {
       navigate("/logs");
     }
-  }, [isAdminOrAccountant, navigate]);
+  }, [isOperationalStaff, navigate]);
 
   const [formData, setFormData] = useState({
     morning_In: "",
