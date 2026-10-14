@@ -2745,7 +2745,7 @@ exports.getPayrollReport = async (req, res) => {
       replacements.user_Id = user_Id;
     }
 
-    query += ` ORDER BY u."user_Id" ASC`;
+    query += ` ORDER BY p."period_Start" DESC, u."user_Id" ASC`;
 
     const payrolls = await sequelize.query(query, { replacements, type: QueryTypes.SELECT });
     res.status(200).json(payrolls);

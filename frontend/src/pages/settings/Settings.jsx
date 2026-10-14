@@ -1,16 +1,12 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import Sidebar from "../../components/Sidebar";
 import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
-import SaveIcon from "@mui/icons-material/Save";
 import CurrencyExchangeIcon from "@mui/icons-material/CurrencyExchange";
 import SettingsSuggestIcon from "@mui/icons-material/SettingsSuggest";
-import CheckIcon from "@mui/icons-material/Check";
-import CloseIcon from "@mui/icons-material/Close";
 import AssuredWorkloadIcon from '@mui/icons-material/AssuredWorkload';
 import LocalAtmIcon from '@mui/icons-material/LocalAtm';
-import PercentIcon from '@mui/icons-material/Percent';
 import { useSystemTime } from "../../context/SystemTimeContext";
 import { fetchWithAuth } from "../../utils/api";
 import FolderPicker from "../../components/FolderPicker";
@@ -19,7 +15,7 @@ import AttendanceConfiguration from "@/components/AttendanceConfiguration";
 import NotificationConfiguration from "@/components/NotificationConfiguration";
 import PositionManagement from "@/components/PositionManagement";
 import ReferenceDataManagement from "@/components/ReferenceDataManagement";
-import { Clock, Coffee, ShieldAlert, CheckCircle, Info, Edit3, Save, Layers, X } from 'lucide-react';
+import { Clock, Edit3, Save, Layers, X } from 'lucide-react';
 
 
 // shadcn/ui components
@@ -28,8 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 
@@ -292,18 +287,19 @@ const Settings = () => {
         
         <div className="flex-1 md:p-4 w-full overflow-x-hidden min-w-0">
           
-          {/* Header Dashboard Title */}    
-          <div className="mb-6">
-            <h1 className="text-2xl md:text-3xl font-bold text-brand-primary leading-tight">Global Configurations</h1>
-            <span className="text-sm text-slate-500 mt-1 block">Adjust platform constraints, system timing rules, variables, and financial formulas.</span>
-          </div>
-
           {/* Integrated Tabbed Navigation controls */}
           <Tabs value={activeSettingsTab} onValueChange={setActiveSettingsTab} className="w-full">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-              <div className="w-full sm:w-auto">
+            
+            {/* Header Dashboard Title & Tab Dropdown */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+              <div>
+                <h1 className="text-2xl md:text-3xl font-bold text-brand-primary leading-tight">Global Configurations</h1>
+                <span className="text-sm text-slate-500 mt-1 block">Adjust platform constraints, system timing rules, variables, and financial formulas.</span>
+              </div>
+
+              <div className="w-full sm:w-auto shrink-0">
                 <Select value={activeSettingsTab} onValueChange={setActiveSettingsTab}>
-                  <SelectTrigger className="w-full sm:w-[320px] h-12 bg-white border-slate-200 shadow-sm text-slate-700 font-bold text-base rounded-xl hover:bg-slate-50/80 transition-all">
+                  <SelectTrigger className="w-full sm:w-[280px] md:w-[320px] h-11 md:h-12 bg-white border-slate-200 shadow-sm text-slate-700 font-bold text-sm md:text-base rounded-xl hover:bg-slate-50/80 transition-all">
                     <SelectValue placeholder="Navigate Configurations" />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl border-slate-200 shadow-lg">
@@ -351,9 +347,6 @@ const Settings = () => {
                 <TabsContent value="simulation" className="space-y-6 mt-0 animate-in fade-in-50 duration-200">
                   <div className="bg-brand-primary text-white rounded-xl p-6 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div className="flex items-start space-x-4">
-                      <div className="p-3 bg-white/10 rounded-lg border border-white/10">
-                        <Clock className="w-6 h-6 text-purple-200" />
-                      </div>
                       <div>
                         <h1 className="text-xl font-bold tracking-tight">System Configuration</h1>
                         <p className="text-sm text-purple-200/80 mt-0.5">Manage time, backup, and biometric synchronization</p>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Sidebar from "../../components/Sidebar";
 import Chart from "../../components/chart/Chart";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
@@ -256,7 +256,7 @@ const Profile = () => {
 
               {/* Dashboard Identity Cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 w-full animate-in fade-in zoom-in-95 duration-200">
-                <Card className="shadow-sm border-0 bg-[#FAF2FF] py-0 h-full min-w-0">
+                <Card className="shadow-sm border-0 bg-brand-primary-light/50 py-0 h-full min-w-0">
                   <CardContent className="px-5 py-5 flex justify-between h-full">
                     <div className="flex flex-col justify-between">
                       <div>
@@ -271,7 +271,7 @@ const Profile = () => {
                   </CardContent>
                 </Card>
 
-                <Card className="shadow-sm border-0 bg-[#F8FFF2] py-0 h-full min-w-0">
+                <Card className="shadow-sm border-0 bg-accent-green/10 py-0 h-full min-w-0">
                   <CardContent className="px-5 py-5 flex justify-between h-full">
                     <div className="flex flex-col justify-between">
                       <div>
@@ -324,9 +324,7 @@ const Profile = () => {
                 <CardHeader className="border-b border-slate-100 pt-8 px-6 bg-slate-50/50 space-y-4">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-2.5">
-                      <div className="p-2 bg-slate-100 rounded-lg text-slate-700 shrink-0">
-                        <BadgeOutlinedIcon className="h-5 w-5" />
-                      </div>
+                      
                       <div>
                         <CardTitle className="text-lg font-bold text-slate-800">Personal Attendance Logs</CardTitle>
                         <p className="text-xs text-slate-500 font-medium">Historical records of daily time ins, time outs, and attendance status</p>

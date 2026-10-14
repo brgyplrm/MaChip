@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Sidebar from "../../components/Sidebar";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import SearchIcon from "@mui/icons-material/Search";
@@ -22,7 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { EyeIcon } from "lucide-react";
 import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -469,7 +469,7 @@ const AuditLogs = () => {
                             <TableCell className="text-right pr-6 py-4">
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="sm" onClick={() => setSelectedLog(log)} className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-brand-primary-light hover:border-[#9c7de0]">
+                                  <Button variant="ghost" size="sm" onClick={() => setSelectedLog(log)} className="border-brand-primary text-brand-primary hover:text-brand-primary-hover hover:bg-brand-primary-light hover:border-brand-primary-hover">
                                     <EyeIcon className="h-4 w-4"/>
                                   </Button>
                                 </TooltipTrigger>

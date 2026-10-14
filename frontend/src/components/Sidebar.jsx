@@ -22,7 +22,6 @@ import CloseIcon from '@mui/icons-material/Close';
 import { useSystemTime } from "../context/SystemTimeContext";
 import { Badge } from "./ui/badge";
 import TuneIcon from '@mui/icons-material/Tune';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { cn } from "../lib/utils";
 import { getStoredUser, getStoredViewMode, setStoredViewMode, clearStoredAuth } from "../utils/authStorage";
 
@@ -1229,7 +1228,7 @@ const Sidebar = ({ children }) => {
                   {location.pathname === "/notifications" ? (
                     <NotificationsIcon className="!text-[26px] text-brand-primary" />
                   ) : (
-                    <NotificationsNoneIcon className="!text-[26px] hover:animate-bell-shake" />
+                    <NotificationsNoneIcon className="text-[26px] hover:animate-bell-shake" />
                   )}
                   {unreadCount > 0 && (
                     <span className="absolute top-1 right-1 flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-red-600 rounded-full">
@@ -1308,7 +1307,7 @@ const Sidebar = ({ children }) => {
                   className={cn(
                     "flex text-sm rounded-full transition-all duration-300 active:scale-95 relative",
                     location.pathname === "/profile"
-                      ? "p-[2.5px] bg-gradient-to-r from-brand-primary via-[#7A52B5] to-brand-primary shadow-[0_0_15px_rgba(122,82,181,0.75)] animate-pulse"
+                      ? "p-[2.5px] bg-gradient-to-r from-brand-primary via-brand-primary-light to-brand-primary shadow-[0_0_15px_rgba(122,82,181,0.75)] animate-pulse"
                       : "bg-gray-800 focus:ring-2 focus:ring-gray-300"
                   )}
                 >

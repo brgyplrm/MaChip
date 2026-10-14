@@ -24,6 +24,7 @@ import { exportToPDF } from "../../utils/pdfExport";
 import { useSystemTime } from "../../context/SystemTimeContext";
 import { FileInput } from "lucide-react";
 import EmptyState from "../../components/EmptyState";
+import Toast from "../../components/toast/Toast";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -110,16 +111,6 @@ const AdminReports = () => {
   const { systemToday } = useSystemTime();
   const currentSysDate = useMemo(() => systemToday || new Date(), [systemToday]);
 
-  // Constant Baseline Fallback Variable References
-  const defaultYear = useMemo(() => currentSysDate.getFullYear().toString(), [currentSysDate]);
-  const defaultMonth = useMemo(() => (currentSysDate.getMonth() + 1).toString(), [currentSysDate]);
-  const defaultPeriod = useMemo(() => (currentSysDate.getDate() <= 15 ? "1" : "2"), [currentSysDate]);
-  const defaultEmployee = "All Employees";
-  const defaultEventType = "All Types";
-  const defaultCalendarStartDate = useMemo(() => new Date(new Date().setDate(new Date().getDate() - 15)).toISOString().split('T')[0], []);
-  const defaultCalendarEndDate = useMemo(() => new Date().toISOString().split('T')[0], []);
-  const defaultRequestDate = useMemo(() => new Date().toISOString().split('T')[0], []);
-
   // Available years: current year + 1 down to 5 years past (7 years)
   const availableYears = useMemo(() => {
     const currentY = currentSysDate.getFullYear();
@@ -127,10 +118,10 @@ const AdminReports = () => {
   }, [currentSysDate]);
 
   // --- Attendance & Payroll Filters (Year, Month, Period, Employee) ---
-  const [selectedYear, setSelectedYear] = useState(defaultYear);
-  const [selectedMonth, setSelectedMonth] = useState(defaultMonth);
-  const [selectedPeriod, setSelectedPeriod] = useState(defaultPeriod);
-  const [selectedEmployee, setSelectedEmployee] = useState(defaultEmployee);
+  const [selectedYear, setSelectedYear] = useState("all");
+  const [selectedMonth, setSelectedMonth] = useState("all");
+  const [selectedPeriod, setSelectedPeriod] = useState("all");
+  const [selectedEmployee, setSelectedEmployee] = useState("All Employees");
 
   // Derive active attendance & payroll cutoff dates
   const { startDate, endDate } = useMemo(() => {
@@ -138,15 +129,17 @@ const AdminReports = () => {
   }, [selectedYear, selectedMonth, selectedPeriod]);
   
   // --- Calendar/Events Specific Filters ---
-  const [calendarStartDate, setCalendarStartDate] = useState(defaultCalendarStartDate);
-  const [calendarEndDate, setCalendarEndDate] = useState(defaultCalendarEndDate);
-  const [eventTypeFilter, setEventTypeFilter] = useState(defaultEventType);
+  const [calendarStartDate, setCalendarStartDate] = useState("");
+  const [calendarEndDate, setCalendarEndDate] = useState("");
+  const [eventTypeFilter, setEventTypeFilter] = useState("All Types");
 
   // --- Requests Tab Specific Filters ---
   const [searchQuery, setSearchQuery] = useState("");
-  const [requestDate, setRequestDate] = useState(defaultRequestDate);
+  const [requestDate, setRequestDate] = useState("");
   const [typeFilter, setTypeFilter] = useState("All Types");
   const [statusFilter, setStatusFilter] = useState("All Statuses");
+
+  const [toast, setToast] = useState({ message: "", type: "success" });
 
   const [employees, setEmployees] = useState([]);
   const [attendanceData, setAttendanceData] = useState([]);
@@ -280,16 +273,6 @@ const AdminReports = () => {
     }
   }, [calendarStartDate, calendarEndDate]);
 
-  // Sync default filters if systemToday loads and user hasn't manually customized filters
-  const [hasManuallyFiltered, setHasManuallyFiltered] = useState(false);
-  useEffect(() => {
-    if (!hasManuallyFiltered && systemToday) {
-      setSelectedYear(systemToday.getFullYear().toString());
-      setSelectedMonth((systemToday.getMonth() + 1).toString());
-      setSelectedPeriod(systemToday.getDate() <= 15 ? "1" : "2");
-    }
-  }, [systemToday, hasManuallyFiltered]);
-
   useEffect(() => {
     fetchEmployees();
   }, [fetchEmployees]);
@@ -325,9 +308,9 @@ const AdminReports = () => {
 
   const handleClearFilters = () => {
     if (activeReport === "attendance" || activeReport === "payroll") {
-      setSelectedYear("");
-      setSelectedMonth("");
-      setSelectedPeriod("");
+      setSelectedYear("all");
+      setSelectedMonth("all");
+      setSelectedPeriod("all");
       setSelectedEmployee("All Employees");
     } else if (activeReport === "calendar") {
       setCalendarStartDate("");
@@ -384,7 +367,10 @@ const AdminReports = () => {
 
   const handleCSVExport = () => {
     let dataToExport = [];
-    let filename = `${activeReport}_report_${startDate}_to_${endDate}.csv`;
+    const dateRangeTag = activeReport === "calendar"
+      ? (calendarStartDate && calendarEndDate ? `${calendarStartDate}_to_${calendarEndDate}` : "all")
+      : (startDate && endDate ? `${startDate}_to_${endDate}` : "all");
+    let filename = `${activeReport}_report_${dateRangeTag}.csv`;
 
     if (activeReport === "attendance") {
       dataToExport = attendanceData.map(r => ({
@@ -425,7 +411,10 @@ const AdminReports = () => {
 
   const handlePDFExport = () => {
     let dataToExport = [];
-    let filename = `${activeReport}_report_${activeReport === "calendar" ? calendarStartDate : startDate}_to_${activeReport === "calendar" ? calendarEndDate : endDate}.pdf`;
+    const dateRangeTag = activeReport === "calendar"
+      ? (calendarStartDate && calendarEndDate ? `${calendarStartDate}_to_${calendarEndDate}` : "all")
+      : (startDate && endDate ? `${startDate}_to_${endDate}` : "all");
+    let filename = `${activeReport}_report_${dateRangeTag}.pdf`;
     let headers = [];
     let title = `${activeReport.charAt(0).toUpperCase() + activeReport.slice(1)} Report`;
     let orientation = "p";
@@ -470,6 +459,10 @@ const AdminReports = () => {
 
   const handleBatchExport = () => {
     if (payrollData.length === 0) return;
+    if (!startDate || !endDate) {
+      setToast({ message: "Please select a specific Year, Month, and Period before batch exporting ZIP payslips.", type: "error" });
+      return;
+    }
     const [sY, sM, sD] = startDate.split('-').map(Number);
     const [eY, eM, eD] = endDate.split('-').map(Number);
     const month = new Date(sY, sM - 1, sD).toLocaleString('en-US', { month: 'long' });
@@ -920,9 +913,9 @@ const AdminReports = () => {
               {(activeReport === "attendance" || activeReport === "payroll") && (
                 <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto flex-wrap">
                   {/* Year Selection */}
-                  <Select value={selectedYear || ""} onValueChange={(val) => { setHasManuallyFiltered(true); setSelectedYear(val === "all" ? "" : val); }}>
-                    <SelectTrigger className="w-full sm:w-[110px] border-slate-200 bg-slate-50 font-medium text-slate-700">
-                      <SelectValue placeholder="Year" />
+                  <Select value={selectedYear} onValueChange={setSelectedYear}>
+                    <SelectTrigger className="w-full sm:w-[120px] border-slate-200 bg-slate-50 font-medium text-slate-700">
+                      <SelectValue placeholder="All Years" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Years</SelectItem>
@@ -933,9 +926,9 @@ const AdminReports = () => {
                   </Select>
 
                   {/* Month Selection */}
-                  <Select value={selectedMonth || ""} onValueChange={(val) => { setHasManuallyFiltered(true); setSelectedMonth(val === "all" ? "" : val); }}>
+                  <Select value={selectedMonth} onValueChange={setSelectedMonth}>
                     <SelectTrigger className="w-full sm:w-[140px] border-slate-200 bg-slate-50 font-medium text-slate-700">
-                      <SelectValue placeholder="Month" />
+                      <SelectValue placeholder="All Months" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Months</SelectItem>
@@ -946,9 +939,9 @@ const AdminReports = () => {
                   </Select>
 
                   {/* Period Selection (1st or 2nd) */}
-                  <Select value={selectedPeriod || ""} onValueChange={(val) => { setHasManuallyFiltered(true); setSelectedPeriod(val === "all" ? "" : val); }}>
+                  <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
                     <SelectTrigger className="w-full sm:w-[200px] border-slate-200 bg-slate-50 font-medium text-slate-700">
-                      <SelectValue placeholder="Period" />
+                      <SelectValue placeholder="All Periods" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Periods</SelectItem>
@@ -959,7 +952,7 @@ const AdminReports = () => {
                   </Select>
 
                   {/* Employee Selection */}
-                  <Select value={selectedEmployee || "All Employees"} onValueChange={(val) => { setHasManuallyFiltered(true); setSelectedEmployee(val); }}>
+                  <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
                     <SelectTrigger className="w-full sm:w-[180px] border-slate-200 bg-slate-50 font-medium text-slate-700">
                       <SelectValue placeholder="All Employees" />
                     </SelectTrigger>
@@ -1101,7 +1094,7 @@ const AdminReports = () => {
 
                           return (
                             <TableRow key={i} className="hover:bg-slate-50 transition-colors border-b-slate-100">
-                              <TableCell className="font-bold text-brand-primary px-6 py-4">{formatUserId(r.user_Id)}</TableCell>
+                              <TableCell className="font-bold text-brand-primary-semi-dark px-6 py-4">{formatUserId(r.user_Id)}</TableCell>
                               <TableCell className="font-semibold text-slate-800 py-4">{r.userName}</TableCell>
                               <TableCell className="text-slate-600 py-4">{new Date(r.log_Date).toLocaleDateString()}</TableCell>
                               <TableCell className="text-slate-600 font-mono text-[13px] py-4">{r.time_In}</TableCell>
@@ -1353,6 +1346,11 @@ const AdminReports = () => {
             background: #94a3b8; 
           }
         `}} />
+        <Toast 
+          message={toast.message} 
+          type={toast.type} 
+          onClose={() => setToast({ ...toast, message: "" })} 
+        />
       </TooltipProvider>
     </Sidebar>
   );

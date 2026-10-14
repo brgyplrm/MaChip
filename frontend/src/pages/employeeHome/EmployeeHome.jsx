@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import Sidebar from "../../components/Sidebar";
 import { useSystemTime } from "../../context/SystemTimeContext";
 import { CircularProgressbar, buildStyles } from "react-circular-progressbar";
@@ -7,8 +7,6 @@ import HistoryIcon from '@mui/icons-material/History';
 import HelpOutlinedIcon from '@mui/icons-material/HelpOutlined';
 import Toast from "../../components/toast/Toast";
 import { Link, Navigate } from "react-router-dom";
-import ChevronRightOutlinedIcon from '@mui/icons-material/ChevronRightOutlined';
-import DashboardIcon from '@mui/icons-material/Dashboard';
 import { fetchWithAuth } from "../../utils/api";
 import CreditCardIcon from '@mui/icons-material/CreditCard';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
@@ -16,14 +14,9 @@ import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 // Lucide Icons
 import { 
   Clock, 
-  CheckCircle2, 
-  XCircle, 
-  ChevronRight, 
   History, 
   FileText,
-  UserCheck,
-  Receipt,
-  Download
+  Receipt
 } from "lucide-react";
 
 // Shadcn UI components
@@ -415,7 +408,7 @@ const EmployeeHome = () => {
                 <Link to="/logs" className="block outline-none hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Card className="bg-gradient-to-t from-brand-primary to-[#4A2C7D] shadow-sm py-0 h-[140px] relative overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-lg block outline-none cursor-help">
+                    <Card className="bg-gradient-to-t from-brand-primary to-brand-primary-hover shadow-sm py-0 h-[140px] relative overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-lg block outline-none cursor-help">
                       <div className="absolute right-1 top-4 opacity-10">
                         <Clock size={160} className="text-white absolute -right-2 -top-2" strokeWidth={1} />
                       </div>
@@ -437,7 +430,7 @@ const EmployeeHome = () => {
                 <Link to="/requests" className="block outline-none hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Card className="bg-gradient-to-t from-[#5A6F2A] to-accent-green shadow-sm py-0 h-[140px] relative overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-lg block outline-none cursor-help">
+                    <Card className="bg-gradient-to-t from-accent-green to-accent-green-hover shadow-sm py-0 h-[140px] relative overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-lg block outline-none cursor-help">
                       <div className="absolute right-1 top-4 opacity-10">
                         <FileText size={160} className="text-white absolute -right-2 -top-2" strokeWidth={1} />
                       </div>
@@ -464,7 +457,7 @@ const EmployeeHome = () => {
                 <Link to="/employee/payroll" className="block outline-none hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Card className="bg-gradient-to-t from-accent-gold to-[#6e6adc] shadow-sm py-0 h-[140px] relative overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-lg block outline-none cursor-help">
+                    <Card className="bg-gradient-to-t from-accent-gold to-accent-gold-hover shadow-sm py-0 h-[140px] relative overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-lg block outline-none cursor-help">
                       <div className="absolute right-1 top-4 opacity-10">
                         <CreditCardIcon sx={{ fontSize: 160 }} className="text-white absolute -right-2 -top-2" />
                       </div>
@@ -514,20 +507,20 @@ const EmployeeHome = () => {
                           <div className="w-20 md:w-24 text-center space-y-3 cursor-pointer group">
                             <div className="transition-transform duration-200 group-hover:scale-105">
                               <CircularProgressbar 
-                                value={att.absent || 0} 
+                                value={att.onTime || 0} 
                                 maxValue={totalTrackedDays} 
-                                text={`${att.absent || 0}`} 
-                                styles={buildStyles({ pathColor: `#ef4444`, textColor: 'var(--color-brand-primary)', trailColor: '#e2e8f0', textSize: '24px' })} 
+                                text={`${att.onTime || 0}`} 
+                                styles={buildStyles({ pathColor: `#22c55e`, textColor: 'var(--color-brand-primary)', trailColor: '#e2e8f0', textSize: '24px' })} 
                               />
                             </div>
-                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Absent</span>
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">On-Time</span>
                           </div>
                         </TooltipTrigger>
                         <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
-                          {att.absent || 0} out of {totalDays} {totalDays === 1 ? "day" : "days"}
+                          {att.onTime || 0} out of {totalDays} {totalDays === 1 ? "day" : "days"}
                         </TooltipContent>
                       </Tooltip>
-
+                      
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <div className="w-20 md:w-24 text-center space-y-3 cursor-pointer group">
@@ -552,17 +545,17 @@ const EmployeeHome = () => {
                           <div className="w-20 md:w-24 text-center space-y-3 cursor-pointer group">
                             <div className="transition-transform duration-200 group-hover:scale-105">
                               <CircularProgressbar 
-                                value={att.onTime || 0} 
+                                value={att.absent || 0} 
                                 maxValue={totalTrackedDays} 
-                                text={`${att.onTime || 0}`} 
-                                styles={buildStyles({ pathColor: `#22c55e`, textColor: 'var(--color-brand-primary)', trailColor: '#e2e8f0', textSize: '24px' })} 
+                                text={`${att.absent || 0}`} 
+                                styles={buildStyles({ pathColor: `#ef4444`, textColor: 'var(--color-brand-primary)', trailColor: '#e2e8f0', textSize: '24px' })} 
                               />
                             </div>
-                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">On-Time</span>
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Absent</span>
                           </div>
                         </TooltipTrigger>
                         <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
-                          {att.onTime || 0} out of {totalDays} {totalDays === 1 ? "day" : "days"}
+                          {att.absent || 0} out of {totalDays} {totalDays === 1 ? "day" : "days"}
                         </TooltipContent>
                       </Tooltip>
                     </div>
@@ -699,7 +692,7 @@ const EmployeeHome = () => {
                                 className={`flex items-center gap-3 p-2 rounded-lg hover:bg-[#F8FFF2] transition-colors border-l-4 ${config.borderClass} bg-slate-50/70 min-w-0`}
                               >
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-bold text-brand-primary truncate">{req.reqTypeName}</p>
+                                  <p className="text-sm font-bold text-slate-800 truncate">{req.reqTypeName}</p>
                                   <p className="text-[11px] text-gray-500 truncate">
                                     {req.remarks ? `${req.remarks}${formattedDate ? ` • ${formattedDate}` : ""}` : (formattedDate || "No description provided")}
                                   </p>

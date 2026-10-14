@@ -12,8 +12,6 @@ import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined
 import CurrencyRubleOutlinedIcon from '@mui/icons-material/CurrencyRubleOutlined';
 import SecurityIcon from "@mui/icons-material/Security";
 import BadgeOutlinedIcon from '@mui/icons-material/BadgeOutlined';
-import ArchiveIcon from '@mui/icons-material/Archive';
-import MenuIcon from "@mui/icons-material/Menu"; // NEW: Icon for the toggle button
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import LocalHospitalIcon from '@mui/icons-material/LocalHospital';
@@ -21,10 +19,7 @@ import CreditCardIcon from '@mui/icons-material/CreditCard';
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import PaymentsIcon from '@mui/icons-material/Payments';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
-import SavingsIcon from '@mui/icons-material/Savings';
 import HistoryIcon from '@mui/icons-material/History';
-import RequestQuoteIcon from '@mui/icons-material/RequestQuote';
-import CrisisAlertIcon from '@mui/icons-material/CrisisAlert';
 
 // Libraries
 import { NavLink } from "react-router-dom";
