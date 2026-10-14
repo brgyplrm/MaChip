@@ -1,9 +1,6 @@
-import React, { useState, useEffect, useMemo } from "react";
-import Sidebar from "../../../components/Sidebar";
-import RefreshIcon from "@mui/icons-material/Refresh";
+import  { useState, useEffect, useMemo } from "react";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import HistoryIcon from "@mui/icons-material/History";
-import SaveIcon from "@mui/icons-material/Save";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import { fetchWithAuth } from "../../../utils/api";
 import { useSystemTime } from "../../../context/SystemTimeContext";
@@ -26,7 +23,6 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EyeIcon } from "lucide-react";
 import { TablePagination } from "@/components/ui/table-pagination";
 import {
@@ -382,14 +378,14 @@ const ThirteenthMonth = () => {
                   </div>
                   <div className="flex gap-2">
                     {previewData.some(i => i.existingStatus === 'Draft') && (
-                      <Button onClick={() => setIsDiscardConfirmOpen(true)} variant="outline" className="border-rose-400 text-rose-300 hover:bg-rose-900/40 hover:text-white">
+                      <Button onClick={() => setIsDiscardConfirmOpen(true)} variant="outline" className="border-red-500 text-white bg-red-500 hover:bg-white hover:text-red-500">
                         <DeleteOutlineIcon className="mr-2 h-4 w-4" /> Discard Drafts
                       </Button>
                     )}
                     {/* <Button onClick={handleGenerateDrafts} className="bg-brand-primary text-white hover:bg-[#BA90E9] border border-white/20">
                       <SaveIcon className="mr-2 h-4 w-4" /> Save Drafts
                     </Button> */}
-                    <Button onClick={handleRelease} variant="outline" className="border-green-400 text-brand-primary hover:bg-green-900/40 hover:text-white">
+                    <Button onClick={handleRelease} variant="outline" className="border-green-400 text-white bg-green-500 hover:bg-white hover:text-green-500">
                       <CheckCircleIcon className="mr-2 h-4 w-4" /> Release All
                     </Button>
                   </div>
@@ -409,7 +405,7 @@ const ThirteenthMonth = () => {
                     <TableBody>
                       {paginatedData.length > 0 ? paginatedData.map((item) => (
                         <TableRow key={item.user_Id} className={item.deletedAt ? "bg-slate-50/50 grayscale-[0.2]" : ""}>
-                          <TableCell className="font-bold text-brand-primary">
+                          <TableCell className="font-bold text-brand-primary-semi-dark">
                             <div className="flex flex-col">
                               <span>{item.user_LastName}, {item.user_FirstName}</span>
                               {item.deletedAt && (
@@ -622,7 +618,7 @@ const ThirteenthMonth = () => {
       <Dialog open={isReleaseModalOpen} onOpenChange={setIsReleaseModalOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-rose-600 flex items-center gap-2">
+            <DialogTitle className="text-green-500 flex items-center gap-2">
               <CheckCircleIcon className="h-6 w-6 text-green-600" /> Confirm Release
             </DialogTitle>
             <DialogDescription>

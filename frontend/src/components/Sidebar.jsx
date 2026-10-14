@@ -698,7 +698,7 @@ const Sidebar = ({ children }) => {
           <div className="flex flex-col items-center justify-center gap-1.5 w-full group-data-[collapsible=icon]:gap-0">
             <Link to={homePath} className="flex no-underline items-center justify-center">
               <img 
-                src="/2026-Logo2.png" 
+                src="/2026-Logo.jpg" 
                 alt="MAC-J Logo" 
                 className="w-[150px] group-data-[collapsible=icon]:w-8 object-contain transition-all duration-200"
               />

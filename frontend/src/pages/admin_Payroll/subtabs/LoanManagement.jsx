@@ -433,18 +433,18 @@ export default function LoanManagement() {
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-col text-left">
-                            <span className="font-bold text-brand-primary">{loan.employee}</span>
+                            <span className="font-bold text-brand-primary-semi-dark">{loan.employee}</span>
                             <span className="text-[10px] text-slate-400 font-mono">MACJ-{String(loan.employeeId).padStart(3, '0')}</span>
                           </div>
                         </TableCell>
                         <TableCell className="max-w-[200px] truncate text-xs font-medium text-slate-600 text-left">{loan.title || "No Title"}</TableCell>
                         <TableCell className="font-bold">₱{parseFloat(loan.principal || 0).toLocaleString()}</TableCell>
-                        <TableCell className="text-emerald-600 font-bold">₱{parseFloat(loan.paid || 0).toLocaleString()}</TableCell>
+                        <TableCell className="text-accent-green-semi-dark font-bold">₱{parseFloat(loan.paid || 0).toLocaleString()}</TableCell>
                         <TableCell className="text-rose-600 font-bold">₱{parseFloat(loan.outstanding || 0).toLocaleString()}</TableCell>
                         <TableCell className="w-40">
                           <div className="flex items-center gap-2">
                             <Progress value={loan.progress} className="h-1.5" />
-                            <span className="text-[10px] font-black text-brand-primary">{loan.progress}%</span>
+                            <span className="text-[10px] font-black text-brand-primary-semi-dark">{loan.progress}%</span>
                           </div>
                         </TableCell>
                         <TableCell>
@@ -519,11 +519,8 @@ export default function LoanManagement() {
                 {/* Card Header Profile Block */}
                 <CardHeader className="bg-slate-50/60 pb-3 border-b border-slate-100 flex flex-row items-center justify-between space-y-0">
                   <div className="flex items-center gap-3 truncate mr-2">
-                    <div className="p-2 bg-brand-primary/10 rounded-lg text-brand-primary shrink-0">
-                      <Edit2 className="h-4 w-4" />
-                    </div>
                     <div className="truncate text-left">
-                      <h4 className="text-sm font-bold text-brand-primary truncate">{group.employeeName}</h4>
+                      <h4 className="text-sm font-bold text-brand-primary-semi-dark truncate">{group.employeeName}</h4>
                       <span className="text-[10px] font-mono font-semibold text-slate-400 mt-0.5 block">MACJ-{String(group.employeeId).padStart(3, '0')}</span>
                     </div>
                   </div>
@@ -537,10 +534,10 @@ export default function LoanManagement() {
                 </CardHeader>
 
                 {/* Card Body Core Parameters */}
-                <CardContent className="p-5 space-y-4 flex-1 text-left">
+                <CardContent className="p-5 space-y-2 flex-1 text-left">
                   
                   {/* Secondary 3-Column Metrics Grid */}
-                  <div className="grid grid-cols-3 gap-2 pt-1">
+                  <div className="grid grid-cols-3 gap-2 pt-0">
                     <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 flex flex-col justify-between min-w-0">
                       <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider truncate">Principal</span>
                       <span className="text-xs font-bold text-slate-700 block truncate mt-0.5">

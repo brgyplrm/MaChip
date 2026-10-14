@@ -1,12 +1,9 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import Sidebar from "../../components/Sidebar";
 import SearchIcon from "@mui/icons-material/Search";
-import EditIcon from "@mui/icons-material/Edit";
-import CheckIcon from "@mui/icons-material/Check";
 import CloseIcon from "@mui/icons-material/Close";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import TrendingDownIcon from "@mui/icons-material/TrendingDown";
-import RefreshIcon from "@mui/icons-material/Refresh";
 import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
@@ -16,7 +13,7 @@ import { formatUserId } from "../../utils/formatUserId";
 import { Link } from "react-router-dom";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import { fetchWithAuth } from "../../utils/api";
-import { Edit2, Edit2Icon, ChevronLeft } from "lucide-react";
+import {  Edit2Icon, ChevronLeft } from "lucide-react";
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -427,7 +424,7 @@ const PayrollEmployeeList = () => {
                   <TableHeader className="bg-brand-primary">
                     <TableRow className="hover:bg-transparent border-b-slate-200">
                       <TableHead className="font-semibold text-white uppercase text-xs w-12 text-center py-4">#</TableHead>
-                      <TableHead className="font-semibold text-white uppercase text-xs py-4 px-6">Emp</TableHead>
+                      <TableHead className="font-semibold text-white uppercase text-xs py-4 px-6">Employee</TableHead>
                       <TableHead className="font-semibold text-white uppercase text-xs py-4">Account Number</TableHead>
                       <TableHead className="font-semibold text-white uppercase text-xs py-4">Position</TableHead>
                       <TableHead className="font-semibold text-white uppercase text-xs py-4">Old Daily Rate</TableHead>
@@ -449,12 +446,12 @@ const PayrollEmployeeList = () => {
                             
                             <TableCell className="px-6 py-4">
                               <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 rounded-full bg-brand-primary-light text-[#4a2b8c] font-bold text-xs flex items-center justify-center shrink-0 uppercase tracking-widest">
+                                <div className="w-9 h-9 rounded-full bg-brand-primary-light text-brand-primary-dark font-bold text-xs flex items-center justify-center shrink-0 uppercase tracking-widest">
                                   {emp.user_FirstName?.[0]}{emp.user_LastName?.[0]}
                                 </div>
                                 <div className="flex flex-col">
                                   <div className="flex items-center gap-1.5 flex-wrap">
-                                    <span className="font-bold text-brand-primary text-sm">
+                                    <span className="font-bold text-brand-primary-semi-dark text-sm">
                                       {emp.user_FirstName} {emp.user_LastName}
                                     </span>
                                     {emp.activeLoansList && emp.activeLoansList.length > 0 && (

@@ -2,7 +2,6 @@ import Sidebar from "../../components/Sidebar";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import Toast from "../../components/toast/Toast";
-import DriveFolderUploadOutlinedIcon from "@mui/icons-material/DriveFolderUploadOutlined";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
@@ -24,7 +23,6 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { Switch } from "@/components/ui/switch";
@@ -122,7 +120,6 @@ const New = ({ inputs = [], title }) => {
   });
 
   // Batch Upload State
-  const [csvFile, setCsvFile] = useState(null);
   const [batchLoading, setBatchLoading] = useState(false);
   const [reviewData, setReviewData] = useState(null);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
@@ -1210,7 +1207,7 @@ const New = ({ inputs = [], title }) => {
           <Card className="shadow-sm border-0 bg-white border-t-4 border-brand-primary">
                 <CardContent className="flex flex-col items-center justify-center p-8 md:p-16 min-h-[400px]">
                   
-                  <div className="bg-slate-50 p-6 rounded-full mb-6">
+                  <div className="bg-brand-primary-light/50 p-6 rounded-full mb-6">
                     <UploadFileIcon className="text-brand-primary h-16 w-16 opacity-80" />
                   </div>
                   
@@ -1227,7 +1224,7 @@ const New = ({ inputs = [], title }) => {
                     <Button 
                       variant="outline" 
                       onClick={downloadCsvTemplate} 
-                      className="w-full h-12 text-brand-primary border-brand-primary hover:bg-brand-primary-light font-semibold"
+                      className="w-full h-12 text-brand-primary hover:text-brand-primary border-brand-primary hover:bg-brand-primary-light font-semibold"
                     >
                       <FileDownloadOutlinedIcon className="mr-2 h-5 w-5" /> Download CSV Template
                     </Button>

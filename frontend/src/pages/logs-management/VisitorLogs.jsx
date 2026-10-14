@@ -13,7 +13,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { TablePagination } from "@/components/ui/table-pagination";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -26,11 +25,9 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import HistoryIcon from '@mui/icons-material/History';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import SearchIcon from '@mui/icons-material/Search';
-import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import MeetingRoomIcon from '@mui/icons-material/MeetingRoom';
-import DoorFrontIcon from '@mui/icons-material/DoorFront';
 import { Eye, EyeOff, ShieldAlert, AlertCircle, Loader2 } from "lucide-react";
 
 const VisitorLogs = () => {
@@ -318,13 +315,10 @@ const VisitorLogs = () => {
             {activeTab === "live" && (
               <div className="space-y-6 animate-in fade-in duration-200">
                 {/* Solenoid Control Banner */}
-                <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/80 border-l-4 border-l-brand-primary flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/80 border-l-4  flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                   <div className="space-y-1.5">
                     <div className="flex items-center gap-2">
-                      <span className="relative flex h-2.5 w-2.5">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-                      </span>
+                      
                       <h2 className="text-lg font-bold tracking-tight text-brand-primary">Manual Hardware Solenoid Control</h2>
                     </div>
                     <p className="text-xs text-slate-600 max-w-xl leading-relaxed">
@@ -340,7 +334,7 @@ const VisitorLogs = () => {
                           disabled={loading || confirming || !isManagement}
                           className={`w-full md:w-auto text-white px-6 py-6 rounded-xl shadow-md flex items-center gap-3 transition-all font-bold border-0 ${
                             isManagement 
-                              ? "bg-brand-primary hover:bg-[#1f103a] cursor-pointer active:scale-95 group" 
+                              ? "bg-brand-primary hover:bg-brand-primary-hover cursor-pointer active:scale-95 group" 
                               : "bg-slate-300 text-slate-500 cursor-not-allowed"
                           }`}
                         >
@@ -370,7 +364,7 @@ const VisitorLogs = () => {
                   <Card className="border-t-5 border-brand-primary bg-white shadow-xs rounded-xl py-0">
                     <CardContent className="p-5 flex flex-col justify-between h-full">
                       <div>
-                        <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2 mb-2">
                           <p className="text-xs font-bold text-brand-primary uppercase tracking-wider">Today's Total Entries</p>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -394,7 +388,7 @@ const VisitorLogs = () => {
                   <Card className="border-t-5 border-accent-green bg-white shadow-xs rounded-xl py-0">
                     <CardContent className="p-5 flex flex-col justify-between h-full">
                       <div>
-                        <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2 mb-2">
                           <p className="text-xs font-bold text-accent-green uppercase tracking-wider">Last Entry Detected</p>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -418,7 +412,7 @@ const VisitorLogs = () => {
                   <Card className="border-t-5 border-accent-gold bg-white shadow-xs rounded-xl py-0">
                     <CardContent className="p-5 flex flex-col justify-between h-full">
                       <div>
-                        <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2 mb-2">
                           <p className="text-xs font-bold text-accent-gold uppercase tracking-wider">System User</p>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -439,14 +433,11 @@ const VisitorLogs = () => {
                 </div>
 
                 {/* Today's Real-Time Event Table */}
-                <Card className="shadow-xs border border-slate-200/80 bg-white rounded-2xl overflow-hidden">
-                  <div className="p-4 bg-slate-50/80 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                <Card className="pt-0 shadow-xs border border-slate-200/80 bg-white rounded-2xl overflow-hidden">
+                  <div className="p-4 bg-brand-primary border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center">
                     <div className="flex items-center gap-2.5">
-                      <span className="relative flex h-2.5 w-2.5">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-                      </span>
-                      <h3 className="text-sm font-bold text-brand-primary uppercase tracking-wide">
+                      
+                      <h3 className="text-sm font-bold text-white uppercase tracking-wide">
                         Today's Access Stream
                       </h3>
                       <Badge variant="outline" className="bg-white text-slate-600 text-[10px] font-semibold border-slate-200">
@@ -454,22 +445,22 @@ const VisitorLogs = () => {
                       </Badge>
                     </div>
 
-                    <div className="text-xs text-slate-500 flex items-center gap-1.5">
-                      <CalendarMonthIcon sx={{ fontSize: 14 }} className="text-slate-400" />
+                    <div className="text-xs text-white flex items-center gap-1.5">
+                      <CalendarMonthIcon sx={{ fontSize: 14 }} className="text-white" />
                       <span>{todayStr}</span>
                     </div>
                   </div>
 
                   <div className="overflow-x-auto">
                     <Table>
-                      <TableHeader className="bg-slate-50/50 border-b border-slate-100">
+                      <TableHeader className=" bg-slate-50/50 border-b border-slate-100">
                         <TableRow className="hover:bg-transparent">
-                          <TableHead className="text-brand-primary font-bold py-4 px-6 uppercase text-xs tracking-wider">Date</TableHead>
-                          <TableHead className="text-brand-primary font-bold py-4 uppercase text-xs tracking-wider">Time</TableHead>
-                          <TableHead className="text-brand-primary font-bold py-4 uppercase text-xs tracking-wider">Event Description</TableHead>
-                          <TableHead className="text-brand-primary font-bold py-4 uppercase text-xs tracking-wider">Purpose / Reason</TableHead>
-                          <TableHead className="text-brand-primary font-bold py-4 uppercase text-xs tracking-wider">Authorized By</TableHead>
-                          <TableHead className="text-brand-primary font-bold py-4 uppercase text-xs tracking-wider text-right pr-6">Status</TableHead>
+                          <TableHead className="text-brand-primary-semi-dark font-bold py-4 px-6 uppercase text-xs tracking-wider">Date</TableHead>
+                          <TableHead className="text-brand-primary-semi-dark font-bold py-4 uppercase text-xs tracking-wider">Time</TableHead>
+                          <TableHead className="text-brand-primary-semi-dark font-bold py-4 uppercase text-xs tracking-wider">Event Description</TableHead>
+                          <TableHead className="text-brand-primary-semi-dark font-bold py-4 uppercase text-xs tracking-wider">Purpose / Reason</TableHead>
+                          <TableHead className="text-brand-primary-semi-dark font-bold py-4 uppercase text-xs tracking-wider">Authorized By</TableHead>
+                          <TableHead className="text-brand-primary-semi-dark font-bold py-4 uppercase text-xs tracking-wider text-right pr-6">Status</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -482,9 +473,7 @@ const VisitorLogs = () => {
                                 <TableCell className="py-4 font-mono text-slate-600 text-xs font-semibold">{log.time}</TableCell>
                                 <TableCell className="py-4">
                                   <div className="flex items-center gap-3">
-                                    <div className={`p-2 rounded-full ${isOpening ? 'bg-purple-100 text-brand-primary' : 'bg-slate-100 text-slate-600'}`}>
-                                      <AccessTimeIcon sx={{ fontSize: 16 }} />
-                                    </div>
+                                    
                                     <span className="font-semibold text-slate-800 text-sm">{log.loggedStatusName}</span>
                                   </div>
                                 </TableCell>
@@ -505,7 +494,7 @@ const VisitorLogs = () => {
                                   {isOpening ? (
                                     log.adminDisplayId || log.admin_id ? (
                                       <div className="flex flex-col items-start gap-0.5">
-                                        <Badge variant="outline" className="font-mono text-[11px] font-bold text-brand-primary bg-purple-50/80 border-purple-200">
+                                        <Badge variant="outline" className="font-mono text-[11px] font-bold text-brand-primary bg-brand-primary-light border-brand-primary/30 px-2 py-0.5 rounded-md">
                                           {log.adminDisplayId || `ID #${log.admin_id}`}
                                         </Badge>
                                         {log.adminName && (
@@ -545,7 +534,7 @@ const VisitorLogs = () => {
                                 </div>
                                 <p className="font-bold text-slate-700 text-base">No Visitor Entries Recorded Today</p>
                                 <p className="text-xs text-slate-500 max-w-sm">
-                                  Events for {todayStr} will appear here in real-time as visitors arrive and the door release is triggered.
+                                  Events for {todayStr} will appear here in real-time as visitors arrive <br/> and the door release is triggered.
                                 </p>
                                 <Button
                                   variant="outline"
@@ -689,11 +678,10 @@ const VisitorLogs = () => {
                 </Card>
 
                 {/* History Table */}
-                <Card className="shadow-xs border border-slate-200/80 bg-white rounded-2xl overflow-hidden py-2">
-                  <div className="p-4 bg-slate-50/80 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                <Card className="pt-0 shadow-xs border border-slate-200/80 bg-white rounded-2xl overflow-hidden">
+                  <div className="p-4 bg-brand-primary border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
                     <div className="flex items-center gap-2">
-                      <HistoryIcon sx={{ fontSize: 18 }} className="text-brand-primary" />
-                      <h3 className="text-sm font-bold text-brand-primary uppercase tracking-wide">
+                      <h3 className="text-sm font-bold text-white uppercase tracking-wide">
                         Historical Access Archive
                       </h3>
                       <Badge variant="outline" className="bg-white text-slate-600 text-[10px] font-semibold border-slate-200">
@@ -711,14 +699,14 @@ const VisitorLogs = () => {
                     <Table>
                       <TableHeader className="bg-slate-50/50 border-b border-slate-100">
                         <TableRow className="hover:bg-transparent">
-                          <TableHead className="text-brand-primary font-bold py-4 px-6 uppercase text-xs tracking-wider">Log ID</TableHead>
-                          <TableHead className="text-brand-primary font-bold py-4 uppercase text-xs tracking-wider">Date</TableHead>
-                          <TableHead className="text-brand-primary font-bold py-4 uppercase text-xs tracking-wider">Time</TableHead>
-                          <TableHead className="text-brand-primary font-bold py-4 uppercase text-xs tracking-wider">Event Description</TableHead>
-                          <TableHead className="text-brand-primary font-bold py-4 uppercase text-xs tracking-wider">Purpose / Reason</TableHead>
-                          <TableHead className="text-brand-primary font-bold py-4 uppercase text-xs tracking-wider">Authorized By</TableHead>
-                          <TableHead className="text-brand-primary font-bold py-4 uppercase text-xs tracking-wider">Mapped Account</TableHead>
-                          <TableHead className="text-brand-primary font-bold py-4 uppercase text-xs tracking-wider text-right pr-6">Status</TableHead>
+                          <TableHead className="text-brand-primary-semi-dark font-bold py-4 px-6 uppercase text-xs tracking-wider">Log ID</TableHead>
+                          <TableHead className="text-brand-primary-semi-dark font-bold py-4 uppercase text-xs tracking-wider">Date</TableHead>
+                          <TableHead className="text-brand-primary-semi-dark font-bold py-4 uppercase text-xs tracking-wider">Time</TableHead>
+                          <TableHead className="text-brand-primary-semi-dark font-bold py-4 uppercase text-xs tracking-wider">Event Description</TableHead>
+                          <TableHead className="text-brand-primary-semi-dark font-bold py-4 uppercase text-xs tracking-wider">Purpose / Reason</TableHead>
+                          <TableHead className="text-brand-primary-semi-dark font-bold py-4 uppercase text-xs tracking-wider">Authorized By</TableHead>
+                          <TableHead className="text-brand-primary-semi-dark font-bold py-4 uppercase text-xs tracking-wider">Mapped Account</TableHead>
+                          <TableHead className="text-brand-primary-semi-dark font-bold py-4 uppercase text-xs tracking-wider text-right pr-6">Status</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -733,11 +721,7 @@ const VisitorLogs = () => {
                                 <TableCell className="py-4 font-semibold text-slate-700 text-xs">{log.date}</TableCell>
                                 <TableCell className="py-4 font-mono text-slate-600 text-xs font-semibold">{log.time}</TableCell>
                                 <TableCell className="py-4">
-                                  <div className="flex items-center gap-2.5">
-                                    <div className={`p-1.5 rounded-full ${isOpening ? 'bg-purple-100 text-brand-primary' : 'bg-slate-100 text-slate-500'}`}>
-                                      <AccessTimeIcon sx={{ fontSize: 14 }} />
-                                    </div>
-                                    <span className="font-semibold text-slate-800 text-xs">{log.loggedStatusName}</span>
+                                  <div className="flex items-center gap-2.5">                                    <span className="font-semibold text-slate-800 text-xs">{log.loggedStatusName}</span>
                                   </div>
                                 </TableCell>
                                 <TableCell className="py-4 max-w-[220px]">

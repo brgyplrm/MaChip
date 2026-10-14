@@ -1,10 +1,6 @@
-import React, { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Sidebar from "../../../components/Sidebar";
-import Navbar from "../../../components/navbar/Navbar";
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
-import SaveIcon from '@mui/icons-material/Save';
-import DeleteIcon from '@mui/icons-material/Delete';
-import FilterListIcon from '@mui/icons-material/FilterList';
 import DownloadIcon from '@mui/icons-material/Download';
 import EditIcon from '@mui/icons-material/Edit';
 import CheckIcon from '@mui/icons-material/Check';
@@ -13,31 +9,24 @@ import { useSystemTime } from "../../../context/SystemTimeContext";
 import Toast from "../../../components/toast/Toast";
 import { formatDateLocal, isInSamePeriod } from "../../../utils/formatTime";
 import HistoryIcon from '@mui/icons-material/History';
-import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
-import AddIcon from '@mui/icons-material/Add';
 import HmoCalculatorModal from "../../../components/HmoCalculatorModal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import SecurityIcon from '@mui/icons-material/Security';
 import GroupIcon from '@mui/icons-material/Group';
-import PieChartIcon from '@mui/icons-material/PieChart';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import InfoIcon from '@mui/icons-material/Info';
-import EventIcon from '@mui/icons-material/Event';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import GroupAddOutlinedIcon from '@mui/icons-material/GroupAddOutlined';
 import { Link, useSearchParams } from "react-router-dom";
-import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { User } from "lucide-react";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Table, TableHeader, TableRow, TableHead, TableBody } from "@/components/ui/table";
@@ -2042,9 +2031,7 @@ const Maxicare = () => {
                             {/* Sticky Left Employee Info */}
                             <td className="sticky left-0 z-[40] bg-white border-r border-b border-slate-200 p-2 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]">
                               <div className="flex items-center gap-2">
-                                <div className="p-1.5 bg-brand-primary/10 text-brand-primary rounded-md shrink-0">
-                                  <User className="h-3.5 w-3.5" />
-                                </div>
+                                
                                 <div className="text-left truncate">
                                   <span className="font-bold text-brand-primary text-xs block truncate">{emp.name}</span>
                                   <span className="text-[10px] font-mono text-slate-400">{emp.id}</span>
@@ -2220,11 +2207,9 @@ const Maxicare = () => {
 
                     return (
                       <Card key={emp.key} className="py-0 border border-slate-100 shadow-sm bg-white hover:shadow-md transition-all flex flex-col justify-between overflow-hidden group">
-                        <CardHeader className="pt-6 bg-slate-50/60 pb-4 border-b border-slate-100 border-t-4 flex flex-row items-center justify-between space-y-0">
+                        <CardHeader className="pt-6 bg-slate-50/60 pb-4 border-b border-slate-100 border-t-1 flex flex-row items-center justify-between space-y-0">
                           <div className="flex items-center gap-3 truncate mr-2">
-                            <div className="p-2 bg-brand-primary/10 rounded-lg text-brand-primary shrink-0">
-                              <AccountCircleIcon />
-                            </div>
+                            
                             <div className="truncate text-left">
                               <CardTitle className="text-sm md:text-base font-bold text-brand-primary truncate">{emp.name}</CardTitle>
                               <span className="text-xs font-mono text-slate-400 block mt-0.5">{emp.id}</span>
@@ -2323,7 +2308,7 @@ const Maxicare = () => {
                                           const dObj = new Date(log.dateStr);
                                           return (
                                             <TableRow key={log.dateStr} className="border-b-slate-100 hover:bg-slate-50/50 transition-colors">
-                                              <td className="font-bold text-brand-primary text-xs py-2.5 px-4 text-left">
+                                              <td className="font-bold text-brand-primary-semi-dark text-xs py-2.5 px-4 text-left">
                                                 {dObj.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
                                                 {log.dateStr === currentCutoffDate && <span className="bg-yellow-400 text-brand-primary text-[8px] font-black px-1.5 py-0.2 rounded ml-2">CURRENT</span>}
                                               </td>
@@ -2392,7 +2377,6 @@ const Maxicare = () => {
                             emp.balance < 0 ? 'bg-rose-50/40 border-rose-100' : 'bg-emerald-50/40 border-emerald-100'
                           }`}>
                             <div className="flex items-center gap-1.5 min-w-0">
-                              <SecurityIcon className={emp.balance < 0 ? 'text-rose-600 shrink-0' : 'text-emerald-600 shrink-0'} fontSize="small" />
                               <span className={`text-[11px] font-semibold truncate ${emp.balance < 0 ? 'text-rose-800' : 'text-emerald-800'}`}>
                                 {emp.balance < 0 ? 'Overpaid Balance' : 'Remaining Cycle Balance'}
                               </span>

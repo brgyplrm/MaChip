@@ -1,4 +1,3 @@
-import React from "react";
 import { Link } from "react-router-dom";
 import { useState, useEffect, useCallback } from "react";
 import Toast from "../../components/toast/Toast";
@@ -12,9 +11,7 @@ import FilterListIcon from '@mui/icons-material/FilterList';
 import CloseIcon from '@mui/icons-material/Close';
 import SensorsIcon from '@mui/icons-material/Sensors';
 import { CreditCardIcon } from "lucide-react";
-import { FingerprintIcon } from "lucide-react";
 import { EyeIcon} from "lucide-react";  
-import { Archive, ArchiveRestore, ArchiveX } from "lucide-react";
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { Label } from "@/components/ui/label"; 
 
@@ -287,7 +284,7 @@ const Datatable = () => {
               {/* Primary Action */}
               <Button 
                 asChild 
-                className="flex-1 sm:flex-none bg-brand-primary text-white hover:bg-[#7A52B5] shadow-sm"
+                className="flex-1 sm:flex-none bg-brand-primary text-white hover:bg-brand-primary-hover shadow-sm"
               >
                 <Link to="/users/newUser">
                   <PersonAddIcon className="h-4 w-4 mr-1" /> Add User
@@ -463,7 +460,7 @@ const Datatable = () => {
                     const isMachipRevealed = revealedMachipUsers[user.user_Id];
                     return (
                       <TableRow key={user.user_Id} className="border-b-slate-100 hover:bg-slate-50/50 transition-colors">
-                      <TableCell className="font-bold text-brand-primary py-4 px-6">{formatUserId(user.user_Id)}</TableCell>
+                      <TableCell className="font-bold text-brand-primary-dark py-4 px-6">{formatUserId(user.user_Id)}</TableCell>
                       <TableCell className="font-medium text-slate-800 py-4">
                           {user.user_FirstName || user.user_LastName ? (
                             <span 
@@ -618,7 +615,7 @@ const Datatable = () => {
           <Card className="w-full max-w-md shadow-2xl border-0 animate-in zoom-in-95 duration-200 bg-white">
             <CardContent className="p-6">
               <div className="text-center mb-6">
-                <div className="w-14 h-14 bg-purple-100 text-brand-primary rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
+                <div className="w-14 h-14 bg-brand-primary-light text-brand-primary rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
                   <CreditCardIcon className="h-7 w-7" />
                 </div>
                 <h2 className="text-xl font-bold text-brand-primary">Security Verification Required</h2>

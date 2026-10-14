@@ -711,21 +711,6 @@ const Edit = () => {
         </div>
 
         <Tabs defaultValue="personal" className="w-full">
-          <TabsList className={`grid w-full ${isMaster ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1"} h-auto sm:h-12 bg-slate-200/60 p-1 rounded-lg gap-1 sm:gap-0 mb-6`}>
-            <TabsTrigger value="personal" className="data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2">
-              Personal Information
-            </TabsTrigger>
-            {isMaster && (
-              <>
-                <TabsTrigger value="employment" className="data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2">
-                  Employment & Comp
-                </TabsTrigger>
-                <TabsTrigger value="security" className="data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md py-2">
-                  Security & Hardware
-                </TabsTrigger>
-              </>
-            )}
-          </TabsList>
 
           {/* TAB 1: Personal Information */}
           <TabsContent value="personal">
@@ -883,51 +868,8 @@ const Edit = () => {
               </Card>
 
               {/* Bank Details (Visible to everyone in Personal Tab if non-master, otherwise in Comp tab) */}
-              {!isMaster && (
-                <Card className="shadow-sm border-0 bg-white">
-                  <CardHeader className="border-b border-slate-100 pb-4">
-                    <CardTitle className="text-lg text-brand-primary">Bank Details</CardTitle>
-                    <CardDescription>Payout information.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Bank Company <span className="text-red-500">*</span></Label>
-                      <Select value={formData.bank_Company} onValueChange={(val) => handleSelectChange("bank_Company", val)}>
-                        <SelectTrigger className="border-slate-200 focus-visible:ring-brand-primary">
-                          <SelectValue placeholder="Select Bank" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {PHILIPPINE_BANKS.map((bank, idx) => (
-                            <SelectItem key={idx} value={bank}>{bank}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {renderError("bank_Company")}
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Account Name <span className="text-red-500">*</span></Label>
-                      <Input name="bank_AccountName" placeholder="Juan Dela Cruz" value={formData.bank_AccountName} onChange={handleChange} className="border-slate-200 focus-visible:ring-brand-primary" />
-                      {renderError("bank_AccountName")}
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Account Number <span className="text-red-500">*</span></Label>
-                      <div className="relative">
-                        <Input name="account_Number" type={showAccountNumber ? "text" : "password"} placeholder="e.g. 00123456789" value={formData.account_Number} onChange={handleChange} className="pr-10 border-slate-200 focus-visible:ring-brand-primary font-mono" />
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-slate-400 hover:text-slate-600" onClick={() => setShowAccountNumber(!showAccountNumber)}>
-                          {showAccountNumber ? <VisibilityOffIcon fontSize="small"/> : <VisibilityIcon fontSize="small"/>}
-                        </div>
-                      </div>
-                      {renderError("account_Number")}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          </TabsContent>
-
-          {/* TAB 2: Employment & Compensation */}
-          <TabsContent value="employment">
-            <div className="space-y-6">
+              {isMaster && (
+                <div className="space-y-6">
               <Card className="shadow-sm border-0 bg-white">
                 <CardHeader className="border-b border-slate-100 pb-4">
                   <CardTitle className="text-lg text-brand-primary">Role & Status</CardTitle>
@@ -1188,12 +1130,7 @@ const Edit = () => {
 
                 </CardContent>
               </Card>
-            </div>
-          </TabsContent>
-
-          {/* TAB 3: Security & Hardware */}
-          <TabsContent value="security">
-            <Card className="shadow-sm border-0 bg-white">
+              <Card className="shadow-sm border-0 bg-white">
               <CardHeader className="border-b border-slate-100 pb-4">
                 <CardTitle className="text-lg text-brand-primary">Security & Access Configuration</CardTitle>
                 <CardDescription>Manage password and biometric hardware tokens.</CardDescription>
@@ -1283,6 +1220,11 @@ const Edit = () => {
 
               </CardContent>
             </Card>
+            </div>
+              )}
+            </div>
+            <div className="h-6"></div>
+
           </TabsContent>
         </Tabs>
 

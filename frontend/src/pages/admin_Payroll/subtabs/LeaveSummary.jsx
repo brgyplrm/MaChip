@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import Sidebar from "../../../components/Sidebar";
 import { fetchWithAuth } from "../../../utils/api";
 import { formatUserId } from "../../../utils/formatUserId";
 import { exportLeaveSummaryPDF } from "../../../utils/leaveSummaryExport";
 import DownloadIcon from '@mui/icons-material/Download';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
-import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import RemoveCircleOutlineIcon from '@mui/icons-material/RemoveCircleOutline';
@@ -211,9 +210,7 @@ const LeaveSummary = () => {
                   {/* Card Profile Section */}
                   <CardHeader className="pt-6 bg-slate-50/60 pb-4 border-b border-slate-100 border-t-4 flex flex-row items-center justify-between space-y-0">
                     <div className="flex items-center gap-3 truncate mr-2">
-                      <div className="p-2 bg-brand-primary/10 rounded-lg text-brand-primary shrink-0">
-                        <AccountCircleIcon />
-                      </div>
+                     
                       <div className="truncate">
                         <CardTitle className="text-sm md:text-base font-bold text-brand-primary truncate">{row.name}</CardTitle>
                         <span className="text-xs font-mono text-slate-400 block mt-0.5">{formatUserId(row.user_Id)}</span>

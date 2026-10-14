@@ -1,4 +1,14 @@
 import Sidebar from "../../components/Sidebar";
+import Toast from "../../components/toast/Toast";
+import { useSystemTime } from "../../context/SystemTimeContext";
+import { fetchWithAuth } from "../../utils/api";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { formatUserId } from "../../utils/formatUserId";
+import EmptyState from "@/components/EmptyState";
+import BatchUploadReviewModal from "../../components/BatchUploadReviewModal";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -10,18 +20,7 @@ import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 import AssignmentIcon from '@mui/icons-material/Assignment'; 
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownload';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
-import CheckIcon from '@mui/icons-material/Check';
-import Toast from "../../components/toast/Toast";
-import { useSystemTime } from "../../context/SystemTimeContext";
-import { fetchWithAuth } from "../../utils/api";
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { formatUserId } from "../../utils/formatUserId";
-import EmptyState from "@/components/EmptyState";
-import BatchUploadReviewModal from "../../components/BatchUploadReviewModal";
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -532,7 +531,7 @@ const CalendarManagement = () => {
                   {isSyncing ? "Syncing..." : "Sync Holidays"}
                 </Button>
                 <Button 
-                  className="w-full sm:w-auto bg-brand-primary hover:bg-[#7A52B5] text-white"
+                  className="w-full sm:w-auto bg-brand-primary hover:bg-brand-primary-hover text-white"
                   onClick={() => {
                     setModalType('addEvent');
                     setActiveTab('fieldWork');
@@ -650,11 +649,6 @@ const CalendarManagement = () => {
                   ))}
                   {days.map(d => {
                     const dayEvents = getEventsForDay(d);
-                    const hasLeave = dayEvents.some(e => e.type === "Leave");
-                    const hasField = dayEvents.some(e => e.type === "Field Work");
-                    const hasOt = dayEvents.some(e => e.type === "Overtime");
-                    const hasHoliday = dayEvents.some(e => e.type === "Holiday");
-                    const hasDueDate = dayEvents.some(e => e.type === "Due Date");
 
                     const isToday = 
                       d === systemToday.getDate() && 
@@ -662,14 +656,9 @@ const CalendarManagement = () => {
                       year === systemToday.getFullYear();
 
                     let bgClass = "bg-white hover:bg-slate-50";
-                    if (hasLeave) bgClass = "bg-green-50/60 hover:bg-green-50";
-                    else if (hasField) bgClass = "bg-orange-50/60 hover:bg-orange-50";
-                    else if (hasOt) bgClass = "bg-blue-50/60 hover:bg-blue-50";
-                    else if (hasHoliday) bgClass = "bg-red-50/60 hover:bg-red-50";
-                    else if (hasDueDate) bgClass = "bg-teal-50/60 hover:bg-teal-50";
                     
                     if (isToday) {
-                      bgClass = "bg-brand-primary/30 hover:bg-brand-primary/100 ring-2 ring-[#BA90E9] ring-inset z-10 label";
+                      bgClass = "bg-accent-green-light hover:bg-accent-green-light/25 ring-2 ring-accent-green ring-inset z-10 label";
                     }
 
                     return (
@@ -679,12 +668,13 @@ const CalendarManagement = () => {
                         onClick={() => handleDayClick(d)}
                       >
                         <div className={`text-xs md:text-sm font-semibold mb-1 shrink-0 text-center md:text-left ${
-                          isToday ? "bg-[#BA90E9] text-white w-6 h-6 rounded-full flex items-center justify-center mx-auto md:mx-0" : "text-slate-700"
+                          isToday ? "bg-accent-green text-white w-6 h-6 rounded-full flex items-center justify-center mx-auto md:mx-0" : "text-slate-700"
                         }`}>
                           {d}
                         </div>
 
                         {dayEvents.slice(0, 2).map((e, i) => {
+                          // Badge on the day box sa Calendar
                           let typeClass = "bg-red-100 text-red-800"; 
                           if (e.type === "Holiday") {
                             typeClass = e.details?.toLowerCase().includes("special") ? "bg-purple-100 text-purple-800" : "bg-red-100 text-red-800";
@@ -733,7 +723,7 @@ const CalendarManagement = () => {
                       <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-gray-400 hover:text-gray-600 cursor-help" />
                     </TooltipTrigger>
                     <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
-                      List of national and company holidays declared for this period.
+                      List of national and company holidays.
                     </TooltipContent>
                   </Tooltip>
                 </CardTitle>

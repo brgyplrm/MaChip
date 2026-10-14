@@ -225,6 +225,8 @@ exports.getSessionStatus = async (req, res) => {
 };
 
 exports.scanRFID = async (req, res) => {
+
+  console.log('>>>>>>>>', { res, req})
   let { uid, action, terminalType, cardCounter } = req.body; 
 
   // Update heartbeat and ESP32 IP tracking

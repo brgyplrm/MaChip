@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import Sidebar from "../../components/Sidebar";
 import Chart from "../../components/chart/Chart";
 import Table from "../../components/table/Table";
@@ -16,8 +16,7 @@ import { fetchWithAuth } from "../../utils/api";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -213,7 +212,7 @@ const Single = () => {
                     <div className="absolute inset-0 z-0">
                       <div className="absolute inset-0 z-0 bg-white">
                         {/* Layer 1: Green Wave (Thick Base) */}
-                        <div className="absolute inset-0 bg-[#fea501] [mask-image:url('data:image/svg+xml,%3Csvg%20viewBox=%220%200%20200%20150%22%20preserveAspectRatio=%22none%22%20xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cpath%20d=%22M0,70%20C40,60%2060,80%20100,70%20C140,60%20160,50%20200,50%20L200,150%20L0,150%20Z%22%20fill=%22black%22/%3E%3C/svg%3E')] [mask-size:100%_100%] [mask-repeat:no-repeat]"></div>
+                        <div className="absolute inset-0 bg-accent-green [mask-image:url('data:image/svg+xml,%3Csvg%20viewBox=%220%200%20200%20150%22%20preserveAspectRatio=%22none%22%20xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cpath%20d=%22M0,70%20C40,60%2060,80%20100,70%20C140,60%20160,50%20200,50%20L200,150%20L0,150%20Z%22%20fill=%22black%22/%3E%3C/svg%3E')] [mask-size:100%_100%] [mask-repeat:no-repeat]"></div>
 
                         {/* Layer 2: White Wave (Ultra-thin middle layer) */}
                         <div className="absolute inset-0 bg-white [mask-image:url('data:image/svg+xml,%3Csvg%20viewBox=%220%200%20200%20150%22%20preserveAspectRatio=%22none%22%20xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cpath%20d=%22M0,76%20C40,66%2060,86%20100,76%20C140,66%20160,56%20200,56%20L200,150%20L0,150%20Z%22%20fill=%22black%22/%3E%3C/svg%3E')] [mask-size:100%_100%] [mask-repeat:no-repeat]"></div>
@@ -227,10 +226,10 @@ const Single = () => {
                     <div className="relative z-10 flex flex-col h-full pt-8">
                       <div className="px-6 text-center">
                         <div className="w-16 h-16 bg-white mx-auto mb-2 flex items-center justify-center font-bold text-[8px] text-gray-400 overflow-hidden">
-                          <img src="/images.png" alt="Logo" />
+                          <img src="/2026-Logo2.png" alt="Logo" />
                         </div>
-                        <h1 className="text-[10px] font-bold text-brand-primary uppercase tracking-wider">MAC-J Int'l. Forwarding Ltd., Co.</h1>
-                        <h2 className="text-[9px] font-bold text-brand-primary uppercase">JCG CUSTOMS BROKERAGE</h2>
+                        <h1 className="text-[10px] font-bold text-brand-primary-dark uppercase tracking-wider">MAC-J Int'l. Forwarding Ltd., Co.</h1>
+                        <h2 className="text-[9px] font-bold text-brand-primary-dark uppercase">JCG CUSTOMS BROKERAGE</h2>
                       </div>
 
                       {/* Profile Image */}
@@ -277,7 +276,7 @@ const Single = () => {
                     <div className="bg-white p-3 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center text-xs">
                       <span className="font-bold text-slate-400 uppercase tracking-tighter">MaChip ID</span>
                       <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-brand-primary tracking-wider">
+                        <span className="font-mono font-bold text-brand-primary-dark tracking-wider">
                           {user.user_MachipId
                             ? (isMachipRevealed ? user.user_MachipId : "••••••••••••")
                             : "NONE"}
@@ -311,11 +310,14 @@ const Single = () => {
           </div>
 
           {/* Chart Card */}
-          <Card className="border-0 shadow-sm bg-white lg:col-span-2 overflow-hidden flex flex-col">
+          <Card className="pt-0 border-0 shadow-sm bg-white lg:col-span-2 overflow-hidden flex flex-col">
+            <CardHeader className="p-4 border-b border-slate-100 bg-brand-primary text-white">
+              <CardTitle>User Attendance (Last 6 Months)</CardTitle>
+            </CardHeader>
             <CardContent className="p-0 flex-1 relative min-h-[500px] lg:min-h-[450px]">
                <div className="absolute inset-0 w-full h-full overflow-x-auto overflow-y-hidden">
                  <div className="min-w-[500px] h-full p-4">
-                    <Chart title="User Attendance (Last 6 Months)" userId={userId} />
+                    <Chart />
                  </div>
                </div>
             </CardContent>
@@ -326,13 +328,13 @@ const Single = () => {
         {/* Middle Section: Gov't Breakdown & Details */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Government Contributions Table */}
-          <Card className="border-0 shadow-sm bg-white overflow-hidden py-0">
-            <div className="bg-brand-primary p-4">
-              <h2 className="text-white font-bold text-sm uppercase tracking-wider flex items-center gap-2">
-                <PaymentsIcon className="h-4 w-4 text-blue-200" /> Government Contributions (Monthly)
+          <Card className="border-t-4 border-accent-green shadow-sm bg-white overflow-hidden py-0">
+            <div className=" px-8 pt-6">
+              <h2 className="text-accent-green-semi-dark font-bold text-sm tracking-wider flex items-center gap-2 border-b border-slate-100 pb-2">
+                Government Contributions (Monthly)
               </h2>
             </div>
-            <CardContent className="p-0">
+            <CardContent className="px-4 py-2">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -372,25 +374,25 @@ const Single = () => {
                             <td className="p-4 font-medium text-slate-700">SSS Contribution</td>
                             <td className="p-4 text-right text-slate-600">{format(sss_ee)}</td>
                             <td className="p-4 text-right text-slate-600">{format(sss_er)}</td>
-                            <td className="p-4 text-right font-bold text-brand-primary">{format(sss_ee + sss_er)}</td>
+                            <td className="p-4 text-right font-bold text-accent-green-dark">{format(sss_ee + sss_er)}</td>
                           </tr>
                           <tr className="hover:bg-slate-50/50 transition-colors">
                             <td className="p-4 font-medium text-slate-700">PhilHealth</td>
                             <td className="p-4 text-right text-slate-600">{format(ph_ee)}</td>
                             <td className="p-4 text-right text-slate-600">{format(ph_er)}</td>
-                            <td className="p-4 text-right font-bold text-brand-primary">{format(ph_ee + ph_er)}</td>
+                            <td className="p-4 text-right font-bold text-accent-green-dark">{format(ph_ee + ph_er)}</td>
                           </tr>
                           <tr className="hover:bg-slate-50/50 transition-colors">
                             <td className="p-4 font-medium text-slate-700">HDMF (Pag-IBIG)</td>
                             <td className="p-4 text-right text-slate-600">{format(hdmf_ee)}</td>
                             <td className="p-4 text-right text-slate-600">{format(hdmf_er)}</td>
-                            <td className="p-4 text-right font-bold text-brand-primary">{format(hdmf_ee + hdmf_er)}</td>
+                            <td className="p-4 text-right font-bold text-accent-green-dark">{format(hdmf_ee + hdmf_er)}</td>
                           </tr>
                           <tr className="bg-slate-50 font-bold border-t-2 border-slate-100">
                             <td className="p-4 text-slate-800">Total Government</td>
                             <td className="p-4 text-right text-slate-800">{format(sss_ee + ph_ee + hdmf_ee)}</td>
                             <td className="p-4 text-right text-slate-800">{format(sss_er + ph_er + hdmf_er)}</td>
-                            <td className="p-4 text-right text-blue-700">{format(sss_ee + ph_ee + hdmf_ee + sss_er + ph_er + hdmf_er)}</td>
+                            <td className="p-4 text-right text-accent-green-semi-dark">{format(sss_ee + ph_ee + hdmf_ee + sss_er + ph_er + hdmf_er)}</td>
                           </tr>
                         </>
                       );
@@ -402,13 +404,13 @@ const Single = () => {
           </Card>
 
           {/* Additional Professional Details Card */}
-          <Card className="border-0 shadow-sm bg-white overflow-hidden py-0">
-            <div className="bg-brand-primary p-4">
-              <h2 className="text-white font-bold text-sm uppercase tracking-wider flex items-center gap-2">
-                <WorkIcon className="h-4 w-4 text-blue-200" /> Professional Details
+          <Card className="border-t-4 border-accent-gold-semi-dark shadow-sm bg-white overflow-hidden py-0">
+            <div className=" pt-6 px-8">
+              <h2 className="text-accent-gold-semi-dark font-bold text-sm tracking-wider flex items-center gap-2 border-b border-slate-100 pb-2">
+                 Professional Details
               </h2>
             </div>
-            <CardContent className="p-6">
+            <CardContent className="px-8">
               <div className="grid grid-cols-2 gap-y-4">
                 <div className="flex flex-col">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Base Daily Rate</span>
@@ -439,7 +441,7 @@ const Single = () => {
                   </div>
                   <div className="flex flex-col col-span-2">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Account Number</span>
-                    <span className="font-mono font-bold text-brand-primary tracking-widest">
+                    <span className="font-mono font-bold text-accent-gold-dark tracking-widest">
                       {user.account_Number || "N/A"}
                     </span>
                   </div>
@@ -450,9 +452,9 @@ const Single = () => {
         </div>
 
         {/* Bottom Section: Activity Log Table */}
-        <Card className="border-0 shadow-sm bg-white py-0">
+        <Card className="border-t-4 border-brand-primary shadow-sm bg-white py-0">
           <CardContent className="p-6">
-            <h2 className="text-lg font-bold text-brand-primary mb-6">Last Activity Log</h2>
+            <h2 className="text-lg font-bold text-brand-primary mb-6 border-b border-slate-100 pb-2 ">Last Activity Log</h2>
             <div className="overflow-x-auto">
               <div className="min-w-[800px]">
                 <Table userId={userId} />

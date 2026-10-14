@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import Sidebar from "../../components/Sidebar";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
@@ -7,13 +7,10 @@ import InfoIcon from "@mui/icons-material/Info";
 import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
 import AttachmentIcon from "@mui/icons-material/Attachment";
 import SearchIcon from "@mui/icons-material/Search";
-import FilterListIcon from '@mui/icons-material/FilterList';
 import CloseIcon from '@mui/icons-material/Close';
-import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
-import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import Toast from "../../components/toast/Toast";
 import { formatUserId } from "../../utils/formatUserId";
-import { formatDateTime, calculateDays } from "../../utils/formatTime";
+import { formatDateTime } from "../../utils/formatTime";
 import { fetchWithAuth } from "../../utils/api";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import AssessmentIcon  from "@mui/icons-material/Assessment";
@@ -43,6 +40,7 @@ const AdminRequests = () => {
     const params = new URLSearchParams(window.location.search);
     return params.get("tab") || "pending";
   });
+  const [pendingSubTab, setPendingSubTab] = useState("pending"); // "pending" | "returned"
   const [selectedReqId, setSelectedReqId] = useState(null); // Upgraded from selectedIdx
   const handledDeepLinkRef = useRef(null);
   const lastHandledSearchRef = useRef("");
@@ -67,6 +65,11 @@ const AdminRequests = () => {
   // Approval Policy Warning Confirmation Modal State
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
   const [pendingApprovalId, setPendingApprovalId] = useState(null);
+
+  // Reject and Return Confirmation Modal States
+  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+  const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
+  const [modalActionNote, setModalActionNote] = useState("");
 
   // History Filter States
   const [searchQuery, setSearchQuery] = useState("");
@@ -143,6 +146,13 @@ const AdminRequests = () => {
       if (activeTab !== targetTab) {
         setActiveTab(targetTab);
       }
+      if (!isCompleted) {
+        if (targetReq.emp_reqStatusId === 5) {
+          setPendingSubTab("returned");
+        } else {
+          setPendingSubTab("pending");
+        }
+      }
       setSelectedReqId(targetId);
       handledDeepLinkRef.current = targetId;
 
@@ -166,6 +176,14 @@ const AdminRequests = () => {
     }
   };
 
+  const handleSubTabChange = (subTab) => {
+    if (pendingSubTab !== subTab) {
+      setPendingSubTab(subTab);
+      setCurrentPage(1);
+      setSelectedReqId(null);
+    }
+  };
+
   // Reset states when changing filters
   useEffect(() => {
     setCurrentPage(1);
@@ -181,9 +199,10 @@ const AdminRequests = () => {
     return `${hour12}:${minutes} ${ampm}`;
   };
 
-  const handleStatusUpdate = async (emp_reqId, statusId) => {
+  const handleStatusUpdate = async (emp_reqId, statusId, overrideNote = null) => {
     if (isProcessing) return;
     setIsProcessing(true);
+    const noteToSend = overrideNote !== null ? overrideNote : adminNote;
     try {
       const response = await fetchWithAuth(
         "/api/request/update-status",
@@ -194,7 +213,7 @@ const AdminRequests = () => {
             emp_reqId,
             emp_reqStatusId: statusId,
             processedBy: userData?.user_Id,
-            remarks: adminNote,
+            remarks: noteToSend,
             withPayId:
               [3, 4, 6, 7, 10].includes(current?.emp_reqTypeId)
                 ? parseInt(paymentStatus)
@@ -210,6 +229,7 @@ const AdminRequests = () => {
           type: "success",
         });
         setAdminNote("");
+        setModalActionNote("");
 
         if (userData?.user_RoleId === 1 && current?.emp_reqTypeId === 5 && statusId === 2) {
           const logDate = current.LC_logDate ? current.LC_logDate.split("T")[0] : "";
@@ -254,6 +274,30 @@ const AdminRequests = () => {
     setPendingApprovalId(null);
   };
 
+  const handleRejectClick = () => {
+    setModalActionNote(adminNote || "");
+    setIsRejectModalOpen(true);
+  };
+
+  const handleReturnClick = () => {
+    setModalActionNote(adminNote || "");
+    setIsReturnModalOpen(true);
+  };
+
+  const confirmReject = () => {
+    if (current) {
+      handleStatusUpdate(current.emp_reqId, 3, modalActionNote);
+      setIsRejectModalOpen(false);
+    }
+  };
+
+  const confirmReturn = () => {
+    if (current && modalActionNote.trim().length > 0) {
+      handleStatusUpdate(current.emp_reqId, 5, modalActionNote);
+      setIsReturnModalOpen(false);
+    }
+  };
+
   const getShortType = (typeName) => {
     if (!typeName) return "REQ";
     const name = typeName.toLowerCase();
@@ -274,6 +318,32 @@ const AdminRequests = () => {
     return "REQ";
   };
 
+  const { pendingCount, returnedCount } = useMemo(() => {
+    let pending = 0;
+    let returned = 0;
+    const userRole = Number(userData?.user_RoleId);
+    const currentUserId = Number(userData?.user_Id);
+
+    requests.forEach((req) => {
+      const reqStatus = Number(req.emp_reqStatusId);
+      const requesterId = Number(req.user_Id);
+
+      if (userRole === 1) {
+        // Admin: pending includes 1 (Pending) and 4 (Supervisor Recommended)
+        if (reqStatus === 1 || reqStatus === 4) pending++;
+        if (reqStatus === 5) returned++;
+      } else if (userRole === 2 || userRole === 4) {
+        // Supervisors and Accountants see requests from others
+        if (requesterId !== currentUserId) {
+          if (reqStatus === 1) pending++;
+          if (reqStatus === 5) returned++;
+        }
+      }
+    });
+
+    return { pendingCount: pending, returnedCount: returned };
+  }, [requests, userData?.user_RoleId, userData?.user_Id]);
+
   const filteredRequests = useMemo(() => {
     return requests.filter((req) => {
       const userRole = Number(userData?.user_RoleId);
@@ -288,12 +358,22 @@ const AdminRequests = () => {
 
       let matchesTab = false;
       if (activeTab === "pending") {
-        if (userRole === 1) { 
-          // Admins see everything in-progress: pending (1), recommended (4), and returned (5)
-          matchesTab = isPending || isRecommended || isReturned;
-        } else if (userRole === 2 || userRole === 4) {
-          // Supervisors and Accountants see pending and returned requests from others
-          matchesTab = (isPending || isReturned) && requesterId !== currentUserId;
+        if (pendingSubTab === "pending") {
+          if (userRole === 1) { 
+            // Admins see pending (1) and recommended (4)
+            matchesTab = isPending || isRecommended;
+          } else if (userRole === 2 || userRole === 4) {
+            // Supervisors and Accountants see pending requests from others
+            matchesTab = isPending && requesterId !== currentUserId;
+          }
+        } else if (pendingSubTab === "returned") {
+          if (userRole === 1) {
+            // Admins see returned (5)
+            matchesTab = isReturned;
+          } else if (userRole === 2 || userRole === 4) {
+            // Supervisors and Accountants see returned requests from others
+            matchesTab = isReturned && requesterId !== currentUserId;
+          }
         }
       } else { 
         // History tab: strictly for completed records (Approved: 2, Rejected: 3)
@@ -342,7 +422,7 @@ const AdminRequests = () => {
 
       return true;
     });
-  }, [requests, userData?.user_RoleId, userData?.user_Id, activeTab, searchQuery, typeFilter, statusFilter, dateFilter]);
+  }, [requests, userData?.user_RoleId, userData?.user_Id, activeTab, pendingSubTab, searchQuery, typeFilter, statusFilter, dateFilter]);
 
   // Automatically align current page ONCE when a deep-linked request is loaded
   useEffect(() => {
@@ -708,10 +788,51 @@ const AdminRequests = () => {
                 History
               </button>
             </div>
+
+            {/* Sub-tabs under Pending */}
+            {activeTab === "pending" && (
+              <div className="flex bg-slate-100/60 p-1 m-2 rounded-lg gap-1 border border-slate-200/40 shrink-0">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => handleSubTabChange("pending")}
+                      className={`flex-1 py-1.5 text-[11px] font-bold uppercase rounded-md transition-all ${
+                        pendingSubTab === "pending"
+                          ? "bg-white text-brand-primary shadow-sm"
+                          : "text-slate-500 hover:bg-white/50"
+                      }`}
+                    >
+                      Pending ({pendingCount})
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white text-xs font-normal">
+                    Awaiting administrative review or approval
+                  </TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => handleSubTabChange("returned")}
+                      className={`flex-1 py-1.5 text-[11px] font-bold uppercase rounded-md transition-all ${
+                        pendingSubTab === "returned"
+                          ? "bg-white text-orange-600 shadow-sm"
+                          : "text-slate-500 hover:bg-white/50"
+                      }`}
+                    >
+                      Returned ({returnedCount})
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white text-xs font-normal">
+                    Returned to employees for revisions or additional attachments
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+            )}
             
             <div className="flex-1 overflow-y-auto p-4 space-y-3 py-0 custom-scrollbar">
               <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 px-1 mt-0">
-                {activeTab === "pending" ? "Queue" : "Past Requests"} ({totalItems})
+                {activeTab === "pending" ? (pendingSubTab === "returned" ? "Returned to Employees" : "Pending Queue") : "Past Requests"} ({totalItems})
               </h4>
               
               {loading ? (
@@ -756,15 +877,23 @@ const AdminRequests = () => {
                 })
               ) : (
                 <div className="flex flex-col items-center justify-center py-12 px-4 text-center bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl mt-2">
-                  <div className="bg-green-100 text-green-600 p-4 rounded-full mb-4">
-                    <CheckCircleOutlineIcon className="h-8 w-8" />
+                  <div className={`p-4 rounded-full mb-4 ${activeTab === "pending" && pendingSubTab === "returned" ? "bg-orange-100 text-orange-600" : "bg-green-100 text-green-600"}`}>
+                    {activeTab === "pending" && pendingSubTab === "returned" ? (
+                      <ReplyIcon className="h-8 w-8" />
+                    ) : (
+                      <CheckCircleOutlineIcon className="h-8 w-8" />
+                    )}
                   </div>
                   <h5 className="font-bold text-brand-primary text-lg mb-2">
-                    {activeTab === "pending" ? "All Caught Up!" : "No Records Found"}
+                    {activeTab === "pending" 
+                      ? (pendingSubTab === "returned" ? "No Returned Requests" : "All Caught Up!") 
+                      : "No Records Found"}
                   </h5>
                   <p className="text-sm text-slate-500 max-w-[200px]">
                     {activeTab === "pending" 
-                      ? "There are no pending requests requiring your attention right now." 
+                      ? (pendingSubTab === "returned" 
+                          ? "No requests have been returned to employees for correction." 
+                          : "There are no pending requests requiring your attention right now.") 
                       : "Your history is currently empty or does not match your search."}
                   </p>
                 </div>
@@ -832,7 +961,7 @@ const AdminRequests = () => {
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <span className="flex-1 min-w-[110px]">
-                                      <Button disabled={isProcessing} className="w-full bg-red-600 hover:bg-red-700 text-white" onClick={() => handleStatusUpdate(current.emp_reqId, 3)}>
+                                      <Button disabled={isProcessing} className="w-full bg-red-600 hover:bg-red-700 text-white" onClick={handleRejectClick}>
                                         <CancelOutlinedIcon className="mr-2 h-4 w-4" /> Reject
                                       </Button>
                                     </span>
@@ -845,13 +974,13 @@ const AdminRequests = () => {
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <span className="flex-1 min-w-[110px]">
-                                      <Button disabled={isProcessing} className="w-full bg-orange-500 hover:bg-orange-600 text-white" onClick={() => handleStatusUpdate(current.emp_reqId, 5)}>
-                                        <ReplyIcon className="mr-2 h-4 w-4" /> Return
+                                      <Button disabled={isProcessing} className="w-full bg-orange-500 hover:bg-orange-600 text-white" onClick={handleReturnClick}>
+                                        <ReplyIcon className="mr-2 h-4 w-4" /> {current.emp_reqStatusId === 5 ? "Update Return" : "Return"}
                                       </Button>
                                     </span>
                                   </TooltipTrigger>
                                   <TooltipContent className="bg-slate-900 text-white border-slate-800">
-                                    Return to employee for corrections
+                                    {current.emp_reqStatusId === 5 ? "Update remarks or revision requirements" : "Return to employee for corrections"}
                                   </TooltipContent>
                                 </Tooltip>
                               </div>
@@ -1253,6 +1382,107 @@ const AdminRequests = () => {
               className="bg-green-600 hover:bg-green-700 text-white font-semibold"
             >
               Proceed & Approve
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reject Confirmation Modal */}
+      <AlertDialog open={isRejectModalOpen} onOpenChange={setIsRejectModalOpen}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-2 text-red-600 mb-1">
+              <CancelOutlinedIcon className="h-6 w-6 shrink-0" />
+              <AlertDialogTitle className="text-lg font-bold text-slate-900">
+                Reject Request (REQ-{current?.emp_reqId})
+              </AlertDialogTitle>
+            </div>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 pt-2 text-slate-600 text-sm">
+                <p>
+                  Are you sure you want to reject the <b>{current?.reqTypeName}</b> submitted by <b>{current?.userName}</b>?
+                </p>
+                <p className="text-xs text-red-600 font-medium bg-red-50 p-2.5 rounded border border-red-200">
+                  This action is final and will finalize the request as Rejected in the system.
+                </p>
+                <div className="space-y-1.5 pt-1">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Rejection Reason (Optional)
+                  </label>
+                  <Textarea
+                    value={modalActionNote}
+                    onChange={(e) => setModalActionNote(e.target.value)}
+                    placeholder="Provide a reason for the employee and records..."
+                    className="h-20 resize-none text-xs focus-visible:ring-red-500"
+                  />
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-4 gap-2">
+            <AlertDialogCancel onClick={() => setIsRejectModalOpen(false)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmReject}
+              disabled={isProcessing}
+              className="bg-red-600 hover:bg-red-700 text-white font-semibold"
+            >
+              Confirm Rejection
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Return for Revision Confirmation Modal */}
+      <AlertDialog open={isReturnModalOpen} onOpenChange={setIsReturnModalOpen}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-2 text-orange-600 mb-1">
+              <ReplyIcon className="h-6 w-6 shrink-0" />
+              <AlertDialogTitle className="text-lg font-bold text-slate-900">
+                {current?.emp_reqStatusId === 5 ? "Update Revision Instructions" : "Return Request for Revision"} (REQ-{current?.emp_reqId})
+              </AlertDialogTitle>
+            </div>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 pt-2 text-slate-600 text-sm">
+                <p>
+                  This request will be sent back to <b>{current?.userName}</b> under <b>Editable / Returned</b> status so they can make corrections.
+                </p>
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      Required Revision Instructions <span className="text-red-500">*</span>
+                    </label>
+                    <span className={`text-[11px] ${modalActionNote.trim().length === 0 ? "text-amber-600 font-semibold" : "text-slate-400"}`}>
+                      {modalActionNote.trim().length === 0 ? "Required" : `${modalActionNote.trim().length} chars`}
+                    </span>
+                  </div>
+                  <Textarea
+                    value={modalActionNote}
+                    onChange={(e) => setModalActionNote(e.target.value)}
+                    placeholder="Specify exactly what needs to be changed, corrected, or attached..."
+                    className="h-24 resize-none text-xs focus-visible:ring-orange-500"
+                  />
+                  {modalActionNote.trim().length === 0 && (
+                    <p className="text-[11px] text-amber-700 italic">
+                      Please enter revision instructions before returning to employee.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-4 gap-2">
+            <AlertDialogCancel onClick={() => setIsReturnModalOpen(false)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmReturn}
+              disabled={isProcessing || modalActionNote.trim().length === 0}
+              className="bg-orange-500 hover:bg-orange-600 text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {current?.emp_reqStatusId === 5 ? "Update & Save" : "Send Back for Revision"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

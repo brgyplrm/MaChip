@@ -1,13 +1,10 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import Sidebar from "../../components/Sidebar";
 import SearchIcon from "@mui/icons-material/Search";
 import FilterListIcon from '@mui/icons-material/FilterList';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
-import ContactlessIcon from '@mui/icons-material/Contactless';
 import SensorsIcon from '@mui/icons-material/Sensors';
 import FingerprintIcon from '@mui/icons-material/Fingerprint';
-import MemoryIcon from '@mui/icons-material/Memory';
-import CheckShieldIcon from '@mui/icons-material/Shield';
 import BlockIcon from '@mui/icons-material/Block';
 import CloseIcon from '@mui/icons-material/Close';
 import Toast from "../../components/toast/Toast";
@@ -511,7 +508,7 @@ const HardwareManagement = () => {
                   <span className="text-sm text-slate-500 mt-1 block">Manage MaChip hardware alignments, biometric signatures, and access states.</span>
                 </div>
               </div>
-              <Button onClick={handleStartScan} className="bg-brand-primary hover:bg-[#7A52B5] font-bold shadow-sm gap-2">
+              <Button onClick={handleStartScan} className="bg-brand-primary hover:bg-brand-primary-hover font-bold shadow-sm gap-2">
                 <ScanLine className="h-4 w-4 text-white" />
                 <span>{activeTab === 'rfid' ? 'Scan RFID' : 'Enroll Fingerprint'}</span>
               </Button>
@@ -539,7 +536,7 @@ const HardwareManagement = () => {
 
               {/* Stats Widgets */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                <Card className={`border-t-5 ${stats.color} bg-white py-0`}>
+                <Card className={`border-t-5 border-accent-green bg-white py-0`}>
                   <CardContent className="px-5 py-5 flex justify-between items-center">
                     <div>
                       <div className="flex items-center gap-1.5 mb-1">
@@ -557,12 +554,12 @@ const HardwareManagement = () => {
                           </TooltipContent>
                         </Tooltip>
                       </div>
-                      <p className="text-3xl font-bold text-brand-primary">{stats.total}</p>
+                      <p className="text-3xl font-bold text-accent-green">{stats.total}</p>
                       <p className="text-[10px] text-slate-400 mt-2 italic">
                         {activeTab === 'rfid' ? 'Registered RFID tokens in the system.' : 'Biometric slot maps active in module memory.'}
                       </p>
                     </div>
-                    <div className="bg-brand-primary/10 text-brand-primary p-3 rounded-lg">{stats.icon}</div>
+                    <div className="bg-accent-green/10 text-accent-green p-3 rounded-lg">{stats.icon}</div>
                   </CardContent>
                 </Card>
                 <Card className="border-t-5 border-accent-gold bg-white py-0">
@@ -873,10 +870,10 @@ const HardwareManagement = () => {
 
       <Dialog open={showRevokeModal} onOpenChange={setShowRevokeModal}>
         <DialogContent className="sm:max-w-[400px] p-0 border-0 overflow-hidden bg-white rounded-2xl shadow-2xl">
-          <div className="p-6 text-center">
+          <div className="px-6 pt-6 text-center">
             <div className="w-16 h-16 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4"><AlertTriangle className="h-8 w-8" /></div>
             <DialogHeader>
-              <DialogTitle className="text-xl font-bold text-brand-primary text-center">Revoke Hardware Access?</DialogTitle>
+              <DialogTitle className="text-xl font-bold text-red-600 text-center">Revoke Hardware Access?</DialogTitle>
               <DialogDescription className="text-slate-500 text-sm mt-2 text-center">
                 You are about to unlink the {activeTab === 'rfid' ? 'RFID card' : 'biometric signature'} from <b className="text-slate-900">{revokeTarget?.userName}</b>. 
                 This employee will no longer be able to use this hardware for attendance.

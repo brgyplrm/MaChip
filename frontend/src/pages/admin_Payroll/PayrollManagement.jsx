@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useCallback, react, useMemo } from "react";
+import { useState, useEffect, useCallback, react, useMemo } from "react";
 import Sidebar from "../../components/Sidebar";
-import VisibilityIcon from "@mui/icons-material/Visibility";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import PeopleAltIcon from "@mui/icons-material/PeopleAlt";
 import EventNoteIcon from "@mui/icons-material/EventNote";
@@ -9,9 +8,7 @@ import SearchIcon from "@mui/icons-material/Search";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import CloseIcon from "@mui/icons-material/Close";
 import SortIcon from "@mui/icons-material/Sort";
-import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
-import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import SearchOffIcon from '@mui/icons-material/SearchOff';
 import EmptyState from "../../components/EmptyState";
 import PayrollAlertBanner from "../../components/PayrollAlertBanner";
@@ -23,17 +20,7 @@ import { EyeIcon } from "lucide-react";
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import Toast from "../../components/toast/Toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip as RechartsTooltip, 
-  Legend, 
-  ResponsiveContainer,
-  Cell
-} from 'recharts';
+
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -42,8 +29,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { TablePagination } from "@/components/ui/table-pagination";
 
 const Payroll = () => {
@@ -280,7 +266,7 @@ const Payroll = () => {
             <Tooltip>
               <TooltipTrigger asChild>
                 <span className="inline-block w-full sm:w-auto">
-                  <Button variant="outline" asChild className="w-full bg-brand-primary text-white hover:bg-[#7A52B5] hover:text-white transition-colors">
+                  <Button variant="outline" asChild className="w-full bg-brand-primary text-white hover:bg-brand-primary-hover hover:text-white transition-colors">
                     <Link to="/payroll/employeeList">
                       <PeopleAltIcon className="mr-2 h-4 w-4" /> Employee List
                     </Link>
@@ -371,7 +357,7 @@ const Payroll = () => {
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span className="inline-block w-full">
-                        <Button asChild className="w-full bg-brand-primary hover:bg-[#7A52B5] py-6 text-sm shadow-sm transition-all hover:-translate-y-0.5">
+                        <Button asChild className="w-full bg-brand-primary hover:bg-brand-primary-hover py-6 text-sm shadow-sm transition-all hover:-translate-y-0.5">
                           <Link to={`/payroll/payrollPeriod?periodId=${activePeriod.id}`}>
                             <ReceiptOutlinedIcon className="mr-2 h-4 w-4" /> Process Active Payroll
                           </Link>
@@ -537,7 +523,7 @@ const Payroll = () => {
                         
                         return (
                           <TableRow key={index} className="border-b-slate-100 hover:bg-slate-50/50 transition-colors">
-                            <TableCell className="font-bold text-brand-primary py-4 px-6">{p.label}</TableCell>
+                            <TableCell className="font-bold text-brand-primary-dark py-4 px-6">{p.label}</TableCell>
                             <TableCell className="text-slate-600 py-4 font-medium">
                               {new Date(p.startDate).toLocaleDateString()} - {new Date(p.endDate).toLocaleDateString()}
                             </TableCell>
@@ -554,7 +540,7 @@ const Payroll = () => {
                                       variant="outline" 
                                       size="sm" 
                                       asChild 
-                                      className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-brand-primary-light hover:border-[#9c7de0] transition-colors"
+                                      className="border-brand-primary-light hover:text-brand-primary text-brand-primary-semi-dark hover:bg-brand-primary-light hover:border-brand-primary transition-colors"
                                     >
                                       <Link to={`/payroll/payrollPeriod?periodId=${p.periodId}`}>
                                         <EyeIcon className="h-4 w-4" />

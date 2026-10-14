@@ -147,27 +147,14 @@ const Login = () => {
       {/* ══════════════════════════════════════════════════════════════════════════
           LEFT PANE: BRANDING, COMPLIANCE & TELEMETRY (Split Enterprise Layout)
       ══════════════════════════════════════════════════════════════════════════ */}
-      <div className="hidden lg:flex flex-col justify-between p-10 xl:p-14 bg-gradient-to-br from-[#1b0c36] via-[#2a174e] to-[#180933] text-white relative overflow-hidden select-none">
-        {/* Ambient Decorative Glows (Green & Purple Brand Palette) */}
-        <div 
-          className="absolute -top-28 -right-24 w-[480px] h-[480px] rounded-full pointer-events-none"
-          style={{
-            background: "radial-gradient(circle, rgba(163, 182, 34, 0.16) 0%, rgba(42, 23, 78, 0) 70%)"
-          }}
-        />
-        <div 
-          className="absolute -bottom-32 -left-20 w-[420px] h-[420px] rounded-full pointer-events-none"
-          style={{
-            background: "radial-gradient(circle, rgba(62, 36, 114, 0.45) 0%, rgba(42, 23, 78, 0) 75%)"
-          }}
-        />
+      <div className="hidden lg:flex flex-col justify-between p-10 xl:p-14 bg-gradient-to-br from-brand-primary-hover via-brand-primary to-brand-primary-hover text-white relative overflow-hidden select-none">        
 
         {/* Top Company Brand Header */}
         <div className="relative z-10">
           <div className="flex items-center gap-3.5">
             <div className="h-12 w-12 rounded-xl bg-white p-1.5 shadow-lg shadow-black/20 flex items-center justify-center shrink-0">
               <img 
-                src="/2026-Logo.png" 
+                src="/2026-Logo.jpg" 
                 alt="MAC-J Logo" 
                 className="max-h-full max-w-full object-contain" 
               />
@@ -176,7 +163,7 @@ const Login = () => {
               <h2 className="text-[17px] font-extrabold tracking-tight text-white leading-tight">
                 MAC-J INT'L FORWARDING
               </h2>
-              <p className="text-[12px] text-purple-200/80">
+              <p className="text-[12px] text-brand-primary-light">
                 Cargo &amp; Air Freight Logistics — NAIA Complex
               </p>
             </div>
@@ -187,11 +174,11 @@ const Login = () => {
             
             <h1 className="text-3xl xl:text-4xl font-extrabold text-white leading-[1.25] tracking-tight mb-3">
               Centralized Access Control &amp;<br />
-              <span className="bg-gradient-to-r from-[#a3b622] via-[#b8cc28] to-[#d6ea38] bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-accent-green-hover to-accent-green-hover bg-clip-text text-transparent">
                 Payroll Management System
               </span>
             </h1>
-            <p className="text-sm text-purple-200/85 leading-relaxed">
+            <p className="text-sm text-accent-green-light leading-relaxed">
               Secure LAN-based biometric attendance, RFID authentication, and synchronized batch payroll processing.
             </p>
           </div>
@@ -200,11 +187,10 @@ const Login = () => {
         {/* Live Telemetry & Status Badges (Option 1: Full Embedded Hardware Stack) */}
         <div className="relative z-10 grid grid-cols-2 gap-3.5 pt-6 border-t border-purple-800/40">
           <div className="bg-white/[0.05] border border-white/10 rounded-xl p-3.5 backdrop-blur-md">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-purple-200/70 mb-1">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-brand-primary-light mb-1">
               Hardware Gateway
             </div>
             <div className="text-[13.5px] font-bold text-white flex items-center gap-2">
-              <span className="inline-block w-2 h-2 rounded-full bg-[#10b981] shadow-[0_0_8px_#10b981]" />
               ESP32 · MFRC522 &amp; R307
             </div>
             <div className="text-[11px] text-purple-200/60 mt-0.5">
@@ -213,10 +199,10 @@ const Login = () => {
           </div>
 
           <div className="bg-white/[0.05] border border-white/10 rounded-xl p-3.5 backdrop-blur-md">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-purple-200/70 mb-1">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-brand-primary-light mb-1">
               Next Payroll Cutoff
             </div>
-            <div className="text-[13.5px] font-bold text-[#c7db34] flex items-center gap-1.5">
+            <div className="text-[13.5px] font-bold text-accent-green-hover flex items-center gap-1.5">
                15th (Processed on 10th)
             </div>
             <div className="text-[11px] text-purple-200/60 mt-0.5">
@@ -235,19 +221,16 @@ const Login = () => {
           <div className="lg:hidden flex flex-col items-center text-center mb-7">
             <div className="p-2 mb-2 bg-white rounded-xl shadow-sm">
               <img 
-                src="/2026-Logo.png" 
+                src="/2026-Logo.jpg" 
                 alt="MAC-J Logo" 
                 className="w-[180px] max-[480px]:w-[140px] mx-auto object-contain"
               />
             </div>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-[#a3b622]/15 text-[#5e6b0a] border border-[#a3b622]/30 mt-1">
-              🔒 CTPAT Tier II Certified
-            </span>
-          </div>
+          </div> 
 
           {/* Form Header */}
           <div className="mb-7 text-left">
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-[#2a174e] tracking-tight mb-1">
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-brand-primary tracking-tight mb-1">
               Welcome back
             </h2>
             <p className="text-sm text-slate-500">
@@ -278,7 +261,7 @@ const Login = () => {
                   className={`w-full h-11 pl-10.5 pr-3.5 border-[1.5px] rounded-xl text-sm transition-all duration-200 outline-none placeholder:text-slate-400 
                     ${errors.user_Id 
                       ? 'border-[#c0392b] bg-[#fff5f5] focus:ring-4 focus:ring-[#c0392b]/15' 
-                      : 'border-slate-300 bg-[#f8fafc] focus:bg-white focus:border-[#2a174e] focus:ring-4 focus:ring-[#2a174e]/10'}`}
+                      : 'border-slate-300 bg-[#f8fafc] focus:bg-white focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/10'}`}
                   value={rawId}
                   onChange={(e) => {
                     setRawId(e.target.value);
@@ -317,7 +300,7 @@ const Login = () => {
                   className={`w-full h-11 pl-10.5 pr-11 border-[1.5px] rounded-xl text-sm transition-all duration-200 outline-none placeholder:text-slate-400 
                     ${errors.password 
                       ? 'border-[#c0392b] bg-[#fff5f5] focus:ring-4 focus:ring-[#c0392b]/15' 
-                      : 'border-slate-300 bg-[#f8fafc] focus:bg-white focus:border-[#2a174e] focus:ring-4 focus:ring-[#2a174e]/10'}`}
+                      : 'border-slate-300 bg-[#f8fafc] focus:bg-white focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/10'}`}
                   value={password}
                   onChange={(e) => {
                     setPassword(e.target.value);
@@ -359,7 +342,7 @@ const Login = () => {
               <button
                 type="button"
                 onClick={() => setIsModalOpen(true)}
-                className="font-semibold text-[#2a174e] hover:text-[#8e9e2b] underline cursor-pointer transition-colors"
+                className="font-semibold text-brand-primary hover:text-brand-primary-hover underline cursor-pointer transition-colors"
               >
                 Forgot Password?
               </button>
@@ -369,7 +352,7 @@ const Login = () => {
             <button 
               type="submit" 
               disabled={loading}
-              className="w-full h-12 mt-1.5 bg-gradient-to-r from-[#2a174e] via-[#351d62] to-[#2a174e] hover:from-[#1b0c36] hover:to-[#221240] text-white rounded-xl font-bold text-[14.5px] shadow-[0_6px_18px_rgba(42,23,78,0.25)] hover:shadow-[0_8px_24px_rgba(42,23,78,0.35)] cursor-pointer transition-all duration-200 flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
+              className="w-full h-12 mt-1.5 bg-gradient-to-r from-brand-primary via-brand-primary to-brand-primary hover:from-brand-primary-hover hover:to-brand-primary-hover text-white rounded-xl font-bold text-[14.5px] shadow-[0_6px_18px_rgba(42,23,78,0.25)] hover:shadow-[0_8px_24px_rgba(42,23,78,0.35)] cursor-pointer transition-all duration-200 flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
             >
               <span>{loading ? "Signing in…" : "Sign In to Terminal"}</span>
               {!loading && (

@@ -52,16 +52,16 @@ const Chart = ({ aspect, title, userId }) => {
           >
           <defs>
             <linearGradient id="colorOnTime" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#7A52B5" stopOpacity={0.6} />
-              <stop offset="95%" stopColor="#7A52B5" stopOpacity={0} />
+              <stop offset="5%" stopColor="var(--color-brand-primary-light)" stopOpacity={0.6} />
+              <stop offset="95%" stopColor="var(--color-brand-primary)" stopOpacity={0} />
             </linearGradient>
             <linearGradient id="colorLate" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.6} />
-              <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
+              <stop offset="5%" stopColor="var(--color-brand-primary-light)" stopOpacity={0.6} />
+              <stop offset="95%" stopColor="var(--color-brand-primary-light)" stopOpacity={0} />
             </linearGradient>
             <linearGradient id="colorAbsent" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#ef4444" stopOpacity={0.6} />
-              <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+              <stop offset="5%" stopColor="var(--color-brand-primary-dark)" stopOpacity={0.6} />
+              <stop offset="95%" stopColor="var(--color-brand-primary-dark)" stopOpacity={0} />
             </linearGradient>
           </defs>
           <XAxis dataKey="name" stroke="#64748b" tick={{ fontSize: 12, fontWeight: 500 }} />

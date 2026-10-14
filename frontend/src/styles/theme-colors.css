@@ -11,20 +11,31 @@
  */
 
 :root {
-  /* ── 1. Primary Brand (Corporate Purple / Violet) ── */
-  --color-brand-primary: #2a174e;
-  --color-brand-primary-hover: #1a0e30;
-  --color-brand-primary-light: #f0ebfa;
+  --color-brand-primary: #1058c7;
+  --color-brand-primary-hover: #1D6FED;
+  --color-brand-primary-light: #dfeafb;
+  --color-brand-primary-semi-dark: #0C4398;
+  --color-brand-primary-dark: #082E69;
+
+  --color-brand-secondary: #1F1959;
+  --color-brand-secondary-hover: #3B2FA9;
+  --color-brand-secondary-light: #d3ceff;
+  --color-brand-secondary-semi-dark: #110E31;
+  --color-brand-secondary-dark: #070614;
 
   /* ── 2. Accent Green (Widget Cards, Active Badges, Leave Balance) ── */
-  --color-accent-green: #a3b622;
-  --color-accent-green-hover: #8e9e2b;
+  --color-accent-green: #92b71b;
+  --color-accent-green-hover: #B3DF26;
   --color-accent-green-light: #f6f8ec;
+  --color-accent-green-semi-dark: #6F8B14;
+  --color-accent-green-dark: #4A5E0F;
 
   /* ── 3. Accent Gold (Payroll & Financial Summaries, Pending Badges) ── */
-  --color-accent-gold: #44419a;
-  --color-accent-gold-hover: #6a6790;
-  --color-accent-gold-light: #e4e3ff;
+  --color-accent-gold: #C4A300;
+  --color-accent-gold-hover: #F7CD00;
+  --color-accent-gold-light: #fff7d1;
+  --color-accent-gold-semi-dark: #917900;
+  --color-accent-gold-dark: #5E4E00;
 
   /* ── 4. Semantic Status Indicators ── */
   --color-status-success: #16a34a;

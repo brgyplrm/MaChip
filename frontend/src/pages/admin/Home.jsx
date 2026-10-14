@@ -1,8 +1,6 @@
-import React, { useState, useEffect } from "react";
+import  { useState, useEffect } from "react";
 import Sidebar from "../../components/Sidebar";
 import { useSystemTime } from "../../context/SystemTimeContext";
-import Featured from "../../components/featured/Featured";
-import Chart from "../../components/chart/Chart";
 import OccupancyList from "../../components/occupancy/OccupancyList";
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import SyncIcon from '@mui/icons-material/Sync';
@@ -16,32 +14,21 @@ import {
   Cell, 
   ResponsiveContainer, 
   Tooltip as RechartsTooltip,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
-  Legend, 
   AreaChart, 
   Area
 } from "recharts";
-import PersonAddIcon from '@mui/icons-material/PersonAdd';
-import HistoryIcon from '@mui/icons-material/History';
-import PaymentsIcon from '@mui/icons-material/Payments';
 import RateReviewIcon from '@mui/icons-material/RateReview';
-import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
-import BottomNav from "../../components/BottomNav";
-import SearchOffIcon from '@mui/icons-material/SearchOff';
-import EmptyState from "../../components/EmptyState";
-import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
-import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 
 // shadcn/ui components
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -110,8 +97,12 @@ const Home = () => {
   const [chartData, setChartData] = useState({
     weekly: [],
     quarterly: [],
-    yearly: []
+    yearly: [],
+    fiscal: []
   });
+  const [selectedFiscalYear, setSelectedFiscalYear] = useState(() => new Date().getFullYear());
+  const [availableFiscalYears, setAvailableFiscalYears] = useState(() => [new Date().getFullYear()]);
+  const [activeChartTab, setActiveChartTab] = useState("weekly");
 
   // Dynamic Greeting Logic
   const getGreeting = () => {
@@ -206,16 +197,37 @@ const Home = () => {
     }
   };
 
-  const fetchOverallStats = async () => {
+  const fetchOverallStats = async (fy) => {
     try {
-      const response = await fetchWithAuth("/api/attendance/overall-stats");
+      const yearToFetch = fy !== undefined ? fy : selectedFiscalYear;
+      const url = yearToFetch 
+        ? `/api/attendance/overall-stats?fiscalYear=${yearToFetch}` 
+        : "/api/attendance/overall-stats";
+      const response = await fetchWithAuth(url);
       if (response.ok) {
         const data = await response.json();
-        setChartData(data);
+        setChartData({
+          weekly: data.weekly || [],
+          quarterly: data.quarterly || [],
+          yearly: data.yearly || [],
+          fiscal: data.fiscal || []
+        });
+        if (data.availableFiscalYears && data.availableFiscalYears.length > 0) {
+          setAvailableFiscalYears(data.availableFiscalYears);
+        }
+        if (data.selectedFiscalYear) {
+          setSelectedFiscalYear(data.selectedFiscalYear);
+        }
       }
     } catch (error) {
       console.error("Error fetching overall stats:", error);
     }
+  };
+
+  const handleFiscalYearChange = (year) => {
+    const yr = Number(year);
+    setSelectedFiscalYear(yr);
+    fetchOverallStats(yr);
   };
 
   useEffect(() => {
@@ -313,15 +325,7 @@ const Home = () => {
         { name: "On Time", value: stats.onTimeCount },
         { name: "Late Arrivals", value: stats.lateArrivalsCount },
       ];
-  const COLORS = ["#4DE189", "#ECC04B"];
-
-  // Bar chart data for detailed breakdown
-  const barData = [
-    { name: "On Time", value: stats.onTimeCount, color: "#4DE189" },
-    { name: "Late", value: stats.lateArrivalsCount, color: "#ECC04B" },
-    { name: "Absent", value: stats.absentCount, color: "#F44336" },
-    { name: "On Leave", value: stats.onLeaveCount, color: "#2196F3" },
-  ];
+  const COLORS = ["var(--color-brand-primary-dark)", "var(--color-accent-gold-hover)"];
 
   const nextPayroll = payrollPeriods.length > 0 ? payrollPeriods[0] : null;
   const daysRemaining = nextPayroll ? Math.ceil((new Date(nextPayroll.endDate) - new Date()) / (1000 * 60 * 60 * 24)) : 0;
@@ -397,7 +401,7 @@ const Home = () => {
               <h1 className="text-2xl md:text-3xl font-extrabold mb-1 tracking-tight text-brand-primary">
                 {getGreeting()}, {userData?.user_FirstName || "User"}!
               </h1>
-              <p className="text-brand-primary/80 text-sm md:text-base font-medium">
+              <p className="text-brand-primary-semi-dark text-sm md:text-base font-medium">
                 Here is what's happening today, {currentDate}.
               </p>
             </div>
@@ -456,7 +460,7 @@ const Home = () => {
           {/* Border Top Widget Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
             <Link to="/logs" className="block outline-none hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
-              <Card className="bg-gradient-to-t from-brand-primary to-[#4A2C7D] shadow-sm py-0 h-full relative overflow-hidden">
+              <Card className="bg-gradient-to-t from-brand-primary to-brand-primary-hover shadow-sm py-0 h-full relative overflow-hidden">
                 {/* Absolute Icon Container */}
                 <div className="absolute right-1 top-4 opacity-10">
                   <AssignmentIcon sx={{ fontSize: 200 }} className="text-white" />
@@ -492,7 +496,7 @@ const Home = () => {
             </Link>
 
             <Link to="/adminRequests" className="block outline-none hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
-              <Card className="bg-gradient-to-t from-[#5A6F2A] to-accent-green shadow-sm py-0 h-full relative overflow-hidden">
+              <Card className="bg-gradient-to-t from-accent-green to-accent-green-hover shadow-sm py-0 h-full relative overflow-hidden">
                 <div className="absolute right-1 top-4 opacity-10">
                   <SyncIcon sx={{ fontSize: 200 }} className="text-white" />
                 </div>
@@ -517,7 +521,7 @@ const Home = () => {
             </Link>
 
             <Link to="/payroll" className="block outline-none hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
-              <Card className="bg-gradient-to-t from-accent-gold to-[#6e6adc] shadow-sm py-0 h-full relative overflow-hidden">
+              <Card className="bg-gradient-to-t from-accent-gold to-accent-gold-hover shadow-sm py-0 h-full relative overflow-hidden">
                 <div className="absolute right-1 top-4 opacity-10">
                   <CreditCardIcon sx={{ fontSize: 200 }} className="text-white" />
                 </div>
@@ -694,7 +698,7 @@ const Home = () => {
                         <Skeleton className="h-8 w-8 rounded-md shrink-0" />
                       </div>
                     ))}
-                    <div className="text-center text-xs text-slate-400/80 font-medium pt-2">
+                    <div className="text-center text-xs text-slate-400/80 font-medium pt-9">
                       All caught up! No pending requests.
                     </div>
                   </div>
@@ -707,7 +711,7 @@ const Home = () => {
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-1.5">
-                    <h2 className="text-[#033A55]/80 font-medium">Next Payroll Run</h2>
+                    <h2 className="text-gray-500 font-medium">Next Payroll Run</h2>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-[#033A55]/60 hover:text-[#033A55]/80 cursor-help" />
@@ -749,7 +753,7 @@ const Home = () => {
 
           {/* Multi-Tab Chart Section */}
           <Card className="bg-white shadow-sm border border-slate-200/80">
-            <Tabs defaultValue="weekly" className="w-full">
+            <Tabs defaultValue="weekly" value={activeChartTab} onValueChange={setActiveChartTab} className="w-full">
               <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between space-y-4 md:space-y-0">
                 <div>
                   <CardTitle className="text-xl font-bold text-brand-primary flex items-center gap-1.5">
@@ -759,19 +763,48 @@ const Home = () => {
                         <HelpOutlineIcon sx={{ fontSize: 16 }} className="text-brand-primary/60 hover:text-brand-primary cursor-help" />
                       </TooltipTrigger>
                       <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
-                        Comparison of average attendance percentages over the selected interval (weekly, quarterly, or yearly).
+                        Comparison of average attendance percentages over the selected interval (weekly, quarterly, yearly, or fiscal year).
                       </TooltipContent>
                     </Tooltip>
                   </CardTitle>
-                  <CardDescription>Comparison of attendance rates over time</CardDescription>
+                  <CardDescription>
+                    {activeChartTab === "fiscal" 
+                      ? `Monthly attendance rates for Fiscal Year ${selectedFiscalYear}`
+                      : "Comparison of attendance rates over time"}
+                  </CardDescription>
                 </div>
                 
-                {/* shadcn Tabs Switcher */}
-                <TabsList className="shadow-sm bg-[#1D0C45] p-1 gap-1">
-                  <TabsTrigger value="weekly" className=" text-xs px-4 text-white hover:text-[#1D0C45] hover:bg-[#E2C6FC]">Weekly</TabsTrigger>
-                  <TabsTrigger value="quarterly" className="text-xs px-4 text-white hover:text-[#1D0C45] hover:bg-[#E2C6FC]">Quarterly</TabsTrigger>
-                  <TabsTrigger value="yearly" className="text-xs px-4 text-white hover:text-[#1D0C45] hover:bg-[#E2C6FC]">Yearly</TabsTrigger>
-                </TabsList>
+                <div className="flex flex-wrap items-center gap-2.5">
+                  {/* Fiscal Year Selector (visible when Fiscal Year tab is active) */}
+                  {activeChartTab === "fiscal" && (
+                    <div className="flex items-center gap-1.5 animate-in fade-in duration-200">
+                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider hidden sm:inline">FY:</span>
+                      <Select 
+                        value={String(selectedFiscalYear)} 
+                        onValueChange={handleFiscalYearChange}
+                      >
+                        <SelectTrigger className="h-8 text-xs font-semibold bg-slate-50 border-slate-300 w-[130px] focus:ring-brand-primary">
+                          <SelectValue placeholder="Fiscal Year" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white shadow-lg border border-slate-200">
+                          {availableFiscalYears.map((yr) => (
+                            <SelectItem key={yr} value={String(yr)} className="text-xs font-medium cursor-pointer">
+                              FY {yr} {yr === new Date().getFullYear() ? "(Current)" : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {/* shadcn Tabs Switcher */}
+                  <TabsList className="shadow-sm bg-brand-primary p-1 gap-1">
+                    <TabsTrigger value="weekly" className="text-xs px-4 text-white hover:text-brand-secondary hover:bg-brand-primary-light">Weekly</TabsTrigger>
+                    <TabsTrigger value="quarterly" className="text-xs px-4 text-white hover:text-brand-secondary hover:bg-brand-primary-light">Quarterly</TabsTrigger>
+                    <TabsTrigger value="yearly" className="text-xs px-4 text-white hover:text-brand-secondary hover:bg-brand-primary-light">Yearly</TabsTrigger>
+                    <TabsTrigger value="fiscal" className="text-xs px-4 text-white hover:text-brand-secondary hover:bg-brand-primary-light">Fiscal Year</TabsTrigger>
+                  </TabsList>
+                </div>
               </CardHeader>
 
               <CardContent>
@@ -782,11 +815,11 @@ const Home = () => {
                         <AreaChart data={chartData[key]} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                           <defs>
                             <linearGradient id="colorPct" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#7A52B5" stopOpacity={0.1}/>
-                              <stop offset="100%" stopColor="#CFFC9C" stopOpacity={0}/>
+                              <stop offset="5%" stopColor="#1058c7" stopOpacity={0.1}/>
+                              <stop offset="100%" stopColor="#c6dcfd" stopOpacity={0}/>
                             </linearGradient>
                           </defs>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#c6dcfd" />
                           <XAxis 
                             dataKey="name" 
                             axisLine={false} 
@@ -802,17 +835,18 @@ const Home = () => {
                           />
                           <RechartsTooltip 
                             contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
-                            formatter={(value) => [`${value}%`, "Attendance"]}
+                            formatter={(value) => [value != null ? `${value}%` : "No data", "Attendance"]}
                           />
                           <Area 
                             type="monotone" 
                             dataKey="percentage" 
-                            stroke="#1D0C45" 
+                            stroke="#1058c7" 
                             strokeWidth={3}
                             fillOpacity={1} 
                             fill="url(#colorPct)" 
-                            dot={{ r: 4, fill: "#1D0C45", strokeWidth: 2, stroke: "#fff" }}
+                            dot={{ r: 4, fill: "#082E69", strokeWidth: 2, stroke: "#fff" }}
                             activeDot={{ r: 6, strokeWidth: 0 }}
+                            connectNulls={false}
                           />
                         </AreaChart>
                       </ResponsiveContainer>

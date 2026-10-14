@@ -58,6 +58,10 @@ function formatDuration(decimalHours) {
   const totalMinutes = Math.round(parseFloat(decimalHours || 0) * 60);
   const h = Math.floor(totalMinutes / 60);
   const m = totalMinutes % 60;
+
+  if (h === 0 && m === 0){
+    return '-'
+  }
   return `${h}h ${m}m`;
 }
 

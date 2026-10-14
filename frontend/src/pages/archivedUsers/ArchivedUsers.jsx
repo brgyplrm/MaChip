@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Sidebar from "../../components/Sidebar";
 import SearchIcon from "@mui/icons-material/Search";
 import RestoreIcon from '@mui/icons-material/Restore';
@@ -6,8 +6,6 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import CloseIcon from '@mui/icons-material/Close';
 import ArchiveOutlinedIcon from '@mui/icons-material/ArchiveOutlined';
-import GroupOutlinedIcon from '@mui/icons-material/GroupOutlined';
-import ManageAccountsOutlinedIcon from '@mui/icons-material/ManageAccountsOutlined';
 import PermanentDeleteModal from "../../components/permanentDeleteModal/PermanentDeleteModal";
 import RestoreUserModal from "../../components/restoreUserModal/RestoreUserModal";
 import Toast from "../../components/toast/Toast";
@@ -322,20 +320,6 @@ const ArchivedUsers = () => {
                     <SelectItem value="Supervisor">Supervisor</SelectItem>
                     <SelectItem value="Admin Manager">Admin Manager</SelectItem>
                     <SelectItem value="Admin Accountant">Admin Accountant</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex items-center w-full sm:w-auto">
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-full sm:w-[160px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors">
-                    <SelectValue placeholder="Filter by Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="All Statuses">All Statuses</SelectItem>
-                    <SelectItem value="Regular">Regular</SelectItem>
-                    <SelectItem value="Part-time">Part-time</SelectItem>
-                    <SelectItem value="Intern / OJT">Intern / OJT</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

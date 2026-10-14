@@ -125,8 +125,8 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
           <>
             {/* Header */}
             <div className="text-center mb-6">
-              <img src="/logo2.png" alt="MAC-J Logo" className="w-[170px] mx-auto mb-3" />
-              <h2 className="text-brand-primary text-xl font-bold m-0">Forgot Password</h2>
+              <img src="/2026-Logo.jpg" alt="MAC-J Logo" className="w-[170px] mx-auto mb-3" />
+              <h2 className="text-brand-secondary text-xl font-bold m-0">Forgot Password</h2>
               <p className="text-sm text-slate-500 mt-2 leading-relaxed">
                 Enter your registered company email address and we will send you a secure link to reset your password.
               </p>

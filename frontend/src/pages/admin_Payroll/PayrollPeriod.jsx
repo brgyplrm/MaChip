@@ -1,9 +1,6 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import Sidebar from "../../components/Sidebar";
-import VisibilityIcon from "@mui/icons-material/Visibility";
-import RefreshIcon from "@mui/icons-material/Refresh";
 import DownloadIcon from "@mui/icons-material/Download";
-import EditIcon from "@mui/icons-material/Edit";
 import SearchIcon from "@mui/icons-material/Search";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import CloseIcon from "@mui/icons-material/Close";
@@ -11,11 +8,7 @@ import { Link, useLocation } from "react-router-dom";
 import { formatUserId } from "../../utils/formatUserId";
 import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
 import ProcessPayrollModal from "../../components/procpayrollmodal/ProcessPayrollModal";
-import EditPayrollModal from "../../components/editPayrollModal/EditPayrollModal";
 import { fetchWithAuth } from "../../utils/api";
-import KeyboardDoubleArrowUpIcon from '@mui/icons-material/KeyboardDoubleArrowUp';
-import KeyboardDoubleArrowDownIcon from '@mui/icons-material/KeyboardDoubleArrowDown';
-import PaymentsIcon from '@mui/icons-material/Payments';
 import { useSystemTime } from "../../context/SystemTimeContext";
 import SummarizeOutlinedIcon from '@mui/icons-material/SummarizeOutlined';
 import EventRepeatIcon from '@mui/icons-material/EventRepeat';
@@ -910,7 +903,7 @@ const PayrollPeriod = () => {
                       return (
                         <TableRow key={p.payrollId} className="border-b-slate-100 hover:bg-slate-50/50">
                           <TableCell className="py-4 px-6">
-                            <div className="font-semibold text-brand-primary">{p.user_FirstName || p.userName} {p.user_LastName || ""}</div>
+                            <div className="font-semibold text-brand-primary-semi-dark">{p.user_FirstName || p.userName} {p.user_LastName || ""}</div>
                             <div className="text-xs text-slate-400 font-mono">ID: {formatUserId(p.user_Id)}</div>
                           </TableCell>
                           <TableCell className="py-4 text-slate-700">₱{formatMoney(fixedBasic)}</TableCell>

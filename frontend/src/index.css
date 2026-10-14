@@ -11,14 +11,26 @@
     --color-brand-primary: var(--color-brand-primary);
     --color-brand-primary-hover: var(--color-brand-primary-hover);
     --color-brand-primary-light: var(--color-brand-primary-light);
+    --color-brand-primary-semi-dark: var(--color-brand-primary-semi-dark);
+    --color-brand-primary-dark: var(--color-brand-primary-dark);
+
+    --color-brand-secondary: var(--color-brand-secondary);
+    --color-brand-secondary-hover: var(--color-brand-secondary-hover);
+    --color-brand-secondary-light: var(--color-brand-secondary-light);
+    --color-brand-secondary-semi-dark: var(--color-brand-secondary-semi-dark);
+    --color-brand-secondary-dark: var(--color-brand-secondary-dark);
 
     --color-accent-green: var(--color-accent-green);
     --color-accent-green-hover: var(--color-accent-green-hover);
     --color-accent-green-light: var(--color-accent-green-light);
+    --color-accent-green-semi-dark: var(--color-accent-green-semi-dark);
+    --color-accent-green-dark: var(--color-accent-green-dark);
 
     --color-accent-gold: var(--color-accent-gold);
     --color-accent-gold-hover: var(--color-accent-gold-hover);
     --color-accent-gold-light: var(--color-accent-gold-light);
+    --color-accent-gold-semi-dark: var(--color-accent-gold-semi-dark);
+    --color-accent-gold-dark: var(--color-accent-gold-dark);
 
     --color-status-success: var(--color-status-success);
     --color-status-warning: var(--color-status-warning);

@@ -951,32 +951,73 @@ exports.StatusLogic = async (req, res) => {
   }
 };
 
-// ── Get Overall Attendance Stats (Weekly, Quarterly, Yearly) ────────────────
+// ── Get Overall Attendance Stats (Weekly, Quarterly, Yearly, Fiscal Year) ────
 exports.getOverallAttendanceStats = async (req, res) => {
   try {
     const now = await getSystemTime();
     const currentYear = now.getFullYear();
+    const selectedFiscalYear = req.query.fiscalYear ? parseInt(req.query.fiscalYear, 10) : currentYear;
 
-    // 1. Weekly Stats (Last 7 Days)
+    // 1. Weekly Stats (Fixed: Mon, Tues, Wed, Thu, Fri, Sat for the active week)
+    const dayOfWeek = now.getDay();
+    const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diffToMonday);
+    const startOfWeekStr = formatDateLocal(monday);
+    const todayStr = formatDateLocal(now);
+
     const weeklyRaw = await sequelize.query(
       `SELECT 
-         to_char("log_Date", 'Dy') as name,
          COUNT(*) as total,
          COUNT(*) FILTER (WHERE "attendance_StatusId" = 3) as absent,
-         "log_Date"
+         "log_Date"::text as log_date
        FROM "employee_Logging_report"
-       WHERE "log_Date" > :now::date - interval '7 days'
+       WHERE "log_Date" >= :startOfWeekStr
+       AND "log_Date" <= :now::date
        AND "user_id" != 999
        AND EXTRACT(DOW FROM "log_Date") != 0 -- Exclude Sundays
-       GROUP BY name, "log_Date"
+       GROUP BY "log_Date"
        ORDER BY "log_Date" ASC`,
-      { replacements: { now }, type: QueryTypes.SELECT }
+      { replacements: { startOfWeekStr, now }, type: QueryTypes.SELECT }
     );
-    const weekly = weeklyRaw.map(d => {
-      const total = parseInt(d.total);
-      const absent = parseInt(d.absent);
+
+    const weeklyRowMap = new Map();
+    weeklyRaw.forEach(d => {
+      weeklyRowMap.set(d.log_date, d);
+    });
+
+    const fixedDays = [
+      { name: "Mon", offset: 0 },
+      { name: "Tues", offset: 1 },
+      { name: "Wed", offset: 2 },
+      { name: "Thu", offset: 3 },
+      { name: "Fri", offset: 4 },
+      { name: "Sat", offset: 5 }
+    ];
+
+    const weekly = fixedDays.map(item => {
+      const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + item.offset);
+      const dStr = formatDateLocal(d);
+
+      // Future days in current week do not plot points but keep the fixed axis
+      if (dStr > todayStr) {
+        return {
+          name: item.name,
+          percentage: null
+        };
+      }
+
+      const found = weeklyRowMap.get(dStr);
+      if (!found) {
+        return {
+          name: item.name,
+          percentage: 100
+        };
+      }
+
+      const total = parseInt(found.total, 10);
+      const absent = parseInt(found.absent, 10);
       return {
-        name: d.name,
+        name: item.name,
         percentage: total > 0 ? Math.round(((total - absent) / total) * 1000) / 10 : 100
       };
     });
@@ -994,12 +1035,13 @@ exports.getOverallAttendanceStats = async (req, res) => {
          EXTRACT(MONTH FROM "log_Date") as month_num
        FROM "employee_Logging_report"
        WHERE EXTRACT(YEAR FROM "log_Date") = :currentYear
+       AND "log_Date" <= :now::date
        AND "user_id" != 999
        AND EXTRACT(MONTH FROM "log_Date") BETWEEN :startMonth AND :endMonth
        AND EXTRACT(DOW FROM "log_Date") != 0 -- Exclude Sundays
        GROUP BY name, month_num
        ORDER BY month_num ASC`,
-      { replacements: { currentYear, startMonth, endMonth }, type: QueryTypes.SELECT }
+      { replacements: { currentYear, startMonth, endMonth, now }, type: QueryTypes.SELECT }
     );
     const quarterly = quarterlyRaw.map(d => {
       const total = parseInt(d.total);
@@ -1018,11 +1060,12 @@ exports.getOverallAttendanceStats = async (req, res) => {
          COUNT(*) FILTER (WHERE "attendance_StatusId" = 3) as absent
        FROM "employee_Logging_report"
        WHERE "user_id" != 999
+       AND "log_Date" <= :now::date
        AND EXTRACT(DOW FROM "log_Date") != 0 -- Exclude Sundays
        GROUP BY name
        ORDER BY name ASC
        LIMIT 5`,
-      { type: QueryTypes.SELECT }
+      { replacements: { now }, type: QueryTypes.SELECT }
     );
     const yearly = yearlyRaw.map(d => {
       const total = parseInt(d.total);
@@ -1033,7 +1076,64 @@ exports.getOverallAttendanceStats = async (req, res) => {
       };
     });
 
-    res.status(200).json({ weekly, quarterly, yearly });
+    // 4. Fiscal Year Stats (12 Months Jan-Dec for selected fiscal year)
+    const fiscalRaw = await sequelize.query(
+      `SELECT 
+         EXTRACT(MONTH FROM "log_Date")::integer as month_num,
+         to_char(to_date(EXTRACT(MONTH FROM "log_Date")::text, 'MM'), 'Mon') as name,
+         COUNT(*) as total,
+         COUNT(*) FILTER (WHERE "attendance_StatusId" = 3) as absent
+       FROM "employee_Logging_report"
+       WHERE EXTRACT(YEAR FROM "log_Date") = :selectedFiscalYear
+         AND "log_Date" <= :now::date
+         AND "user_id" != 999
+         AND EXTRACT(DOW FROM "log_Date") != 0
+       GROUP BY month_num, name
+       ORDER BY month_num ASC`,
+      { replacements: { selectedFiscalYear, now }, type: QueryTypes.SELECT }
+    );
+
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const fiscalRowMap = new Map(fiscalRaw.map(r => [r.month_num, r]));
+
+    const fiscal = monthNames.map((name, idx) => {
+      const monthNum = idx + 1;
+      const isFuture = (selectedFiscalYear > currentYear) || (selectedFiscalYear === currentYear && monthNum > (now.getMonth() + 1));
+      if (isFuture) {
+        return { name, percentage: null };
+      }
+      const found = fiscalRowMap.get(monthNum);
+      if (!found) {
+        return { name, percentage: null };
+      }
+      const total = parseInt(found.total, 10);
+      const absent = parseInt(found.absent, 10);
+      return {
+        name,
+        percentage: total > 0 ? Math.round(((total - absent) / total) * 1000) / 10 : 100
+      };
+    });
+
+    // Available fiscal years
+    const availableYearsRaw = await sequelize.query(
+      `SELECT DISTINCT EXTRACT(YEAR FROM "log_Date")::integer as y 
+       FROM "employee_Logging_report" 
+       ORDER BY y DESC`,
+      { type: QueryTypes.SELECT }
+    );
+    let availableFiscalYears = availableYearsRaw.map(r => r.y).filter(Boolean);
+    if (!availableFiscalYears.includes(currentYear)) {
+      availableFiscalYears.unshift(currentYear);
+    }
+
+    res.status(200).json({ 
+      weekly, 
+      quarterly, 
+      yearly, 
+      fiscal, 
+      availableFiscalYears, 
+      selectedFiscalYear 
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

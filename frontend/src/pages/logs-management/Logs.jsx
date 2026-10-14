@@ -10,11 +10,7 @@ import { EyeIcon, SquarePen } from "lucide-react";
 
 // Icons
 import SearchIcon from "@mui/icons-material/Search";
-import FilterListIcon from '@mui/icons-material/FilterList';
 import CloseIcon from '@mui/icons-material/Close';
-import FormatListBulletedIcon from '@mui/icons-material/FormatListBulleted';
-import AccessTimeIcon from '@mui/icons-material/AccessTime';
-import AssignmentLateIcon from '@mui/icons-material/AssignmentLate';
 import AssessmentIcon  from "@mui/icons-material/Assessment";
 
 // shadcn/ui components
@@ -789,7 +785,7 @@ const toggleMachipVisibility = (rowId) => {
                             const isMachipRevealed = revealedMachipRows[row.user_loggingId];
                             return (
                               <TableRow key={row.user_loggingId} className="border-b-slate-100 hover:bg-slate-50/50">
-                                <TableCell className="font-bold text-brand-primary py-4 px-6">{row.user_Id_formatted}</TableCell>
+                                <TableCell className="font-bold text-brand-primary-dark py-4 px-6">{row.user_Id_formatted}</TableCell>
                                 
                                 {/* Truncated Full Name (Raw View) */}
                                 <TableCell className="font-medium text-slate-800 py-4">
@@ -853,7 +849,7 @@ const toggleMachipVisibility = (rowId) => {
                                   <Tooltip>
                                     <TooltipTrigger asChild>
                                       <span className="inline-block">
-                                        <Button variant="outline" size="sm" asChild className="border-[#d1c4e9] text-[#5b3fa6] hover:bg-brand-primary-light hover:border-[#9c7de0] transition-colors">
+                                        <Button variant="outline" size="sm" asChild className="border-brand-primary-light text-brand-primary hover:bg-brand-primary-light hover:border-brand-primary hover:text-brand-primary transition-colors">
                                           <Link to={`/users/${row.user_Id}`}>
                                             <EyeIcon className="h-4 w-4" />
                                           </Link>
@@ -944,7 +940,7 @@ const toggleMachipVisibility = (rowId) => {
 
                             return (
                               <TableRow key={`${row.user_Id}-${row.log_Date}-${index}`} className="border-b-slate-100 hover:bg-slate-50/50">
-                                <TableCell className="font-bold text-brand-primary py-4 px-6">{formatUserId(row.user_Id)}</TableCell>
+                                <TableCell className="font-bold text-brand-primary-dark py-4 px-6">{formatUserId(row.user_Id)}</TableCell>
                                 
                                 {/* Truncated Name (Structured View) */}
                                 <TableCell className="font-medium text-slate-800 py-4">

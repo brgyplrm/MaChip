@@ -76,11 +76,11 @@ const List = ({ userId }) => {
         <Table sx={{ minWidth: 650 }} aria-label="user activity log">
           <TableHead>
             <TableRow>
-              <TableCell className="tableCell font-bold text-slate-500 uppercase text-[10px] tracking-wider">Date</TableCell>
-              <TableCell className="tableCell font-bold text-slate-500 uppercase text-[10px] tracking-wider">Time In</TableCell>
-              <TableCell className="tableCell font-bold text-slate-500 uppercase text-[10px] tracking-wider">Time Out</TableCell>
-              <TableCell className="tableCell font-bold text-slate-500 uppercase text-[10px] tracking-wider">Status</TableCell>
-              <TableCell className="tableCell font-bold text-slate-500 uppercase text-[10px] tracking-wider">Attendance</TableCell>
+              <TableCell className=" bg-slate-50 text-slate-500 uppercase text-[10px] font-bold border-b border-slate-100">Date</TableCell>
+              <TableCell className=" bg-slate-50 text-slate-500 uppercase text-[10px] font-bold border-b border-slate-100">Time In</TableCell>
+              <TableCell className=" bg-slate-50 text-slate-500 uppercase text-[10px] font-bold border-b border-slate-100">Time Out</TableCell>
+              <TableCell className=" bg-slate-50 text-slate-500 uppercase text-[10px] font-bold border-b border-slate-100">Status</TableCell>
+              <TableCell className=" bg-slate-50 text-slate-500 uppercase text-[10px] font-bold border-b border-slate-100">Attendance</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
