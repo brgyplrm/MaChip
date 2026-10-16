@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import SearchIcon from "@mui/icons-material/Search";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import SaveIcon from "@mui/icons-material/Save";
@@ -8,8 +8,7 @@ import Toast from "../../../components/toast/Toast";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import HistoryIcon from "@mui/icons-material/History";
 import EmptyState from "../../../components/EmptyState";
-import {useMemo} from "react";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -245,7 +244,8 @@ const SeparationPay = () => {
   const formatCurrency = (val) => `₱${parseFloat(val || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
-    <div className="flex flex-col w-full min-h-screen">
+    <TooltipProvider>
+      <div className="flex flex-col w-full min-h-screen">
         <div className=" overflow-x-hidden w-full max-w-6xl mx-auto p-1">
           {toast.message && <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: "", type: "success" })} />}
 
@@ -746,7 +746,8 @@ const SeparationPay = () => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-    </div>
+      </div>
+    </TooltipProvider>
   );
 };
 

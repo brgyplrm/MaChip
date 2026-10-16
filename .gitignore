@@ -78,6 +78,13 @@ backend/seed_*.js
 *mass_seed.js
 QA_CHECKLIST.txt
 
+# --- Automated Testing Suite & Test Runs ---
+tests/
+backend/tests/
+test-results/
+playwright-report/
+blob-report/
+
 # --- Temporary HTML Visualizers & Scratchpads ---
 bitmap_previewer.html
 login_proposals.html
