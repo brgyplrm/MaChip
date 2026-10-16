@@ -3,6 +3,11 @@ const dgram = require("dgram");
 
 let udpSocket = null;
 let beaconTimer = null;
+let lastDiscoveredEspIp = null;
+
+function getLastDiscoveredEspIp() {
+  return lastDiscoveredEspIp;
+}
 
 /**
  * Resolves the optimal local LAN IPv4 address.
@@ -90,6 +95,7 @@ function startUdpDiscovery(port = 4001) {
     udpSocket.on("message", (msg, rinfo) => {
       const text = msg.toString().trim();
       if (text.includes("MACHIP_DISCOVER")) {
+        lastDiscoveredEspIp = rinfo.address;
         const payload = buildDiscoveryPayload(rinfo.address);
         const serverIp = getBestLanIp(rinfo.address);
         const httpPort = parseInt(process.env.PORT, 10) || 4000;
@@ -101,6 +107,19 @@ function startUdpDiscovery(port = 4001) {
             console.log(
               `[UDP-DISCOVERY] Discovery request from ${rinfo.address}:${rinfo.port} -> Resolved to http://${serverIp}:${httpPort}`
             );
+            console.log("\n==========================================================");
+            console.log(" [*] ESP32 SECURED WEB SERIAL CONSOLE ACCESS INFO");
+            console.log(` └─ Direct URL:  http://${rinfo.address}/console`);
+            console.log(" └─ mDNS URL:    http://machip-esp32.local/console");
+            console.log(" └─ Admin User:  admin");
+            console.log(" └─ Admin Pass:  machip2026");
+            console.log("==========================================================\n");
+
+            try {
+              const { getIO } = require("../config/socket");
+              const io = getIO();
+              if (io) io.emit("hardware:discovered", { ip: rinfo.address, directUrl: `http://${rinfo.address}/console` });
+            } catch {}
           }
         });
       }
@@ -155,5 +174,6 @@ module.exports = {
   startUdpDiscovery,
   stopUdpDiscovery,
   getBestLanIp,
-  buildDiscoveryPayload
+  buildDiscoveryPayload,
+  getLastDiscoveredEspIp
 };

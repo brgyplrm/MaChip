@@ -77,21 +77,33 @@ const Home = () => {
       setIsResettingTft(false);
     }
   };
-  const [stats, setStats] = useState({
-    totalEmployees: 0,
-    officeOccupancy: 0,
-    onTimeCount: 0,
-    lateArrivalsCount: 0,
-    absentCount: 0,
-    onLeaveCount: 0,
-    enteredCount: 0,
-    exitedCount: 0,
-    onTimeChange: 0,
-    lateArrivalsChange: 0,
-    pendingCount: 0,
-    projectedPayroll: 0
+  const [stats, setStats] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("machip_dashboard_stats");
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return {
+      totalEmployees: 0,
+      officeOccupancy: 0,
+      onTimeCount: 0,
+      lateArrivalsCount: 0,
+      absentCount: 0,
+      onLeaveCount: 0,
+      enteredCount: 0,
+      exitedCount: 0,
+      onTimeChange: 0,
+      lateArrivalsChange: 0,
+      pendingCount: 0,
+      projectedPayroll: 0
+    };
   });
-  const [statsLoading, setStatsLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(() => {
+    try {
+      return !sessionStorage.getItem("machip_dashboard_stats");
+    } catch {
+      return true;
+    }
+  });
   const [payrollPeriods, setPayrollPeriods] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
   const [chartData, setChartData] = useState({
@@ -139,10 +151,14 @@ const Home = () => {
 
       if (statsRes.ok) {
         const data = await statsRes.json();
-        setStats({
+        const updatedStats = {
           ...data,
           pendingCount: pendingCount !== null && !isNaN(pendingCount) ? pendingCount : (data.pendingCount || 0)
-        });
+        };
+        setStats(updatedStats);
+        try {
+          sessionStorage.setItem("machip_dashboard_stats", JSON.stringify(updatedStats));
+        } catch {}
       } else if (pendingCount !== null && !isNaN(pendingCount)) {
         setStats(prev => ({
           ...prev,
@@ -589,18 +605,20 @@ const Home = () => {
                 </div>
               ) : (
                 <>
-                  <div className="flex-1 min-h-[180px] relative">
-                    <ResponsiveContainer width="100%" height="100%">
+                  <div className="w-full h-[180px] relative">
+                    <ResponsiveContainer width="100%" height={180}>
                       <PieChart>
                         <Pie
                           data={donutData}
                           cx="50%"
                           cy="50%"
-                          innerRadius={60}
-                          outerRadius={80}
-                          paddingAngle={5}
+                          innerRadius={55}
+                          outerRadius={75}
+                          paddingAngle={4}
                           dataKey="value"
                           stroke="none"
+                          isAnimationActive={true}
+                          animationDuration={300}
                         >
                           {donutData.map((entry, index) => (
                             <Cell 

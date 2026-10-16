@@ -1455,38 +1455,120 @@ exports.getDashboardStats = async (req, res) => {
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayStr = formatDateLocal(yesterday);
 
-    const userCountResult = await sequelize.query(
-      `SELECT COUNT(*) as total FROM "User" WHERE "deletedAt" IS NULL AND "user_Id" != 999`,
-      { type: QueryTypes.SELECT }
-    );
+    // Dynamic Workdays Calculation (Excluding Sundays)
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    let workDaysInMonth = 0;
+    for (let d = new Date(startOfMonth); d <= endOfMonth; d.setDate(d.getDate() + 1)) {
+      if (d.getDay() !== 0) { // 0 = Sunday
+        workDaysInMonth++;
+      }
+    }
+
+    let pendingQuery = null;
+    let pendingReplacements = { currentUserId };
+    if (roleId === 1 || roleId === 4) { // Admin or Accountant
+      pendingQuery = `SELECT COUNT(*)::int as count FROM "emp_Request" er WHERE er."emp_reqStatusId" IN (1, 4) AND er."user_Id" != :currentUserId`;
+    } else if (roleId === 2) { // Supervisor
+      pendingQuery = `SELECT COUNT(*)::int as count FROM "emp_Request" er JOIN "User" u ON er."user_Id" = u."user_Id" WHERE er."emp_reqStatusId" = 1 AND u."user_RoleId" = 3`;
+    }
+
+    // Execute all 7 independent database queries concurrently via Promise.all for fast dashboard loading
+    const [
+      userCountResult,
+      stats,
+      yesterdayStats,
+      activeLeavesResult,
+      pendingResult,
+      payrollResult,
+      anomaliesResult
+    ] = await Promise.all([
+      sequelize.query(
+        `SELECT COUNT(*) as total FROM "User" WHERE "deletedAt" IS NULL AND "user_Id" != 999`,
+        { type: QueryTypes.SELECT }
+      ),
+      sequelize.query(
+        `SELECT
+           COUNT(*) FILTER (WHERE "logged_StatusId" IN (1, 3, 5, 10)) AS "officeOccupancy",
+           COUNT(*) FILTER (WHERE "attendance_StatusId" IN (1, 6)) AS "onTimeCount",
+           COUNT(*) FILTER (WHERE "attendance_StatusId" = 2) AS "lateArrivalsCount",
+           COUNT(*) FILTER (WHERE "attendance_StatusId" = 3) AS "absentCount",
+           COUNT(*) FILTER (WHERE "attendance_StatusId" = 4) AS "halfDayCount",
+           COUNT(*) FILTER (WHERE "attendance_StatusId" = 5) AS "onLeaveCount",
+           COUNT(*) FILTER (WHERE "attendance_StatusId" = 6) AS "onExemptCount",
+           COUNT(*) FILTER (WHERE "time_Logged_inArr" <> '[]') AS "enteredCount",
+           COUNT(*) FILTER (WHERE "time_Logged_outArr" <> '[]') AS "exitedCount"
+         FROM "employee_Logging_report"
+         WHERE "log_Date" = :todayStr
+         AND "user_id" != 999`,
+        { replacements: { todayStr }, type: QueryTypes.SELECT }
+      ),
+      sequelize.query(
+        `SELECT
+           COUNT(*) FILTER (WHERE "attendance_StatusId" IN (1, 6)) AS "onTimeCount",
+           COUNT(*) FILTER (WHERE "attendance_StatusId" = 2) AS "lateArrivalsCount"
+         FROM "employee_Logging_report"
+         WHERE "log_Date" = :yesterdayStr
+         AND "user_id" != 999`,
+        { replacements: { yesterdayStr }, type: QueryTypes.SELECT }
+      ),
+      sequelize.query(
+        `SELECT COUNT(DISTINCT er."user_Id") AS "approvedLeavesToday"
+         FROM "emp_Request" er
+         LEFT JOIN "Vacation_Leave" vl ON er."emp_reqId" = vl."emp_reqId" AND er."emp_reqTypeId" = 3
+         LEFT JOIN "Sick_Leave" sl ON er."emp_reqId" = sl."emp_reqId" AND er."emp_reqTypeId" = 4
+         LEFT JOIN "Emergency_Leave" el ON er."emp_reqId" = el."emp_reqId" AND er."emp_reqTypeId" = 6
+         LEFT JOIN "HalfDay_Leave" hl ON er."emp_reqId" = hl."emp_reqId" AND er."emp_reqTypeId" = 7
+         LEFT JOIN "Statutory_Leave" st ON er."emp_reqId" = st."emp_reqId" AND er."emp_reqTypeId" IN (8, 9, 10, 11, 12)
+         WHERE er."emp_reqStatusId" = 2
+           AND er."user_Id" != 999
+           AND (
+             (:todayStr BETWEEN vl."StartDate"::text AND vl."EndDate"::text)
+             OR (:todayStr BETWEEN sl."StartDate"::text AND sl."EndDate"::text)
+             OR (:todayStr >= el."DateOfLeave"::text AND :todayStr <= (el."DateOfLeave"::date + (COALESCE(el."NoDays", 1) - 1) * INTERVAL '1 day')::date::text)
+             OR (:todayStr = hl."DateOfLeave"::text)
+             OR (:todayStr BETWEEN st."StartDate"::text AND st."EndDate"::text)
+           )`,
+        { replacements: { todayStr }, type: QueryTypes.SELECT }
+      ),
+      pendingQuery
+        ? sequelize.query(pendingQuery, { replacements: pendingReplacements, type: QueryTypes.SELECT })
+        : Promise.resolve([{ count: 0 }]),
+      sequelize.query(
+        `SELECT SUM(
+          GREATEST(
+            (u."dailyRate" * :workDaysInMonth) - 
+            (
+              COALESCE(d."sss_Share", 0) + 
+              COALESCE(d."philhealth_Share", 0) + 
+              COALESCE(d."hdmf_Share", 0) + 
+              COALESCE(d."tax_Share", 0) + 
+              COALESCE(d."healthCard_Amnt", 0) + 
+              COALESCE(d."SSS_Loan", 0) + 
+              COALESCE(d."HDMF_Loan", 0) + 
+              COALESCE(d."calamityLoan_Amnt", 0) + 
+              COALESCE(d."advances_Amnt", 0) + 
+              COALESCE(d."globe_Deduction", 0) + 
+              COALESCE(d."multiPurposeSavings", 0)
+            ), 
+            0
+          )
+        ) as projected 
+        FROM "User" u
+        LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
+        WHERE u."deletedAt" IS NULL AND u."user_Id" != 999
+        AND u."dailyRate" > 0`,
+        { replacements: { workDaysInMonth }, type: QueryTypes.SELECT }
+      ),
+      sequelize.query(
+        `SELECT COUNT(*)::int as count FROM "Transaction_Log" 
+         WHERE "event_Type" IN ('UNAUTHORIZED_SCAN', 'UNRECOGNIZED_SCAN', 'IRREGULAR_LOG', 'ATTENDANCE_LOG_SUSPICIOUS', '2FA_FAILURE')
+         AND "createdAt" >= :todayStart`,
+        { replacements: { todayStart: todayStr }, type: QueryTypes.SELECT }
+      )
+    ]);
+
     const totalEmployees = parseInt(userCountResult[0].total);
-
-    const stats = await sequelize.query(
-      `SELECT
-         COUNT(*) FILTER (WHERE "logged_StatusId" IN (1, 3, 5, 10)) AS "officeOccupancy",
-         COUNT(*) FILTER (WHERE "attendance_StatusId" IN (1, 6)) AS "onTimeCount",
-         COUNT(*) FILTER (WHERE "attendance_StatusId" = 2) AS "lateArrivalsCount",
-         COUNT(*) FILTER (WHERE "attendance_StatusId" = 3) AS "absentCount",
-         COUNT(*) FILTER (WHERE "attendance_StatusId" = 4) AS "halfDayCount",
-         COUNT(*) FILTER (WHERE "attendance_StatusId" = 5) AS "onLeaveCount",
-         COUNT(*) FILTER (WHERE "attendance_StatusId" = 6) AS "onExemptCount",
-         COUNT(*) FILTER (WHERE "time_Logged_inArr" <> '[]') AS "enteredCount",
-         COUNT(*) FILTER (WHERE "time_Logged_outArr" <> '[]') AS "exitedCount"
-       FROM "employee_Logging_report"
-       WHERE "log_Date" = :todayStr
-       AND "user_id" != 999`,
-      { replacements: { todayStr }, type: QueryTypes.SELECT },
-    );
-
-    const yesterdayStats = await sequelize.query(
-      `SELECT
-         COUNT(*) FILTER (WHERE "attendance_StatusId" IN (1, 6)) AS "onTimeCount",
-         COUNT(*) FILTER (WHERE "attendance_StatusId" = 2) AS "lateArrivalsCount"
-       FROM "employee_Logging_report"
-       WHERE "log_Date" = :yesterdayStr
-       AND "user_id" != 999`,
-      { replacements: { yesterdayStr }, type: QueryTypes.SELECT },
-    );
 
     const calculateChange = (today, yesterday) => {
       if (yesterday === 0) return today > 0 ? 100 : 0;
@@ -1502,91 +1584,12 @@ exports.getDashboardStats = async (req, res) => {
       parseInt(yesterdayStats[0].lateArrivalsCount || 0)
     );
 
-    // Active approved leaves covering today across all leave types
-    const activeLeavesResult = await sequelize.query(
-      `SELECT COUNT(DISTINCT er."user_Id") AS "approvedLeavesToday"
-       FROM "emp_Request" er
-       LEFT JOIN "Vacation_Leave" vl ON er."emp_reqId" = vl."emp_reqId" AND er."emp_reqTypeId" = 3
-       LEFT JOIN "Sick_Leave" sl ON er."emp_reqId" = sl."emp_reqId" AND er."emp_reqTypeId" = 4
-       LEFT JOIN "Emergency_Leave" el ON er."emp_reqId" = el."emp_reqId" AND er."emp_reqTypeId" = 6
-       LEFT JOIN "HalfDay_Leave" hl ON er."emp_reqId" = hl."emp_reqId" AND er."emp_reqTypeId" = 7
-       LEFT JOIN "Statutory_Leave" st ON er."emp_reqId" = st."emp_reqId" AND er."emp_reqTypeId" IN (8, 9, 10, 11, 12)
-       WHERE er."emp_reqStatusId" = 2
-         AND er."user_Id" != 999
-         AND (
-           (:todayStr BETWEEN vl."StartDate"::text AND vl."EndDate"::text)
-           OR (:todayStr BETWEEN sl."StartDate"::text AND sl."EndDate"::text)
-           OR (:todayStr >= el."DateOfLeave"::text AND :todayStr <= (el."DateOfLeave"::date + (COALESCE(el."NoDays", 1) - 1) * INTERVAL '1 day')::date::text)
-           OR (:todayStr = hl."DateOfLeave"::text)
-           OR (:todayStr BETWEEN st."StartDate"::text AND st."EndDate"::text)
-         )`,
-      { replacements: { todayStr }, type: QueryTypes.SELECT }
-    );
     const approvedLeavesToday = parseInt(activeLeavesResult[0]?.approvedLeavesToday || 0);
     const reportOnLeaveCount = parseInt(stats[0].onLeaveCount || 0);
     const totalOnLeaveCount = Math.max(reportOnLeaveCount, approvedLeavesToday);
-
-    // Fetch Pending Requests Count
-    let pendingCount = 0;
-    if (roleId === 1 || roleId === 2 || roleId === 4) {
-      let pendingQuery = "";
-      let pendingReplacements = { currentUserId };
-      if (roleId === 1 || roleId === 4) { // Admin or Accountant
-        pendingQuery = `SELECT COUNT(*)::int as count FROM "emp_Request" er WHERE er."emp_reqStatusId" IN (1, 4) AND er."user_Id" != :currentUserId`;
-      } else { // Supervisor
-        pendingQuery = `SELECT COUNT(*)::int as count FROM "emp_Request" er JOIN "User" u ON er."user_Id" = u."user_Id" WHERE er."emp_reqStatusId" = 1 AND u."user_RoleId" = 3`;
-      }
-      const pendingResult = await sequelize.query(pendingQuery, { replacements: pendingReplacements, type: QueryTypes.SELECT });
-      pendingCount = pendingResult[0].count;
-    }
-
-    // Dynamic Workdays Calculation (Excluding Sundays)
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    let workDaysInMonth = 0;
-    for (let d = new Date(startOfMonth); d <= endOfMonth; d.setDate(d.getDate() + 1)) {
-      if (d.getDay() !== 0) { // 0 = Sunday
-        workDaysInMonth++;
-      }
-    }
-
-    // Projected Monthly Net Payroll
-    const payrollResult = await sequelize.query(
-      `SELECT SUM(
-        GREATEST(
-          (u."dailyRate" * :workDaysInMonth) - 
-          (
-            COALESCE(d."sss_Share", 0) + 
-            COALESCE(d."philhealth_Share", 0) + 
-            COALESCE(d."hdmf_Share", 0) + 
-            COALESCE(d."tax_Share", 0) + 
-            COALESCE(d."healthCard_Amnt", 0) + 
-            COALESCE(d."SSS_Loan", 0) + 
-            COALESCE(d."HDMF_Loan", 0) + 
-            COALESCE(d."calamityLoan_Amnt", 0) + 
-            COALESCE(d."advances_Amnt", 0) + 
-            COALESCE(d."globe_Deduction", 0) + 
-            COALESCE(d."multiPurposeSavings", 0)
-          ), 
-          0
-        )
-      ) as projected 
-      FROM "User" u
-      LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
-      WHERE u."deletedAt" IS NULL AND u."user_Id" != 999
- AND u."dailyRate" > 0`,
-      { replacements: { workDaysInMonth }, type: QueryTypes.SELECT }
-    );
-    const projectedPayroll = Math.round(parseFloat(payrollResult[0].projected || 0));
-
-    // Anomalies Count (Today)
-    const anomaliesResult = await sequelize.query(
-      `SELECT COUNT(*)::int as count FROM "Transaction_Log" 
-       WHERE "event_Type" IN ('UNAUTHORIZED_SCAN', 'UNRECOGNIZED_SCAN', 'IRREGULAR_LOG', 'ATTENDANCE_LOG_SUSPICIOUS', '2FA_FAILURE')
-       AND "createdAt" >= :todayStart`,
-      { replacements: { todayStart: todayStr }, type: QueryTypes.SELECT }
-    );
-    const anomaliesCount = anomaliesResult[0].count;
+    const pendingCount = parseInt(pendingResult[0]?.count || 0);
+    const projectedPayroll = Math.round(parseFloat(payrollResult[0]?.projected || 0));
+    const anomaliesCount = parseInt(anomaliesResult[0]?.count || 0);
 
     res.status(200).json({
       totalEmployees,

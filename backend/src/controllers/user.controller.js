@@ -415,7 +415,10 @@ exports.registerUser = async (req, res) => {
       email: user_Email,
       password: req.body.user_Password, // Use raw password
       name: `${req.body.user_FirstName} ${req.body.user_LastName}`,
-      displayId: displayId
+      displayId: displayId,
+      hireDate: req.body.hireDate || null,
+      position: req.body.position || null,
+      department: req.body.department || null
     }).catch(emailError => {
       console.error("[WELCOME EMAIL ERROR]:", emailError.message);
     });
@@ -2167,7 +2170,10 @@ exports.batchRegisterUsers = async (req, res) => {
           email: userData.user_Email,
           password: userData.user_Password, // Use raw password from CSV
           name: `${userData.user_FirstName} ${userData.user_LastName}`,
-          displayId: displayId
+          displayId: displayId,
+          hireDate: userData.hireDate || null,
+          position: userData.position || null,
+          department: userData.department || null
         }).catch(emailError => {
           console.error(`[BATCH WELCOME EMAIL ERROR for ${userData.user_Email}]:`, emailError.message);
         });

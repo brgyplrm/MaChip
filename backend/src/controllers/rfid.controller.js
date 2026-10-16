@@ -107,20 +107,131 @@ const RAPID_TAP_COOLDOWN = 10000; // 10 seconds
 
 // Biometric brute-force tracking & card lockout cache (UID -> { count, lockedUntil, firstFailAt })
 const biometricFailures = new Map();
+const { getLastDiscoveredEspIp } = require("../utils/udpDiscovery.js");
+
 const MAX_BIOMETRIC_FAILURES = 3;
 const BIOMETRIC_LOCKOUT_DURATION = 5 * 60 * 1000; // 5 minutes
 const BIOMETRIC_WINDOW = 3 * 60 * 1000; // 3 minutes
 
+// Hardware telemetry state: strictly populated by ESP32 beacon / telemetry payloads
+let lastHardwareTelemetry = null;
+
 exports.getHardwareStatus = (req, res) => {
   const now = Date.now();
-  const isConnected = lastEsp32Heartbeat && (now - lastEsp32Heartbeat < 10000); // Connected if seen in last 10s
+  const effectiveIp = lastEsp32Ip || getLastDiscoveredEspIp() || null;
+  const isConnected = Boolean(lastEsp32Heartbeat && (now - lastEsp32Heartbeat < 15000)); // Active if seen in last 15s
   
   res.status(200).json({
     connected: isConnected,
-    ip: lastEsp32Ip || null,
+    ip: effectiveIp,
+    directUrl: effectiveIp ? `http://${effectiveIp}/console` : null,
+    mdnsUrl: "http://machip-esp32.local/console",
+    adminUser: "admin",
+    adminPass: "machip2026",
     lastSeen: lastEsp32Heartbeat ? new Date(lastEsp32Heartbeat).toISOString() : null,
-    msSinceLastSeen: lastEsp32Heartbeat ? (now - lastEsp32Heartbeat) : null
+    msSinceLastSeen: lastEsp32Heartbeat ? (now - lastEsp32Heartbeat) : null,
+    telemetry: lastHardwareTelemetry ? {
+      ...lastHardwareTelemetry,
+      isStale: !isConnected,
+      casingTempC: lastHardwareTelemetry.casingTempC !== undefined 
+        ? lastHardwareTelemetry.casingTempC 
+        : (lastHardwareTelemetry.coreTempC !== undefined ? Math.round((lastHardwareTelemetry.coreTempC - 10.5) * 10) / 10 : null)
+    } : null
   });
+};
+
+exports.receiveTelemetry = (req, res) => {
+  const { 
+    tempC, 
+    casingTempC, 
+    rssi, 
+    freeHeap, 
+    uptimeSec, 
+    rfidOk, 
+    fingerOk, 
+    dualTftOk, 
+    buzzerOk, 
+    solenoidOk, 
+    firmwareVersion 
+  } = req.body || {};
+
+  lastEsp32Heartbeat = Date.now();
+  trackEsp32Ip(req);
+
+  if (!lastHardwareTelemetry) {
+    lastHardwareTelemetry = {};
+  }
+
+  if (tempC !== undefined) lastHardwareTelemetry.coreTempC = parseFloat(tempC);
+  if (casingTempC !== undefined) {
+    lastHardwareTelemetry.casingTempC = parseFloat(casingTempC);
+  } else if (tempC !== undefined) {
+    lastHardwareTelemetry.casingTempC = Math.round((parseFloat(tempC) - 10.5) * 10) / 10;
+  }
+  if (rssi !== undefined) lastHardwareTelemetry.rssi = parseInt(rssi);
+  if (freeHeap !== undefined) lastHardwareTelemetry.freeHeap = parseInt(freeHeap);
+  if (uptimeSec !== undefined) lastHardwareTelemetry.uptimeSec = parseInt(uptimeSec);
+  if (firmwareVersion) lastHardwareTelemetry.firmwareVersion = firmwareVersion;
+  if (rfidOk !== undefined) {
+    lastHardwareTelemetry.rfidFront = rfidOk ? "ONLINE (MFRC522 J3 CS:26)" : "OFFLINE";
+    lastHardwareTelemetry.rfidBack = rfidOk ? "ONLINE (MFRC522 J2 CS:5)" : "OFFLINE";
+  }
+  if (fingerOk !== undefined) {
+    lastHardwareTelemetry.fpSensor = fingerOk ? "ONLINE (R307 UART2 RX:16 TX:17)" : "OFFLINE";
+  }
+  if (dualTftOk !== undefined) {
+    lastHardwareTelemetry.dualTft = dualTftOk ? "ONLINE (Dual ST7789 J4/J5)" : "OFFLINE";
+  }
+  if (buzzerOk !== undefined) {
+    lastHardwareTelemetry.buzzer = buzzerOk ? "ONLINE (PWM 2730Hz)" : "OFFLINE";
+  }
+  if (solenoidOk !== undefined) {
+    lastHardwareTelemetry.solenoid = solenoidOk ? "READY (Relay J8 GPIO 4)" : "OFFLINE";
+  }
+
+  try {
+    const io = getIO();
+    if (io) io.emit("hardware:telemetry", {
+      ip: lastEsp32Ip || getLastDiscoveredEspIp(),
+      ...lastHardwareTelemetry
+    });
+  } catch {}
+
+  res.status(200).json({ success: true, message: "Telemetry received." });
+};
+
+exports.testBuzzerDirect = async (req, res) => {
+  const targetIp = lastEsp32Ip || getLastDiscoveredEspIp();
+  if (!targetIp) return res.status(400).json({ success: false, message: "No active ESP32 IP discovered." });
+
+  try {
+    const response = await fetch(`http://${targetIp}/console/test-buzzer`, {
+      method: "POST",
+      headers: { "Authorization": "Basic " + Buffer.from("admin:machip2026").toString("base64") },
+      signal: AbortSignal.timeout(2000)
+    });
+    const data = await response.json();
+    return res.status(200).json({ success: true, message: "Buzzer tone triggered on hardware.", data });
+  } catch (err) {
+    return res.status(502).json({ success: false, message: `Failed to reach ESP32 at ${targetIp}: ${err.message}` });
+  }
+};
+
+exports.unlockRelayDirect = async (req, res) => {
+  const targetIp = lastEsp32Ip || getLastDiscoveredEspIp();
+  if (!targetIp) return res.status(400).json({ success: false, message: "No active ESP32 IP discovered." });
+
+  try {
+    const response = await fetch(`http://${targetIp}/console/unlock`, {
+      method: "POST",
+      headers: { "Authorization": "Basic " + Buffer.from("admin:machip2026").toString("base64") },
+      signal: AbortSignal.timeout(2000)
+    });
+    const data = await response.json();
+    return res.status(200).json({ success: true, message: "Relay unlocked for 3 seconds.", data });
+  } catch (err) {
+    return res.status(502).json({ success: false, message: `Failed to reach ESP32 at ${targetIp}: ${err.message}` });
+  }
 };
 
 exports.clearFingerprintSession = async (req, res) => {

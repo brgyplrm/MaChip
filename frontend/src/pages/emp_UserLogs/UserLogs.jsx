@@ -614,6 +614,7 @@ const UserLogs = () => {
     if (["halfday"].includes(s)) return "bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-100";
     if (s === "absent") return "bg-red-50 text-red-800 border-red-200 hover:bg-red-50";
     if (s === "upcoming") return "bg-white text-slate-400 border-dashed border-slate-300 hover:bg-white";
+    if (["notyethired", "preemployment"].includes(s)) return "bg-slate-50 text-slate-400 border-dashed border-slate-200 hover:bg-slate-50";
     if (s === "norecord") return "bg-slate-100 text-slate-500 hover:bg-slate-200";
     if (s === "sunday") return "bg-slate-100 text-slate-500 hover:bg-slate-100";
     return "bg-slate-100 text-slate-700 hover:bg-slate-100";
@@ -628,6 +629,7 @@ const UserLogs = () => {
     if (["onleave", "leave"].includes(s)) return "On Leave: Approved leave of absence with regular hours credited.";
     if (["halfday"].includes(s)) return "Half Day: Partial shift or schedule attendance.";
     if (s === "absent") return "Absent: No shift logging recorded for this working day.";
+    if (["notyethired", "preemployment"].includes(s)) return "Pre-Employment: Date is prior to official employee starting/hire date.";
     if (s === "upcoming") return "Upcoming: Scheduled date in the future.";
     if (s === "norecord") return "No Record: No check-in or check-out events registered.";
     if (s === "sunday") return "Sunday: Rest day (non-working day).";
@@ -918,8 +920,11 @@ const UserLogs = () => {
   
                                 const log = dailyLogs.find((l) => l.log_Date.split("T")[0] === dateStr);
   
+                                const isPreEmployment = userData?.hireDate && dateStr < String(userData.hireDate).split('T')[0];
                                 let displayStatus = log ? log.attendanceStatus : "—";
-                                if (!log) {
+                                if (isPreEmployment) {
+                                  displayStatus = "Not Yet Hired";
+                                } else if (!log) {
                                   if (dateStr > todayStr) displayStatus = "Upcoming";
                                   else {
                                     const dow = targetDate.getDay();

@@ -15,7 +15,8 @@ import AttendanceConfiguration from "@/components/AttendanceConfiguration";
 import NotificationConfiguration from "@/components/NotificationConfiguration";
 import PositionManagement from "@/components/PositionManagement";
 import ReferenceDataManagement from "@/components/ReferenceDataManagement";
-import { Clock, Edit3, Save, Layers, X } from 'lucide-react';
+import HardwareDiagnostics from "@/components/HardwareDiagnostics";
+import { Clock, Edit3, Save, Layers, X, Cpu } from 'lucide-react';
 
 
 // shadcn/ui components
@@ -333,6 +334,11 @@ const Settings = () => {
                         <Layers className="mr-3 h-5 w-5 text-brand-primary" /> Ref Tables
                       </div>
                     </SelectItem>
+                    <SelectItem value="hardware" className="py-3 rounded-lg focus:bg-slate-100 cursor-pointer">
+                      <div className="flex items-center font-semibold text-slate-700">
+                        <Cpu className="mr-3 h-5 w-5 text-brand-primary" /> Terminal Diagnostics
+                      </div>
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -530,6 +536,7 @@ const Settings = () => {
                     </CardContent>
                   </Card>
                   </div>
+                  <HardwareDiagnostics />
                 </TabsContent>
 
                 {/* Tab 2: Payroll Formulas Layout Configuration */}
@@ -595,6 +602,11 @@ const Settings = () => {
                 {/* Tab 6: Reference Tables Management */}
                 <TabsContent value="referenceTables" className=" mt-0 animate-in fade-in-50 duration-200">
                   <ReferenceDataManagement />
+                </TabsContent>
+
+                {/* Tab 7: Terminal Diagnostics & Live Console */}
+                <TabsContent value="hardware" className="space-y-6 mt-0 animate-in fade-in-50 duration-200">
+                  <HardwareDiagnostics />
                 </TabsContent>
                 </div>
               </>

@@ -116,28 +116,79 @@ const sendEmailInternal = async (mailOptions) => {
 };
 
 /**
- * Sends a welcome email with account details.
+ * Sends a welcome email with account details and official starting date.
  */
-exports.sendWelcomeEmail = async ({ email, password, name, displayId }) => {
+exports.sendWelcomeEmail = async ({ email, password, name, displayId, hireDate, position, department }) => {
   const { EMAIL_USER } = process.env;
+
+  let formattedStartDate = "immediately upon receipt of this email";
+  if (hireDate) {
+    const d = new Date(String(hireDate).split('T')[0] + "T00:00:00");
+    if (!isNaN(d.getTime())) {
+      formattedStartDate = d.toLocaleDateString("en-US", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric"
+      });
+    }
+  }
+
   const mailOptions = {
-    from: `"MaChip System" <${EMAIL_USER}>`,
+    from: `"MAC-J Int'l Forwarding Ltd., Co. (MaChip)" <${EMAIL_USER}>`,
     to: email,
-    subject: "Welcome to MaChip - Your Account Details",
+    subject: `Welcome to MAC-J Int'l Forwarding Ltd., Co. - Account Credentials & Starting Date`,
     html: `
-      <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-        <h2 style="color: #2c3e50;">Welcome to MaChip, ${name}!</h2>
-        <p>Your account has been successfully created. Here are your login details:</p>
-        <div style="background: #f9f9f9; padding: 15px; border-radius: 5px; border: 1px solid #eee;">
-          <p style="margin: 5px 0;"><strong>User ID:</strong> ${displayId}</p>
-          <p style="margin: 5px 0;"><strong>Name:</strong> ${name}</p>
-          <p style="margin: 5px 0;"><strong>Email:</strong> ${email}</p>
-          <p style="margin: 5px 0;"><strong>Password:</strong> <span style="color: #e74c3c;">${password}</span></p>
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: #ffffff;">
+        <div style="background: #4C2882; padding: 26px 24px; text-align: center; color: white;">
+          <h1 style="margin: 0; font-size: 20px; font-weight: 700; letter-spacing: 0.5px;">MAC-J Int'l Forwarding Ltd., Co.</h1>
+          <p style="margin: 4px 0 0; font-size: 13px; color: #e9d5ff;">Microchip Attendance & Chip Payroll (MaChip)</p>
         </div>
-        <p style="margin-top: 20px;">Please login to your account using these credentials.</p>
-        <p style="font-size: 0.9em; color: #7f8c8d;"><em>Note: For security reasons, please change your password after your first login.</em></p>
-        <br/>
-        <p>Best Regards,<br/><strong>MaChip Administration</strong></p>
+        <div style="padding: 26px 24px;">
+          <h2 style="color: #0f172a; margin-top: 0; font-size: 18px;">Welcome aboard, ${name}!</h2>
+          <p style="font-size: 14px; color: #475569;">
+            We are excited to welcome you${position ? ` as our new <strong>${position}</strong>` : ""}${department ? ` in the <strong>${department} Department</strong>` : ""}! Your employee portal profile has been set up.
+          </p>
+
+          <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-left: 4px solid #16a34a; padding: 12px 16px; border-radius: 8px; margin: 18px 0;">
+            <p style="margin: 0; font-size: 12px; color: #166534; font-weight: 700; text-transform: uppercase;">📅 Official Starting Date</p>
+            <p style="margin: 4px 0 0; font-size: 15px; color: #14532d; font-weight: 700;">${formattedStartDate}</p>
+          </div>
+
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 18px 0;">
+            <p style="margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; color: #64748b;">Your Account Credentials</p>
+            <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 4px 0; color: #64748b; width: 35%;">Employee ID:</td>
+                <td style="padding: 4px 0; font-weight: 700; color: #4C2882;">${displayId}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #64748b;">Email:</td>
+                <td style="padding: 4px 0; font-weight: 600; color: #0f172a;">${email}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #64748b;">Temporary Password:</td>
+                <td style="padding: 4px 0; font-weight: 700; font-family: monospace; color: #dc2626; font-size: 15px;">${password}</td>
+              </tr>
+            </table>
+          </div>
+
+          <h3 style="font-size: 14px; color: #0f172a; margin-bottom: 6px;">Next Steps for Your First Day:</h3>
+          <ul style="font-size: 13px; color: #475569; padding-left: 20px; margin-top: 0;">
+            <li style="margin-bottom: 4px;">Report to the HR / Administrative office on your starting date.</li>
+            <li style="margin-bottom: 4px;">Receive your official <strong>MaChip RFID Smart Card</strong> for entrance tapping.</li>
+            <li style="margin-bottom: 4px;">Enroll your <strong>Biometric Fingerprint profile</strong> on the MaChip terminal sensor.</li>
+            <li style="margin-bottom: 4px;">Log in to the web portal and change your temporary password under Profile Settings.</li>
+          </ul>
+
+          <p style="font-size: 13px; color: #64748b; margin-top: 20px;">
+            If you have any questions before your starting date, please feel free to reach out to the Admin team.
+          </p>
+        </div>
+        <div style="background: #f8fafc; padding: 14px 24px; text-align: center; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8;">
+          <p style="margin: 0;">MAC-J Int'l Forwarding Ltd., Co. • CTPAT-Compliant Logistics</p>
+          <p style="margin: 3px 0 0;">Near NAIA Cargo Terminal, Metro Manila, Philippines</p>
+        </div>
       </div>
     `,
   };

@@ -105,6 +105,8 @@ Thumbs.db
 # --- Archives & Portability Bundles ---
 *.tar.gz
 *.tgz
+*.zip
+tests.zip
 machip-agent-stack.tar.gz
 
 # --- Internal Audit Reports & Defect Triage Dumps ---

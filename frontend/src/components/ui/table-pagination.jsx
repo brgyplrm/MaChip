@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -15,12 +15,78 @@ export const TablePagination = ({
   pageSizeOptions = [5, 10, 20, 50],
   className = "",
   compact = false,
+  paramKey = "page",
+  syncUrl = true,
 }) => {
   if (totalItems <= 0) return null;
 
   const actualStart = startIndex !== undefined ? startIndex + 1 : Math.min((currentPage - 1) * itemsPerPage + 1, totalItems);
   const actualEnd = endIndex !== undefined ? endIndex : Math.min(currentPage * itemsPerPage, totalItems);
   const computedTotalPages = totalPages || Math.ceil(totalItems / itemsPerPage) || 1;
+
+  // Unified page change handler that updates state and pushes to browser history
+  const handlePageChange = useCallback((newPage) => {
+    const target = Math.max(1, Math.min(newPage, computedTotalPages));
+    if (target === currentPage) return;
+
+    if (setCurrentPage) {
+      setCurrentPage(target);
+    }
+
+    if (syncUrl) {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set(paramKey, target.toString());
+        window.history.pushState({ [paramKey]: target }, "", url.toString());
+      } catch (err) {
+        console.error("[PAGINATION-SYNC] Failed to push history state:", err);
+      }
+    }
+  }, [currentPage, computedTotalPages, setCurrentPage, syncUrl, paramKey]);
+
+  // 1. Initial URL param check & baseline history anchor
+  useEffect(() => {
+    if (!syncUrl || !setCurrentPage) return;
+    try {
+      const url = new URL(window.location.href);
+      const urlPage = parseInt(url.searchParams.get(paramKey) || "0", 10);
+      if (urlPage > 0 && urlPage !== currentPage && urlPage <= computedTotalPages) {
+        setCurrentPage(urlPage);
+      } else if (!url.searchParams.has(paramKey) && currentPage === 1) {
+        // Anchor baseline history state so clicking Back from Page 2 returns to Page 1
+        const initialUrl = new URL(window.location.href);
+        initialUrl.searchParams.set(paramKey, "1");
+        window.history.replaceState({ [paramKey]: 1 }, "", initialUrl.toString());
+      }
+    } catch (err) {
+      console.error("[PAGINATION-SYNC] Mount check failed:", err);
+    }
+  }, []);
+
+  // 2. Intercept Browser Back & Forward buttons (popstate)
+  useEffect(() => {
+    if (!syncUrl || !setCurrentPage) return;
+
+    const handlePopState = (event) => {
+      try {
+        const url = new URL(window.location.href);
+        const urlPage = parseInt(url.searchParams.get(paramKey) || "0", 10);
+        const statePage = event.state && typeof event.state[paramKey] === "number"
+          ? event.state[paramKey]
+          : null;
+
+        const resolvedPage = statePage || (urlPage > 0 ? urlPage : 1);
+        if (resolvedPage !== currentPage) {
+          setCurrentPage(resolvedPage);
+        }
+      } catch (err) {
+        console.error("[PAGINATION-SYNC] Popstate listener failed:", err);
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [currentPage, setCurrentPage, paramKey, syncUrl]);
 
   if (compact) {
     return (
@@ -34,7 +100,7 @@ export const TablePagination = ({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+            onClick={() => handlePageChange(currentPage - 1)}
             disabled={currentPage === 1}
             className="h-8 px-2.5 bg-white border-slate-200 text-slate-600 hover:bg-slate-100 text-xs"
           >
@@ -46,7 +112,7 @@ export const TablePagination = ({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setCurrentPage((prev) => Math.min(prev + 1, computedTotalPages))}
+            onClick={() => handlePageChange(currentPage + 1)}
             disabled={currentPage === computedTotalPages || computedTotalPages === 0}
             className="h-8 px-2.5 bg-white border-slate-200 text-slate-600 hover:bg-slate-100 text-xs"
           >
@@ -66,8 +132,9 @@ export const TablePagination = ({
             <Select 
               value={itemsPerPage.toString()} 
               onValueChange={(val) => {
-                setItemsPerPage(Number(val));
-                if (setCurrentPage) setCurrentPage(1);
+                const newSize = Number(val);
+                setItemsPerPage(newSize);
+                handlePageChange(1);
               }}
             >
               <SelectTrigger className="h-8 w-[70px] bg-white border-slate-200">
@@ -95,7 +162,7 @@ export const TablePagination = ({
         <Button
           variant="outline"
           size="sm"
-          onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+          onClick={() => handlePageChange(currentPage - 1)}
           disabled={currentPage === 1}
           className="bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
         >
@@ -109,7 +176,7 @@ export const TablePagination = ({
         <Button
           variant="outline"
           size="sm"
-          onClick={() => setCurrentPage((prev) => Math.min(prev + 1, computedTotalPages))}
+          onClick={() => handlePageChange(currentPage + 1)}
           disabled={currentPage === computedTotalPages || computedTotalPages === 0}
           className="bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
         >

@@ -382,6 +382,11 @@ async function ensureAbsentsMarked(dateOverride = null) {
     for (const emp of employees) {
       const userId = emp.user_Id;
 
+      // HIRE DATE SAFEGUARD: Employee has not officially started yet (Pre-Employment Period)
+      if (emp.hireDate && todayStr < String(emp.hireDate).split('T')[0]) {
+        continue;
+      }
+
       // NIGHT SHIFT SAFEGUARD: Night shift (20:30 - 05:30) employees must not be marked absent during daytime 17:30 run
       if (settings?.enableNightShift && Number(emp.user_ShiftId) === 2) {
         continue;

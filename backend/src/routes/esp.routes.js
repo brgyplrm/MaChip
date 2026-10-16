@@ -46,5 +46,10 @@ router.post("/visitor-access/confirm", espValidator, rfidController.confirmVisit
 router.post("/reset-screen", authMiddleware, rfidController.resetTftScreen);
 router.get("/reset-screen", authMiddleware, rfidController.resetTftScreen);
 
+// Telemetry & Hardware Testing Endpoints
+router.post("/telemetry", espValidator, rfidController.receiveTelemetry);
+router.post("/test-buzzer", authMiddleware, rfidController.testBuzzerDirect);
+router.post("/unlock-relay", authMiddleware, rfidController.unlockRelayDirect);
+
 module.exports = router;
 
