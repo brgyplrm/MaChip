@@ -16,6 +16,7 @@ import { fetchWithAuth } from "../../utils/api";
 import {  Edit2Icon, ChevronLeft } from "lucide-react";
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import CheckIcon from '@mui/icons-material/Check';
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";

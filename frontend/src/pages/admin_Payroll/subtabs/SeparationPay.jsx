@@ -1,7 +1,5 @@
-import React, { useState, useEffect } from "react";
-import Sidebar from "../../../components/Sidebar";
+import { useState, useEffect } from "react";
 import SearchIcon from "@mui/icons-material/Search";
-import RefreshIcon from "@mui/icons-material/Refresh";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import SaveIcon from "@mui/icons-material/Save";
 import { fetchWithAuth } from "../../../utils/api";
@@ -11,7 +9,6 @@ import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import HistoryIcon from "@mui/icons-material/History";
 import EmptyState from "../../../components/EmptyState";
 import {useMemo} from "react";
-import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 // shadcn/ui components

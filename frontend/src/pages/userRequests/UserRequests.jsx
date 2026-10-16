@@ -1302,9 +1302,9 @@ const UserRequests = () => {
         </div>
         
         {/* Dashboard-Style Statistics Cards */}
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-6 mb-6 w-full">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
           {/* Card 1: Pending */}
-          <Card className="shadow-sm border-t-4 border-brand-primary py-0 h-full min-w-0">
+          <Card className="shadow-sm border-t-5 border-brand-primary py-0 h-full min-w-0 bg-white">
             <CardContent className="px-5 py-5 flex justify-between h-full text-left">
               <div className="flex flex-col justify-between">
                 <div>
@@ -1312,7 +1312,7 @@ const UserRequests = () => {
                     <p className="text-xs font-bold text-brand-primary uppercase tracking-wider">Pending</p>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                        <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-brand-primary/60 hover:text-brand-primary cursor-help" />
                       </TooltipTrigger>
                       <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
                         Requests currently submitted and awaiting action from your supervisor or administrator.
@@ -1321,17 +1321,16 @@ const UserRequests = () => {
                   </div>
                   <p className="text-4xl font-bold text-brand-primary">{stats.pending}</p>
                 </div>
+                <p className="text-xs text-brand-primary/70 italic mt-4">Awaiting review and approval</p>
               </div>
               <div className="bg-brand-primary/10 text-brand-primary p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <HourglassEmptyIcon className="h-6 w-6" />
               </div>
             </CardContent>
           </Card>
- 
-          
- 
+
           {/* Card 2: Approved */}
-          <Card className="shadow-sm border-t-4 border-accent-green py-0 h-full min-w-0">
+          <Card className="shadow-sm border-t-5 border-accent-green py-0 h-full min-w-0 bg-white">
             <CardContent className="px-5 py-5 flex justify-between h-full text-left">
               <div className="flex flex-col justify-between">
                 <div>
@@ -1339,7 +1338,7 @@ const UserRequests = () => {
                     <p className="text-xs font-bold text-accent-green uppercase tracking-wider">Approved</p>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                        <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-accent-green/60 hover:text-accent-green cursor-help" />
                       </TooltipTrigger>
                       <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
                         Requests that have been reviewed and approved by management.
@@ -1348,15 +1347,16 @@ const UserRequests = () => {
                   </div>
                   <p className="text-4xl font-bold text-accent-green">{stats.approved}</p>
                 </div>
+                <p className="text-xs text-accent-green/70 italic mt-4">Processed approved requests</p>
               </div>
               <div className="bg-accent-green/10 text-accent-green p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <CheckCircleOutlineIcon className="h-6 w-6" />
               </div>
             </CardContent>
           </Card>
- 
+
           {/* Card 3: Rejected */}
-          <Card className="shadow-sm border-t-4 border-accent-gold py-0 h-full min-w-0">
+          <Card className="shadow-sm border-t-5 border-accent-gold py-0 h-full min-w-0 bg-white">
             <CardContent className="px-5 py-5 flex justify-between h-full text-left">
               <div className="flex flex-col justify-between">
                 <div>
@@ -1364,7 +1364,7 @@ const UserRequests = () => {
                     <p className="text-xs font-bold text-accent-gold uppercase tracking-wider">Rejected</p>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                        <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-accent-gold/60 hover:text-accent-gold cursor-help" />
                       </TooltipTrigger>
                       <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
                         Requests that have been disapproved by management.
@@ -1373,15 +1373,16 @@ const UserRequests = () => {
                   </div>
                   <p className="text-4xl font-bold text-accent-gold">{stats.rejected}</p>
                 </div>
+                <p className="text-xs text-accent-gold/70 italic mt-4">Declined requests</p>
               </div>
-              <div className="bg-accent-gold/20 text-accent-gold p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
+              <div className="bg-accent-gold/10 text-accent-gold p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <CancelOutlinedIcon className="h-6 w-6" />
               </div>
             </CardContent>
           </Card>
 
           {/* Card 4: Returned */}
-          <Card className="shadow-sm border-t-4 border-status-info py-0 h-full min-w-0">
+          <Card className="shadow-sm border-t-5 border-status-info py-0 h-full min-w-0 bg-white">
             <CardContent className="px-5 py-5 flex justify-between h-full text-left">
               <div className="flex flex-col justify-between">
                 <div>
@@ -1389,7 +1390,7 @@ const UserRequests = () => {
                     <p className="text-xs font-bold text-status-info uppercase tracking-wider">Returned</p>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                        <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-status-info/60 hover:text-status-info cursor-help" />
                       </TooltipTrigger>
                       <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
                         Requests returned by the administrator requiring revision, corrections, or additional attachments.
@@ -1398,6 +1399,7 @@ const UserRequests = () => {
                   </div>
                   <p className="text-4xl font-bold text-status-info">{stats.returned}</p>
                 </div>
+                <p className="text-xs text-status-info/70 italic mt-4">Needs revisions/attachments</p>
               </div>
               <div className="bg-status-info/10 text-status-info p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
                 <ReplyIcon className="h-6 w-6" />

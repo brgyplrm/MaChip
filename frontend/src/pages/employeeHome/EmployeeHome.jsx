@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Sidebar from "../../components/Sidebar";
 import { useSystemTime } from "../../context/SystemTimeContext";
 import { CircularProgressbar, buildStyles } from "react-circular-progressbar";
@@ -16,8 +16,30 @@ import {
   Clock, 
   History, 
   FileText,
-  Receipt
+  Receipt,
+  TrendingUp,
+  PieChart as PieChartIcon,
+  ArrowUpRight,
+  Layers,
+  Banknote,
+  Sliders
 } from "lucide-react";
+
+// Recharts components
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+} from "recharts";
 
 // Shadcn UI components
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -25,6 +47,105 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
+// Helper: Format Currency
+const formatCurrency = (amount) => {
+  return new Intl.NumberFormat("en-PH", {
+    style: "currency",
+    currency: "PHP",
+  }).format(amount || 0);
+};
+
+// Option 4 Deck Tooltips
+const TrajectoryDeckTooltip = ({ active, payload }) => {
+  if (active && payload && payload.length) {
+    const d = payload[0].payload;
+    return (
+      <div className="bg-slate-900 text-white rounded-xl p-3.5 shadow-xl border border-slate-800 text-xs min-w-[210px] space-y-2">
+        <div className="border-b border-slate-800 pb-1.5">
+          <p className="font-bold text-slate-200">{d.fullPeriod}</p>
+          <p className="text-[10px] text-slate-400">Regular Payroll Cutoff</p>
+        </div>
+        <div className="space-y-1.5">
+          <div className="flex justify-between items-center">
+            <span className="flex items-center gap-1.5 text-accent-green font-semibold">
+              <span className="w-2 h-2 rounded-full bg-accent-green"></span> Net Take-Home:
+            </span>
+            <span className="font-bold text-white">{formatCurrency(d.net)}</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="flex items-center gap-1.5 text-brand-primary font-semibold">
+              <span className="w-2 h-2 rounded-full bg-brand-primary"></span> Gross Pay:
+            </span>
+            <span className="font-semibold text-slate-300">{formatCurrency(d.gross)}</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="flex items-center gap-1.5 text-accent-gold font-semibold">
+              <span className="w-2 h-2 rounded-full bg-accent-gold"></span> Deductions:
+            </span>
+            <span className="font-semibold text-slate-300">-{formatCurrency(d.deductions)}</span>
+          </div>
+          <div className="flex justify-between items-center pt-1 border-t border-slate-800/80 text-[11px] text-slate-400">
+            <span>Recorded Attendance:</span>
+            <span className="font-medium text-slate-200">{d.daysWorked} Days Worked</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
+
+const DonutDeckTooltip = ({ active, payload }) => {
+  if (active && payload && payload.length) {
+    const d = payload[0];
+    return (
+      <div className="bg-slate-900 text-white rounded-xl p-3 shadow-xl border border-slate-800 text-xs min-w-[190px]">
+        <p className="font-bold text-slate-200 mb-1.5">{d.name}</p>
+        <div className="space-y-1">
+          <div className="flex justify-between items-center gap-4">
+            <span className="text-slate-400">Deduction:</span>
+            <span className="font-bold text-white">{formatCurrency(d.value)}</span>
+          </div>
+          <div className="flex justify-between items-center gap-4">
+            <span className="text-slate-400">Withholding Share:</span>
+            <span className="font-bold text-accent-gold">{d.payload.percent}%</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
+
+const OtDeckTooltip = ({ active, payload }) => {
+  if (active && payload && payload.length) {
+    const d = payload[0].payload;
+    return (
+      <div className="bg-slate-900 text-white rounded-xl p-3.5 shadow-xl border border-slate-800 text-xs min-w-[210px] space-y-2">
+        <div className="border-b border-slate-800 pb-1.5">
+          <p className="font-bold text-slate-200">{d.fullPeriod}</p>
+          <p className="text-[10px] text-slate-400">{d.daysWorked} Days Worked</p>
+        </div>
+        <div className="space-y-1.5">
+          <div className="flex justify-between items-center">
+            <span className="flex items-center gap-1.5 text-status-info font-semibold">
+              <span className="w-2 h-2 rounded-full bg-status-info"></span> Overtime Hours:
+            </span>
+            <span className="font-bold text-white">{d.otHours} hrs</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="flex items-center gap-1.5 text-accent-green font-semibold">
+              <span className="w-2 h-2 rounded-full bg-accent-green"></span> OT Premium Pay:
+            </span>
+            <span className="font-bold text-white">{formatCurrency(d.otPay)}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
 
 const EmployeeHome = () => {
   const { systemToday, isMockTime } = useSystemTime();
@@ -47,6 +168,8 @@ const EmployeeHome = () => {
   });
   const [loading, setLoading] = useState(true);
   const [payrolls, setPayrolls] = useState([]);
+  const [allPayrolls, setAllPayrolls] = useState([]);
+  const [activeDeckLayer, setActiveDeckLayer] = useState("trajectory");
   const [toast, setToast] = useState({ message: "", type: "success" });
 
   useEffect(() => {
@@ -77,6 +200,7 @@ const EmployeeHome = () => {
         
         if (payrollRes.ok) {
           const payrollData = await payrollRes.json();
+          setAllPayrolls(payrollData);
           setPayrolls(payrollData.slice(0, 3));
         }
 
@@ -200,6 +324,125 @@ const EmployeeHome = () => {
     year: 'numeric' 
   });
 
+  // Option 4 Focus Deck Data Derivations
+  const latestPayroll = allPayrolls.length > 0 ? allPayrolls[0] : null;
+
+  const latestCutoffLabel = useMemo(() => {
+    if (!latestPayroll) return "No Cutoff";
+    const s = new Date(latestPayroll.period_Start);
+    const e = new Date(latestPayroll.period_End);
+    return `${s.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${e.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+  }, [latestPayroll]);
+
+  const latestDeductionRate = useMemo(() => {
+    const gross = parseFloat(latestPayroll?.totalEarnings || 0);
+    const ded = parseFloat(latestPayroll?.totalDeductions || 0);
+    return gross > 0 ? ((ded / gross) * 100).toFixed(1) : "0.0";
+  }, [latestPayroll]);
+
+  // Layer 1: Take-Home Trajectory Data (Chronological oldest to newest)
+  const trajectoryData = useMemo(() => {
+    if (!allPayrolls || allPayrolls.length === 0) return [];
+    const sorted = [...allPayrolls].sort((a, b) => new Date(a.period_Start) - new Date(b.period_Start));
+    const recent = sorted.slice(-8);
+    return recent.map((p) => {
+      const end = new Date(p.period_End);
+      const start = new Date(p.period_Start);
+      return {
+        payrollId: p.payrollId,
+        cutoff: `${end.toLocaleDateString('en-US', { month: 'short' })} ${end.getDate()}`,
+        fullPeriod: `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`,
+        net: parseFloat(p.netPay || 0),
+        gross: parseFloat(p.totalEarnings || 0),
+        deductions: parseFloat(p.totalDeductions || 0),
+        daysWorked: p.NoDays_Worked || 0
+      };
+    });
+  }, [allPayrolls]);
+
+  // Layer 2: Statutory & Tax Distribution Data
+  const statutoryDistribution = useMemo(() => {
+    if (!latestPayroll) {
+      return { total: 0, chartData: [], breakdown: [] };
+    }
+    const tax = parseFloat(latestPayroll.Tax_Ded || 0);
+    const sss = parseFloat(latestPayroll.SSS_Ded || 0);
+    const philhealth = parseFloat(latestPayroll.Philhealth_Ded || 0);
+    const hdmf = parseFloat(latestPayroll.HDMF_Ded || 0);
+    const govDeds = philhealth + hdmf;
+    const loans = parseFloat(latestPayroll.SSS_Loan || 0) +
+                  parseFloat(latestPayroll.HDMF_Loan || 0) +
+                  parseFloat(latestPayroll.advances_Amnt || 0) +
+                  parseFloat(latestPayroll.healthCard_Amnt || 0) +
+                  parseFloat(latestPayroll.Other_Deductions || 0);
+
+    const total = tax + sss + govDeds + loans;
+    const safeTotal = total > 0 ? total : 1;
+
+    const breakdown = [
+      {
+        name: "Bureau of Internal Revenue (BIR Withholding Tax)",
+        shortName: "BIR Withholding Tax",
+        amount: tax,
+        color: "#1058c7",
+        percent: total > 0 ? ((tax / safeTotal) * 100).toFixed(1) : "0.0"
+      },
+      {
+        name: "Social Security System (SSS Share)",
+        shortName: "SSS Share",
+        amount: sss,
+        color: "#22c55e",
+        percent: total > 0 ? ((sss / safeTotal) * 100).toFixed(1) : "0.0"
+      },
+      {
+        name: "PhilHealth & Pag-IBIG (HDMF) Contributions",
+        shortName: "PhilHealth & Pag-IBIG",
+        amount: govDeds,
+        color: "#f59e0b",
+        percent: total > 0 ? ((govDeds / safeTotal) * 100).toFixed(1) : "0.0"
+      },
+      {
+        name: "Company Advances & Loan Amortizations",
+        shortName: "Company Loans & Advances",
+        amount: loans,
+        color: "#0284c7",
+        percent: total > 0 ? ((loans / safeTotal) * 100).toFixed(1) : "0.0"
+      }
+    ];
+
+    const chartData = breakdown
+      .filter((item) => item.amount > 0)
+      .map((item) => ({
+        name: item.shortName,
+        value: item.amount,
+        color: item.color,
+        percent: item.percent
+      }));
+
+    return { total, chartData, breakdown };
+  }, [latestPayroll]);
+
+  // Layer 3: Attendance vs Overtime Yield Data
+  const otYieldData = useMemo(() => {
+    if (!allPayrolls || allPayrolls.length === 0) return [];
+    const sorted = [...allPayrolls].sort((a, b) => new Date(a.period_Start) - new Date(b.period_Start));
+    const recent = sorted.slice(-8);
+    return recent.map((p) => {
+      const end = new Date(p.period_End);
+      const start = new Date(p.period_Start);
+      const otHours = parseFloat(p.NoHrs_Overtime || 0);
+      const otPay = parseFloat(p.overtime_Amnt || 0);
+      const daysWorked = parseFloat(p.NoDays_Worked || 0);
+      return {
+        cutoff: `${end.toLocaleDateString('en-US', { month: 'short' })} ${end.getDate()}`,
+        otHours,
+        otPay,
+        daysWorked,
+        fullPeriod: `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+      };
+    });
+  }, [allPayrolls]);
+
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
@@ -315,6 +558,26 @@ const EmployeeHome = () => {
                     </div>
                   </div>
                 </Card>
+              </div>
+
+              {/* Option 4: Focus Deck Skeleton */}
+              <div className="bg-white border-t-5 border-brand-primary rounded-2xl shadow-sm border border-slate-200/80 p-6 mb-8 w-full">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 gap-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Skeleton className="h-9 w-36 rounded-xl" />
+                    <Skeleton className="h-9 w-44 rounded-xl" />
+                    <Skeleton className="h-9 w-40 rounded-xl" />
+                  </div>
+                  <Skeleton className="h-4 w-48" />
+                </div>
+                <div className="pt-4 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Skeleton className="h-20 w-full rounded-xl" />
+                    <Skeleton className="h-20 w-full rounded-xl" />
+                    <Skeleton className="h-20 w-full rounded-xl" />
+                  </div>
+                  <Skeleton className="h-64 w-full rounded-xl" />
+                </div>
               </div>
 
               {/* Bottom Section: Timeline & Leave Balances Skeletons */}
@@ -782,6 +1045,226 @@ const EmployeeHome = () => {
               </div>
 
               <div className="h-6"></div>
+
+              {/* Option 4: Tabbed Multi-Layer Interactive Focus Deck */}
+              <div className="bg-white border-t-5 border-brand-primary rounded-2xl shadow-sm border border-slate-200/80 p-6 mb-8 w-full">
+                
+                {/* Deck Internal Tabs & Cutoff Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 gap-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveDeckLayer("trajectory")}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                        activeDeckLayer === "trajectory"
+                          ? "bg-brand-primary text-white shadow-xs"
+                          : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                      }`}
+                    >
+                      <TrendingUp className="h-3.5 w-3.5" />
+                      <span>Take-Home Trajectory</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveDeckLayer("distribution")}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                        activeDeckLayer === "distribution"
+                          ? "bg-brand-primary text-white shadow-xs"
+                          : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                      }`}
+                    >
+                      <PieChartIcon className="h-3.5 w-3.5" />
+                      <span>Statutory & Tax Distribution</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveDeckLayer("overtime")}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                        activeDeckLayer === "overtime"
+                          ? "bg-brand-primary text-white shadow-xs"
+                          : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                      }`}
+                    >
+                      <Clock className="h-3.5 w-3.5" />
+                      <span>Attendance vs OT Yield</span>
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+                    <span>Active Cutoff:</span>
+                    <strong className="text-slate-800">{latestCutoffLabel}</strong>
+                    <Link
+                      to="/employee/payroll"
+                      className="ml-2 text-brand-primary hover:underline font-bold inline-flex items-center gap-0.5"
+                    >
+                      <span>View All</span>
+                      <ArrowUpRight className="h-3.5 w-3.5" />
+                    </Link>
+                  </div>
+                </div>
+
+                {/* Deck Content Layers */}
+                {allPayrolls.length === 0 ? (
+                  <div className="py-12 flex flex-col items-center justify-center text-center text-slate-400">
+                    <Receipt className="h-10 w-10 text-slate-300 mb-2.5" />
+                    <p className="text-sm font-bold text-slate-700">No Payroll History Available Yet</p>
+                    <p className="text-xs text-slate-400 max-w-sm mt-1">
+                      Your payroll trajectory, statutory withholding distribution, and overtime analytics will appear here once your first payslip is approved.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Layer 1: Net Trajectory */}
+                    {activeDeckLayer === "trajectory" && (
+                      <div className="py-4 space-y-4 animate-in fade-in duration-300">
+                        {/* 3 Quick Stat Cards */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Gross Income</span>
+                            <p className="text-2xl font-black text-brand-primary mt-1">
+                              {formatCurrency(latestPayroll?.totalEarnings || 0)}
+                            </p>
+                            <span className="text-[11px] text-slate-500 italic">Latest Cutoff Release</span>
+                          </div>
+                          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Deductions</span>
+                            <p className="text-2xl font-black text-accent-gold mt-1">
+                              {formatCurrency(latestPayroll?.totalDeductions || 0)}
+                            </p>
+                            <span className="text-[11px] text-slate-500 italic">{latestDeductionRate}% deduction rate</span>
+                          </div>
+                          <div className="p-4 bg-emerald-50/50 rounded-xl border border-emerald-100">
+                            <span className="text-[10px] font-bold text-accent-green uppercase tracking-wider block">Credited Net Pay</span>
+                            <p className="text-2xl font-black text-accent-green mt-1">
+                              {formatCurrency(latestPayroll?.netPay || 0)}
+                            </p>
+                            <span className="text-[11px] text-emerald-700 italic">Deposited to payroll account</span>
+                          </div>
+                        </div>
+
+                        {/* Interactive Area Chart */}
+                        <div className="h-64 w-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={trajectoryData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                              <defs>
+                                <linearGradient id="homeDeckGradNet" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#1058c7" stopOpacity={0.25} />
+                                  <stop offset="95%" stopColor="#1058c7" stopOpacity={0.0} />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                              <XAxis dataKey="cutoff" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={{ stroke: "#e2e8f0" }} tickLine={false} />
+                              <YAxis tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(val) => `₱${val / 1000}k`} />
+                              <RechartsTooltip content={<TrajectoryDeckTooltip />} />
+                              <Area
+                                type="monotone"
+                                dataKey="net"
+                                stroke="#1058c7"
+                                strokeWidth={2.5}
+                                fillOpacity={1}
+                                fill="url(#homeDeckGradNet)"
+                                dot={{ r: 4, fill: "#1058c7", stroke: "#ffffff", strokeWidth: 2 }}
+                                activeDot={{ r: 6, fill: "#1058c7" }}
+                              />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Layer 2: Statutory Split (Donut + Ledger) */}
+                    {activeDeckLayer === "distribution" && (
+                      <div className="py-4 animate-in fade-in duration-300">
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+                          <div className="md:col-span-5 h-64 flex flex-col items-center justify-center relative">
+                            {statutoryDistribution.chartData.length > 0 ? (
+                              <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                  <Pie
+                                    data={statutoryDistribution.chartData}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={60}
+                                    outerRadius={85}
+                                    paddingAngle={4}
+                                    dataKey="value"
+                                  >
+                                    {statutoryDistribution.chartData.map((entry, index) => (
+                                      <Cell key={`cell-${index}`} fill={entry.color} />
+                                    ))}
+                                  </Pie>
+                                  <RechartsTooltip content={<DonutDeckTooltip />} />
+                                </PieChart>
+                              </ResponsiveContainer>
+                            ) : (
+                              <div className="flex flex-col items-center justify-center text-slate-400">
+                                <PieChartIcon className="h-10 w-10 text-slate-300 mb-2" />
+                                <p className="text-xs">Zero statutory deductions in this period.</p>
+                              </div>
+                            )}
+                            {statutoryDistribution.chartData.length > 0 && (
+                              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total</span>
+                                <span className="text-base font-black text-slate-800">{formatCurrency(statutoryDistribution.total)}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="md:col-span-7 space-y-3">
+                            <h4 className="font-bold text-sm text-slate-900 flex items-center justify-between">
+                              <span>Statutory & Withholding Summary</span>
+                              <span className="text-xs text-slate-500 font-semibold">Latest Cutoff</span>
+                            </h4>
+                            <div className="space-y-2 text-xs">
+                              {statutoryDistribution.breakdown.map((item, idx) => (
+                                <div key={idx} className="flex justify-between items-center p-2.5 bg-slate-50 rounded-xl border border-slate-100 hover:border-slate-200 transition-colors">
+                                  <span className="flex items-center gap-2.5 min-w-0 pr-2">
+                                    <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                                    <strong className="text-slate-700 font-medium truncate">{item.name}</strong>
+                                  </span>
+                                  <span className="font-bold text-slate-800 shrink-0">
+                                    {formatCurrency(item.amount)} <span className="text-slate-400 font-normal">({item.percent}%)</span>
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Layer 3: Attendance vs Overtime Yield */}
+                    {activeDeckLayer === "overtime" && (
+                      <div className="py-4 space-y-3 animate-in fade-in duration-300">
+                        <div className="h-64 w-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={otYieldData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                              <XAxis dataKey="cutoff" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={{ stroke: "#e2e8f0" }} tickLine={false} />
+                              <YAxis yAxisId="left" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} unit="h" />
+                              <YAxis
+                                yAxisId="right"
+                                orientation="right"
+                                tick={{ fill: "#64748b", fontSize: 11 }}
+                                axisLine={false}
+                                tickLine={false}
+                                tickFormatter={(val) => `₱${val >= 1000 ? `${(val / 1000).toFixed(0)}k` : val}`}
+                              />
+                              <RechartsTooltip content={<OtDeckTooltip />} />
+                              <Bar yAxisId="left" dataKey="otHours" name="Overtime Hours" fill="#0284c7" radius={[4, 4, 0, 0]} maxBarSize={32} />
+                              <Bar yAxisId="right" dataKey="otPay" name="OT Premium Pay" fill="#22c55e" radius={[4, 4, 0, 0]} maxBarSize={32} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <p className="text-xs text-slate-500 italic text-center">
+                          Dual-axis correlation comparing recorded overtime hours (blue, left axis) against gross overtime pay earned (green, right axis).
+                        </p>
+                      </div>
+                    )}
+                  </>
+                )}
+
+              </div>
 
               {/* Bottom Section: Timeline & Leave Balances */}
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 w-full mb-8">

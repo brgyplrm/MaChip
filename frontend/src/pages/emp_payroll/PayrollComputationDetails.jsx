@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import Sidebar from "../../components/Sidebar";
 import { fetchWithAuth } from "../../utils/api";
@@ -12,16 +12,9 @@ import {
   ChevronUp, 
   CalendarDays, 
   Receipt, 
-  Briefcase, 
-  Clock, 
-  Gift, 
-  Building2, 
-  AlertCircle, 
-  Wallet, 
-  Banknote,
-  ArrowRight
+  Wallet
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -32,54 +25,72 @@ import {
   TooltipTrigger 
 } from "@/components/ui/tooltip";
 
-const colorMap = {
-  "brand-primary": "border-brand-primary",
-  "accent-green": "border-accent-green",
-  "accent-gold": "border-accent-gold",
-  "status-info": "border-status-info",
-  "status-danger": "border-status-danger",
-  "amber-500": "border-amber-500",
-  "indigo-500": "border-status-info",
-  "blue-500": "border-status-info"
+const colorStyleMap = {
+  "brand-primary": {
+    border: "border-brand-primary",
+    text: "text-brand-primary",
+    iconBox: "bg-brand-primary/10 text-brand-primary",
+    subText: "text-brand-primary/70",
+  },
+  "accent-green": {
+    border: "border-accent-green",
+    text: "text-accent-green",
+    iconBox: "bg-accent-green/10 text-accent-green",
+    subText: "text-accent-green/70",
+  },
+  "accent-gold": {
+    border: "border-accent-gold",
+    text: "text-accent-gold",
+    iconBox: "bg-accent-gold/10 text-accent-gold",
+    subText: "text-accent-gold/70",
+  },
+  "status-info": {
+    border: "border-status-info",
+    text: "text-status-info",
+    iconBox: "bg-status-info/10 text-status-info",
+    subText: "text-status-info/70",
+  },
+  "status-danger": {
+    border: "border-status-danger",
+    text: "text-status-danger",
+    iconBox: "bg-status-danger/10 text-status-danger",
+    subText: "text-status-danger/70",
+  },
 };
 
 function MetricCard({ label, value, color, description, icon: Icon, tooltip }) {
+  const styles = colorStyleMap[color] || colorStyleMap["brand-primary"];
   return (
-    <Card className={`border-t-4 ${colorMap[color] || 'border-brand-primary'} bg-white py-0 h-full shadow-sm`}>
-      <CardContent className="p-5 flex flex-col justify-between h-full text-left">
-        <div className="flex justify-between items-start">
+    <Card className={`border-t-5 ${styles.border} bg-white py-0 h-full shadow-sm`}>
+      <CardContent className="px-5 py-5 flex justify-between h-full text-left">
+        <div className="flex flex-col justify-between">
           <div>
             <div className="flex items-center gap-1.5 mb-2">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{label}</p>
+              <p className={`text-xs font-bold ${styles.text} uppercase tracking-wider`}>{label}</p>
               {tooltip && (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="inline-flex items-center justify-center cursor-help">
-                      <HelpCircle className="h-3 w-3 text-brand-primary/60 hover:text-brand-primary" />
+                      <HelpCircle className={`h-3 w-3 ${styles.text}/60 hover:${styles.text}`} />
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case text-[10px]">
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case text-xs">
                     {tooltip}
                   </TooltipContent>
                 </Tooltip>
               )}
             </div>
-            <p className="text-2xl font-black text-brand-primary">{value}</p>
+            <p className={`text-4xl font-bold ${styles.text}`}>{value}</p>
           </div>
-          {Icon && (
-            <div className={`p-2.5 rounded-xl ${
-              color === 'emerald-500' ? 'bg-emerald-50 text-emerald-600' :
-              color === 'blue-500' ? 'bg-blue-50 text-blue-600' :
-              color === 'amber-500' ? 'bg-amber-50 text-amber-600' :
-              color === 'rose-500' ? 'bg-rose-50 text-rose-600' :
-              color === 'indigo-500' ? 'bg-indigo-50 text-indigo-600' :
-              'bg-brand-primary/10 text-brand-primary'
-            }`}>
-              <Icon className="h-5 w-5" />
-            </div>
+          {description && (
+            <p className={`text-xs ${styles.subText} italic mt-4`}>{description}</p>
           )}
         </div>
-        <p className="text-[10px] text-slate-500 italic mt-3">{description}</p>
+        {Icon && (
+          <div className={`${styles.iconBox} p-3 rounded-lg flex items-center justify-center shrink-0 self-start`}>
+            <Icon className="h-6 w-6" />
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -136,9 +147,9 @@ const PayrollComputationDetails = () => {
           </div>
 
           {/* Overview Statistical Cards Skeleton */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
             {[...Array(4)].map((_, i) => (
-              <Skeleton key={i} className="h-[124px] w-full rounded-xl" />
+              <Skeleton key={i} className="h-[128px] w-full rounded-xl" />
             ))}
           </div>
 
@@ -256,7 +267,7 @@ const PayrollComputationDetails = () => {
           </div>
 
           {/* Overview Statistical Cards (Admin MetricCard Pattern) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
             <MetricCard
               label="Gross Earnings"
               value={formatCurrency(payroll.totalEarnings)}

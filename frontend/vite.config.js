@@ -17,12 +17,31 @@ export default defineConfig({
   },
   server: {
     host: true, // This allows other devices on your WiFi to connect
-    allowedHosts: [".trycloudflare.com"],
+    allowedHosts: [".trycloudflare.com", ".ts.net"],
     proxy: {
       "/api": {
         target: "http://127.0.0.1:4000",
         changeOrigin: true,
         xfwd: true, // Automatically appends X-Forwarded-For header so Express receives real client LAN IPs
+        proxyTimeout: 60000,
+        timeout: 60000,
+      },
+      "/socket.io": {
+        target: "http://127.0.0.1:4000",
+        ws: true,
+        changeOrigin: true,
+      },
+    },
+  },
+  preview: {
+    host: true,
+    port: 5173,
+    allowedHosts: [".trycloudflare.com", ".ts.net"],
+    proxy: {
+      "/api": {
+        target: "http://127.0.0.1:4000",
+        changeOrigin: true,
+        xfwd: true,
         proxyTimeout: 60000,
         timeout: 60000,
       },

@@ -4,8 +4,6 @@ import Chart from "../../components/chart/Chart";
 import Table from "../../components/table/Table";
 import { ChevronLeft } from "lucide-react";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
-import PaymentsIcon from "@mui/icons-material/Payments";
-import WorkIcon from "@mui/icons-material/Work";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";

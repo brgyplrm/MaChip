@@ -110,3 +110,6 @@ scripts/run_all_scenarios.js
 scripts/qa_harness.js
 scripts/generate_architecture_pdf.js
 scripts/generate_architecture_pdf.js
+
+
+sidebar_layout_audit.csv

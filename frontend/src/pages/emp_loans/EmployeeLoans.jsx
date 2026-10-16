@@ -1,29 +1,30 @@
-import React, { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import Sidebar from "../../components/Sidebar";
 import { fetchWithAuth } from "../../utils/api";
 import {
-  Landmark,
   Wallet,
-  Calendar,
-  TrendingUp,
   CheckCircle2,
-  Clock,
-  ChevronRight,
-  Info,
-  FileText,
   Sparkles,
   Download,
   AlertCircle,
-  ArrowRight,
-  ExternalLink,
   ShieldCheck,
   CreditCard,
   PlusCircle,
   HelpCircle,
-  Layers,
-  ArrowUpRight
+  ArrowUpRight,
+  Flag
 } from "lucide-react";
+import { 
+  ResponsiveContainer, 
+  AreaChart, 
+  Area, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip as RechartsTooltip 
+} from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,11 +44,59 @@ import {
   SheetClose
 } from "@/components/ui/sheet";
 
+const LoanBurnDownTooltip = ({ active, payload }) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    return (
+      <div className="bg-slate-900 text-white rounded-xl p-3.5 shadow-xl border border-slate-800 text-xs min-w-[220px] space-y-2">
+        <div className="border-b border-slate-800 pb-1.5 flex justify-between items-center">
+          <div>
+            <p className="font-bold text-slate-200">{data.cutoff}</p>
+            <p className="text-[10px] text-slate-400">{data.fullDate}</p>
+          </div>
+          <span className="text-[10px] bg-brand-primary/20 text-brand-primary border border-brand-primary/30 px-2 py-0.5 rounded font-mono font-bold">
+            {data.activeCount} Active
+          </span>
+        </div>
+
+        <div className="space-y-1.5">
+          <div className="flex justify-between items-center">
+            <span className="flex items-center gap-1.5 text-brand-primary font-semibold">
+              <span className="w-2 h-2 rounded-full bg-brand-primary"></span> Remaining Debt:
+            </span>
+            <span className="font-bold text-white">₱{data.balance.toLocaleString()}</span>
+          </div>
+
+          <div className="flex justify-between items-center">
+            <span className="flex items-center gap-1.5 text-accent-green font-semibold">
+              <span className="w-2 h-2 rounded-full bg-accent-green"></span> Cutoff Deduction:
+            </span>
+            <span className="font-semibold text-slate-300">₱{data.deduction.toLocaleString()}</span>
+          </div>
+
+          {data.milestone && (
+            <div className="pt-1.5 border-t border-slate-800 text-[11px] text-emerald-400 flex items-start gap-1 font-medium">
+              <Sparkles className="h-3.5 w-3.5 shrink-0 mt-0.5 text-emerald-400" />
+              <span>{data.milestone}</span>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
+
 export default function EmployeeLoans() {
   const [loading, setLoading] = useState(true);
   const [loans, setLoans] = useState([]);
   const [summary, setSummary] = useState(null);
   const [error, setError] = useState(null);
+
+  // Trajectory Chart States
+  const [loanHorizon, setLoanHorizon] = useState("full"); // "full" | "6m"
+  const [showBalance, setShowBalance] = useState(true);
+  const [showDeduction, setShowDeduction] = useState(true);
 
   // Drawer state for selected loan ledger
   const [selectedLoanId, setSelectedLoanId] = useState(null);
@@ -126,6 +175,117 @@ export default function EmployeeLoans() {
 
   const activeLoans = useMemo(() => loans.filter(l => l.status === "active"), [loans]);
   const completedLoans = useMemo(() => loans.filter(l => l.status !== "active"), [loans]);
+
+  // Dynamic Burn-Down Projection Time Series
+  const burnDownData = useMemo(() => {
+    if (!summary || activeLoans.length === 0) return [];
+
+    const now = new Date();
+    const getNextCutoffDate = (currentDate) => {
+      const d = new Date(currentDate);
+      if (d.getDate() < 15) {
+        return new Date(d.getFullYear(), d.getMonth(), 15);
+      } else {
+        return new Date(d.getFullYear(), d.getMonth() + 1, 0);
+      }
+    };
+
+    const getFollowingCutoff = (cutoffDate) => {
+      const d = new Date(cutoffDate);
+      if (d.getDate() === 15) {
+        return new Date(d.getFullYear(), d.getMonth() + 1, 0);
+      } else {
+        return new Date(d.getFullYear(), d.getMonth() + 1, 15);
+      }
+    };
+
+    let currentLoanStates = activeLoans.map(l => ({
+      id: l.id,
+      title: l.title,
+      remaining: parseFloat(l.remainingBalance || 0),
+      deduction: parseFloat(l.deductionPerCutoff || 0),
+      payoffDate: l.payoffDate ? new Date(l.payoffDate) : null,
+      isCleared: false
+    }));
+
+    let currentBalance = currentLoanStates.reduce((sum, l) => sum + l.remaining, 0);
+    let currentDeduction = currentLoanStates.reduce((sum, l) => sum + l.deduction, 0);
+
+    const points = [];
+
+    // Point 0: Current Point
+    points.push({
+      cutoff: "Current",
+      fullDate: "Present Portfolio State",
+      balance: Math.round(currentBalance),
+      deduction: Math.round(currentDeduction),
+      milestone: null,
+      activeCount: currentLoanStates.length
+    });
+
+    let iterDate = getNextCutoffDate(now);
+    let guard = 0;
+
+    while (currentBalance > 0 && guard < 36) {
+      guard++;
+      const cutoffLabel = `${iterDate.toLocaleDateString("en-US", { month: "short" })} ${iterDate.getDate()}`;
+      const cutoffFull = iterDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+      
+      let newlyCleared = [];
+
+      currentLoanStates = currentLoanStates.map(loan => {
+        if (loan.isCleared) return loan;
+
+        const nextRem = Math.max(0, loan.remaining - loan.deduction);
+        const reachedPayoff = (loan.payoffDate && iterDate >= loan.payoffDate) || nextRem <= 0;
+
+        if (reachedPayoff && !loan.isCleared) {
+          newlyCleared.push(loan);
+          return {
+            ...loan,
+            remaining: 0,
+            deduction: 0,
+            isCleared: true
+          };
+        }
+
+        return {
+          ...loan,
+          remaining: nextRem
+        };
+      });
+
+      currentBalance = currentLoanStates.reduce((sum, l) => sum + l.remaining, 0);
+      currentDeduction = currentLoanStates.reduce((sum, l) => sum + l.deduction, 0);
+      const remainingActive = currentLoanStates.filter(l => !l.isCleared).length;
+
+      let milestoneText = null;
+      if (newlyCleared.length > 0) {
+        if (remainingActive === 0) {
+          milestoneText = `100% Debt-Free! All loans cleared.`;
+        } else {
+          milestoneText = `${newlyCleared.map(l => l.title).join(", ")} Cleared (+₱${newlyCleared.reduce((s, l) => s + l.deduction, 0)}/cutoff)`;
+        }
+      }
+
+      points.push({
+        cutoff: cutoffLabel,
+        fullDate: cutoffFull,
+        balance: Math.round(currentBalance),
+        deduction: Math.round(currentDeduction),
+        milestone: milestoneText,
+        activeCount: remainingActive
+      });
+
+      iterDate = getFollowingCutoff(iterDate);
+    }
+
+    if (loanHorizon === "6m") {
+      return points.slice(0, 13);
+    }
+
+    return points;
+  }, [summary, activeLoans, loanHorizon]);
 
   // Color theme mapper
   const getLoanTheme = (color) => {
@@ -207,137 +367,243 @@ export default function EmployeeLoans() {
               </div>
             )}
 
-            {/* 1. TOP METRIC CARDS (Proposal 5 Layout) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-              {/* Card 1: Total Outstanding */}
-              <Card className="border-t-4 border-brand-primary bg-white shadow-xs hover:shadow-md transition-shadow">
-                <CardContent className="px-4 flex flex-col justify-between h-full">
-                  <div>
-                    <div className="flex items-center justify-between text-slate-500 mb-1.5">
-                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Total Outstanding</span>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <HelpCircle className="h-3.5 w-3.5 text-slate-400 hover:text-brand-primary cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs max-w-xs">
-                          Combined remaining balance across all active loans, calculated from original principal minus total processed ledger deductions.
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    {loading ? (
-                      <Skeleton className="h-8 w-32 my-1" />
-                    ) : (
-                      <div className="text-2xl sm:text-3xl font-bold text-brand-primary font-mono">
-                        PHP {summary?.totalOutstanding || "0.00"}
-                      </div>
-                    )}
+            {/* 1. DEBT BURN-DOWN TRAJECTORY HERO (Option 1) */}
+            <Card className=" bg-white rounded-2xl shadow-xs overflow-hidden mb-6 py-0">
+              {/* Header & Integrated Quick KPI Strip */}
+              <CardHeader className="p-4 sm:p-5 md:p-6 border-b border-slate-100 bg-slate-50/40 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <CardTitle className="text-base sm:text-lg font-bold text-slate-900">
+                      Debt Burn-Down &amp; Amortization Horizon
+                    </CardTitle>
+                    <Badge variant="secondary" className="bg-brand-primary/10 text-brand-primary font-bold text-[10px] px-2 py-0.5 rounded-md uppercase tracking-wider">
+                      {summary?.activeLoansCount || 0} Active Stream{summary?.activeLoansCount === 1 ? "" : "s"}
+                    </Badge>
                   </div>
-                  <div className="text-xs text-slate-500 mt-3 font-medium">
-                    Across {summary?.activeLoansCount || 0} concurrent active loan{summary?.activeLoansCount === 1 ? "" : "s"}
-                  </div>
-                </CardContent>
-              </Card>
+                  <p className="text-xs text-slate-500">
+                    Projected balance reduction across future semi-monthly cutoffs through final maturity
+                  </p>
+                </div>
 
-              {/* Card 2: Next Cutoff Deduction */}
-              <Card className="border-t-4 border-amber-500 bg-white shadow-xs hover:shadow-md transition-shadow">
-                <CardContent className="px-4 flex flex-col justify-between h-full">
-                  <div>
-                    <div className="flex items-center justify-between text-slate-500 mb-1.5">
-                      <span className="text-xs font-bold uppercase tracking-wider text-amber-600">Next Cutoff Deduction</span>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <HelpCircle className="h-3.5 w-3.5 text-slate-400 hover:text-amber-600 cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs max-w-xs">
-                          Total scheduled deduction across all concurrent active loans on your upcoming paycheck.
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    {loading ? (
-                      <Skeleton className="h-8 w-32 my-1" />
-                    ) : (
-                      <div className="text-2xl sm:text-3xl font-bold text-amber-700 font-mono">
-                        PHP {summary?.nextCutoffDeduction || "0.00"}
+                {/* Integrated 4-Metric Strip */}
+                <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
+                  {/* Total Outstanding */}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="bg-white border border-slate-200/90 rounded-xl px-3.5 py-2 flex items-center gap-2.5 shadow-xs cursor-help">
+                        <div className="h-8 w-8 rounded-lg bg-brand-primary/10 text-brand-primary flex items-center justify-center shrink-0">
+                          <Wallet className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Balance</p>
+                          <p className="text-sm font-black text-slate-900">₱{summary?.totalOutstanding || "0.00"}</p>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                  <div className="text-xs text-amber-700/80 mt-3 font-medium flex items-center gap-1.5">
-                    <Clock className="h-3.5 w-3.5 shrink-0" /> Scheduled for next payroll release
-                  </div>
-                </CardContent>
-              </Card>
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                      Combined principal balance across all active loans
+                    </TooltipContent>
+                  </Tooltip>
 
-              {/* Card 3: Earliest Payoff Milestone */}
-              <Card className="border-t-4 border-emerald-500 bg-white shadow-xs hover:shadow-md transition-shadow">
-                <CardContent className="px-4 flex flex-col justify-between h-full">
-                  <div>
-                    <div className="flex items-center justify-between text-slate-500 mb-1.5">
-                      <span className="text-xs font-bold uppercase tracking-wider text-emerald-600">Earliest Payoff Milestone</span>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <HelpCircle className="h-3.5 w-3.5 text-slate-400 hover:text-emerald-600 cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs max-w-xs">
-                          First loan scheduled to mature. Its completion will immediately restore net take-home pay to your paycheck.
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    {loading ? (
-                      <Skeleton className="h-8 w-32 my-1" />
-                    ) : (
-                      <div className="text-2xl sm:text-3xl font-bold text-emerald-700 font-mono">
-                        {summary?.earliestPayoff ? summary.earliestPayoff.payoffDate : "None"}
+                  {/* Next Cutoff Deduction */}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="bg-white border border-slate-200/90 rounded-xl px-3.5 py-2 flex items-center gap-2.5 shadow-xs cursor-help">
+                        <div className="h-8 w-8 rounded-lg bg-accent-gold/10 text-accent-gold flex items-center justify-center shrink-0">
+                          <CreditCard className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Next Cutoff</p>
+                          <p className="text-sm font-black text-accent-gold">₱{summary?.nextCutoffDeduction || "0.00"}</p>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                  <div className="text-xs text-emerald-700 mt-3 font-medium flex items-center gap-1.5">
-                    {summary?.earliestPayoff ? (
-                      <>
-                        <span>+PHP {summary.earliestPayoff.freedPerCutoff}/cutoff freed ({summary.earliestPayoff.cutoffsRemaining} cutoffs left)</span>
-                      </>
-                    ) : (
-                      <span>No pending loan payoffs</span>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                      Total parallel deduction scheduled on your upcoming paycheck
+                    </TooltipContent>
+                  </Tooltip>
 
-              {/* Card 4: Debt-Free Target */}
-              <Card className="border-t-4 border-sky-500 bg-white shadow-xs hover:shadow-md transition-shadow">
-                <CardContent className="px-4 flex flex-col justify-between h-full">
-                  <div>
-                    <div className="flex items-center justify-between text-slate-500 mb-1.5">
-                      <span className="text-xs font-bold uppercase tracking-wider text-sky-600">Debt-Free Target</span>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <HelpCircle className="h-3.5 w-3.5 text-slate-400 hover:text-sky-600 cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs max-w-xs">
-                          Final projected maturity date when 100% of your earnings will be retained free of deductions.
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    {loading ? (
-                      <Skeleton className="h-8 w-32 my-1" />
-                    ) : (
-                      <div className="text-2xl sm:text-3xl font-bold text-sky-700 font-mono">
-                        {summary?.debtFreeTarget ? summary.debtFreeTarget.payoffDate : "Debt-Free"}
+                  {/* Earliest Relief */}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="bg-white border border-slate-200/90 rounded-xl px-3.5 py-2 flex items-center gap-2.5 shadow-xs cursor-help">
+                        <div className="h-8 w-8 rounded-lg bg-accent-green/10 text-accent-green flex items-center justify-center shrink-0">
+                          <CheckCircle2 className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Earliest Relief</p>
+                          <p className="text-sm font-black text-accent-green">
+                            {summary?.earliestPayoff ? summary.earliestPayoff.payoffDate : "None"}
+                          </p>
+                        </div>
                       </div>
-                    )}
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                      {summary?.earliestPayoff
+                        ? `${summary.earliestPayoff.title} clears, freeing +₱${summary.earliestPayoff.freedPerCutoff}/cutoff`
+                        : "No active loans pending payoff"}
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              </CardHeader>
+
+              <CardContent className="p-4 sm:p-5 md:p-6 space-y-4">
+                {/* Filter & Series Toggles Toolbar */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  {/* Horizon Range Buttons */}
+                  <div className="inline-flex p-1 bg-slate-100 rounded-lg w-fit">
+                    <button
+                      type="button"
+                      onClick={() => setLoanHorizon("full")}
+                      className={`px-3 py-1 font-semibold rounded-md transition-all text-xs ${
+                        loanHorizon === "full"
+                          ? "bg-white text-slate-900 shadow-xs"
+                          : "text-slate-500 hover:text-slate-900"
+                      }`}
+                    >
+                      Full Horizon ({burnDownData.length > 0 ? `${burnDownData.length - 1} Cutoffs` : "0"})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLoanHorizon("6m")}
+                      className={`px-3 py-1 font-semibold rounded-md transition-all text-xs ${
+                        loanHorizon === "6m"
+                          ? "bg-white text-slate-900 shadow-xs"
+                          : "text-slate-500 hover:text-slate-900"
+                      }`}
+                    >
+                      Next 6 Months
+                    </button>
                   </div>
-                  <div className="text-xs text-sky-700 mt-3 font-medium flex items-center gap-1.5">
-                    {summary?.debtFreeTarget ? (
-                      <>
-                        <TrendingUp className="h-3.5 w-3.5 shrink-0" />
-                        <span>+PHP {summary.debtFreeTarget.totalRestoredMonthly}/mo 100% restored</span>
-                      </>
-                    ) : (
-                      <span>Full wage retention active</span>
-                    )}
+
+                  {/* Series Toggle Checkboxes */}
+                  <div className="flex items-center gap-4 text-xs font-semibold flex-wrap">
+                    <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={showBalance}
+                        onChange={(e) => setShowBalance(e.target.checked)}
+                        className="rounded text-brand-primary focus:ring-brand-primary/30 h-3.5 w-3.5 accent-[#1058c7]"
+                      />
+                      <span className="inline-block w-2.5 h-2.5 rounded-full bg-brand-primary"></span>
+                      <span className={showBalance ? "text-slate-800 font-bold" : "text-slate-400 line-through"}>
+                        Remaining Liability (₱)
+                      </span>
+                    </label>
+
+                    <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={showDeduction}
+                        onChange={(e) => setShowDeduction(e.target.checked)}
+                        className="rounded text-accent-green focus:ring-accent-green/30 h-3.5 w-3.5 accent-[#92b71b]"
+                      />
+                      <span className="inline-block w-2.5 h-2.5 rounded-full bg-accent-green"></span>
+                      <span className={showDeduction ? "text-slate-800 font-bold" : "text-slate-400 line-through"}>
+                        Cutoff Deduction (₱)
+                      </span>
+                    </label>
                   </div>
-                </CardContent>
-              </Card>
-            </div>
+                </div>
+
+                {/* Chart Body */}
+                {loading ? (
+                  <div className="h-72 w-full flex flex-col justify-center items-center gap-3">
+                    <Skeleton className="h-60 w-full rounded-xl" />
+                  </div>
+                ) : activeLoans.length === 0 ? (
+                  <div className="h-64 w-full flex flex-col justify-center items-center text-center p-6 bg-emerald-50/40 rounded-xl border border-dashed border-emerald-200">
+                    <div className="p-3.5 rounded-full bg-emerald-100 text-emerald-700 mb-3">
+                      <ShieldCheck className="h-8 w-8" />
+                    </div>
+                    <p className="font-bold text-emerald-900 text-base">Congratulations! You are 100% Debt-Free</p>
+                    <p className="text-emerald-700 text-xs mt-1 max-w-md">
+                      There are zero active loan amortizations deducting from your salary. 100% of your earned compensation is credited directly to your bank account.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="h-72 sm:h-80 w-full pt-2">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={burnDownData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="balanceGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#1058c7" stopOpacity={0.25} />
+                            <stop offset="95%" stopColor="#1058c7" stopOpacity={0.0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis 
+                          dataKey="cutoff" 
+                          axisLine={false} 
+                          tickLine={false} 
+                          tick={{ fill: "#64748b", fontSize: 11 }} 
+                        />
+                        <YAxis 
+                          yAxisId="balance"
+                          axisLine={false} 
+                          tickLine={false} 
+                          tickFormatter={(val) => `₱${(val / 1000).toFixed(0)}k`} 
+                          tick={{ fill: "#64748b", fontSize: 11 }} 
+                        />
+                        <YAxis 
+                          yAxisId="deduction"
+                          orientation="right"
+                          axisLine={false} 
+                          tickLine={false} 
+                          tickFormatter={(val) => `₱${val}`} 
+                          tick={{ fill: "#92b71b", fontSize: 11 }} 
+                        />
+                        <RechartsTooltip content={<LoanBurnDownTooltip />} />
+
+                        {showBalance && (
+                          <Area 
+                            yAxisId="balance"
+                            type="monotone" 
+                            dataKey="balance" 
+                            name="Remaining Debt"
+                            stroke="#1058c7" 
+                            fillOpacity={1} 
+                            fill="url(#balanceGradient)" 
+                            strokeWidth={3} 
+                            dot={{ r: 3, fill: '#1058c7', strokeWidth: 1, stroke: '#fff' }}
+                            activeDot={{ r: 6, fill: '#1058c7', stroke: '#fff', strokeWidth: 2 }}
+                          />
+                        )}
+
+                        {showDeduction && (
+                          <Line 
+                            yAxisId="deduction"
+                            type="stepAfter" 
+                            dataKey="deduction" 
+                            name="Cutoff Deduction"
+                            stroke="#92b71b" 
+                            strokeWidth={2.5} 
+                            strokeDasharray="4 4"
+                            dot={{ r: 2.5, fill: '#92b71b' }}
+                            activeDot={{ r: 5, fill: '#92b71b', stroke: '#fff', strokeWidth: 2 }}
+                          />
+                        )}
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+
+                {/* Footer Milestones Callout */}
+                {summary?.earliestPayoff && (
+                  <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between text-xs text-slate-500 gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md font-bold text-[11px] border border-emerald-100">
+                        <Flag className="h-3 w-3" /> Next Relief: {summary.earliestPayoff.payoffDate}
+                      </span>
+                      <span>
+                        {summary.earliestPayoff.title} cleared (+₱{summary.earliestPayoff.freedPerCutoff}/cutoff restored to take-home pay).
+                      </span>
+                    </div>
+                    <span className="italic text-slate-400 text-[11px]">Values calculated from append-only loan deduction ledger</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             {/* 2. CONCURRENT REPAYMENT STREAMS (Proposal 5 Visual Roadmap) */}
             {activeLoans.length > 0 && (

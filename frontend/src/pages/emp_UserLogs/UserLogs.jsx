@@ -1,9 +1,6 @@
-import React, { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Sidebar from "../../components/Sidebar";
-import HistoryIcon from '@mui/icons-material/History';
 import SearchIcon from "@mui/icons-material/Search";
-import FilterListIcon from "@mui/icons-material/FilterList";
-import CloseIcon from "@mui/icons-material/Close";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import ViewTimelineIcon from '@mui/icons-material/ViewTimeline';
@@ -16,7 +13,6 @@ import Toast from "../../components/toast/Toast";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -695,7 +691,7 @@ const UserLogs = () => {
                   <TooltipTrigger asChild>
                     <Button 
                       onClick={activeTab === "dtr" ? handleDownloadDTR : handleDownloadRawLogs}
-                      className="w-full sm:w-auto bg-brand-primary text-white hover:bg-[#7A52B5] shadow-sm"
+                      className="w-full sm:w-auto bg-brand-primary text-white hover:bg-brand-primary-hover shadow-sm"
                     >
                       <FileDownloadIcon className="mr-2 h-4 w-4" /> Download PDF
                     </Button>
@@ -932,7 +928,7 @@ const UserLogs = () => {
                                 }
   
                                 return (
-                                  <TableRow key={dateStr} className={`hover:bg-slate-50/50 ${dateStr === todayStr ? "bg-blue-50/30 border-l-4 border-brand-primary" : ""}`}>
+                                  <TableRow key={dateStr} className={`hover:bg-slate-50/50 ${dateStr === todayStr ? "bg-blue-50/30 border-l-4 border-brand-primary-semi-dark" : ""}`}>
                                     <TableCell className="font-medium text-slate-700">
                                       {targetDate.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
                                     </TableCell>
@@ -1294,7 +1290,7 @@ const UserLogs = () => {
                                   
                                   return (
                                     <TableRow key={i} className="hover:bg-slate-50/50 border-b-slate-100 transition-colors">
-                                      <TableCell className="font-bold text-brand-primary px-6 py-4">
+                                      <TableCell className="font-bold text-brand-primary-semi-dark px-6 py-4">
                                         {log.log_Date ? new Date(log.log_Date).toLocaleDateString() : "—"}
                                       </TableCell>
                                       <TableCell className="text-slate-600 font-mono text-[13px] py-4">

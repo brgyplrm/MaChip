@@ -645,7 +645,7 @@ const Sidebar = ({ children }) => {
   );
 
   const subMenuButtonClass = (active) => cn(
-    "transition-all duration-200 !h-8 px-3 rounded-md flex items-center w-full text-gray-500 hover:bg-[#f7f2fe] hover:text-brand-primary",
+    "transition-all duration-200 !h-8 px-3 rounded-md flex items-center w-full text-gray-500 hover:bg-brand-primary-light hover:text-brand-primary",
     active ? "bg-brand-primary-light text-brand-primary" : ""
   );
 

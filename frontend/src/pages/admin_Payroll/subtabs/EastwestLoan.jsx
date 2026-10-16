@@ -9,7 +9,6 @@ import { HistoryIcon } from "lucide-react";
 import Toast from "../../../components/toast/Toast";
 import { formatDateLocal, isInSamePeriod } from "../../../utils/formatTime";
 import { Link } from "react-router-dom";
-import { User } from "lucide-react";
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
