@@ -24,10 +24,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
 import { Switch } from "@/components/ui/switch";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const nameRegex = /^[a-zA-Z\s\-']+$/;
+const phoneRegex = /^(09|\+639)\d{9}$|^\d{11}$/;
 
 const getMiddleInitial = (middleName) => {
   if (!middleName || !middleName.trim()) return "";
@@ -83,7 +86,7 @@ const New = ({ inputs = [], title }) => {
 
   // Group fields logically (Removed account_number as it's explicitly rendered now)
   const step1Fields = ["user_Email"];
-  const step2Fields = ["user_Role", "user_EmploymentStatus", "user_Id", "department", "position", "taxStatus"];
+  const step2Fields = ["user_Role", "user_EmploymentStatus", "user_Id", "department", "position", "hireDate", "taxStatus"];
   const step3Fields = ["user_Password", "user_MachipId", "user_FingerprintId"];
 
   // Single Registration State
@@ -107,6 +110,7 @@ const New = ({ inputs = [], title }) => {
     department: "",
     position: "",
     position_id: "",
+    hireDate: new Date().toISOString().split("T")[0],
     taxStatus: "S",
     dailyRate: "",
     is_attendance_exempt: false,
@@ -118,6 +122,10 @@ const New = ({ inputs = [], title }) => {
     bank_Company: "UnionBank of the Philippines",
     bank_AccountName: "",
   });
+
+  const [showMachipId, setShowMachipId] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
 
   // Batch Upload State
   const [batchLoading, setBatchLoading] = useState(false);
@@ -198,10 +206,23 @@ const New = ({ inputs = [], title }) => {
       return updated;
     });
 
+    setIsDirty(true);
+
     if (errors[id]) {
       setErrors((prev) => ({ ...prev, [id]: "" }));
     }
   };
+
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isDirty]);
 
   const handleIdBlur = () => {
     if (displayId) {
@@ -343,39 +364,61 @@ const New = ({ inputs = [], title }) => {
   };
 
   // Stepper Validation Logic
-  const validateStep = (step) => {
+  const getStepErrors = (step) => {
     const newErrors = {};
     if (step === 1) {
-      if (!formData.user_FirstName.trim()) newErrors.user_FirstName = "Required";
-      if (!formData.user_LastName.trim()) newErrors.user_LastName = "Required";
-      if (!formData.user_Email?.trim()) newErrors.user_Email = "Required";
-      else if (!EMAIL_REGEX.test(formData.user_Email.trim())) newErrors.user_Email = "Invalid email format";
-      if (!formData.user_Phone?.trim()) newErrors.user_Phone = "Phone is required";
-      if (!formData.user_Address?.trim()) newErrors.user_Address = "Address is required";
+      if (!formData.user_FirstName?.trim()) {
+        newErrors.user_FirstName = "First name is required";
+      } else if (!nameRegex.test(formData.user_FirstName.trim())) {
+        newErrors.user_FirstName = "First name cannot contain numbers or special characters";
+      }
+      if (!formData.user_LastName?.trim()) {
+        newErrors.user_LastName = "Last name is required";
+      } else if (!nameRegex.test(formData.user_LastName.trim())) {
+        newErrors.user_LastName = "Last name cannot contain numbers or special characters";
+      }
+      if (formData.user_MiddleName?.trim()) {
+        if (!nameRegex.test(formData.user_MiddleName.trim())) {
+          newErrors.user_MiddleName = "Middle name cannot contain numbers or special characters";
+        }
+      }
+      if (!formData.user_Email?.trim()) {
+        newErrors.user_Email = "Email is required";
+      } else if (!EMAIL_REGEX.test(formData.user_Email.trim())) {
+        newErrors.user_Email = "Invalid email format";
+      }
+      if (!formData.user_Phone?.trim()) {
+        newErrors.user_Phone = "Phone number is required";
+      } else if (!phoneRegex.test(formData.user_Phone.trim().replace(/[-\s]/g, ""))) {
+        newErrors.user_Phone = "Valid 11-digit phone number is required (e.g. 09123456789)";
+      }
+      if (!formData.user_Address?.trim()) {
+        newErrors.user_Address = "Home address is required";
+      }
     } else if (step === 2) {
-      if (!formData.user_Role) newErrors.user_Role = "Required";
+      if (!formData.user_Role) newErrors.user_Role = "Role is required";
+      if (!formData.user_EmploymentStatus) newErrors.user_EmploymentStatus = "Employment Status is required";
       if (!formData.department?.trim()) newErrors.department = "Department is required";
       if (!formData.position?.trim()) newErrors.position = "Position is required";
+      if (!formData.hireDate) newErrors.hireDate = "Date Hired is required";
       if (!formData.taxStatus) newErrors.taxStatus = "Tax Status is required";
-      if (!formData.user_Role) newErrors.user_Role = "Required";
-      if (!formData.user_EmploymentStatus) newErrors.user_EmploymentStatus = "Required";
-      if (!formData.bank_Company) newErrors.bank_Company = "Required";
-      if (!formData.bank_AccountName?.trim()) newErrors.bank_AccountName = "Required";
       if (!formData.dailyRate || parseFloat(formData.dailyRate) <= 0) newErrors.dailyRate = "Valid Daily Rate is required";
+      if (!formData.bank_Company) newErrors.bank_Company = "Bank is required";
+      if (!formData.bank_AccountName?.trim()) newErrors.bank_AccountName = "Account Name is required";
       const accNum = formData.account_Number?.trim() || "";
       if (!accNum) {
-        newErrors.account_Number = "Required";
+        newErrors.account_Number = "Account Number is required";
       } else if (!/^\d+$/.test(accNum)) {
-        newErrors.account_Number = "Account number must contain numbers only.";
+        newErrors.account_Number = "Account number must contain numbers only";
       } else if (accNum.length < 12) {
         const missing = 12 - accNum.length;
-        newErrors.account_Number = `Account number must be 12 or 15 digits (${missing} more digit${missing > 1 ? "s" : ""} required).`;
+        newErrors.account_Number = `Account number must be 12 or 15 digits (${missing} more digit${missing > 1 ? "s" : ""} required)`;
       } else if (accNum.length > 12 && accNum.length < 15) {
         const missing = 15 - accNum.length;
-        newErrors.account_Number = `Account number must be 12 or 15 digits (${missing} more digit${missing > 1 ? "s" : ""} required for 15 digits).`;
+        newErrors.account_Number = `Account number must be 12 or 15 digits (${missing} more digit${missing > 1 ? "s" : ""} required for 15 digits)`;
       } else if (accNum.length > 15) {
         const extra = accNum.length - 15;
-        newErrors.account_Number = `Account number must be 12 or 15 digits (${extra} digit${extra > 1 ? "s" : ""} over limit).`;
+        newErrors.account_Number = `Account number must be 12 or 15 digits (${extra} digit${extra > 1 ? "s" : ""} over limit)`;
       }
     } else if (step === 3) {
       const pwd = formData.user_Password || "";
@@ -393,16 +436,45 @@ const New = ({ inputs = [], title }) => {
         newErrors.user_Password = "Password must include at least one special character (!@#$%^&*).";
       }
     }
-    
+    return newErrors;
+  };
+
+  const validateStep = (step) => {
+    const newErrors = getStepErrors(step);
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleNextStep = () => {
-    if (validateStep(activeStep)) {
+    const newErrors = getStepErrors(activeStep);
+    setErrors(newErrors);
+    if (Object.keys(newErrors).length === 0) {
       setActiveStep((prev) => prev + 1);
     } else {
-      setToast({ message: "Please check the required fields.", type: "error" });
+      const fieldLabels = {
+        user_FirstName: "First Name",
+        user_LastName: "Last Name",
+        user_MiddleName: "Middle Name",
+        user_Email: "Email Address",
+        user_Phone: "Phone Number",
+        user_Address: "Home Address",
+        user_Role: "System Role",
+        user_EmploymentStatus: "Employment Status",
+        department: "Department",
+        position: "Position",
+        hireDate: "Date Hired",
+        taxStatus: "Tax Status",
+        dailyRate: "Base Daily Rate",
+        bank_Company: "Bank Company",
+        bank_AccountName: "Account Name",
+        account_Number: "Account Number",
+        user_Password: "Password"
+      };
+      const missingList = Object.keys(newErrors).map(k => fieldLabels[k] || k);
+      setToast({ 
+        message: `Please complete required fields: ${missingList.slice(0, 3).join(", ")}${missingList.length > 3 ? "..." : ""}`, 
+        type: "error" 
+      });
     }
   };
 
@@ -412,8 +484,42 @@ const New = ({ inputs = [], title }) => {
 
   const handleSubmit = async (e) => {
     if (e) e.preventDefault();
-    if (!validateStep(3)) return; // Final validation pass
     if (loading) return;
+
+    const fieldLabels = {
+      user_FirstName: "First Name",
+      user_LastName: "Last Name",
+      user_MiddleName: "Middle Name",
+      user_Email: "Email Address",
+      user_Phone: "Phone Number",
+      user_Address: "Home Address",
+      user_Role: "System Role",
+      user_EmploymentStatus: "Employment Status",
+      department: "Department",
+      position: "Position",
+      hireDate: "Date Hired",
+      taxStatus: "Tax Status",
+      dailyRate: "Base Daily Rate",
+      bank_Company: "Bank Company",
+      bank_AccountName: "Account Name",
+      account_Number: "Account Number",
+      user_Password: "Password"
+    };
+
+    // Validate ALL 3 steps sequentially and redirect user if earlier step is invalid
+    for (let s = 1; s <= 3; s++) {
+      const stepErrs = getStepErrors(s);
+      if (Object.keys(stepErrs).length > 0) {
+        setErrors(stepErrs);
+        setActiveStep(s);
+        const missingList = Object.keys(stepErrs).map(k => fieldLabels[k] || k);
+        setToast({ 
+          message: `Step ${s} has errors: ${missingList.slice(0, 3).join(", ")}${missingList.length > 3 ? "..." : ""}`, 
+          type: "error" 
+        });
+        return;
+      }
+    }
 
     if (isAdminManager && formData.user_RoleId !== 3 && !showAdminConfirm) {
       setShowAdminConfirm(true);
@@ -633,19 +739,26 @@ const New = ({ inputs = [], title }) => {
                 type={
                   (input.id === "user_Password" && showPassword)
                     ? "text" 
-                    : input.type
+                    : (input.id === "user_MachipId" && !showMachipId)
+                      ? "password"
+                      : input.type
                 }
                 placeholder={input.placeholder}
                 value={input.id === "user_Id" ? displayId : formData[input.id]}
                 onChange={handleInput}
                 onBlur={input.id === "user_Id" ? handleIdBlur : undefined}
                 readOnly={input.label === "MaChip ID" || input.label === "Fingerprint ID"}
-                className={`bg-white h-11 ${input.id === "user_Password" ? "pr-10" : ""} ${errors[input.id] ? "border-red-500" : "border-slate-200"} ${input.label === "MaChip ID" || input.label === "Fingerprint ID" ? "bg-slate-50 text-slate-500" : ""}`}
+                className={`bg-white h-11 ${input.id === "user_Password" || input.id === "user_MachipId" ? "pr-10" : ""} ${errors[input.id] ? "border-red-500" : "border-slate-200"} ${input.label === "MaChip ID" || input.label === "Fingerprint ID" ? "bg-slate-50 text-slate-500 font-mono" : ""}`}
               />
               {/* Visibility Toggles */}
               {input.id === "user_Password" && (
                 <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" onClick={() => setShowPassword(!showPassword)}>
                   {showPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+                </button>
+              )}
+              {input.id === "user_MachipId" && formData.user_MachipId && (
+                <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" onClick={() => setShowMachipId(!showMachipId)}>
+                  {showMachipId ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
                 </button>
               )}
             </div>
@@ -742,12 +855,16 @@ const New = ({ inputs = [], title }) => {
                     <Button 
                       variant="ghost" 
                       size="icon" 
-                      asChild 
-                      className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-brand-primary"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-brand-primary cursor-pointer"
+                      onClick={() => {
+                        if (isDirty) {
+                          setShowLeaveConfirm(true);
+                        } else {
+                          navigate("/users");
+                        }
+                      }}
                     >
-                      <Link to="/users">
-                        <ChevronLeft className="h-6 w-6" />
-                      </Link>
+                      <ChevronLeft className="h-6 w-6" />
                     </Button>
                   </span>
                 </TooltipTrigger>
@@ -887,7 +1004,8 @@ const New = ({ inputs = [], title }) => {
                               </div>
                               <div className="space-y-1.5">
                                 <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Middle Name</Label>
-                                <Input id="user_MiddleName" placeholder="Perez" value={formData.user_MiddleName} onChange={handleInput} className="h-11 border-slate-200" />
+                                <Input id="user_MiddleName" placeholder="Perez" value={formData.user_MiddleName} onChange={handleInput} className={`h-11 ${errors.user_MiddleName ? "border-red-500" : "border-slate-200"}`} />
+                                {errors.user_MiddleName && <span className="text-[10px] text-red-500 font-medium">{errors.user_MiddleName}</span>}
                               </div>
                               <div className="space-y-1.5">
                                 <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Last Name <span className="text-red-500 ml-0.5">*</span></Label>
@@ -899,7 +1017,8 @@ const New = ({ inputs = [], title }) => {
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mt-4">
                               <div className="space-y-1.5">
                                 <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Phone Number <span className="text-red-500 ml-0.5">*</span></Label>
-                                <Input id="user_Phone" placeholder="09123456789" value={formData.user_Phone} onChange={handleInput} className="h-11 border-slate-200" />
+                                <Input id="user_Phone" placeholder="09123456789" value={formData.user_Phone} onChange={handleInput} className={`h-11 ${errors.user_Phone ? "border-red-500" : "border-slate-200"}`} />
+                                {errors.user_Phone && <span className="text-[10px] text-red-500 font-medium">{errors.user_Phone}</span>}
                               </div>
                               <div className="space-y-1.5">
                                 <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Gender</Label>
@@ -953,8 +1072,9 @@ const New = ({ inputs = [], title }) => {
                                 </div>
                               </div>
                               <div className="space-y-1.5 sm:col-span-2">
-                                <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Home Address </Label>
-                                <Input id="user_Address" placeholder="123 Main St, Manila" value={formData.user_Address} onChange={handleInput} className="h-11 border-slate-200" />
+                                <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Home Address <span className="text-red-500 ml-0.5">*</span></Label>
+                                <Input id="user_Address" placeholder="123 Main St, Manila" value={formData.user_Address} onChange={handleInput} className={`h-11 ${errors.user_Address ? "border-red-500" : "border-slate-200"}`} />
+                                {errors.user_Address && <span className="text-[10px] text-red-500 font-medium">{errors.user_Address}</span>}
                               </div>
                               <div className="space-y-1.5">
                                 <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Date of Birth</Label>
@@ -1091,6 +1211,19 @@ const New = ({ inputs = [], title }) => {
                                   className={`bg-white h-11 ${errors.dailyRate ? "border-red-500" : "border-slate-200"}`}
                                 />
                                 {errors.dailyRate && <span className="text-[10px] text-red-500 block font-medium">{errors.dailyRate}</span>}
+                              </div>
+
+                              {/* Date Hired Input */}
+                              <div className="space-y-1.5">
+                                <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Date Hired <span className="text-red-500 ml-0.5">*</span></Label>
+                                <Input 
+                                  id="hireDate" 
+                                  type="date" 
+                                  value={formData.hireDate} 
+                                  onChange={handleInput} 
+                                  className={`bg-white h-11 ${errors.hireDate ? "border-red-500" : "border-slate-200"}`}
+                                />
+                                {errors.hireDate && <span className="text-[10px] text-red-500 block font-medium">{errors.hireDate}</span>}
                               </div>
                             </div>
                           </div>
@@ -1343,6 +1476,32 @@ const New = ({ inputs = [], title }) => {
             </Card>
           </div>
         )}
+        {/* Unsaved Changes Confirmation Dialog */}
+        <Dialog open={showLeaveConfirm} onOpenChange={setShowLeaveConfirm}>
+          <DialogContent className="sm:max-w-md bg-white border-0 shadow-2xl rounded-xl">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold text-slate-800">Unsaved Changes</DialogTitle>
+              <DialogDescription className="text-slate-500 mt-2">
+                You have unsaved form entries. Are you sure you want to discard your changes and return to User Management?
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex sm:justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={() => setShowLeaveConfirm(false)}>
+                Stay on Page
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={() => { 
+                  setIsDirty(false); 
+                  setShowLeaveConfirm(false); 
+                  navigate("/users"); 
+                }}
+              >
+                Discard & Leave
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
       </TooltipProvider>
       </Sidebar>

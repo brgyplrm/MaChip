@@ -35,6 +35,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import EditRequestModal from "../../components/EditRequestModal";
 import FileViewerModal from "../../components/FileViewerModal";
 import { TablePagination } from "@/components/ui/table-pagination";
@@ -106,7 +107,15 @@ const AdminLoanEnrollment = () => {
     setCurrentPage(1);
   }, [activeTab, statusTab, searchQuery, agencyFilter, statusFilter, dateFilter]);
 
-  const handleStatusUpdate = async (emp_reqId, statusId) => {
+  const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
+  const [returnNote, setReturnNote] = useState("");
+
+  const handleStatusUpdate = async (emp_reqId, statusId, overrideNote = null) => {
+    const noteToSend = overrideNote !== null ? overrideNote : adminNote;
+    if (statusId === 5 && (!noteToSend || !noteToSend.trim())) {
+      setToast({ message: "Remarks or instructions are strictly required when returning an application.", type: "error" });
+      return;
+    }
     try {
       const response = await fetchWithAuth("/api/request/update-status", {
         method: "PUT",
@@ -115,7 +124,7 @@ const AdminLoanEnrollment = () => {
           emp_reqId,
           emp_reqStatusId: statusId,
           processedBy: userData?.user_Id,
-          remarks: adminNote,
+          remarks: noteToSend ? noteToSend.trim() : null,
         }),
       });
 
@@ -127,6 +136,9 @@ const AdminLoanEnrollment = () => {
           type: "success",
         });
         setAdminNote("");
+        setReturnNote("");
+        setIsReturnModalOpen(false);
+        setIsDetailDrawerOpen(false);
         fetchRequests();
       } else {
         const err = await response.json();
@@ -949,8 +961,8 @@ const AdminLoanEnrollment = () => {
                         <Button
                           className="bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold h-9"
                           onClick={() => {
-                            handleStatusUpdate(current.emp_reqId, 5);
-                            setIsDetailDrawerOpen(false);
+                            setReturnNote(adminNote || "");
+                            setIsReturnModalOpen(true);
                           }}
                         >
                           <ReplyIcon className="mr-1 h-4 w-4" /> Return Application
@@ -980,6 +992,43 @@ const AdminLoanEnrollment = () => {
             </div>
           )}
         </div>
+
+        {/* Return Application Confirmation Modal */}
+        <Dialog open={isReturnModalOpen} onOpenChange={setIsReturnModalOpen}>
+          <DialogContent className="sm:max-w-md bg-white border-0 shadow-2xl rounded-xl">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold text-slate-800">Return Loan Application</DialogTitle>
+              <DialogDescription className="text-slate-500 mt-2">
+                Provide instructions or missing requirement remarks. Remarks are strictly required when returning an application.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-2">
+              <Textarea
+                placeholder="Specify instructions or missing requirements (Required)..."
+                value={returnNote}
+                onChange={(e) => setReturnNote(e.target.value)}
+                className="w-full min-h-[100px] border-slate-200"
+              />
+            </div>
+            <DialogFooter className="flex sm:justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={() => setIsReturnModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button 
+                className="bg-orange-500 hover:bg-orange-600 text-white font-bold"
+                onClick={() => {
+                  if (!returnNote.trim()) {
+                    setToast({ message: "Remarks or instructions are strictly required when returning an application.", type: "error" });
+                    return;
+                  }
+                  handleStatusUpdate(current?.emp_reqId, 5, returnNote);
+                }}
+              >
+                Confirm Return
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <EditRequestModal
           isOpen={isEditModalOpen}

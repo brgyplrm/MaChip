@@ -318,14 +318,15 @@ const Home = () => {
     };
   }, []);
 
-  const isEmptyDonut = stats.onTimeCount === 0 && stats.lateArrivalsCount === 0;
+  const isEmptyDonut = (stats.onTimeCount || 0) === 0 && (stats.lateArrivalsCount || 0) === 0 && (stats.onLeaveCount || 0) === 0;
   const donutData = isEmptyDonut
     ? [{ name: "No Data", value: 1 }]
     : [
-        { name: "On Time", value: stats.onTimeCount },
-        { name: "Late Arrivals", value: stats.lateArrivalsCount },
+        { name: "On Time", value: stats.onTimeCount || 0 },
+        { name: "Late Arrivals", value: stats.lateArrivalsCount || 0 },
+        { name: "On Leave", value: stats.onLeaveCount || 0 },
       ];
-  const COLORS = ["var(--color-brand-primary-dark)", "var(--color-accent-gold-hover)"];
+  const COLORS = ["var(--color-brand-primary-dark)", "var(--color-accent-gold-hover)", "#3b82f6"];
 
   const nextPayroll = payrollPeriods.length > 0 ? payrollPeriods[0] : null;
   const daysRemaining = nextPayroll ? Math.ceil((new Date(nextPayroll.endDate) - new Date()) / (1000 * 60 * 60 * 24)) : 0;
@@ -612,7 +613,7 @@ const Home = () => {
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
-                  <div className="flex justify-center gap-4 text-xs font-medium mt-2">
+                  <div className="flex flex-wrap justify-center gap-4 text-xs font-medium mt-2">
                     <div className="flex items-center gap-1">
                       <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[0] }}></div>
                       <span>On Time</span>
@@ -620,6 +621,10 @@ const Home = () => {
                     <div className="flex items-center gap-1">
                       <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[1] }}></div>
                       <span>Late Arrivals</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[2] }}></div>
+                      <span>On Leave</span>
                     </div>
                   </div>
                 </>

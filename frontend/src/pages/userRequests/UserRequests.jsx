@@ -537,9 +537,9 @@ const UserRequests = () => {
 
       if (reqDays > 2 && !formData.proofFile) {
         warnings.push({
-          type: "info",
-          title: "Medical Certificate Required",
-          message: "Sick leaves spanning more than 2 consecutive days require a valid medical certificate attached.",
+          type: "danger",
+          title: "Medical Certificate Strictly Required",
+          message: "Sick leaves spanning more than 2 consecutive days strictly require a valid medical certificate attached before filing.",
         });
       }
     }
@@ -860,6 +860,29 @@ const UserRequests = () => {
       return;
     }
 
+    if (name === "leaveStartDate") {
+      setFormData((prev) => {
+        let updatedEndDate = prev.leaveEndDate;
+        if (updatedEndDate && updatedEndDate < newValue) {
+          updatedEndDate = newValue;
+        }
+        return {
+          ...prev,
+          leaveStartDate: newValue,
+          leaveEndDate: updatedEndDate
+        };
+      });
+      return;
+    }
+
+    if (name === "leaveEndDate") {
+      if (formData.leaveStartDate && newValue < formData.leaveStartDate) {
+        setToast({ message: "Leave end date cannot be earlier than start date.", type: "warning" });
+        setFormData((prev) => ({ ...prev, leaveEndDate: prev.leaveStartDate }));
+        return;
+      }
+    }
+
     setFormData((prev) => ({ ...prev, [name]: newValue }));
   };
 
@@ -935,6 +958,27 @@ const UserRequests = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Date range & working days validation for leave requests
+    if (["3", "4", "8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId)) {
+      if (!formData.leaveStartDate) {
+        setToast({ message: "Please select a leave start date.", type: "warning" });
+        return;
+      }
+      if (!formData.leaveEndDate) {
+        setToast({ message: "Please select a leave end date.", type: "warning" });
+        return;
+      }
+      if (formData.leaveEndDate < formData.leaveStartDate) {
+        setToast({ message: "Leave end date cannot be earlier than start date.", type: "error" });
+        return;
+      }
+      if (parseFloat(formData.noDays || 0) <= 0) {
+        setToast({ message: "Selected date range contains no working days (Sundays and official company holidays are excluded).", type: "error" });
+        return;
+      }
+    }
+
     let isInsufficient = false;
     if (balance) {
       const vlBal = parseFloat(balance.VL_balance);
@@ -949,12 +993,18 @@ const UserRequests = () => {
       else if (formData.emp_reqTypeId === "7" && 0.5 > vlBal) isInsufficient = true;
     }
 
-    // Attachment validation for statutory leaves and government loans
+    // Attachment validation for statutory leaves, sick leave > 2 days, and government loans
     const isGovLoan = formData.emp_reqTypeId === "14" && formData.agency !== "Company";
     const isStatutoryWithProof = ["8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId);
 
     if (isStatutoryWithProof && !formData.proofFile) {
       setToast({ message: "Supporting documentation (Medical Cert/SPIC/Birth Cert/Barangay Cert) is mandatory for this statutory benefit.", type: "error" });
+      return;
+    }
+
+    // Emp-02: Mandatory medical certificate for Sick Leave > 2 days
+    if (formData.emp_reqTypeId === "4" && parseFloat(formData.noDays || 0) > 2 && !formData.proofFile) {
+      setToast({ message: "A valid Medical Certificate is strictly mandatory for Sick Leave exceeding 2 days.", type: "error" });
       return;
     }
 
@@ -1896,12 +1946,28 @@ const UserRequests = () => {
                         </div>
                         <div className="space-y-2">
                           <label className="text-sm font-bold text-slate-700">End Date</label>
-                          <Input type="date" name="leaveEndDate" value={formData.leaveEndDate} onChange={handleInputChange} required className="bg-slate-50/50" />
+                          <Input 
+                            type="date" 
+                            name="leaveEndDate" 
+                            min={formData.leaveStartDate || undefined} 
+                            value={formData.leaveEndDate} 
+                            onChange={handleInputChange} 
+                            required 
+                            className="bg-slate-50/50" 
+                          />
                         </div>
                       </div>
                       <div className="space-y-2">
-                        <label className="text-sm font-bold text-slate-700">Number of Days</label>
-                        <Input type="number" name="noDays" value={formData.noDays} readOnly className="bg-slate-100 text-slate-500 font-bold" />
+                        <label className="text-sm font-bold text-slate-700">Number of Days (Auto-Calculated)</label>
+                        <Input 
+                          type="number" 
+                          name="noDays" 
+                          value={formData.noDays} 
+                          readOnly 
+                          disabled 
+                          className="bg-slate-100 text-slate-600 font-bold cursor-not-allowed select-none" 
+                        />
+                        <p className="text-xs text-slate-400">Regular working days excluding Sundays and official company holidays.</p>
                       </div>
                     </div>
                   )}

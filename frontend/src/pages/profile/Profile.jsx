@@ -6,6 +6,8 @@ import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
 import BadgeOutlinedIcon from "@mui/icons-material/BadgeOutlined";
 import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
 import FingerprintOutlinedIcon from "@mui/icons-material/FingerprintOutlined";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import { formatUserId } from "../../utils/formatUserId";
 import { formatTime12h } from "../../utils/formatTime";
 import { Link } from "react-router-dom";
@@ -25,6 +27,7 @@ import { TablePagination } from "@/components/ui/table-pagination";
 const Profile = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showMachipId, setShowMachipId] = useState(false);
   const [attendanceLogs, setAttendanceLogs] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -290,9 +293,23 @@ const Profile = () => {
                   <CardContent className="px-5 py-5 flex justify-between h-full">
                     <div className="flex flex-col justify-between">
                       <div>
-                        <p className="text-[13px] font-bold text-accent-gold uppercase tracking-wider mb-2">MaChip Biometrics</p>
+                        <div className="flex items-center gap-2 mb-2">
+                          <p className="text-[13px] font-bold text-accent-gold uppercase tracking-wider">MaChip Biometrics</p>
+                          {user.user_MachipId && (
+                            <button
+                              type="button"
+                              onClick={() => setShowMachipId(!showMachipId)}
+                              className="text-accent-gold/70 hover:text-accent-gold focus:outline-none transition-colors"
+                              title={showMachipId ? "Hide UID" : "Show UID"}
+                            >
+                              {showMachipId ? <VisibilityOffIcon style={{ fontSize: 18 }} /> : <VisibilityIcon style={{ fontSize: 18 }} />}
+                            </button>
+                          )}
+                        </div>
                         <p className="text-2xl font-bold text-accent-gold font-mono leading-tight max-w-[200px] truncate">
-                          {user.user_MachipId || "Unlinked"}
+                          {user.user_MachipId 
+                            ? (showMachipId ? user.user_MachipId : "••••••••" + (user.user_MachipId.length > 4 ? user.user_MachipId.slice(-4) : ""))
+                            : "Unlinked"}
                         </p>
                       </div>
                       <p className="text-xs text-accent-gold/70 italic mt-4">Hardware authentication token</p>

@@ -982,6 +982,12 @@ exports.UserCreateRequest = async (req, res) => {
         await t.rollback();
         return res.status(400).json({ error: "Supporting documentation (Medical Cert/SPIC/Barangay Cert/Court Order) is mandatory for this request." });
       }
+
+      // Emp-02: Mandatory medical certificate for Sick Leave > 2 days
+      if (finalReqTypeId === 4 && finalNoDays > 2 && !proof_File) {
+        await t.rollback();
+        return res.status(400).json({ error: "Medical Certificate is strictly mandatory for Sick Leave exceeding 2 days." });
+      }
     }
 
     let userLeaveBalance = null;
@@ -2001,6 +2007,11 @@ exports.UpdateStatusRequest = async (req, res) => {
     let isAuthorized = false;
     const finalStatusId = Number(emp_reqStatusId);
 
+    // --- MANDATORY REMARKS ON RETURN (Status 5) ---
+    if (finalStatusId === 5 && (!remarks || !remarks.trim())) {
+      return res.status(400).json({ error: "Remarks / instructions are strictly required when returning a request." });
+    }
+
     // --- SELF-APPROVAL GUARD ---
     if (operatorId === requesterId) {
       return res.status(403).json({ 
@@ -2030,27 +2041,23 @@ exports.UpdateStatusRequest = async (req, res) => {
     let datesToRecalculateUnits = [];
 
     // 1. Update the parent request status
-    let updateQuery = `
+    const updateQuery = `
         UPDATE "emp_Request"
         SET "emp_reqStatusId" = :finalStatusId,
             "updatedAt" = :now,
             "processedBy" = :processedBy,
-            "date_Processed" = :now
+            "date_Processed" = :now,
+            "admin_remarks" = :admin_remarks
+        WHERE "emp_reqId" = :emp_reqId
     `;
 
     const replacements = {
       emp_reqId,
       finalStatusId,
       processedBy: operatorId,
-      admin_remarks: remarks || null,
+      admin_remarks: remarks ? remarks.trim() : null,
       now: nowStr,
     };
-
-    if (remarks) {
-      updateQuery += `, "admin_remarks" = :admin_remarks`;
-    }
-
-    updateQuery += ` WHERE "emp_reqId" = :emp_reqId`;
 
     await sequelize.query(updateQuery, {
       replacements,

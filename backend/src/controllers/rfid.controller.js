@@ -862,15 +862,43 @@ exports.scanRFID = async (req, res) => {
       }
     }
 
-    if (isIrregular && action === "clock_in") {
+    if (isIrregular) {
       const admins = await User.findAll({ where: { user_RoleId: 1 }, attributes: ["user_Id"] });
       const timeFmt = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const punchText = action === "clock_in" ? "clocked in" : "clocked out";
       let msg = `Irregular log: ${user.user_FirstName} ${user.user_LastName} `;
-      if (hasApprovedOT && isPastOTWindow) msg += `clocked in at ${timeFmt}, past OT window (Ended ${approvedOT.HrTo}).`;
-      else if (isSuspiciousWindow && !hasPriorClockIn) msg += `logged in at ${timeFmt} (Outside 5:30 AM - 5:30 PM) without prior record or approved OT.`;
-      else if (hasPriorClockIn && isSuspiciousWindow) msg += `clocked in again at ${timeFmt} (Irregular Hours: 5:30 PM - 5:30 AM) after logging out, without approved OT.`;
+      if (hasApprovedOT && isPastOTWindow) {
+        msg += `${punchText} at ${timeFmt}, past approved OT window (Ended ${approvedOT.HrTo}).`;
+      } else if (isSuspiciousWindow && !hasPriorClockIn) {
+        msg += `${punchText} at ${timeFmt} (Outside 5:30 AM - 5:30 PM) without prior record or approved OT.`;
+      } else if (hasPriorClockIn && isSuspiciousWindow) {
+        msg += `${punchText} at ${timeFmt} (Irregular Hours: 5:30 PM - 5:30 AM) without approved OT.`;
+      } else {
+        msg += `${punchText} irregularly at ${timeFmt}.`;
+      }
       
-      for (const admin of admins) await Notification.create({ user_Id: admin.user_Id, title: "Irregular logs", message: msg, isRead: false });
+      try {
+        const io = getIO();
+        for (const admin of admins) {
+          await Notification.create({ user_Id: admin.user_Id, title: "Irregular logs", message: msg, isRead: false });
+          if (io) {
+            io.to(String(admin.user_Id)).emit("new_notification", {
+              title: "Irregular logs",
+              message: msg,
+              type: "warning"
+            });
+            io.emit("NEW_NOTIFICATION", {
+              targetUserId: admin.user_Id,
+              title: "Irregular logs",
+              message: msg,
+              type: "warning"
+            });
+          }
+        }
+        if (io) io.emit("NOTIFICATION_UPDATE");
+      } catch (notifErr) {
+        console.error("[NOTIF_ERROR] Failed to send irregular notification:", notifErr.message);
+      }
     }
 
     let attendanceVal = null;

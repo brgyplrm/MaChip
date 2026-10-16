@@ -193,10 +193,14 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
 
   // 1.1 Check if user has attendance exemption (is_time_exempt)
   const [empPosition] = await sequelize.query(
-    `SELECT "position", "department", "is_time_exempt" FROM "User" WHERE "user_Id" = :user_Id LIMIT 1`,
+    `SELECT "position", "department", "is_time_exempt", "user_ShiftId", "user_RoleId" FROM "User" WHERE "user_Id" = :user_Id LIMIT 1`,
     { replacements: { user_Id }, type: QueryTypes.SELECT }
   );
   const isPresident = empPosition?.is_time_exempt === true;
+  const isNightShiftAllowed = Boolean(settings?.enableNightShift && empPosition?.user_ShiftId === 2);
+  const shiftGraceTimeStr = isNightShiftAllowed ? (settings?.nightGracePeriod || "20:35:00") : (settings?.gracePeriod || "08:35:00");
+  const [gh, gm] = (shiftGraceTimeStr || "08:35:00").split(":").map(Number);
+  const graceMinutes = (!isNaN(gh) && !isNaN(gm)) ? (gh * 60 + gm) : (8 * 60 + 35);
 
   // 2. Get holidays in period
   const holidays = await sequelize.query(
@@ -296,6 +300,7 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
   let total_special_hol_units = 0;
   let total_payable_units = 0;
   const holidayBreakdown = [];
+  const dailyBreakdown = [];
 
   for (let i = 0; i < allDays.length; i++) {
     const dateStr = allDays[i];
@@ -307,6 +312,10 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     if (isStandardSemiMonthly && dateStr > evaluation_End) {
       continue;
     }
+
+    const [y, m, d] = dateStr.split("-").map(Number);
+    const dateObj = new Date(Date.UTC(y, m - 1, d));
+    const isScheduled = dateObj.getUTCDay() !== 0;
 
     const holiday = holidayMap[dateStr];
     const log = logMap[dateStr];
@@ -335,6 +344,15 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     const worked = (!!log && !isExcludedStatus && (hasActualPunches || parseFloat(log.total_units || 0) > 0)) || isOnField;
     const isLeave = approvedLeaveDaysMap.has(dateStr);
 
+    let dayTardiness = 0;
+    let dayAbsence = 0;
+    let dayUnpaidLeave = 0;
+    let dayPaidLeave = 0;
+    let dayOt = 0;
+    let dayNd = 0;
+    let dayLegalHol = 0;
+    let daySpecialHol = 0;
+
     if (worked) {
       let dailyHrs = 0;
       let dailyUnits = 0;
@@ -351,27 +369,44 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
           total_nd_units += parseFloat(log.nd_hrs);
           total_ot_units += parseFloat(log.ot_hrs);
           total_hol_units += parseFloat(log.holiday_hrs);
+          dayOt = parseFloat(log.ot_hrs || 0);
+          dayNd = parseFloat(log.nd_hrs || 0);
         } else {
           // Fallback logic for older records - only run if status is NOT excluded
           const inArr = JSON.parse(log.time_Logged_inArr || "[]");
           const isExempt = parseInt(log.att_status) === 6;
-          const SLOT_MIDPOINT = "12:30";
-          const morningIn = inArr.find(t => t.substring(0, 5) < SLOT_MIDPOINT);
-          const afternoonIn = inArr.find(t => t.substring(0, 5) >= "12:00" && t.substring(0, 5) < "17:30");
+          const SLOT_MIDPOINT = isNightShiftAllowed ? "24:00" : "12:30";
+          const morningIn = inArr.find(t => t && t !== "—" && t.substring(0, 5) < SLOT_MIDPOINT);
+          const afternoonIn = inArr.find(t => t && t !== "—" && t.substring(0, 5) >= "12:00" && t.substring(0, 5) < "17:30");
 
           if (morningIn && morningIn !== "—") {
             dailyHrs += 4.0;
-            const [lh, lm] = morningIn.split(":").map(Number);
-            const loginMinutes = lh * 60 + lm;
-            const graceMinutes = 8 * 60 + 35;
-            if (loginMinutes > graceMinutes && !isExempt) {
-              const minsLate = Math.max(0, loginMinutes - graceMinutes);
-              tardiness_Mins += minsLate;
-              dailyHrs = Math.max(0, dailyHrs - (minsLate / 60));
-            }
           }
           if (afternoonIn && afternoonIn !== "—") dailyHrs += 4.0;
           dailyUnits = dailyHrs; 
+        }
+
+        // TARDINESS ACCUMULATION: Evaluate morning punch for tardiness if not exempt
+        const isExempt = parseInt(log.att_status) === 6 || isPresident || empPosition?.user_RoleId === 1;
+        if (!isExempt) {
+          try {
+            const inArr = JSON.parse(log.time_Logged_inArr || "[]");
+            const SLOT_MIDPOINT = isNightShiftAllowed ? "24:00" : "12:30";
+            const morningIn = inArr.find(t => t && t !== "—" && t.substring(0, 5) < SLOT_MIDPOINT);
+            if (morningIn) {
+              const [lh, lm] = morningIn.split(":").map(Number);
+              if (!isNaN(lh) && !isNaN(lm)) {
+                const loginMinutes = lh * 60 + lm;
+                if (loginMinutes > graceMinutes) {
+                  const minsLate = loginMinutes - graceMinutes;
+                  tardiness_Mins += minsLate;
+                  dayTardiness = minsLate;
+                }
+              }
+            }
+          } catch (e) {
+            console.error(`[PAYROLL] Error parsing time_Logged_inArr for tardiness on ${dateStr}:`, e);
+          }
         }
       }
       
@@ -392,12 +427,15 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
           const leavePortion = Math.min(1.0 - dayPortion, leaveData.amount || 1.0);
           if (leaveData.withPay) {
             paidLeave_Days += leavePortion;
+            dayPaidLeave = leavePortion;
             total_payable_units += leavePortion * 8; // Credit payable hours for the paid leave portion
           } else {
             unpaidLeave_Days += leavePortion;
+            dayUnpaidLeave = leavePortion;
           }
         } else {
           absence_Days += (1.0 - dayPortion);
+          dayAbsence = (1.0 - dayPortion);
         }
       }
 
@@ -410,9 +448,11 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
         if (isRegular) {
           legalHol_Days++;
           total_legal_hol_units += holHours;
+          dayLegalHol = holHours;
         } else {
           specialHol_Days++;
           total_special_hol_units += holHours;
+          daySpecialHol = holHours;
         }
 
         holidayBreakdown.push({
@@ -427,6 +467,22 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
           premiumRate: isRegular ? 1.0 : 0.3
         });
       }
+
+      dailyBreakdown.push({
+        date: dateStr,
+        isScheduled,
+        worked: true,
+        dailyHrs,
+        dayPortion,
+        absence_Days: dayAbsence,
+        unpaidLeave_Days: dayUnpaidLeave,
+        paidLeave_Days: dayPaidLeave,
+        tardiness_Mins: dayTardiness,
+        ot_hrs: dayOt,
+        nd_hrs: dayNd,
+        legal_hol_hrs: dayLegalHol,
+        special_hol_hrs: daySpecialHol
+      });
       continue; 
     }
 
@@ -466,32 +522,99 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
           });
         }
       }
+      dailyBreakdown.push({
+        date: dateStr,
+        isScheduled,
+        worked: false,
+        dailyHrs: 0,
+        dayPortion: 0,
+        absence_Days: 0,
+        unpaidLeave_Days: 0,
+        paidLeave_Days: 0,
+        tardiness_Mins: 0,
+        ot_hrs: 0,
+        nd_hrs: 0,
+        legal_hol_hrs: 0,
+        special_hol_hrs: 0
+      });
       continue; 
     }
 
-    const [y, m, d] = dateStr.split("-").map(Number);
-    const dateObj = new Date(Date.UTC(y, m - 1, d));
-    if (dateObj.getUTCDay() === 0) continue;
+    if (!isScheduled) {
+      dailyBreakdown.push({
+        date: dateStr,
+        isScheduled: false,
+        worked: false,
+        dailyHrs: 0,
+        dayPortion: 0,
+        absence_Days: 0,
+        unpaidLeave_Days: 0,
+        paidLeave_Days: 0,
+        tardiness_Mins: 0,
+        ot_hrs: 0,
+        nd_hrs: 0,
+        legal_hol_hrs: 0,
+        special_hol_hrs: 0
+      });
+      continue;
+    }
 
     if (isLeave) {
       const leaveData = approvedLeaveDaysMap.get(dateStr);
       if (leaveData.withPay) {
         paidLeave_Days += leaveData.amount;
+        dayPaidLeave = leaveData.amount;
         total_payable_units += leaveData.amount * 8; // Convert day to hours
       } else {
         unpaidLeave_Days += leaveData.amount;
+        dayUnpaidLeave = leaveData.amount;
       }
+      dailyBreakdown.push({
+        date: dateStr,
+        isScheduled: true,
+        worked: false,
+        dailyHrs: 0,
+        dayPortion: 0,
+        absence_Days: 0,
+        unpaidLeave_Days: dayUnpaidLeave,
+        paidLeave_Days: dayPaidLeave,
+        tardiness_Mins: 0,
+        ot_hrs: 0,
+        nd_hrs: 0,
+        legal_hol_hrs: 0,
+        special_hol_hrs: 0
+      });
       continue;
     }
 
     if (!isFuture) {
       if (!log) {
         const isAfterCutoff = now.getHours() > 17 || (now.getHours() === 17 && now.getMinutes() >= 30);
-        if (!isToday || isAfterCutoff) absence_Days++;
+        if (!isToday || isAfterCutoff) {
+          absence_Days++;
+          dayAbsence = 1.0;
+        }
       } else if (log.att_status === 3) {
         absence_Days++;
+        dayAbsence = 1.0;
       }
     }
+
+    dailyBreakdown.push({
+      date: dateStr,
+      isScheduled: true,
+      worked: false,
+      dailyHrs: 0,
+      dayPortion: 0,
+      absence_Days: dayAbsence,
+      unpaidLeave_Days: 0,
+      paidLeave_Days: 0,
+      tardiness_Mins: 0,
+      ot_hrs: 0,
+      nd_hrs: 0,
+      legal_hol_hrs: 0,
+      special_hol_hrs: 0
+    });
   }
 
   // 6. Manual OT Check (Legacy/Backup)
@@ -591,6 +714,28 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
         if (rNd > 0) {
           rollover_nd_hrs += rNd;
           total_nd_units += rNd;
+        }
+
+        // Tardiness accumulation for rollover window
+        const isExempt = parseInt(rLog.att_status) === 6 || isPresident || empPosition?.user_RoleId === 1;
+        if (!isExempt) {
+          try {
+            const rInArr = JSON.parse(rLog.time_Logged_inArr || "[]");
+            const SLOT_MIDPOINT = isNightShiftAllowed ? "24:00" : "12:30";
+            const rMorningIn = rInArr.find(t => t && t !== "—" && t.substring(0, 5) < SLOT_MIDPOINT);
+            if (rMorningIn) {
+              const [rlh, rlm] = rMorningIn.split(":").map(Number);
+              if (!isNaN(rlh) && !isNaN(rlm)) {
+                const rLoginMinutes = rlh * 60 + rlm;
+                if (rLoginMinutes > graceMinutes) {
+                  const rMinsLate = rLoginMinutes - graceMinutes;
+                  tardiness_Mins += rMinsLate;
+                }
+              }
+            }
+          } catch (e) {
+            console.error(`[PAYROLL] Error parsing rollover time_Logged_inArr on ${rDateStr}:`, e);
+          }
         }
 
         if (rHoliday) {
@@ -696,6 +841,7 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
     rollover_hol_hrs: Math.round(rollover_hol_hrs * 100) / 100,
     rollover_period: hasRollover ? { start: rollover_Start, end: rollover_End } : null,
     rolloverBreakdown,
+    dailyBreakdown,
     evaluation_End,
     totalScheduledDays,
     absence_Days,
@@ -724,7 +870,7 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   let hCard = 0, sLoan = 0, hLoan = 0, cLoan = 0, advAmnt = 0, gDed = 0, mpSave = 0, ewLoan = 0;
 
   const user = await sequelize.query(
-    `SELECT u."dailyRate", u."previousDailyRate", u."position", u."department",
+    `SELECT u."dailyRate", u."previousDailyRate", u."rateUpdatedAt", u."position", u."department", u."is_time_exempt",
             d."sss_Share", d."sss_is_manual", d."philhealth_Share", d."ph_is_manual", d."hdmf_Share", d."hdmf_is_manual", d."tax_Share",
             d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
             d."advances_Amnt", d."globe_Deduction", d."multiPurposeSavings", d."eastwest_Loan"
@@ -898,54 +1044,169 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
 
   gDed = user[0]?.globe_Deduction || 0;
 
-  const ratePerHr = divideMoney(dailyRate, WORK_HRS_PER_DAY);
-  const ratePerMin = divideMoney(ratePerHr, 60);
+  // ── Mid-Cutoff Daily Rate Split Determination ───────────────────────────────
+  let isRateSplit = false;
+  let splitDateStr = null;
 
-  // 1. Basic Pay (Assumption: Full Attendance Basic)
-  const potentialBasicPay = multiplyMoney(stats.totalScheduledDays, dailyRate);
+  if (customDailyRate === null && user[0]?.rateUpdatedAt && previousDailyRate > 0 && Math.abs(dailyRate - previousDailyRate) > 0.01) {
+    const d = new Date(user[0].rateUpdatedAt);
+    if (!isNaN(d.getTime())) {
+      splitDateStr = d.toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
+      if (splitDateStr > period_Start && splitDateStr <= period_End) {
+        isRateSplit = true;
+      } else if (splitDateStr > period_End) {
+        // Historical period: rate change occurred AFTER this period, so previousDailyRate was effective
+        dailyRate = previousDailyRate;
+      }
+    }
+  }
 
-  // 2. Holiday Premiums (Using Precise Units)
-  const legalHol_Amnt = multiplyMoney(stats.legal_hol_hrs || 0, ratePerHr);
-  const specialHol_Amnt = multiplyMoney(stats.special_hol_hrs || 0, ratePerHr);
-  const total_hol_Amnt = addMoney(legalHol_Amnt, specialHol_Amnt);
+  const isPresident = user[0]?.is_time_exempt === true;
 
-  // 3. OT & Night Diff
   // Retrieve settings to get dynamic multipliers
   const settings = await SystemSettings.findOne();
   const nsdRate = parseFloat(settings?.payrollRates?.otNightRates?.nsdRate ?? 10) / 100; // e.g. 0.10
   const ordinaryOTRate = parseFloat(settings?.payrollRates?.otNightRates?.ordinaryOT ?? 25) / 100; // e.g. 0.25 (Total: 1.25)
-  
-  const OT_Rate = multiplyMoney(ratePerHr, 1 + ordinaryOTRate);
-  const ND_OT_Rate = multiplyMoney(ratePerHr, (1 + ordinaryOTRate) * (1 + nsdRate)); // Logic: 1.25x * 1.1x = 1.375x
 
-  // Logic to separate regular night diff from OT night diff
-  // nd_hrs in stats is the total night hours (10PM-6AM)
-  // ot_hrs in stats is the total overtime hours
-  const night_OT_hrs = Math.min(stats.ot_hrs, stats.nd_hrs);
-  const regular_OT_hrs = Math.max(0, stats.ot_hrs - night_OT_hrs);
-  const regular_night_hrs = Math.max(0, stats.nd_hrs - night_OT_hrs);
+  let ratePerHr = divideMoney(dailyRate, WORK_HRS_PER_DAY);
+  let ratePerMin = divideMoney(ratePerHr, 60);
+  let potentialBasicPay = 0;
+  let legalHol_Amnt = 0;
+  let specialHol_Amnt = 0;
+  let total_hol_Amnt = 0;
+  let OT_Amnt = 0;
+  let nightOT_Amnt = 0;
+  let nightDiff_Amnt = 0;
+  let regular_OT_hrs = 0;
+  let night_OT_hrs = 0;
+  let regular_night_hrs = 0;
+  let absence_Amnt = 0;
+  let tardiness_Amnt = 0;
+  let unpaidLeave_Amnt = 0;
 
-  const OT_Amnt = multiplyMoney(regular_OT_hrs, OT_Rate);
-  const nightOT_Amnt = multiplyMoney(night_OT_hrs, ND_OT_Rate);
-  const nightDiff_Amnt = multiplyMoney(regular_night_hrs * ratePerHr, nsdRate);
+  let oldScheduledDays = 0;
+  let newScheduledDays = 0;
+  let potentialBasicPay_old = 0;
+  let potentialBasicPay_new = 0;
+  let ratePerHr_old = 0;
+  let ratePerMin_old = 0;
+  let ratePerHr_new = ratePerHr;
+  let ratePerMin_new = ratePerMin;
 
-  console.log(`[DEBUG PAYROLL] stats: ot_hrs=${stats.ot_hrs}, nd_hrs=${stats.nd_hrs}`);
-  console.log(`[DEBUG PAYROLL] split: regular_OT_hrs=${regular_OT_hrs}, night_OT_hrs=${night_OT_hrs}, regular_night_hrs=${regular_night_hrs}`);
-  console.log(`[DEBUG PAYROLL] amounts: OT_Amnt=${OT_Amnt}, nightOT_Amnt=${nightOT_Amnt}, nightDiff_Amnt=${nightDiff_Amnt}`);
+  if (!isRateSplit) {
+    // 1. Basic Pay (Assumption: Full Attendance Basic)
+    potentialBasicPay = multiplyMoney(stats.totalScheduledDays, dailyRate);
 
-  const total_OT_Amnt = addMoney(OT_Amnt, nightOT_Amnt);
-  
-  // 4. Attendance Deductions (Exempt if is_time_exempt is enabled)
-  const isPresident = user[0]?.is_time_exempt === true;
-  if (isPresident) {
-    stats.absence_Days = 0;
-    stats.tardiness_Mins = 0;
-    stats.unpaidLeave_Days = 0;
+    // 2. Holiday Premiums (Using Precise Units)
+    legalHol_Amnt = multiplyMoney(stats.legal_hol_hrs || 0, ratePerHr);
+    specialHol_Amnt = multiplyMoney(stats.special_hol_hrs || 0, ratePerHr);
+    total_hol_Amnt = addMoney(legalHol_Amnt, specialHol_Amnt);
+
+    // 3. OT & Night Diff
+    const OT_Rate = multiplyMoney(ratePerHr, 1 + ordinaryOTRate);
+    const ND_OT_Rate = multiplyMoney(ratePerHr, (1 + ordinaryOTRate) * (1 + nsdRate));
+
+    night_OT_hrs = Math.min(stats.ot_hrs, stats.nd_hrs);
+    regular_OT_hrs = Math.max(0, stats.ot_hrs - night_OT_hrs);
+    regular_night_hrs = Math.max(0, stats.nd_hrs - night_OT_hrs);
+
+    OT_Amnt = multiplyMoney(regular_OT_hrs, OT_Rate);
+    nightOT_Amnt = multiplyMoney(night_OT_hrs, ND_OT_Rate);
+    nightDiff_Amnt = multiplyMoney(regular_night_hrs * ratePerHr, nsdRate);
+
+    // 4. Attendance Deductions (Exempt if is_time_exempt is enabled)
+    if (isPresident) {
+      stats.absence_Days = 0;
+      stats.tardiness_Mins = 0;
+      stats.unpaidLeave_Days = 0;
+    }
+
+    absence_Amnt = isPresident ? 0 : multiplyMoney(stats.absence_Days, dailyRate); 
+    tardiness_Amnt = isPresident ? 0 : multiplyMoney(stats.tardiness_Mins, ratePerMin);
+    unpaidLeave_Amnt = isPresident ? 0 : multiplyMoney(stats.unpaidLeave_Days, dailyRate);
+  } else {
+    // Mid-Cutoff Rate Split Logic: Days before splitDateStr use previousDailyRate, days on/after use dailyRate
+    ratePerHr_old = divideMoney(previousDailyRate, WORK_HRS_PER_DAY);
+    ratePerMin_old = divideMoney(ratePerHr_old, 60);
+    ratePerHr_new = divideMoney(dailyRate, WORK_HRS_PER_DAY);
+    ratePerMin_new = divideMoney(ratePerHr_new, 60);
+
+    const oldDaysList = (stats.dailyBreakdown || []).filter(d => d.date < splitDateStr);
+    const newDaysList = (stats.dailyBreakdown || []).filter(d => d.date >= splitDateStr);
+
+    oldScheduledDays = oldDaysList.filter(d => d.isScheduled).length;
+    newScheduledDays = newDaysList.filter(d => d.isScheduled).length;
+
+    potentialBasicPay_old = multiplyMoney(oldScheduledDays, previousDailyRate);
+    potentialBasicPay_new = multiplyMoney(newScheduledDays, dailyRate);
+    potentialBasicPay = addMoney(potentialBasicPay_old, potentialBasicPay_new);
+
+    // Split Absences
+    const oldAbsenceDays = oldDaysList.reduce((sum, d) => sum + (d.absence_Days || 0), 0);
+    const newAbsenceDays = newDaysList.reduce((sum, d) => sum + (d.absence_Days || 0), 0);
+    const absence_Amnt_old = multiplyMoney(oldAbsenceDays, previousDailyRate);
+    const absence_Amnt_new = multiplyMoney(newAbsenceDays, dailyRate);
+    absence_Amnt = isPresident ? 0 : addMoney(absence_Amnt_old, absence_Amnt_new);
+
+    // Split Unpaid Leaves
+    const oldUnpaidDays = oldDaysList.reduce((sum, d) => sum + (d.unpaidLeave_Days || 0), 0);
+    const newUnpaidDays = newDaysList.reduce((sum, d) => sum + (d.unpaidLeave_Days || 0), 0);
+    const unpaidLeave_Amnt_old = multiplyMoney(oldUnpaidDays, previousDailyRate);
+    const unpaidLeave_Amnt_new = multiplyMoney(newUnpaidDays, dailyRate);
+    unpaidLeave_Amnt = isPresident ? 0 : addMoney(unpaidLeave_Amnt_old, unpaidLeave_Amnt_new);
+
+    // Split Tardiness
+    const rolloverTardinessMins = (stats.rolloverBreakdown || []).reduce((sum, r) => sum + (r.tardiness_Mins || 0), 0);
+    const oldTardinessMins = rolloverTardinessMins + oldDaysList.reduce((sum, d) => sum + (d.tardiness_Mins || 0), 0);
+    const newTardinessMins = newDaysList.reduce((sum, d) => sum + (d.tardiness_Mins || 0), 0);
+    const tardiness_Amnt_old = multiplyMoney(oldTardinessMins, ratePerMin_old);
+    const tardiness_Amnt_new = multiplyMoney(newTardinessMins, ratePerMin_new);
+    tardiness_Amnt = isPresident ? 0 : addMoney(tardiness_Amnt_old, tardiness_Amnt_new);
+
+    // Split Holidays
+    const oldLegalHolHrs = (stats.rollover_legal_hol_hrs || 0) + oldDaysList.reduce((sum, d) => sum + (d.legal_hol_hrs || 0), 0);
+    const newLegalHolHrs = newDaysList.reduce((sum, d) => sum + (d.legal_hol_hrs || 0), 0);
+    const legalHol_Amnt_old = multiplyMoney(oldLegalHolHrs, ratePerHr_old);
+    const legalHol_Amnt_new = multiplyMoney(newLegalHolHrs, ratePerHr_new);
+    legalHol_Amnt = addMoney(legalHol_Amnt_old, legalHol_Amnt_new);
+
+    const oldSpecialHolHrs = (stats.rollover_special_hol_hrs || 0) + oldDaysList.reduce((sum, d) => sum + (d.special_hol_hrs || 0), 0);
+    const newSpecialHolHrs = newDaysList.reduce((sum, d) => sum + (d.special_hol_hrs || 0), 0);
+    const specialHol_Amnt_old = multiplyMoney(oldSpecialHolHrs, ratePerHr_old);
+    const specialHol_Amnt_new = multiplyMoney(newSpecialHolHrs, ratePerHr_new);
+    specialHol_Amnt = addMoney(specialHol_Amnt_old, specialHol_Amnt_new);
+    total_hol_Amnt = addMoney(legalHol_Amnt, specialHol_Amnt);
+
+    // Split OT & Night Diff
+    const OT_Rate_old = multiplyMoney(ratePerHr_old, 1 + ordinaryOTRate);
+    const ND_OT_Rate_old = multiplyMoney(ratePerHr_old, (1 + ordinaryOTRate) * (1 + nsdRate));
+    const OT_Rate_new = multiplyMoney(ratePerHr_new, 1 + ordinaryOTRate);
+    const ND_OT_Rate_new = multiplyMoney(ratePerHr_new, (1 + ordinaryOTRate) * (1 + nsdRate));
+
+    const old_ot = (stats.rollover_ot_hrs || 0) + oldDaysList.reduce((sum, d) => sum + (d.ot_hrs || 0), 0);
+    const old_nd = (stats.rollover_nd_hrs || 0) + oldDaysList.reduce((sum, d) => sum + (d.nd_hrs || 0), 0);
+    const old_night_OT = Math.min(old_ot, old_nd);
+    const old_reg_OT = Math.max(0, old_ot - old_night_OT);
+    const old_reg_night = Math.max(0, old_nd - old_night_OT);
+    const old_OT_Amnt = addMoney(multiplyMoney(old_reg_OT, OT_Rate_old), multiplyMoney(old_night_OT, ND_OT_Rate_old));
+    const old_nightDiff_Amnt = multiplyMoney(old_reg_night * ratePerHr_old, nsdRate);
+
+    const new_ot = newDaysList.reduce((sum, d) => sum + (d.ot_hrs || 0), 0);
+    const new_nd = newDaysList.reduce((sum, d) => sum + (d.nd_hrs || 0), 0);
+    const new_night_OT = Math.min(new_ot, new_nd);
+    const new_reg_OT = Math.max(0, new_ot - new_night_OT);
+    const new_reg_night = Math.max(0, new_nd - new_night_OT);
+    const new_OT_Amnt = addMoney(multiplyMoney(new_reg_OT, OT_Rate_new), multiplyMoney(new_night_OT, ND_OT_Rate_new));
+    const new_nightDiff_Amnt = multiplyMoney(new_reg_night * ratePerHr_new, nsdRate);
+
+    OT_Amnt = addMoney(old_OT_Amnt, new_OT_Amnt);
+    nightDiff_Amnt = addMoney(old_nightDiff_Amnt, new_nightDiff_Amnt);
+    regular_OT_hrs = old_reg_OT + new_reg_OT;
+    night_OT_hrs = old_night_OT + new_night_OT;
+    regular_night_hrs = old_reg_night + new_reg_night;
   }
 
-  const absence_Amnt = isPresident ? 0 : multiplyMoney(stats.absence_Days, dailyRate); 
-  const tardiness_Amnt = isPresident ? 0 : multiplyMoney(stats.tardiness_Mins, ratePerMin);
-  const unpaidLeave_Amnt = isPresident ? 0 : multiplyMoney(stats.unpaidLeave_Days, dailyRate);
+  const total_OT_Amnt = addMoney(OT_Amnt, nightOT_Amnt);
   const specialHol_Adj = 0;
 
   const incentives = roundMoney(customIncentives || 0); 
@@ -1016,6 +1277,16 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
     absence_Hrs: stats.absence_Days * 8,
     dailyRate,
     previousDailyRate,
+    rateSplit: {
+      isSplit: isRateSplit,
+      splitDate: splitDateStr,
+      oldDailyRate: previousDailyRate,
+      newDailyRate: dailyRate,
+      oldScheduledDays: isRateSplit ? oldScheduledDays : 0,
+      newScheduledDays: isRateSplit ? newScheduledDays : 0,
+      oldBasicPay: isRateSplit ? potentialBasicPay_old : 0,
+      newBasicPay: isRateSplit ? potentialBasicPay_new : 0,
+    },
     ratePerHr,
     basicPay: basicPay, 
     potentialBasicPay: potentialBasicPay,
@@ -3772,9 +4043,20 @@ exports.getSeparationPayPreview = async (req, res) => {
     if (userResult.length === 0) return res.status(404).json({ error: "User not found." });
     const user = userResult[0];
 
-    if (!user.hireDate) return res.status(400).json({ error: "User hireDate is missing. Cannot calculate tenure." });
+    let effectiveHireDate = user.hireDate;
+    if (!effectiveHireDate) {
+      const firstLog = await sequelize.query(
+        `SELECT MIN("log_Date") as "firstDate" FROM "employee_Logging_report" WHERE "user_id" = :user_Id`,
+        { replacements: { user_Id: parsedUserId }, type: QueryTypes.SELECT }
+      );
+      effectiveHireDate = firstLog[0]?.firstDate || (user.createdAt ? new Date(user.createdAt).toISOString().split("T")[0] : separationDate);
+      await sequelize.query(
+        `UPDATE "User" SET "hireDate" = :effectiveHireDate WHERE "user_Id" = :user_Id AND "hireDate" IS NULL`,
+        { replacements: { effectiveHireDate, user_Id: parsedUserId }, type: QueryTypes.UPDATE }
+      );
+    }
 
-    const start = new Date(user.hireDate);
+    const start = new Date(effectiveHireDate);
     const end = new Date(separationDate);
 
     // Calculate tenure in months

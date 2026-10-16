@@ -1502,6 +1502,30 @@ exports.getDashboardStats = async (req, res) => {
       parseInt(yesterdayStats[0].lateArrivalsCount || 0)
     );
 
+    // Active approved leaves covering today across all leave types
+    const activeLeavesResult = await sequelize.query(
+      `SELECT COUNT(DISTINCT er."user_Id") AS "approvedLeavesToday"
+       FROM "emp_Request" er
+       LEFT JOIN "Vacation_Leave" vl ON er."emp_reqId" = vl."emp_reqId" AND er."emp_reqTypeId" = 3
+       LEFT JOIN "Sick_Leave" sl ON er."emp_reqId" = sl."emp_reqId" AND er."emp_reqTypeId" = 4
+       LEFT JOIN "Emergency_Leave" el ON er."emp_reqId" = el."emp_reqId" AND er."emp_reqTypeId" = 6
+       LEFT JOIN "HalfDay_Leave" hl ON er."emp_reqId" = hl."emp_reqId" AND er."emp_reqTypeId" = 7
+       LEFT JOIN "Statutory_Leave" st ON er."emp_reqId" = st."emp_reqId" AND er."emp_reqTypeId" IN (8, 9, 10, 11, 12)
+       WHERE er."emp_reqStatusId" = 2
+         AND er."user_Id" != 999
+         AND (
+           (:todayStr BETWEEN vl."StartDate"::text AND vl."EndDate"::text)
+           OR (:todayStr BETWEEN sl."StartDate"::text AND sl."EndDate"::text)
+           OR (:todayStr >= el."DateOfLeave"::text AND :todayStr <= (el."DateOfLeave"::date + (COALESCE(el."NoDays", 1) - 1) * INTERVAL '1 day')::date::text)
+           OR (:todayStr = hl."DateOfLeave"::text)
+           OR (:todayStr BETWEEN st."StartDate"::text AND st."EndDate"::text)
+         )`,
+      { replacements: { todayStr }, type: QueryTypes.SELECT }
+    );
+    const approvedLeavesToday = parseInt(activeLeavesResult[0]?.approvedLeavesToday || 0);
+    const reportOnLeaveCount = parseInt(stats[0].onLeaveCount || 0);
+    const totalOnLeaveCount = Math.max(reportOnLeaveCount, approvedLeavesToday);
+
     // Fetch Pending Requests Count
     let pendingCount = 0;
     if (roleId === 1 || roleId === 2 || roleId === 4) {
@@ -1570,7 +1594,7 @@ exports.getDashboardStats = async (req, res) => {
       onTimeCount: parseInt(stats[0].onTimeCount || 0),
       lateArrivalsCount: parseInt(stats[0].lateArrivalsCount || 0),
       absentCount: parseInt(stats[0].absentCount || 0),
-      onLeaveCount: parseInt(stats[0].onLeaveCount || 0),
+      onLeaveCount: totalOnLeaveCount,
       onFieldCount: parseInt(stats[0].onFieldCount || 0),
       onExemptCount: parseInt(stats[0].onExemptCount || 0),
       enteredCount: parseInt(stats[0].enteredCount || 0),

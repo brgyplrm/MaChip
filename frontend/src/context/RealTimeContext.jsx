@@ -103,7 +103,7 @@ export const RealTimeProvider = ({ children }) => {
       const targetId = data?.requestId || data?.targetId || text.match(/#(\d+)/)?.[1] || null;
       setToastNotification({
         message: text,
-        type: "info",
+        type: data?.type || "info",
         targetId
       });
     };

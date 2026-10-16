@@ -70,6 +70,17 @@ const validateForm = (formData) => {
     errors.user_Email = "Invalid email format.";
   }
 
+  const phoneRegex = /^(09|\+639)\d{9}$|^\d{11}$/;
+  if (!formData.user_Phone || !formData.user_Phone.trim()) {
+    errors.user_Phone = "Phone number is required.";
+  } else if (!phoneRegex.test(formData.user_Phone.trim().replace(/[-\s]/g, ""))) {
+    errors.user_Phone = "Valid 11-digit mobile number required (e.g. 09123456789).";
+  }
+
+  if (!formData.user_Address || !formData.user_Address.trim()) {
+    errors.user_Address = "Home Address is required.";
+  }
+
   if (!formData.user_Role) {
     errors.user_Role = "Role is required.";
   }
@@ -189,6 +200,11 @@ const Edit = () => {
 
   const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
+  const [showMachipId, setShowMachipId] = useState(false);
+  const [isPasswordFocused, setIsPasswordFocused] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [positions, setPositions] = useState([]);
   const [toast, setToast] = useState({ message: "", type: "success" });
   const [loadingGovt, setLoadingGovt] = useState(false);
@@ -197,6 +213,17 @@ const Edit = () => {
   
   const [originalRole, setOriginalRole] = useState("");
   const isTargetAdminManager = Number(formData.user_RoleId) === 1 || formData.user_Role === "Admin Manager" || Number(userData?.user_RoleId) === 1 || originalRole === "Admin Manager";
+
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isDirty]);
 
   useEffect(() => {
     fetchWithAuth("/api/system/settings")
@@ -484,12 +511,14 @@ const Edit = () => {
     }
 
     setFormData((prev) => ({ ...prev, [name]: value }));
+    setIsDirty(true);
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
     }
   };
 
   const handleSelectChange = (name, value) => {
+    setIsDirty(true);
     setFormData((prev) => {
       const updated = { ...prev, [name]: value };
       
@@ -566,6 +595,7 @@ const Edit = () => {
 
   const handleUpdate = async (adminVerification = null) => {
     try {
+      setIsSaving(true);
       const formDataToSend = new FormData();
 
       Object.keys(formData).forEach((key) => {
@@ -613,6 +643,7 @@ const Edit = () => {
       });
 
       if (response.ok) {
+        setIsDirty(false);
         const result = await response.json();
         
         // If the updated user is the current logged-in user, update session and local storage
@@ -627,24 +658,28 @@ const Edit = () => {
         }
 
         showToastMsg("User profile successfully updated!", "success");
-        setTimeout(() => navigate(-1), 2000);
+        setTimeout(() => navigate(-1), 1500);
       } else {
         const errorData = await response.json();
         showToastMsg(errorData.error || "Failed to update user.", "error");
       }
     } catch (error) {
       showToastMsg("Network error occurred.", "error");
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const handleSubmit = (e) => {
     if (e) e.preventDefault();
+    if (isSaving) return;
     const validationErrors = validateForm(formData);
     
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       console.error("[VALIDATION ERROR] Fields failed validation:", validationErrors);
-      showToastMsg("Please fix the validation errors before saving.", "error");
+      const errMsgs = Object.values(validationErrors).slice(0, 2).join("; ");
+      showToastMsg(`Please fix errors: ${errMsgs}`, "error");
       return;
     }
 
@@ -687,8 +722,14 @@ const Edit = () => {
                       <Button 
                         variant="ghost" 
                         size="icon" 
-                        onClick={() => navigate(-1)} 
-                        className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-brand-primary hover:bg-slate-200/60 rounded-full h-10 w-10"
+                        onClick={() => {
+                          if (isDirty) {
+                            setShowLeaveConfirm(true);
+                          } else {
+                            navigate(-1);
+                          }
+                        }} 
+                        className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-brand-primary hover:bg-slate-200/60 rounded-full h-10 w-10 cursor-pointer"
                       >
                         <ChevronLeft className="h-6 w-6" />
                       </Button>
@@ -705,8 +746,22 @@ const Edit = () => {
               </div>
             </div>
           </TooltipProvider>
-          <Button onClick={handleSubmit} className="w-full md:w-auto bg-brand-primary text-white hover:bg-brand-primary-hover shadow-sm h-11 px-6">
-            Save Changes
+          <Button 
+            onClick={handleSubmit} 
+            disabled={isSaving} 
+            className="w-full md:w-auto bg-brand-primary text-white hover:bg-brand-primary-hover shadow-sm h-11 px-6 font-semibold"
+          >
+            {isSaving ? (
+              <span className="flex items-center gap-2">
+                <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                </svg>
+                Saving...
+              </span>
+            ) : (
+              "Save Changes"
+            )}
           </Button>
         </div>
 
@@ -816,7 +871,7 @@ const Edit = () => {
                         {renderError("user_Phone")}
                       </div>
                       <div className="space-y-2 sm:col-span-3">
-                        <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Home Address</Label>
+                        <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Home Address <span className="text-red-500">*</span></Label>
                         <Input name="user_Address" value={formData.user_Address} onChange={handleChange} className="border-slate-200 focus-visible:ring-brand-primary"/>
                         {renderError("user_Address")}
                       </div>
@@ -1147,6 +1202,8 @@ const Edit = () => {
                         name="user_Password"
                         value={formData.user_Password}
                         onChange={handleChange}
+                        onFocus={() => setIsPasswordFocused(true)}
+                        onBlur={() => setIsPasswordFocused(false)}
                         className="pr-10 border-slate-200 focus-visible:ring-brand-primary"
                       />
                       <div 
@@ -1157,7 +1214,7 @@ const Edit = () => {
                       </div>
                     </div>
                     {renderError("user_Password")}
-                    {formData.user_Password && formData.user_Password.trim() !== "" && (
+                    {(isPasswordFocused || (formData.user_Password && formData.user_Password.trim() !== "")) && (
                       <div className="mt-2 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1">
                         <p className="text-slate-500 font-medium text-[11px] mb-1">Password Requirements:</p>
                         <div className="grid grid-cols-2 gap-1 text-[11px]">
@@ -1191,10 +1248,24 @@ const Edit = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
                   <div className="space-y-3 bg-slate-50 p-5 rounded-xl border border-slate-200">
                     <div className="flex justify-between items-start">
-                      <div>
-                        <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">MaChip Hardware Token</Label>
+                      <div className="flex-1 mr-2">
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">MaChip Hardware Token</Label>
+                          {formData.user_MachipId && (
+                            <button
+                              type="button"
+                              onClick={() => setShowMachipId(!showMachipId)}
+                              className="text-slate-400 hover:text-slate-600 focus:outline-none"
+                              title={showMachipId ? "Hide UID" : "Show UID"}
+                            >
+                              {showMachipId ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+                            </button>
+                          )}
+                        </div>
                         <p className="text-lg font-mono font-bold text-brand-primary mt-1 break-all">
-                          {formData.user_MachipId || "Unlinked"}
+                          {formData.user_MachipId 
+                            ? (showMachipId ? formData.user_MachipId : "••••••••" + (formData.user_MachipId.length > 4 ? formData.user_MachipId.slice(-4) : ""))
+                            : "Unlinked"}
                         </p>
                       </div>
                     </div>
@@ -1315,6 +1386,33 @@ const Edit = () => {
           setFile(croppedBlob);
         }}
       />
+
+      {/* Unsaved Changes Confirmation Dialog */}
+      <Dialog open={showLeaveConfirm} onOpenChange={setShowLeaveConfirm}>
+        <DialogContent className="sm:max-w-md bg-white border-0 shadow-2xl rounded-xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-slate-800">Unsaved Changes</DialogTitle>
+            <DialogDescription className="text-slate-500 mt-2">
+              You have unsaved form entries. Are you sure you want to discard your changes and return to User Details?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex sm:justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setShowLeaveConfirm(false)}>
+              Stay on Page
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={() => { 
+                setIsDirty(false); 
+                setShowLeaveConfirm(false); 
+                navigate(`/users/${userId}`); 
+              }}
+            >
+              Discard & Leave
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       </Sidebar>
     </div>

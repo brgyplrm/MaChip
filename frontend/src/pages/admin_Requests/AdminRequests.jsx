@@ -292,10 +292,13 @@ const AdminRequests = () => {
   };
 
   const confirmReturn = () => {
-    if (current && modalActionNote.trim().length > 0) {
-      handleStatusUpdate(current.emp_reqId, 5, modalActionNote);
-      setIsReturnModalOpen(false);
+    if (!current) return;
+    if (!modalActionNote || !modalActionNote.trim()) {
+      setToast({ message: "Remarks or instructions for the employee are strictly required when returning a request.", type: "error" });
+      return;
     }
+    handleStatusUpdate(current.emp_reqId, 5, modalActionNote);
+    setIsReturnModalOpen(false);
   };
 
   const getShortType = (typeName) => {

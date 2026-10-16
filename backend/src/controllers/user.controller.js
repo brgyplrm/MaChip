@@ -285,7 +285,7 @@ exports.registerUser = async (req, res) => {
             department: req.body.department || null,
             position: req.body.position || null,
             position_id: req.body.position_id || null,
-            hireDate: req.body.hireDate || null,
+            hireDate: (req.body.hireDate && String(req.body.hireDate).trim()) ? String(req.body.hireDate).trim() : nowStr.split(" ")[0],
             taxStatus: req.body.taxStatus || "S",
             user_Phone: req.body.user_Phone || null,
             user_Address: req.body.user_Address || null,

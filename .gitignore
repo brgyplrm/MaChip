@@ -35,10 +35,15 @@ firmware/**/build/
 *.hex
 
 # --- AI Assistants, Agents & Local Tooling (Keep local, omit from remote) ---
+.agent
 .agent/
+.agents
 .agents/
 _agent/
 _agents/
+skills
+skills/
+frontend/UI_GUIDE.md
 GEMINI.md
 AGENTS.md
 CLAUDE.md
