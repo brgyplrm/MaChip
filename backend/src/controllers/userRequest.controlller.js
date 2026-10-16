@@ -982,12 +982,12 @@ exports.UserCreateRequest = async (req, res) => {
         await t.rollback();
         return res.status(400).json({ error: "Supporting documentation (Medical Cert/SPIC/Barangay Cert/Court Order) is mandatory for this request." });
       }
+    }
 
-      // Emp-02: Mandatory medical certificate for Sick Leave > 2 days
-      if (finalReqTypeId === 4 && finalNoDays > 2 && !proof_File) {
-        await t.rollback();
-        return res.status(400).json({ error: "Medical Certificate is strictly mandatory for Sick Leave exceeding 2 days." });
-      }
+    // Emp-02: Mandatory medical certificate for Sick Leave > 2 days
+    if (finalReqTypeId === 4 && finalNoDays > 2 && !proof_File) {
+      await t.rollback();
+      return res.status(400).json({ error: "Medical Certificate is strictly mandatory for Sick Leave exceeding 2 days." });
     }
 
     let userLeaveBalance = null;
