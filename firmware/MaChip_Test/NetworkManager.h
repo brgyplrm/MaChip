@@ -27,6 +27,8 @@ const char CONSOLE_HTML[] PROGMEM = R"rawliteral(
   <div class="header-bar">
     <h2>MAChip Hardware Live Serial Monitor</h2>
     <div>
+      <button class="btn" style="background: #1f6feb; margin-right: 8px;" onclick="testBuzzer()">Test Buzzer</button>
+      <button class="btn" style="background: #8957e5; margin-right: 8px;" onclick="unlockRelay()">Unlock Relay</button>
       <button class="btn btn-danger" onclick="resetSensor()">Wipe R307 Sensor</button>
       <button class="btn" onclick="discoverServer()">Discover Server</button>
       <button class="btn" onclick="clearLogs()">Clear Terminal</button>
@@ -35,6 +37,18 @@ const char CONSOLE_HTML[] PROGMEM = R"rawliteral(
   <div id="terminal">Loading streaming logs...</div>
 
   <script>
+    async function testBuzzer() {
+      try {
+        await fetch('/console/test-buzzer?freq=2730&duration=200', { method: 'POST' });
+        setTimeout(fetchLogs, 250);
+      } catch (err) {}
+    }
+    async function unlockRelay() {
+      try {
+        await fetch('/console/unlock', { method: 'POST' });
+        setTimeout(fetchLogs, 250);
+      } catch (err) {}
+    }
     async function fetchLogs() {
       try {
         const res = await fetch('/console/logs');
@@ -264,6 +278,29 @@ inline void handleConsoleDiscover() {
   webServer.send(200, "application/json", "{\"success\":" + String(ok ? "true" : "false") + ",\"serverUrl\":\"" + currentServerUrl + "\",\"message\":\"" + msg + "\"}");
 }
 
+inline void handleConsoleTestBuzzer() {
+  if (!webServer.authenticate(WEB_CONSOLE_USER, WEB_CONSOLE_PASS)) {
+    return webServer.requestAuthentication(BASIC_AUTH, "MAChip Admin Auth Required");
+  }
+  int freq = webServer.hasArg("freq") ? webServer.arg("freq").toInt() : BUZZER_FREQ;
+  int duration = webServer.hasArg("duration") ? webServer.arg("duration").toInt() : 200;
+  if (duration <= 0 || duration > 3000) duration = 200;
+  if (freq <= 100 || freq > 10000) freq = BUZZER_FREQ;
+
+  sysLog("[BUZZER] Testing PWM Resonant Tone: " + String(freq) + "Hz (" + String(duration) + "ms)");
+  beepTone(duration, freq);
+  webServer.send(200, "application/json", "{\"success\":true,\"freq\":" + String(freq) + ",\"duration\":" + String(duration) + "}");
+}
+
+inline void handleConsoleUnlockRelay() {
+  if (!webServer.authenticate(WEB_CONSOLE_USER, WEB_CONSOLE_PASS)) {
+    return webServer.requestAuthentication(BASIC_AUTH, "MAChip Admin Auth Required");
+  }
+  sysLog(F("[CONSOLE] Web console triggered manual relay unlock (3s)..."));
+  solenoidUnlock();
+  webServer.send(200, "application/json", "{\"success\":true,\"message\":\"Relay unlocked for 3 seconds\"}");
+}
+
 inline void setupWebConsole() {
   if (webServerStarted) return;
 
@@ -273,6 +310,10 @@ inline void setupWebConsole() {
   webServer.on("/console/clear", HTTP_POST, handleConsoleClear);
   webServer.on("/console/reset-sensor", HTTP_POST, handleConsoleResetSensor);
   webServer.on("/console/discover", HTTP_POST, handleConsoleDiscover);
+  webServer.on("/console/test-buzzer", HTTP_POST, handleConsoleTestBuzzer);
+  webServer.on("/api/test-buzzer", HTTP_ANY, handleConsoleTestBuzzer);
+  webServer.on("/console/unlock", HTTP_POST, handleConsoleUnlockRelay);
+  webServer.on("/api/unlock", HTTP_ANY, handleConsoleUnlockRelay);
   webServer.on("/api/cancel", HTTP_ANY, handleCancelEnrollment);
   webServer.on("/cancel", HTTP_ANY, handleCancelEnrollment);
   webServer.on("/api/reset-screen", HTTP_ANY, handleResetScreen);

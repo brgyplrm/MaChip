@@ -2,11 +2,16 @@
 #include "Config.h"
 #include "DisplayManager.h"
 
-// ── FEEDBACK ENGINE ──────────────────────────────────────────────
-inline void beep(int duration) {
-  ledcWriteTone(BUZZER, BUZZER_FREQ);
+// ── FEEDBACK ENGINE (RESONANT ACOUSTIC PEAK) ──────────────────────
+inline void beepTone(int duration, int freq = BUZZER_FREQ) {
+  // Drives Passive Buzzer at mechanical diaphragm resonance using hardware LEDC PWM
+  ledcWriteTone(BUZZER, freq);
   delay(duration);
-  ledcWriteTone(BUZZER, 0); 
+  ledcWriteTone(BUZZER, 0);
+}
+
+inline void beep(int duration) {
+  beepTone(duration, BUZZER_FREQ);
 }
 
 inline void setLED(LedMode gMode, LedMode rMode) {
@@ -23,17 +28,17 @@ inline void provideFeedback(FeedbackType type) {
   switch (type) {
     case SUCCESS_OK:
       setLED(LED_STEADY_GREEN, LED_OFF);
-      beep(80); delay(80);
-      beep(80);
+      beepTone(100, 2730); delay(60);
+      beepTone(120, 4000); // Cheerful two-tone confirmation
       break;
 
     case ERROR_FAIL:
       setLED(LED_OFF, LED_STEADY_RED);
-      beep(800); 
+      beepTone(600, 1500); // Low warning buzz
       break;
 
     case RFID_TAP:
-      beep(100); 
+      beepTone(120, 2730); // Crisp access tap tone
       break;
 
     case WAITING_SCAN:
@@ -41,9 +46,11 @@ inline void provideFeedback(FeedbackType type) {
       break;
 
     case SYSTEM_READY:
-      for (int i = 0; i < 3; i++) {
-        beep(50); delay(50);
-      }
+      // Resonant 3-tone diagnostic startup chime (Sweeps 2048Hz -> 2730Hz -> 4000Hz)
+      // Whichever frequency hits your buzzer's physical resonance will sound at maximum volume!
+      beepTone(120, 2048); delay(60);
+      beepTone(120, 2730); delay(60);
+      beepTone(150, 4000);
       break;
   }
 }
@@ -67,8 +74,8 @@ inline void updateLEDs() {
 inline void solenoidUnlock() {
   if (!solenoidActive) {
     clearSpiBusPins();
-    delay(20);
-    digitalWrite(SOLENOID_PIN, LOW); // Pull Low to activate Relay shield
+    delay(50); // Ensure all in-flight SPI transmissions to both TFTs are 100% finished before relay draws current
+    digitalWrite(SOLENOID_PIN, HIGH); // Drive HIGH: Q2 NPN turns ON, pulling J8 IN to GND to trigger Relay
     solenoidActive = true;
     solenoidStartTime = millis();
     sysLog(F("[SOLENOID] UNLOCKED (Relay triggered)"));
@@ -78,7 +85,7 @@ inline void solenoidUnlock() {
 inline void solenoidLock() {
   if (solenoidActive) {
     clearSpiBusPins();
-    digitalWrite(SOLENOID_PIN, HIGH); // Pull High to return lock to rest
+    digitalWrite(SOLENOID_PIN, LOW); // Drive LOW: Q2 NPN turns OFF, returning Relay to normal rest
     solenoidActive = false;
     sysLog(F("[SOLENOID] LOCKED (Rest position)"));
   }
@@ -88,8 +95,12 @@ inline void updateSolenoid() {
   if (solenoidActive && (millis() - solenoidStartTime >= SOLENOID_DURATION)) {
     solenoidLock();
     // Allow relay coil kickback & contact bounce to fully quench before driving SPI bus
-    delay(100);
+    delay(150);
     clearSpiBusPins();
+
+    // Re-initialize Back TFT to immediately recover and heal from any inductive solenoid kickback
+    resetBackDisplay();
+
     updateFrontDisplay("READY", "Scan RFID Card to Login", ST77XX_GREEN);
     updateBackDisplay("READY", "Scan Card Out");
   }

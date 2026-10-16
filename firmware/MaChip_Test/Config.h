@@ -29,49 +29,53 @@ const byte MIFARE_ACCESS_BITS[4] = { 0xFF, 0x07, 0x80, 0x69 }; // Transport defa
 #define MIFARE_SECTOR_COUNTER_BLOCK 5
 #define MIFARE_SECTOR_TRAILER_BLOCK 7
 
-// ── HARDWARE LAYER PIN DEFINITIONS ──────────────────────────────
-#define GREEN_LED          12    // Physical UI Green Indicator
-#define RED_LED            13    // Physical UI Red Indicator
-#define SOLENOID_PIN       14    // Relay Control - LOW = UNLOCK, HIGH = LOCK
-#define BUZZER             27    // PWM Audio Feedback Pin
-#define FP_RX              16    // ESP32 UART2 RX <- R307S TX
-#define FP_TX              17    // ESP32 UART2 TX -> R307S RX
+// ── HARDWARE LAYER PIN DEFINITIONS (MACHIP 3.0 PCB CERTIFIED) ───
+#define GREEN_LED          13    // Physical UI Green Indicator (D3 via R12)
+#define RED_LED            14    // Physical UI Red Indicator (D4 via R13)
+#define SOLENOID_PIN       4     // Relay Control (J8 Pin 2 via Q2 NPN Open-Collector) - HIGH = UNLOCK (Triggers Relay), LOW = LOCK (Rest)
+#define BUZZER             32    // PWM Audio Feedback Pin (J7 Pin 2 via R14/R15)
+#define FP_RX              16    // ESP32 UART2 RX <- R307S TX (J6 Pin 3)
+#define FP_TX              17    // ESP32 UART2 TX -> R307S RX (J6 Pin 4 via R10)
 
-// SPI Bus Mappings for Dual MFRC522 Modules
-#define RFID_MISO          19    // Shared MISO (Master In Slave Out) for MFRC522 readers
-// Set SWAP_RFID_READERS to true if physical front/back reader cables are swapped
-#define SWAP_RFID_READERS  false
+// SPI Bus Mappings for Dual MFRC522 Modules & Displays
+#define TFT_SCK            18    // Shared SPI Clock (SCK)
+#define RFID_MISO          19    // Shared MISO (Master In Slave Out)
+#define TFT_MOSI           23    // Shared MOSI (Master Out Slave In)
 
-#if SWAP_RFID_READERS
-  #define SS_PIN_IN          26    // Swapped: Front Door Select Pin
-  #define SS_PIN_OUT         5     // Swapped: Back Door Select Pin
-  #define RST_PIN_IN         4     // Swapped: Front Door Reset Pin
-  #define RST_PIN_OUT        32    // Swapped: Back Door Reset Pin
-#else
-  #define SS_PIN_IN          5     // Front Door Select Pin
-  #define SS_PIN_OUT         26    // Back Door Select Pin
-  #define RST_PIN_IN         32    // Front Door Reset Pin
-  #define RST_PIN_OUT        4     // Back Door Reset Pin
-#endif
+// Dual MFRC522 RFID Reader Chip Selects (J3 is Front / Outside; J2 is Back / Inside)
+#define SS_PIN_IN          26    // Front Door Select Pin (J3 Pin 1, GPIO 26)
+#define SS_PIN_OUT         5     // Back Door Select Pin (J2 Pin 1, GPIO 5)
 
-// ── DISPLAY PIN DEFINITIONS ──────────────────────────────────────
-#define TFT_CS             33
-#define TFT_RST            25
-#define TFT_DC             2
-#define TFT_MOSI           23
-#define TFT_SCK            18
+// Master Hardware Reset Pin on MAChip 3.0 PCB (Net "Resets" drives J2, J3, J4, J5)
+#define HARDWARE_RESET_PIN 27
+#define RST_PIN_IN         HARDWARE_RESET_PIN  // J2 RFID Inside Reset
+#define RST_PIN_OUT        HARDWARE_RESET_PIN  // J3 RFID Outside Reset
 
-// Front Terminal: 2.4" ST7789 SPI TFT (320x240 Landscape Layout)
-#define TFT_INVERT_COLOR   false        // Adafruit_ST7789 hardcodes INVON by default; false sends INVOFF to restore true Black BG & White text
-#define RFID_PULSE_COLOR   ST77XX_WHITE // Pulse animation color (ST77XX_WHITE, ST77XX_CYAN, etc.)
+// ── DISPLAY PIN DEFINITIONS (MACHIP 3.0 DUAL ST7789 SPI) ─────────
+// Front Terminal: 2.4" ST7789 SPI TFT (J4 Outside Display)
+#define TFT_CS             33    // J4 Outside Display Chip Select (GPIO 33)
+#define TFT_DC             25    // J4 Outside Display Data/Command (GPIO 25)
+#define TFT_RST            HARDWARE_RESET_PIN // J4 Shared Reset (GPIO 27)
 
-// Back Terminal: 0.96" OLED (128x64 Landscape Layout) I2C
+// Back Terminal: 2.4" ST7789 SPI TFT (J5 Inside Display)
+#define TFT_CS_INSIDE      21    // J5 Inside Display Chip Select (GPIO 21)
+#define TFT_DC_INSIDE      22    // J5 Inside Display Data/Command (GPIO 22)
+#define TFT_RST_INSIDE     HARDWARE_RESET_PIN // J5 Shared Reset (GPIO 27)
+
+// Display Configuration Flags
+#define ENABLE_DUAL_ST7789 true         // Default: MAChip 3.0 Dual ST7789 on J4 & J5
+#define ENABLE_I2C_OLED    false        // Set true only if using legacy I2C OLED on GPIO 21/22
+#define TFT_INVERT_COLOR   false        // Adafruit_ST7789 hardcodes INVON by default; false sends INVOFF
+#define RFID_PULSE_COLOR   ST77XX_WHITE // Pulse animation color
+
+// Back Terminal: 0.96" OLED (128x64 Landscape Layout) I2C (Legacy / Optional)
 #define OLED_RESET         -1
 #define SCREEN_WIDTH       128
 #define SCREEN_HEIGHT      64
 
-// ── TIMERS & FREQUENCY PROFILES ──────────────────────────────────
-#define BUZZER_FREQ        2500
+// ── TIMERS & BUZZER ACOUSTIC PROFILES ─────────────────────────────
+#define BUZZER_IS_ACTIVE   false // User confirmed: PASSIVE buzzer (requires PWM oscillation)
+#define BUZZER_FREQ        2730  // Optimal acoustic resonant peak (standard 2.73kHz)
 #define BUZZER_RES         8
 #define SOLENOID_DURATION  3000
 #define TIMEOUT_2FA        15000
@@ -121,7 +125,11 @@ extern MFRC522 rfidOUT;
 extern HardwareSerial fpSerial;
 extern Adafruit_Fingerprint finger;
 extern Adafruit_ST7789 tft;
+#if ENABLE_DUAL_ST7789
+extern Adafruit_ST7789 tftBack;
+#elif ENABLE_I2C_OLED
 extern Adafruit_SSD1306 oled;
+#endif
 extern WebServer webServer;
 
 // ── HARDWARE & LOGIC STATES ──────────────────────────────────────
@@ -238,4 +246,7 @@ inline void clearSpiBusPins() {
   digitalWrite(SS_PIN_IN, HIGH);
   digitalWrite(SS_PIN_OUT, HIGH);
   digitalWrite(TFT_CS, HIGH);
+#if ENABLE_DUAL_ST7789
+  digitalWrite(TFT_CS_INSIDE, HIGH);
+#endif
 }

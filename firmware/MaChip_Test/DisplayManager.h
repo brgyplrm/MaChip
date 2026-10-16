@@ -132,7 +132,63 @@ inline void updateFrontDisplay(String header, String message, uint16_t color) {
   clearSpiBusPins();
 }
 
+inline void resetBackDisplay() {
+#if ENABLE_DUAL_ST7789
+  clearSpiBusPins();
+  delay(10);
+  digitalWrite(TFT_CS_INSIDE, LOW);
+  tftBack.init(240, 320);
+  tftBack.setRotation(3);
+  tftBack.invertDisplay(TFT_INVERT_COLOR);
+  digitalWrite(TFT_CS_INSIDE, HIGH);
+  clearSpiBusPins();
+  delay(10);
+#endif
+}
+
+inline void resetFrontDisplay() {
+  clearSpiBusPins();
+  delay(10);
+  digitalWrite(TFT_CS, LOW);
+  tft.init(240, 320);
+  tft.setRotation(3);
+  tft.invertDisplay(TFT_INVERT_COLOR);
+  digitalWrite(TFT_CS, HIGH);
+  clearSpiBusPins();
+  delay(10);
+}
+
 inline void updateBackDisplay(String line1, String line2) {
+#if ENABLE_DUAL_ST7789
+  if (line1 == "READY") {
+    resetBackDisplay();
+  }
+  clearSpiBusPins();
+  delayMicroseconds(50);
+  digitalWrite(TFT_CS_INSIDE, LOW);
+  tftBack.fillScreen(ST77XX_BLACK);
+  tftBack.fillRect(0, 42, 320, 60, ST77XX_BLACK);
+  tftBack.fillRect(0, 105, 320, 135, ST77XX_BLACK);
+
+  tftBack.setCursor(15, 15);
+  tftBack.setTextColor(ST77XX_ORANGE, ST77XX_BLACK);
+  tftBack.setTextSize(2);
+  tftBack.println(F("MACHIP CLOCK-OUT"));
+  tftBack.drawFastHLine(15, 38, 290, ST77XX_WHITE);
+  
+  tftBack.setCursor(15, 55);
+  tftBack.setTextColor(ST77XX_GREEN, ST77XX_BLACK);
+  tftBack.setTextSize(3); 
+  tftBack.println(line1);
+  
+  tftBack.setCursor(15, 115);
+  tftBack.setTextColor(ST77XX_WHITE, ST77XX_BLACK);
+  tftBack.setTextSize(2);
+  tftBack.println(line2);
+  
+  digitalWrite(TFT_CS_INSIDE, HIGH);
+  clearSpiBusPins();
+#elif ENABLE_I2C_OLED
   oled.clearDisplay();
   oled.setTextSize(1);
   oled.setTextColor(SSD1306_WHITE);
@@ -149,4 +205,5 @@ inline void updateBackDisplay(String line1, String line2) {
   oled.println(line2);
   
   oled.display();
+#endif
 }

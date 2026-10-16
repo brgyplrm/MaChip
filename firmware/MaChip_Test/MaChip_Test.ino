@@ -11,8 +11,12 @@ MFRC522 rfidOUT(SS_PIN_OUT, RST_PIN_OUT);
 HardwareSerial fpSerial(2);
 Adafruit_Fingerprint finger(&fpSerial);
 
-Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, TFT_RST);
+Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, -1);
+#if ENABLE_DUAL_ST7789
+Adafruit_ST7789 tftBack = Adafruit_ST7789(TFT_CS_INSIDE, TFT_DC_INSIDE, -1);
+#elif ENABLE_I2C_OLED
 Adafruit_SSD1306 oled(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+#endif
 WebServer webServer(80);
 
 // ── GLOBAL APPLICATION STATE INSTANTIATIONS ───────────────────────
@@ -123,27 +127,28 @@ void setup() {
   pinMode(RED_LED, OUTPUT);
   pinMode(SOLENOID_PIN, OUTPUT);
   pinMode(TFT_CS, OUTPUT);
+#if ENABLE_DUAL_ST7789
+  pinMode(TFT_CS_INSIDE, OUTPUT);
+#endif
   pinMode(SS_PIN_IN, OUTPUT);
   pinMode(SS_PIN_OUT, OUTPUT);
-  pinMode(RST_PIN_IN, OUTPUT);
-  pinMode(RST_PIN_OUT, OUTPUT);
-  pinMode(TFT_RST, OUTPUT);
+  pinMode(HARDWARE_RESET_PIN, OUTPUT);
 
-  // 2. Set Safe Default States (Lock energized/High, CS Unselected/High)
-  digitalWrite(SOLENOID_PIN, HIGH);
+  // 2. Set Safe Default States (Lock at Rest / LOW, CS Unselected/High)
+  digitalWrite(SOLENOID_PIN, LOW);
   solenoidActive = false;
   clearSpiBusPins();
 
   // 3. Hardware Master SPI Bus Setup
   SPI.begin(TFT_SCK, RFID_MISO, TFT_MOSI, -1);
-  Wire.begin(21, 22);
 
-  // 4. Reset & Initialize Front Display (ST7789 2.4" SPI 240x320)
-  digitalWrite(TFT_RST, LOW);
+  // Master Hardware Reset Pulse for all SPI devices (MFRC522s and ST7789s)
+  digitalWrite(HARDWARE_RESET_PIN, LOW);
   delay(50);
-  digitalWrite(TFT_RST, HIGH);
-  delay(100);
+  digitalWrite(HARDWARE_RESET_PIN, HIGH);
+  delay(50);
 
+  // 4. Reset & Initialize Front Display (ST7789 2.4" SPI 240x320 on J4)
   clearSpiBusPins();
   digitalWrite(TFT_CS, LOW);
   tft.init(240, 320);
@@ -151,22 +156,30 @@ void setup() {
   tft.invertDisplay(TFT_INVERT_COLOR);
   digitalWrite(TFT_CS, HIGH);
 
-  // 5. Init Back Display (0.96" OLED I2C)
+  // 5. Init Back Display (ST7789 on J5 or optional OLED)
+#if ENABLE_DUAL_ST7789
+  clearSpiBusPins();
+  digitalWrite(TFT_CS_INSIDE, LOW);
+  tftBack.init(240, 320);
+  tftBack.setRotation(3);
+  tftBack.invertDisplay(TFT_INVERT_COLOR);
+  digitalWrite(TFT_CS_INSIDE, HIGH);
+  clearSpiBusPins();
+  bool backDisplayOk = true;
+#elif ENABLE_I2C_OLED
+  Wire.begin(21, 22);
   bool oledOk = oled.begin(SSD1306_SWITCHCAPVCC, 0x3C);
   if (oledOk) { 
     oled.setRotation(0); 
     oled.clearDisplay();
     oled.display();
   }
+  bool backDisplayOk = oledOk;
+#else
+  bool backDisplayOk = false;
+#endif
 
   // 6. Hardware Reset & Initialize Dual MFRC522 RFID Modules (4MHz Safe SPI Clock)
-  digitalWrite(RST_PIN_IN, LOW);
-  digitalWrite(RST_PIN_OUT, LOW);
-  delay(50);
-  digitalWrite(RST_PIN_IN, HIGH);
-  digitalWrite(RST_PIN_OUT, HIGH);
-  delay(50);
-
   reinitRfidReaders();
   delay(20);
   byte vFront = rfidIN.PCD_ReadRegister(MFRC522::VersionReg);
@@ -182,7 +195,12 @@ void setup() {
   updateFrontDisplay("BOOTING", "Running Hardware Self-Test...", ST77XX_YELLOW);
   updateBackDisplay("BOOTING", "Checking sensors...");
 
+#if BUZZER_IS_ACTIVE
+  pinMode(BUZZER, OUTPUT);
+  digitalWrite(BUZZER, LOW);
+#else
   ledcAttach(BUZZER, BUZZER_FREQ, BUZZER_RES);
+#endif
   provideFeedback(SYSTEM_READY);
 
   // 9. Wi-Fi & Web Console Initialization
@@ -195,22 +213,26 @@ void setup() {
   // 10. Comprehensive Hardware Self-Test Report
   sysLog(F("=========================================================="));
   sysLog(F(" [*] MACHIP HARDWARE SELF-TEST DIAGNOSTICS"));
-  sysLog("  +-- [OLED BACK]   " + String(oledOk ? "ONLINE (0x3C I2C)" : "FAILED/OFFLINE"));
-  sysLog(F("  +-- [TFT FRONT]   INITIALIZED (ST7789 240x320 SPI CS:33)"));
+#if ENABLE_DUAL_ST7789
+  sysLog(F("  +-- [TFT BACK]    INITIALIZED (ST7789 240x320 SPI J5 CS:21 DC:22)"));
+#elif ENABLE_I2C_OLED
+  sysLog("  +-- [OLED BACK]   " + String(backDisplayOk ? "ONLINE (0x3C I2C)" : "FAILED/OFFLINE"));
+#endif
+  sysLog(F("  +-- [TFT FRONT]   INITIALIZED (ST7789 240x320 SPI J4 CS:33 DC:25)"));
   sysLog("  +-- [FP SENSOR]   " + String(fpOk ? "ONLINE (R307 UART2 RX:16 TX:17)" : "FAILED (Check RX:16 TX:17 5V GND)"));
   
   bool isFrontOk = (vFront == 0x91 || vFront == 0x92 || vFront == 0x82 || vFront == 0x88 || vFront == 0x90);
   if (isFrontOk) {
-    sysLog("  +-- [RFID FRONT]  ONLINE (MFRC522 v0x" + String(vFront, HEX) + " CS:5 RST:32)");
+    sysLog("  +-- [RFID FRONT]  ONLINE (MFRC522 v0x" + String(vFront, HEX) + " J3 CS:26 RST:27)");
   } else {
-    sysLog("  +-- [RFID FRONT]  [ERROR] FAILED! (Reg: 0x" + String(vFront, HEX) + " - Check CS:5, SCK:18, MOSI:23, MISO:19, RST:32)");
+    sysLog("  +-- [RFID FRONT]  [ERROR] FAILED! (Reg: 0x" + String(vFront, HEX) + " - Check J3 CS:26, SCK:18, MOSI:23, MISO:19, RST:27)");
   }
 
   bool isBackOk = (vBack == 0x91 || vBack == 0x92 || vBack == 0x82 || vBack == 0x88 || vBack == 0x90);
   if (isBackOk) {
-    sysLog("  \\-- [RFID BACK]   ONLINE (MFRC522 v0x" + String(vBack, HEX) + " CS:26 RST:4)");
+    sysLog("  \\-- [RFID BACK]   ONLINE (MFRC522 v0x" + String(vBack, HEX) + " J2 CS:5 RST:27)");
   } else {
-    sysLog("  \\-- [RFID BACK]   [ERROR] FAILED! (Reg: 0x" + String(vBack, HEX) + " - Check CS:26, SCK:18, MOSI:23, MISO:19, RST:4)");
+    sysLog("  \\-- [RFID BACK]   [ERROR] FAILED! (Reg: 0x" + String(vBack, HEX) + " - Check J2 CS:5, SCK:18, MOSI:23, MISO:19, RST:27)");
   }
   sysLog(F("=========================================================="));
   
