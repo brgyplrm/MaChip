@@ -6,7 +6,7 @@ const bcrypt = require("bcryptjs");
 const { getSystemTime, formatForSQL } = require("../utils/systemTime");
 const { validateEmailActive, sendWelcomeEmail, sendPasswordUpdateEmail } = require("../utils/emailService");
 const { logAudit } = require("../utils/logger");
-const { encrypt, decrypt } = require("../utils/encryption");
+const { encrypt, decrypt, generateBlindIndex, hashRfidBadge, maskSensitiveValue } = require("../utils/encryption");
 const { computeMonthlyShares } = require("../utils/govtDeductions");
 const { queueSlotDeletion } = require("./rfid.controller");
 const { roundMoney } = require("../utils/financialHelper");
@@ -181,12 +181,13 @@ exports.registerUser = async (req, res) => {
 
     // Check if MaChip ID already exists in ACTIVE users (only if provided)
     if (user_MachipId) {
+      const machipHash = hashRfidBadge(user_MachipId);
       const existingMachip = await sequelize.query(
         `SELECT h."user_Id" 
          FROM "User_Hardware" h
          JOIN "User" u ON h."user_Id" = u."user_Id"
-         WHERE h."user_MachipId" = :user_MachipId AND u."deletedAt" IS NULL`,
-        { replacements: { user_MachipId }, type: QueryTypes.SELECT },
+         WHERE (h."machip_uid_hash" = :machipHash OR h."user_MachipId" = :user_MachipId) AND u."deletedAt" IS NULL`,
+        { replacements: { user_MachipId, machipHash }, type: QueryTypes.SELECT },
       );
 
       if (existingMachip.length > 0) {
@@ -255,20 +256,21 @@ exports.registerUser = async (req, res) => {
     const transaction = await sequelize.transaction();
     try {
       // 1. Insert Core User
+      const birthMonth = req.body.user_DOB ? (new Date(req.body.user_DOB).getUTCMonth() + 1) : null;
       await sequelize.query(
         `INSERT INTO "User" (
           "user_Id", "user_FirstName", "user_LastName",
           "user_MiddleName", "user_Email", "user_Password", 
           "user_RoleId", "user_EmploymentStatusId", "user_ProfilePic", 
           "department", "position", "position_id", "hireDate", "taxStatus", 
-          "user_Phone", "user_Address", "user_DOB", "user_Gender", "user_ShiftId",
+          "user_Phone", "user_Address", "user_DOB", "birth_month", "user_Gender", "user_ShiftId",
           "dailyRate", "civil_status", "is_solo_parent", "createdAt", "updatedAt"
         ) VALUES (
           :user_Id, :user_FirstName, :user_LastName,
           :user_MiddleName, :user_Email, :user_Password, 
           :user_RoleId, :user_EmploymentStatusId, :user_ProfilePic, 
           :department, :position, :position_id, :hireDate, :taxStatus,
-          :user_Phone, :user_Address, :user_DOB, :user_Gender, :user_ShiftId,
+          :user_Phone, :user_Address, :user_DOB, :birth_month, :user_Gender, :user_ShiftId,
           :dailyRate, :civil_status, :is_solo_parent, :now, :now
         )`,
         {
@@ -290,6 +292,7 @@ exports.registerUser = async (req, res) => {
             user_Phone: req.body.user_Phone || null,
             user_Address: req.body.user_Address || null,
             user_DOB: req.body.user_DOB || null,
+            birth_month: birthMonth,
             user_Gender: req.body.user_Gender || null,
             user_ShiftId: assignedShiftId,
             dailyRate,
@@ -303,14 +306,16 @@ exports.registerUser = async (req, res) => {
       );
 
       // 2. Insert Banking Info
+      const rawAcc = account_Number ? String(account_Number).trim() : null;
       await sequelize.query(
         `INSERT INTO "User_Banking" (
-          "user_Id", "account_Number", "bank_Company", "bank_AccountName", "createdAt", "updatedAt"
-        ) VALUES (:user_Id, :account_Number, :bank_Company, :bank_AccountName, :now, :now)`,
+          "user_Id", "account_Number", "account_number_bidx", "bank_Company", "bank_AccountName", "createdAt", "updatedAt"
+        ) VALUES (:user_Id, :account_Number, :account_number_bidx, :bank_Company, :bank_AccountName, :now, :now)`,
         {
           replacements: {
             user_Id,
-            account_Number: encrypt(account_Number),
+            account_Number: rawAcc ? encrypt(rawAcc) : null,
+            account_number_bidx: rawAcc ? generateBlindIndex(rawAcc) : null,
             bank_Company: bank_Company || "UnionBank of the Philippines",
             bank_AccountName: bank_AccountName || null,
             now: nowStr
@@ -320,17 +325,42 @@ exports.registerUser = async (req, res) => {
         }
       );
 
-      // 3. Insert Deduction Profile
+      // 3. Insert Deduction Profile with Statutory SPI Encryption & Blind Indexing (SEC-SPI-001)
+      const rawSssNo = req.body.sss_no ? String(req.body.sss_no).trim() : null;
+      const rawTinNo = req.body.tin_no ? String(req.body.tin_no).trim() : null;
+      const rawPhNo = req.body.philhealth_no ? String(req.body.philhealth_no).trim() : null;
+      const rawHdmfNo = req.body.hdmf_no ? String(req.body.hdmf_no).trim() : null;
+
       await sequelize.query(
         `INSERT INTO "User_Deduction_Profile" (
-          "user_Id", "sss_Share", "philhealth_Share", "hdmf_Share", "createdAt", "updatedAt"
-        ) VALUES (:user_Id, :sss, :ph, :hd, :now, :now)`,
+          "user_Id", "sss_Share", "philhealth_Share", "hdmf_Share",
+          "sss_no", "sss_no_bidx",
+          "tin_no", "tin_no_bidx",
+          "philhealth_no", "philhealth_no_bidx",
+          "hdmf_no", "hdmf_no_bidx",
+          "createdAt", "updatedAt"
+        ) VALUES (
+          :user_Id, :sss, :ph, :hd,
+          :sss_no, :sss_no_bidx,
+          :tin_no, :tin_no_bidx,
+          :philhealth_no, :philhealth_no_bidx,
+          :hdmf_no, :hdmf_no_bidx,
+          :now, :now
+        )`,
         {
           replacements: {
             user_Id,
             sss: parseFloat(req.body.SSS_Ded) || shares.sss_Share,
             ph: parseFloat(req.body.Philhealth_Ded) || shares.philhealth_Share,
             hd: parseFloat(req.body.HDMF_Ded) || shares.hdmf_Share,
+            sss_no: rawSssNo ? encrypt(rawSssNo) : null,
+            sss_no_bidx: rawSssNo ? generateBlindIndex(rawSssNo) : null,
+            tin_no: rawTinNo ? encrypt(rawTinNo) : null,
+            tin_no_bidx: rawTinNo ? generateBlindIndex(rawTinNo) : null,
+            philhealth_no: rawPhNo ? encrypt(rawPhNo) : null,
+            philhealth_no_bidx: rawPhNo ? generateBlindIndex(rawPhNo) : null,
+            hdmf_no: rawHdmfNo ? encrypt(rawHdmfNo) : null,
+            hdmf_no_bidx: rawHdmfNo ? generateBlindIndex(rawHdmfNo) : null,
             now: nowStr
           },
           type: QueryTypes.INSERT,
@@ -344,14 +374,18 @@ exports.registerUser = async (req, res) => {
         encryptedTemplate = encrypt(encryptedTemplate);
       }
 
+      const rawMachip = req.body.user_MachipId ? String(req.body.user_MachipId).trim() : null;
+      const machipHash = rawMachip ? hashRfidBadge(rawMachip) : null;
+
       await sequelize.query(
         `INSERT INTO "User_Hardware" (
-          "user_Id", "user_MachipId", "user_FingerprintId", "user_FingerprintTemplate", "createdAt", "updatedAt"
-        ) VALUES (:user_Id, :user_MachipId, :user_FingerprintId, :user_FingerprintTemplate, :now, :now)`,
+          "user_Id", "user_MachipId", "machip_uid_hash", "user_FingerprintId", "user_FingerprintTemplate", "createdAt", "updatedAt"
+        ) VALUES (:user_Id, :user_MachipId, :machip_uid_hash, :user_FingerprintId, :user_FingerprintTemplate, :now, :now)`,
         {
           replacements: {
             user_Id,
-            user_MachipId: req.body.user_MachipId || null,
+            user_MachipId: rawMachip,
+            machip_uid_hash: machipHash,
             user_FingerprintId: req.body.user_FingerprintId || null,
             user_FingerprintTemplate: encryptedTemplate,
             now: nowStr
@@ -445,6 +479,7 @@ exports.viewAllUsers = async (req, res) => {
               d."sss_Share", d."philhealth_Share", d."hdmf_Share", d."tax_Share",
               d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
               d."advances_Amnt", d."globe_Deduction", d."eastwest_Loan", d."multiPurposeSavings",
+              d."sss_no", d."tin_no", d."philhealth_no", d."hdmf_no",
               h."user_MachipId", h."user_FingerprintId",
               u."user_ShiftId",
               (SELECT COUNT(*) > 0 FROM "Payroll_maxicare" m 
@@ -476,15 +511,28 @@ exports.viewAllUsers = async (req, res) => {
       delete user.resetPasswordToken;
       delete user.resetPasswordExpires;
 
+      const isOwner = requesterId === parseInt(user.user_Id, 10);
+
       if (user.account_Number) {
         const decryptedAccount = decrypt(user.account_Number);
-        const isOwner = requesterId === parseInt(user.user_Id, 10);
         if (isOwner || isFinanceOrAdmin) {
           user.account_Number = decryptedAccount;
         } else {
           user.account_Number = decryptedAccount && decryptedAccount.length > 4
             ? `****${decryptedAccount.slice(-4)}`
             : "****";
+        }
+      }
+
+      // Decrypt or protect Statutory SPI (SEC-SPI-001)
+      const spiKeys = ['sss_no', 'tin_no', 'philhealth_no', 'hdmf_no'];
+      for (const key of spiKeys) {
+        if (user[key]) {
+          if (isOwner || isFinanceOrAdmin) {
+            user[key] = decrypt(user[key]);
+          } else {
+            user[key] = maskSensitiveValue(decrypt(user[key]));
+          }
         }
       }
 
@@ -505,6 +553,10 @@ exports.viewAllUsers = async (req, res) => {
         delete user.globe_Deduction;
         delete user.eastwest_Loan;
         delete user.multiPurposeSavings;
+        delete user.sss_no;
+        delete user.tin_no;
+        delete user.philhealth_no;
+        delete user.hdmf_no;
       }
 
       return user;
@@ -602,6 +654,7 @@ exports.viewUserById = async (req, res) => {
               d."sss_Share", d."philhealth_Share", d."hdmf_Share", d."tax_Share",
               d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
               d."advances_Amnt", d."globe_Deduction", d."eastwest_Loan", d."multiPurposeSavings",
+              d."sss_no", d."tin_no", d."philhealth_no", d."hdmf_no",
               h."user_MachipId", h."user_FingerprintId",
               u."user_ShiftId",
               (SELECT COUNT(*) > 0 FROM "Payroll_maxicare" m 
@@ -625,21 +678,34 @@ exports.viewUserById = async (req, res) => {
       delete userData.resetPasswordToken;
       delete userData.resetPasswordExpires;
 
+      const requesterId = req.user ? parseInt(req.user.user_Id, 10) : null;
+      const requesterRoleId = req.user ? parseInt(req.user.user_RoleId, 10) : null;
+      const requesterRoleName = req.user ? req.user.user_Role : "";
+      const isOwner = requesterId === parseInt(userData.user_Id, 10);
+      const isFinanceOrAdmin = [1, 4].includes(requesterRoleId) ||
+        ["Admin Manager", "Admin Accountant", "Admin"].includes(requesterRoleName);
+
       if (userData.account_Number) {
         const decryptedAccount = decrypt(userData.account_Number);
-        const requesterId = req.user ? parseInt(req.user.user_Id, 10) : null;
-        const requesterRoleId = req.user ? parseInt(req.user.user_RoleId, 10) : null;
-        const requesterRoleName = req.user ? req.user.user_Role : "";
-        const isOwner = requesterId === parseInt(userData.user_Id, 10);
-        const isFinanceOrAdmin = [1, 4].includes(requesterRoleId) ||
-          ["Admin Manager", "Admin Accountant", "Admin"].includes(requesterRoleName);
-
         if (isOwner || isFinanceOrAdmin) {
           userData.account_Number = decryptedAccount;
         } else {
           userData.account_Number = decryptedAccount && decryptedAccount.length > 4
             ? `****${decryptedAccount.slice(-4)}`
             : "****";
+        }
+      }
+
+      // Decrypt or mask Statutory SPI (SEC-SPI-001)
+      const spiKeys = ['sss_no', 'tin_no', 'philhealth_no', 'hdmf_no'];
+      for (const key of spiKeys) {
+        if (userData[key]) {
+          const decrypted = decrypt(userData[key]);
+          if (isOwner || isFinanceOrAdmin) {
+            userData[key] = decrypted;
+          } else {
+            userData[key] = maskSensitiveValue(decrypted);
+          }
         }
       }
       res.status(200).json(userData);
@@ -690,6 +756,7 @@ exports.deleteUser = async (req, res) => {
         `UPDATE "User_Hardware" 
          SET "deletedAt" = :now, 
              "user_MachipId" = :archivedMachipId, 
+             "machip_uid_hash" = NULL,
              "user_FingerprintId" = NULL, 
              "user_FingerprintTemplate" = NULL,
              "user_FingerprintId2" = NULL,
@@ -762,13 +829,14 @@ exports.restoreUser = async (req, res) => {
         ? currentMachipId.split("-ARCHIVED-")[0] 
         : currentMachipId;
       
+      const targetHash = targetMachipId ? hashRfidBadge(targetMachipId) : null;
       // Check if this ID is already assigned to an ACTIVE user
       const taken = await sequelize.query(
         `SELECT h."user_Id" 
          FROM "User_Hardware" h
          JOIN "User" u ON h."user_Id" = u."user_Id"
-         WHERE h."user_MachipId" = :targetMachipId AND u."deletedAt" IS NULL AND u."user_Id" != :user_Id`,
-        { replacements: { targetMachipId, user_Id }, type: QueryTypes.SELECT }
+         WHERE (h."machip_uid_hash" = :targetHash OR h."user_MachipId" = :targetMachipId) AND u."deletedAt" IS NULL AND u."user_Id" != :user_Id`,
+        { replacements: { targetMachipId, targetHash, user_Id }, type: QueryTypes.SELECT }
       );
 
       if (taken.length > 0) {
@@ -851,11 +919,12 @@ exports.restoreUser = async (req, res) => {
     );
 
     // Also restore hardware info
+    const restoreHash = targetMachipId ? hashRfidBadge(targetMachipId) : null;
     await sequelize.query(
       `UPDATE "User_Hardware" 
-       SET "deletedAt" = NULL, "user_MachipId" = :targetMachipId, "updatedAt" = :now 
+       SET "deletedAt" = NULL, "user_MachipId" = :targetMachipId, "machip_uid_hash" = :restoreHash, "updatedAt" = :now 
        WHERE "user_Id" = :user_Id`,
-      { replacements: { user_Id, targetMachipId, now: nowStr }, type: QueryTypes.UPDATE },
+      { replacements: { user_Id, targetMachipId, restoreHash, now: nowStr }, type: QueryTypes.UPDATE },
     );
 
     // Refresh leave balances for current year
@@ -1133,12 +1202,13 @@ exports.updateUser = async (req, res) => {
 
     // Check if new MaChip ID is already assigned to another active user
     if (user_MachipId) {
+      const machipHash = hashRfidBadge(user_MachipId);
       const existingMachip = await sequelize.query(
         `SELECT h."user_Id" 
          FROM "User_Hardware" h
          JOIN "User" u ON h."user_Id" = u."user_Id"
-         WHERE h."user_MachipId" = :user_MachipId AND u."deletedAt" IS NULL AND u."user_Id" != :targetId`,
-        { replacements: { user_MachipId, targetId: parseInt(user_Id) }, type: QueryTypes.SELECT }
+         WHERE (h."machip_uid_hash" = :machipHash OR h."user_MachipId" = :user_MachipId) AND u."deletedAt" IS NULL AND u."user_Id" != :targetId`,
+        { replacements: { user_MachipId, machipHash, targetId: parseInt(user_Id) }, type: QueryTypes.SELECT }
       );
 
       if (existingMachip.length > 0) {
@@ -1152,6 +1222,7 @@ exports.updateUser = async (req, res) => {
               d."sss_Share", d."sss_is_manual", d."philhealth_Share", d."ph_is_manual", d."hdmf_Share", d."hdmf_is_manual", d."tax_Share",
               d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
               d."advances_Amnt", d."globe_Deduction", d."eastwest_Loan", d."multiPurposeSavings",
+              d."sss_no", d."sss_no_bidx", d."tin_no", d."tin_no_bidx", d."philhealth_no", d."philhealth_no_bidx", d."hdmf_no", d."hdmf_no_bidx",
               h."user_MachipId", h."user_FingerprintId"
        FROM "User" u
        LEFT JOIN "User_Banking" b ON u."user_Id" = b."user_Id"
@@ -1243,6 +1314,7 @@ exports.updateUser = async (req, res) => {
         phone: req.body.user_Phone !== undefined ? (req.body.user_Phone || null) : oldUser.user_Phone,
         address: req.body.user_Address !== undefined ? (req.body.user_Address || null) : oldUser.user_Address,
         dob: req.body.user_DOB !== undefined ? (req.body.user_DOB || null) : oldUser.user_DOB,
+        birthMonth: (req.body.user_DOB !== undefined ? (req.body.user_DOB || null) : oldUser.user_DOB) ? (new Date(req.body.user_DOB !== undefined ? (req.body.user_DOB || null) : oldUser.user_DOB).getUTCMonth() + 1) : null,
         gender: req.body.user_Gender !== undefined ? (req.body.user_Gender || null) : oldUser.user_Gender,
         shiftId: resolvedShiftId,
         accountNumber: account_Number !== undefined ? (encrypt(account_Number) || null) : oldUser.account_Number,
@@ -1307,6 +1379,7 @@ exports.updateUser = async (req, res) => {
           "user_Phone"     = :phone,
           "user_Address"   = :address,
           "user_DOB"       = :dob,
+          "birth_month"    = :birthMonth,
           "user_Gender"    = :gender,
           "user_ShiftId"   = :shiftId,
           "department"     = :department,
@@ -1350,25 +1423,51 @@ exports.updateUser = async (req, res) => {
       const [resUpdate, metadata] = await sequelize.query(sql, { replacements, type: QueryTypes.UPDATE, transaction });
 
       // 2. Update/Insert Banking
+      let rawAcc = account_Number !== undefined ? (account_Number ? String(account_Number).trim() : null) : null;
+      if (account_Number === undefined && oldUser.account_Number) {
+        rawAcc = decrypt(oldUser.account_Number);
+      }
+      replacements.accountNumber = rawAcc ? encrypt(rawAcc) : null;
+      replacements.accountNumberBidx = rawAcc ? generateBlindIndex(rawAcc) : null;
+
       await sequelize.query(
-        `INSERT INTO "User_Banking" ("user_Id", "account_Number", "bank_Company", "bank_AccountName", "createdAt", "updatedAt")
-         VALUES (:targetId, :accountNumber, :bankCompany, :bankAccountName, :updatedAt, :updatedAt)
+        `INSERT INTO "User_Banking" ("user_Id", "account_Number", "account_number_bidx", "bank_Company", "bank_AccountName", "createdAt", "updatedAt")
+         VALUES (:targetId, :accountNumber, :accountNumberBidx, :bankCompany, :bankAccountName, :updatedAt, :updatedAt)
          ON CONFLICT ("user_Id") DO UPDATE SET
           "account_Number" = EXCLUDED."account_Number",
+          "account_number_bidx" = EXCLUDED."account_number_bidx",
           "bank_Company" = EXCLUDED."bank_Company",
           "bank_AccountName" = EXCLUDED."bank_AccountName",
           "updatedAt" = EXCLUDED."updatedAt"`,
         { replacements, type: QueryTypes.INSERT, transaction }
       );
 
-      // 3. Update/Insert Deductions
+      // 3. Update/Insert Deductions & Statutory Government Numbers (SEC-SPI-001)
+      const rawSss = req.body.sss_no !== undefined ? (req.body.sss_no ? String(req.body.sss_no).trim() : null) : undefined;
+      const rawTin = req.body.tin_no !== undefined ? (req.body.tin_no ? String(req.body.tin_no).trim() : null) : undefined;
+      const rawPh = req.body.philhealth_no !== undefined ? (req.body.philhealth_no ? String(req.body.philhealth_no).trim() : null) : undefined;
+      const rawHdmf = req.body.hdmf_no !== undefined ? (req.body.hdmf_no ? String(req.body.hdmf_no).trim() : null) : undefined;
+
+      replacements.sss_no = rawSss !== undefined ? (rawSss ? encrypt(rawSss) : null) : (oldUser.sss_no || null);
+      replacements.sss_no_bidx = rawSss !== undefined ? (rawSss ? generateBlindIndex(rawSss) : null) : (oldUser.sss_no_bidx || null);
+      replacements.tin_no = rawTin !== undefined ? (rawTin ? encrypt(rawTin) : null) : (oldUser.tin_no || null);
+      replacements.tin_no_bidx = rawTin !== undefined ? (rawTin ? generateBlindIndex(rawTin) : null) : (oldUser.tin_no_bidx || null);
+      replacements.philhealth_no = rawPh !== undefined ? (rawPh ? encrypt(rawPh) : null) : (oldUser.philhealth_no || null);
+      replacements.philhealth_no_bidx = rawPh !== undefined ? (rawPh ? generateBlindIndex(rawPh) : null) : (oldUser.philhealth_no_bidx || null);
+      replacements.hdmf_no = rawHdmf !== undefined ? (rawHdmf ? encrypt(rawHdmf) : null) : (oldUser.hdmf_no || null);
+      replacements.hdmf_no_bidx = rawHdmf !== undefined ? (rawHdmf ? generateBlindIndex(rawHdmf) : null) : (oldUser.hdmf_no_bidx || null);
+
       await sequelize.query(
         `INSERT INTO "User_Deduction_Profile" (
           "user_Id", "sss_Share", "sss_is_manual", "philhealth_Share", "ph_is_manual", "hdmf_Share", "hdmf_is_manual", "tax_Share", "healthCard_Amnt",
           "SSS_Loan", "HDMF_Loan", "calamityLoan_Amnt", "eastwest_Loan", "globe_Deduction",
-          "multiPurposeSavings", "advances_Amnt", "createdAt", "updatedAt"
+          "multiPurposeSavings", "advances_Amnt",
+          "sss_no", "sss_no_bidx", "tin_no", "tin_no_bidx", "philhealth_no", "philhealth_no_bidx", "hdmf_no", "hdmf_no_bidx",
+          "createdAt", "updatedAt"
         ) VALUES (
-          :targetId, :sss, :sss_is_manual, :ph, :ph_is_manual, :hd, :hdmf_is_manual, :tax, :hc, :sl, :hl, :cl, :el, :gd, :ms, :aa, :updatedAt, :updatedAt
+          :targetId, :sss, :sss_is_manual, :ph, :ph_is_manual, :hd, :hdmf_is_manual, :tax, :hc, :sl, :hl, :cl, :el, :gd, :ms, :aa,
+          :sss_no, :sss_no_bidx, :tin_no, :tin_no_bidx, :philhealth_no, :philhealth_no_bidx, :hdmf_no, :hdmf_no_bidx,
+          :updatedAt, :updatedAt
         ) ON CONFLICT ("user_Id") DO UPDATE SET
           "sss_Share" = EXCLUDED."sss_Share",
           "sss_is_manual" = EXCLUDED."sss_is_manual",
@@ -1385,26 +1484,37 @@ exports.updateUser = async (req, res) => {
           "globe_Deduction" = EXCLUDED."globe_Deduction",
           "multiPurposeSavings" = EXCLUDED."multiPurposeSavings",
           "advances_Amnt" = EXCLUDED."advances_Amnt",
+          "sss_no" = EXCLUDED."sss_no",
+          "sss_no_bidx" = EXCLUDED."sss_no_bidx",
+          "tin_no" = EXCLUDED."tin_no",
+          "tin_no_bidx" = EXCLUDED."tin_no_bidx",
+          "philhealth_no" = EXCLUDED."philhealth_no",
+          "philhealth_no_bidx" = EXCLUDED."philhealth_no_bidx",
+          "hdmf_no" = EXCLUDED."hdmf_no",
+          "hdmf_no_bidx" = EXCLUDED."hdmf_no_bidx",
           "updatedAt" = EXCLUDED."updatedAt"`,
         { replacements, type: QueryTypes.INSERT, transaction }
       );
 
       // 4. Update/Insert Hardware
+      replacements.machipUidHash = replacements.machipId ? hashRfidBadge(replacements.machipId) : null;
       let hardwareSql = `
-        INSERT INTO "User_Hardware" ("user_Id", "user_MachipId", "user_FingerprintId", "createdAt", "updatedAt")
-        VALUES (:targetId, :machipId, :fingerprintId, :updatedAt, :updatedAt)
+        INSERT INTO "User_Hardware" ("user_Id", "user_MachipId", "machip_uid_hash", "user_FingerprintId", "createdAt", "updatedAt")
+        VALUES (:targetId, :machipId, :machipUidHash, :fingerprintId, :updatedAt, :updatedAt)
         ON CONFLICT ("user_Id") DO UPDATE SET
           "user_MachipId" = EXCLUDED."user_MachipId",
+          "machip_uid_hash" = EXCLUDED."machip_uid_hash",
           "user_FingerprintId" = EXCLUDED."user_FingerprintId",
           "updatedAt" = EXCLUDED."updatedAt"
       `;
       
       if (replacements.fingerprintTemplate) {
         hardwareSql = `
-          INSERT INTO "User_Hardware" ("user_Id", "user_MachipId", "user_FingerprintId", "user_FingerprintTemplate", "createdAt", "updatedAt")
-          VALUES (:targetId, :machipId, :fingerprintId, :fingerprintTemplate, :updatedAt, :updatedAt)
+          INSERT INTO "User_Hardware" ("user_Id", "user_MachipId", "machip_uid_hash", "user_FingerprintId", "user_FingerprintTemplate", "createdAt", "updatedAt")
+          VALUES (:targetId, :machipId, :machipUidHash, :fingerprintId, :fingerprintTemplate, :updatedAt, :updatedAt)
           ON CONFLICT ("user_Id") DO UPDATE SET
             "user_MachipId" = EXCLUDED."user_MachipId",
+            "machip_uid_hash" = EXCLUDED."machip_uid_hash",
             "user_FingerprintId" = EXCLUDED."user_FingerprintId",
             "user_FingerprintTemplate" = EXCLUDED."user_FingerprintTemplate",
             "updatedAt" = EXCLUDED."updatedAt"
@@ -2064,10 +2174,13 @@ exports.batchRegisterUsers = async (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(userData.user_Password, salt);
 
-        // Encrypt Account Number if present
+        // Encrypt Account Number and generate Blind Index if present
         let encAccount = null;
+        let bidxAccount = null;
         if (userData.account_Number) {
-          encAccount = encrypt(userData.account_Number);
+          const rawAcc = String(userData.account_Number).trim();
+          encAccount = encrypt(rawAcc);
+          bidxAccount = generateBlindIndex(rawAcc);
         }
 
         const trans = await sequelize.transaction();
@@ -2113,14 +2226,15 @@ exports.batchRegisterUsers = async (req, res) => {
 
           // 2. Banking
           await sequelize.query(
-            `INSERT INTO "User_Banking" ("user_Id", "bank_Company", "bank_AccountName", "account_Number", "createdAt", "updatedAt")
-             VALUES (:user_Id, :bank_Company, :bank_AccountName, :account_Number, :now, :now)`,
+            `INSERT INTO "User_Banking" ("user_Id", "bank_Company", "bank_AccountName", "account_Number", "account_number_bidx", "createdAt", "updatedAt")
+             VALUES (:user_Id, :bank_Company, :bank_AccountName, :account_Number, :account_number_bidx, :now, :now)`,
             {
               replacements: {
                 user_Id: nextId,
                 bank_Company: normalizedBank,
                 bank_AccountName: userData.bank_AccountName || null,
                 account_Number: encAccount,
+                account_number_bidx: bidxAccount,
                 now: nowStr
               },
               type: QueryTypes.INSERT,
@@ -2267,3 +2381,57 @@ exports.getUnassignedHardwareUsers = async (req, res) => {
     res.status(500).json({ error: "Failed to fetch unassigned employees." });
   }
 };
+
+// ── User Self-Service Preferences (SEC-CFG-001) ──────────────────────────────
+exports.getUserPreferences = async (req, res) => {
+  try {
+    const userId = req.user?.user_Id;
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized access: Missing user session." });
+    }
+    const stateKey = `USER_PREF_${userId}`;
+    const [row] = await sequelize.query(
+      `SELECT "value" FROM "System_State" WHERE "key" = :stateKey LIMIT 1`,
+      { replacements: { stateKey }, type: QueryTypes.SELECT }
+    );
+    let preferences = {};
+    if (row && row.value) {
+      try {
+        preferences = JSON.parse(row.value);
+      } catch (e) {
+        preferences = {};
+      }
+    }
+    res.status(200).json({ success: true, preferences });
+  } catch (error) {
+    console.error("[ERROR] getUserPreferences:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.updateUserPreferences = async (req, res) => {
+  try {
+    const userId = req.user?.user_Id;
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized access: Missing user session." });
+    }
+    const stateKey = `USER_PREF_${userId}`;
+    const newPrefs = req.body.preferences || req.body || {};
+    const serialized = JSON.stringify(newPrefs);
+
+    await sequelize.query(
+      `INSERT INTO "System_State" ("key", "value", "createdAt", "updatedAt")
+       VALUES (:stateKey, :val, NOW(), NOW())
+       ON CONFLICT ("key") DO UPDATE SET
+        "value" = EXCLUDED."value",
+        "updatedAt" = NOW()`,
+      { replacements: { stateKey, val: serialized }, type: QueryTypes.INSERT }
+    );
+
+    res.status(200).json({ success: true, message: "Preferences saved successfully", preferences: newPrefs });
+  } catch (error) {
+    console.error("[ERROR] updateUserPreferences:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+

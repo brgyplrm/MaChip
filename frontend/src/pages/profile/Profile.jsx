@@ -10,12 +10,13 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import { formatUserId } from "../../utils/formatUserId";
 import { formatTime12h } from "../../utils/formatTime";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { fetchWithAuth } from "../../utils/api";
+import { getStoredUser, setStoredUser } from "../../utils/authStorage";
 
 // UI Components
 import { Input } from "@/components/ui/input";
-import { Search, X } from "lucide-react";
+import { Search, X, Shield, History, Calendar, Eye, Sparkles, CheckCircle, AlertCircle, Info, Lock, UserCheck } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,17 +24,108 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TablePagination } from "@/components/ui/table-pagination";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+
+const PROPERTY_FRIENDLY_NAMES = {
+  dailyRate: "Daily Wage Rate",
+  previousDailyRate: "Previous Daily Rate",
+  rateUpdatedAt: "Rate Last Modified",
+  user_ShiftId: "Work Shift Schedule",
+  user_EmploymentStatusId: "Employment Status",
+  user_RoleId: "System Role",
+  is_time_exempt: "Time Tracking Exemption",
+  is_solo_parent: "Solo Parent Status",
+  civil_status: "Civil / Marital Status",
+  taxStatus: "Tax Exemption Status",
+  account_Number: "Bank Account Number",
+  bank_Company: "Bank Entity",
+  bank_AccountName: "Account Holder Name",
+  user_DOB: "Date of Birth",
+  user_Phone: "Contact Phone Number",
+  user_Address: "Home Address",
+  user_Email: "Corporate Email",
+  department: "Assigned Department",
+  position: "Job Position",
+  hireDate: "Official Hire Date",
+  sss_Share: "SSS Contribution Share",
+  philhealth_Share: "PhilHealth Contribution Share",
+  hdmf_Share: "Pag-IBIG Contribution Share",
+  tax_Share: "Withholding Tax Share",
+  healthCard_Amnt: "Maxicare / Health Card",
+  SSS_Loan: "SSS Loan Deduction",
+  HDMF_Loan: "Pag-IBIG Loan Deduction",
+  calamityLoan_Amnt: "Calamity Loan Deduction",
+  advances_Amnt: "Cash Advances Balance",
+  globe_Deduction: "Telecom / Globe Deduction",
+  eastwest_Loan: "EastWest Loan Deduction",
+  multiPurposeSavings: "Multi-Purpose Savings",
+  user_MachipId: "RFID Card UID",
+  user_FingerprintId: "Fingerprint Slot ID",
+  reason: "Audit Note / Reason",
+  attendanceStatus: "Attendance Status"
+};
+
+const formatFriendlyValue = (key, val) => {
+  if (val === null || val === undefined || val === "") return "—";
+  if (typeof val === "boolean") return val ? "Enabled / Active" : "Disabled / Inactive";
+  if (key === "user_ShiftId") return val === 1 || val === "1" ? "Morning Shift (08:30 – 17:30)" : "Night Shift (20:30 – 05:30)";
+  if (key === "account_Number") {
+    const s = String(val);
+    return s.length > 4 ? `••••••••${s.slice(-4)}` : "••••••••";
+  }
+  if (
+    key.toLowerCase().includes("rate") ||
+    key.toLowerCase().includes("share") ||
+    key.toLowerCase().includes("amnt") ||
+    key.toLowerCase().includes("loan") ||
+    key.toLowerCase().includes("savings") ||
+    key.toLowerCase().includes("deduction")
+  ) {
+    const num = parseFloat(val);
+    if (!isNaN(num)) return `₱${num.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  if (typeof val === "object") return JSON.stringify(val);
+  return String(val);
+};
 
 const Profile = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showMachipId, setShowMachipId] = useState(false);
   const [attendanceLogs, setAttendanceLogs] = useState([]);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlPage = parseInt(searchParams.get("page") || "1", 10);
+  const [currentPage, setCurrentPage] = useState(urlPage > 0 ? urlPage : 1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [monthFilter, setMonthFilter] = useState("All");
+
+  useEffect(() => {
+    const pageFromUrl = parseInt(searchParams.get("page") || "1", 10);
+    if (pageFromUrl > 0 && pageFromUrl !== currentPage) {
+      setCurrentPage(pageFromUrl);
+    }
+  }, [searchParams]);
+
+  const handlePageChange = (newPage) => {
+    setCurrentPage(newPage);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("page", String(newPage));
+      return next;
+    }, { replace: true });
+  };
+
+  // Transparency & Activity Log States
+  const [activeProfileTab, setActiveProfileTab] = useState("attendance"); // "attendance" | "transparency"
+  const [transparencyData, setTransparencyData] = useState({ transparencyTrail: [], personalActivity: [] });
+  const [transparencySubTab, setTransparencySubTab] = useState("admin"); // "admin" | "personal"
+  const [selectedAuditLog, setSelectedAuditLog] = useState(null);
+  const [adminLogPage, setAdminLogPage] = useState(1);
+  const [personalLogPage, setPersonalLogPage] = useState(1);
+  const LOGS_PER_PAGE = 8;
 
   // Derive unique months available in user's attendance history
   const availableMonths = useMemo(() => {
@@ -145,8 +237,7 @@ const Profile = () => {
 
   useEffect(() => {
     const fetchProfileData = async () => {
-      const userDataString = localStorage.getItem("userData");
-      const storedUserData = userDataString ? JSON.parse(userDataString) : null;
+      const storedUserData = getStoredUser();
       const userId = storedUserData?.user_Id;
 
       if (!userId) {
@@ -155,20 +246,26 @@ const Profile = () => {
       }
 
       try {
-        const [userRes, logsRes] = await Promise.all([
+        const [userRes, logsRes, transRes] = await Promise.allSettled([
           fetchWithAuth(`/api/users/${userId}`),
-          fetchWithAuth(`/api/attendance/logs/${userId}`)
+          fetchWithAuth(`/api/attendance/logs/${userId}`),
+          fetchWithAuth("/api/system/my-transparency-logs")
         ]);
 
-        if (userRes.ok) {
-          const userData = await userRes.json();
+        if (userRes.status === "fulfilled" && userRes.value.ok) {
+          const userData = await userRes.value.json();
           setUser(userData);
-          localStorage.setItem("userData", JSON.stringify(userData));
+          setStoredUser(userData);
         }
         
-        if (logsRes.ok) {
-          const logsData = await logsRes.json();
+        if (logsRes.status === "fulfilled" && logsRes.value.ok) {
+          const logsData = await logsRes.value.json();
           setAttendanceLogs(Array.isArray(logsData) ? logsData : []);
+        }
+
+        if (transRes.status === "fulfilled" && transRes.value.ok) {
+          const tData = await transRes.value.json();
+          setTransparencyData(tData || { transparencyTrail: [], personalActivity: [] });
         }
       } catch (error) {
         console.error("Error fetching profile data:", error);
@@ -321,8 +418,30 @@ const Profile = () => {
                 </Card>
               </div>
 
-              {/* Chart Section */}
-              <Card className="bg-white border border-slate-200/80 shadow-sm mb-6 overflow-hidden">
+              {/* Primary Profile Tabs Navigation */}
+              <div className="mb-6 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <Tabs value={activeProfileTab} onValueChange={setActiveProfileTab} className="w-full sm:w-auto">
+                  <TabsList className="bg-slate-200/80 p-1 w-full sm:w-auto grid grid-cols-2">
+                    <TabsTrigger value="attendance" className="text-xs font-bold gap-2 py-2 px-4 data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-xs">
+                      <Calendar className="w-4 h-4 text-brand-primary" /> Attendance & Time Tracking
+                    </TabsTrigger>
+                    <TabsTrigger value="transparency" className="text-xs font-bold gap-2 py-2 px-4 data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-xs">
+                      <Shield className="w-4 h-4 text-emerald-600" /> Data Transparency & Logs
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+
+                {activeProfileTab === "transparency" && (
+                  <Badge variant="outline" className="bg-emerald-50 text-emerald-800 border-emerald-200 text-xs py-1 px-3 self-start sm:self-auto font-medium">
+                    <Shield className="w-3.5 h-3.5 mr-1 text-emerald-600 inline" /> RA 10173 DPA Protected
+                  </Badge>
+                )}
+              </div>
+
+              {activeProfileTab === "attendance" && (
+                <>
+                  {/* Chart Section */}
+                  <Card className="bg-white border border-slate-200/80 shadow-sm mb-6 overflow-hidden">
                 <CardHeader className="border-b border-slate-100 pb-4">
                   <CardTitle className="text-lg font-bold text-slate-800">Attendance Consistency (Last 6 Months)</CardTitle>
                 </CardHeader>
@@ -500,7 +619,7 @@ const Profile = () => {
                   <TablePagination
                     currentPage={currentPage}
                     totalPages={totalPages}
-                    setCurrentPage={setCurrentPage}
+                    setCurrentPage={handlePageChange}
                     totalItems={totalItems}
                     itemsPerPage={itemsPerPage}
                     setItemsPerPage={setItemsPerPage}
@@ -510,12 +629,410 @@ const Profile = () => {
                   />
                 </CardContent>
               </Card>
-
             </>
           )}
-        </div>
-      </Sidebar>
+
+          {/* DATA TRANSPARENCY & AUDIT TRAIL (RA 10173 SECTION 16 COMPLIANCE) */}
+          {activeProfileTab === "transparency" && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              {/* Legal Banner */}
+              <Card className="border-l-4 border-l-emerald-600 border-slate-200/80 shadow-xs bg-white py-0">
+                <CardContent className="p-4 sm:p-5 flex flex-col sm:flex-row items-start gap-4">
+                  <div className="p-2.5 rounded-xl bg-emerald-100 text-emerald-700 shrink-0">
+                    <Shield className="h-6 w-6" />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-slate-900 text-sm">Employee Data Transparency & Right of Access</h3>
+                      <Badge className="bg-emerald-100 text-emerald-800 text-[10px] font-bold">SEC. 16 COMPLIANT</Badge>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      Under the Philippine <strong>Data Privacy Act of 2012 (RA 10173)</strong>, you have the full statutory right to review every administrative access or change made to your profile, wage rate, and deductions, alongside your personal terminal punch history.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Sub-Tabs: Admin Access Trail vs. Personal System Activity */}
+              <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-2">
+                <button
+                  type="button"
+                  onClick={() => setTransparencySubTab("admin")}
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    transparencySubTab === "admin"
+                      ? "bg-brand-primary text-white shadow-xs"
+                      : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                  }`}
+                >
+                  <UserCheck className="w-3.5 h-3.5" />
+                  Admin Access & Changes
+                  <Badge variant="secondary" className={`ml-1 text-[10px] ${transparencySubTab === "admin" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"}`}>
+                    {transparencyData.transparencyTrail?.length || 0}
+                  </Badge>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setTransparencySubTab("personal")}
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    transparencySubTab === "personal"
+                      ? "bg-slate-900 text-white shadow-xs"
+                      : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                  }`}
+                >
+                  <History className="w-3.5 h-3.5 text-amber-400" />
+                  My System & Hardware History
+                  <Badge variant="secondary" className={`ml-1 text-[10px] ${transparencySubTab === "personal" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"}`}>
+                    {transparencyData.personalActivity?.length || 0}
+                  </Badge>
+                </button>
+              </div>
+
+              {/* Sub-Panel 1: Admin Access & Changes Table */}
+              {transparencySubTab === "admin" && (
+                <Card className="py-0 border border-slate-200/80 shadow-sm bg-white overflow-hidden">
+                  <CardHeader className="border-b border-slate-100 py-4 px-6 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                    <div>
+                      <CardTitle className="text-base font-bold text-slate-800">Administrative Transparency Audit Trail</CardTitle>
+                      <p className="text-xs text-slate-500">Record of who in HR / Administration viewed or updated your employee data</p>
+                    </div>
+                    <Badge variant="outline" className="bg-white text-slate-700 border-slate-200 text-xs">
+                      {transparencyData.transparencyTrail?.length || 0} Total Events
+                    </Badge>
+                  </CardHeader>
+                  <CardContent className="p-0 overflow-x-auto">
+                    <Table className="min-w-[800px] md:min-w-full text-xs">
+                      <TableHeader className="bg-brand-primary">
+                        <TableRow className="hover:bg-transparent border-b-0">
+                          <TableHead className="font-semibold text-white py-3.5 px-6 uppercase text-xs w-[180px]">Date & Time</TableHead>
+                          <TableHead className="font-semibold text-white py-3.5 uppercase text-xs w-[200px]">Administrator</TableHead>
+                          <TableHead className="font-semibold text-white py-3.5 uppercase text-xs w-[200px]">Action Category</TableHead>
+                          <TableHead className="font-semibold text-white py-3.5 uppercase text-xs">Operational Summary</TableHead>
+                          <TableHead className="font-semibold text-white py-3.5 text-right pr-6 uppercase text-xs w-[80px]">Details</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {transparencyData.transparencyTrail?.length > 0 ? (
+                          transparencyData.transparencyTrail
+                            .slice((adminLogPage - 1) * LOGS_PER_PAGE, adminLogPage * LOGS_PER_PAGE)
+                            .map((log) => {
+                              const action = (log.action || "").toUpperCase();
+                              let headline = "Updated account details";
+                              let badgeColor = "bg-blue-100 text-blue-800 border-blue-200";
+
+                              if (action.includes("RATE")) {
+                                headline = "Adjusted daily wage rate";
+                                badgeColor = "bg-amber-100 text-amber-800 border-amber-200";
+                              } else if (action.includes("DEDUCT")) {
+                                headline = "Updated statutory / loan deductions";
+                                badgeColor = "bg-purple-100 text-purple-800 border-purple-200";
+                              } else if (action.includes("DELETE") || action.includes("DEACT")) {
+                                headline = "Deactivated employee profile access";
+                                badgeColor = "bg-rose-100 text-rose-800 border-rose-200";
+                              } else if (action.includes("RESTORE")) {
+                                headline = "Restored employee profile access";
+                                badgeColor = "bg-emerald-100 text-emerald-800 border-emerald-200";
+                              } else if (action.includes("CREATE")) {
+                                headline = "Registered initial employee account";
+                                badgeColor = "bg-emerald-100 text-emerald-800 border-emerald-200";
+                              }
+
+                              return (
+                                <TableRow key={log.auditId} className="hover:bg-slate-50/70 border-b border-slate-100 transition-colors">
+                                  <TableCell className="text-slate-600 text-xs py-3.5 px-6 font-medium whitespace-nowrap">
+                                    <div className="font-bold text-slate-800">
+                                      {new Date(log.createdAt).toLocaleDateString("en-US", {
+                                        timeZone: "Asia/Manila",
+                                        month: "short",
+                                        day: "numeric",
+                                        year: "numeric"
+                                      })}
+                                    </div>
+                                    <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+                                      {new Date(log.createdAt).toLocaleTimeString("en-US", {
+                                        timeZone: "Asia/Manila",
+                                        hour: "2-digit",
+                                        minute: "2-digit"
+                                      })}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="py-3.5">
+                                    <p className="font-bold text-slate-900 text-xs">
+                                      {log.admin_FirstName ? `${log.admin_FirstName} ${log.admin_LastName}` : "System Automated"}
+                                    </p>
+                                    <Badge variant="outline" className="mt-0.5 text-[10px] font-bold bg-slate-100 text-slate-700">
+                                      {log.admin_Role || "Administrator"}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="py-3.5">
+                                    <Badge variant="outline" className={`${badgeColor} uppercase tracking-wider text-[10px] font-bold py-0.5 px-2`}>
+                                      {log.action.replace(/_/g, " ")}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="text-xs py-3.5">
+                                    <p className="font-semibold text-slate-800">{headline}</p>
+                                    <p className="text-[11px] text-slate-500 mt-0.5">
+                                      Module: <span className="font-mono font-medium">{log.module || "System"}</span> • Target: <span className="font-mono">{log.target_Table || "Profile"}</span>
+                                    </p>
+                                  </TableCell>
+                                  <TableCell className="text-right pr-6 py-3.5">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => setSelectedAuditLog(log)}
+                                      className="border-brand-primary text-brand-primary hover:text-brand-primary-hover hover:bg-brand-primary-light h-8 px-2.5 text-xs gap-1"
+                                    >
+                                      <Eye className="w-3.5 h-3.5" /> View
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={5} className="text-center py-12 text-slate-400 text-xs italic">
+                              No administrative modifications have been recorded for your account.
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+
+                    {transparencyData.transparencyTrail?.length > LOGS_PER_PAGE && (
+                      <div className="p-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                        <span className="text-slate-500">
+                          Showing {(adminLogPage - 1) * LOGS_PER_PAGE + 1} to {Math.min(adminLogPage * LOGS_PER_PAGE, transparencyData.transparencyTrail.length)} of {transparencyData.transparencyTrail.length}
+                        </span>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={adminLogPage === 1}
+                            onClick={() => setAdminLogPage(p => Math.max(1, p - 1))}
+                            className="h-7 text-xs"
+                          >
+                            Previous
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={adminLogPage * LOGS_PER_PAGE >= transparencyData.transparencyTrail.length}
+                            onClick={() => setAdminLogPage(p => p + 1)}
+                            className="h-7 text-xs"
+                          >
+                            Next
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Sub-Panel 2: My System & Hardware History Table */}
+              {transparencySubTab === "personal" && (
+                <Card className="py-0 border border-slate-200/80 shadow-sm bg-white overflow-hidden">
+                  <CardHeader className="border-b border-slate-100 py-4 px-6 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                    <div>
+                      <CardTitle className="text-base font-bold text-slate-800">My System & Punch Activity</CardTitle>
+                      <p className="text-xs text-slate-500">Logins, physical RFID terminal taps, biometric scans, and submitted requests</p>
+                    </div>
+                    <Badge variant="outline" className="bg-white text-slate-700 border-slate-200 text-xs">
+                      {transparencyData.personalActivity?.length || 0} Total Events
+                    </Badge>
+                  </CardHeader>
+                  <CardContent className="p-0 overflow-x-auto">
+                    <Table className="min-w-[800px] md:min-w-full text-xs">
+                      <TableHeader className="bg-slate-900">
+                        <TableRow className="hover:bg-transparent border-b-0">
+                          <TableHead className="font-semibold text-white py-3.5 px-6 uppercase text-xs w-[180px]">Date & Time</TableHead>
+                          <TableHead className="font-semibold text-white py-3.5 uppercase text-xs w-[180px]">Event Type</TableHead>
+                          <TableHead className="font-semibold text-white py-3.5 uppercase text-xs">Operational Description</TableHead>
+                          <TableHead className="font-semibold text-white py-3.5 uppercase text-xs w-[160px]">Device / IP</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {transparencyData.personalActivity?.length > 0 ? (
+                          transparencyData.personalActivity
+                            .slice((personalLogPage - 1) * LOGS_PER_PAGE, personalLogPage * LOGS_PER_PAGE)
+                            .map((t) => {
+                              const type = (t.event_Type || "").toUpperCase();
+                              let badgeColor = "bg-slate-100 text-slate-800 border-slate-200";
+                              if (type.includes("TIME_IN") || type.includes("TIME_OUT") || type.includes("ATTENDANCE")) {
+                                badgeColor = "bg-teal-100 text-teal-800 border-teal-200";
+                              } else if (type.includes("LOGIN") || type.includes("AUTH")) {
+                                badgeColor = "bg-blue-100 text-blue-800 border-blue-200";
+                              } else if (type.includes("PAYROLL")) {
+                                badgeColor = "bg-emerald-100 text-emerald-800 border-emerald-200";
+                              } else if (type.includes("FAIL") || type.includes("UNAUTH")) {
+                                badgeColor = "bg-rose-100 text-rose-800 border-rose-200";
+                              }
+
+                              return (
+                                <TableRow key={t.transId} className="hover:bg-slate-50/70 border-b border-slate-100 transition-colors">
+                                  <TableCell className="text-slate-600 text-xs py-3.5 px-6 font-medium whitespace-nowrap">
+                                    <div className="font-bold text-slate-800">
+                                      {new Date(t.createdAt).toLocaleDateString("en-US", {
+                                        timeZone: "Asia/Manila",
+                                        month: "short",
+                                        day: "numeric",
+                                        year: "numeric"
+                                      })}
+                                    </div>
+                                    <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+                                      {new Date(t.createdAt).toLocaleTimeString("en-US", {
+                                        timeZone: "Asia/Manila",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                        second: "2-digit"
+                                      })}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="py-3.5">
+                                    <Badge variant="outline" className={`${badgeColor} uppercase tracking-wider text-[10px] font-bold py-0.5 px-2`}>
+                                      {t.event_Type.replace(/_/g, " ")}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="text-xs py-3.5">
+                                    <p className="font-medium text-slate-900 leading-snug">
+                                      {t.description || "Operational event recorded in system"}
+                                    </p>
+                                  </TableCell>
+                                  <TableCell className="py-3.5 whitespace-nowrap">
+                                    <span className="font-mono text-[11px] text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                                      {t.ip_Address || "Internal"}
+                                    </span>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center py-12 text-slate-400 text-xs italic">
+                              No personal activity logs recorded.
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+
+                    {transparencyData.personalActivity?.length > LOGS_PER_PAGE && (
+                      <div className="p-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                        <span className="text-slate-500">
+                          Showing {(personalLogPage - 1) * LOGS_PER_PAGE + 1} to {Math.min(personalLogPage * LOGS_PER_PAGE, transparencyData.personalActivity.length)} of {transparencyData.personalActivity.length}
+                        </span>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={personalLogPage === 1}
+                            onClick={() => setPersonalLogPage(p => Math.max(1, p - 1))}
+                            className="h-7 text-xs"
+                          >
+                            Previous
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={personalLogPage * LOGS_PER_PAGE >= transparencyData.personalActivity.length}
+                            onClick={() => setPersonalLogPage(p => p + 1)}
+                            className="h-7 text-xs"
+                          >
+                            Next
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+
+          {/* Detailed Audit Diff Dialog for Employee */}
+          <Dialog open={!!selectedAuditLog} onOpenChange={() => setSelectedAuditLog(null)}>
+            <DialogContent className="max-w-2xl w-[95vw] p-0 overflow-hidden rounded-xl bg-white shadow-2xl border-0">
+              {selectedAuditLog && (() => {
+                let oldVal = {};
+                let newVal = {};
+                try {
+                  oldVal = typeof selectedAuditLog.old_Value === "object" ? (selectedAuditLog.old_Value || {}) : JSON.parse(selectedAuditLog.old_Value || "{}");
+                  newVal = typeof selectedAuditLog.new_Value === "object" ? (selectedAuditLog.new_Value || {}) : JSON.parse(selectedAuditLog.new_Value || "{}");
+                } catch (e) {}
+
+                const allChangedKeys = Array.from(new Set([...Object.keys(oldVal), ...Object.keys(newVal)]))
+                  .filter(k => !["createdAt", "updatedAt", "deletedAt", "user_Password", "password"].includes(k));
+
+                return (
+                  <div className="space-y-0">
+                    <div className="bg-brand-primary text-white p-5">
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <Badge className="bg-emerald-400 text-slate-950 font-bold uppercase text-[10px] tracking-wider">
+                          DPA AUDIT RECORD #{selectedAuditLog.auditId}
+                        </Badge>
+                        <span className="text-xs text-purple-200 font-mono">
+                          {new Date(selectedAuditLog.createdAt).toLocaleString("en-US", { timeZone: "Asia/Manila" })}
+                        </span>
+                      </div>
+                      <h3 className="text-lg font-bold text-white">
+                        {selectedAuditLog.action.replace(/_/g, " ")}
+                      </h3>
+                      <p className="text-purple-100 text-xs mt-1">
+                        Modified by <strong>{selectedAuditLog.admin_FirstName} {selectedAuditLog.admin_LastName}</strong> ({selectedAuditLog.admin_Role || "Administrator"})
+                      </p>
+                    </div>
+
+                    <div className="p-6 space-y-4 max-h-[65vh] overflow-y-auto">
+                      <div className="flex items-center gap-2 p-3 bg-emerald-50 rounded-lg border border-emerald-200 text-xs text-emerald-800">
+                        <Shield className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>This verified log record confirms the exact attributes modified by management during this administrative session.</span>
+                      </div>
+
+                      {allChangedKeys.length > 0 ? (
+                        <div className="space-y-2.5">
+                          <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                            Modified Data Fields ({allChangedKeys.length})
+                          </h4>
+                          <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100">
+                            {allChangedKeys.map((key) => {
+                              const friendlyName = PROPERTY_FRIENDLY_NAMES[key] || key.replace(/_/g, " ");
+                              const before = formatFriendlyValue(key, oldVal[key]);
+                              const after = formatFriendlyValue(key, newVal[key]);
+                              return (
+                                <div key={key} className="p-3 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs bg-white hover:bg-slate-50/50">
+                                  <div className="font-bold text-slate-700 capitalize sm:col-span-1">
+                                    {friendlyName}
+                                  </div>
+                                  <div className="sm:col-span-2 flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                                    <span className="text-slate-500 bg-slate-100 px-2 py-0.5 rounded line-through text-[11px]">
+                                      {before}
+                                    </span>
+                                    <span className="text-slate-400 text-[10px]">→</span>
+                                    <span className="text-emerald-700 bg-emerald-50 font-bold px-2 py-0.5 rounded text-[11px] border border-emerald-200">
+                                      {after}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-center text-slate-400 italic text-xs py-6">
+                          No direct property diffs recorded for this administrative event.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+            </DialogContent>
+          </Dialog>
+        </>
+      )}
     </div>
+  </Sidebar>
+</div>
   );
 };
 

@@ -3,6 +3,7 @@ const { getSystemTime } = require("../utils/systemTime.js");
 const { QueryTypes } = require("sequelize");
 const { syncHolidaysService } = require('../utils/holidaySyncService');
 const { logAudit } = require("../utils/logger");
+const { verifyAuditLogChain } = require("../utils/encryption");
 const fs = require('fs');
 const path = require('path');
 
@@ -540,6 +541,24 @@ exports.getAuditLogs = async (req, res) => {
   }
 };
 
+exports.verifyAuditChain = async (req, res) => {
+  try {
+    const logs = await sequelize.query(
+      `SELECT * FROM "Audit_Log" ORDER BY "auditId" ASC`,
+      { type: QueryTypes.SELECT }
+    );
+    const result = verifyAuditLogChain(logs);
+    res.status(200).json({
+      success: true,
+      data: result,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("[ERROR] verifyAuditChain:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
 exports.getTransactionLogs = async (req, res) => {
   try {
     const logs = await sequelize.query(
@@ -554,6 +573,105 @@ exports.getTransactionLogs = async (req, res) => {
       { type: QueryTypes.SELECT }
     );
     res.status(200).json(logs);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.getMyTransparencyLogs = async (req, res) => {
+  try {
+    const myUserId = req.user?.user_Id;
+    if (!myUserId) {
+      return res.status(401).json({ error: "Unauthorized access: Missing user session." });
+    }
+
+    // 1. Transparency Trail: Administrative access & changes targeting this employee
+    const transparencyLogs = await sequelize.query(
+      `SELECT
+         a."auditId",
+         a."action",
+         a."module",
+         a."target_Table",
+         a."target_Id",
+         a."old_Value",
+         a."new_Value",
+         a."createdAt",
+         u."user_FirstName" AS "admin_FirstName",
+         u."user_LastName" AS "admin_LastName",
+         r."roleName" AS "admin_Role"
+       FROM "Audit_Log" a
+       LEFT JOIN "User" u ON u."user_Id" = a."user_Id"
+       LEFT JOIN "user_Role" r ON r."roleId" = u."user_RoleId"
+       WHERE a."target_Id" = :myUserId
+         AND a."user_Id" != :myUserId
+       ORDER BY a."createdAt" DESC
+       LIMIT 100`,
+      {
+        replacements: { myUserId },
+        type: QueryTypes.SELECT,
+      }
+    );
+
+    // Sanitize any sensitive admin credentials/hashes
+    const sanitizedTransparency = transparencyLogs.map(log => {
+      const copy = { ...log };
+      const stripSensitive = (obj) => {
+        if (!obj || typeof obj !== "object") return obj;
+        const cleaned = { ...obj };
+        delete cleaned.user_Password;
+        delete cleaned.password;
+        delete cleaned.adminPassword;
+        delete cleaned.admin_Password;
+        delete cleaned.resetPasswordToken;
+        delete cleaned.resetPasswordExpires;
+        delete cleaned.user_MachipId;
+        delete cleaned.machip_uid_hash;
+        delete cleaned.card_UID;
+        delete cleaned.account_number_bidx;
+        return cleaned;
+      };
+      if (typeof copy.old_Value === "object") copy.old_Value = stripSensitive(copy.old_Value);
+      if (typeof copy.new_Value === "object") copy.new_Value = stripSensitive(copy.new_Value);
+      return copy;
+    });
+
+    // 2. Personal Activity: Hardware punches, logins, self actions
+    const personalActivityLogs = await sequelize.query(
+      `SELECT
+         t."transId",
+         t."event_Type",
+         t."description",
+         t."metadata",
+         t."ip_Address",
+         t."createdAt"
+       FROM "Transaction_Log" t
+       WHERE t."user_Id" = :myUserId
+          OR t."initiated_By" = :myUserId
+       ORDER BY t."createdAt" DESC
+       LIMIT 100`,
+      {
+        replacements: { myUserId },
+        type: QueryTypes.SELECT,
+      }
+    );
+
+    // Sanitize metadata
+    const sanitizedPersonal = personalActivityLogs.map(log => {
+      const copy = { ...log };
+      if (copy.metadata && typeof copy.metadata === "object") {
+        const cleaned = { ...copy.metadata };
+        delete cleaned.user_Password;
+        delete cleaned.password;
+        delete cleaned.card_UID;
+        copy.metadata = cleaned;
+      }
+      return copy;
+    });
+
+    res.status(200).json({
+      transparencyTrail: sanitizedTransparency,
+      personalActivity: sanitizedPersonal,
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

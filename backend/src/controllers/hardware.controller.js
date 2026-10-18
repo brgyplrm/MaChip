@@ -3,6 +3,7 @@ const { QueryTypes } = require("sequelize");
 const { getSystemTime, formatDateLocal } = require("../utils/systemTime.js");
 const { logTransaction } = require("../utils/logger");
 const { queueSlotDeletion } = require("./rfid.controller.js");
+const { encrypt, hashRfidBadge } = require("../utils/encryption.js");
 
 exports.getAllRfidCards = async (req, res) => {
   try {
@@ -66,14 +67,15 @@ exports.assignRfidCard = async (req, res) => {
   try {
     const now = await getSystemTime();
     const nowStr = now.toISOString();
+    const machip_hash = hashRfidBadge(machip_id);
 
     // Check if card is already assigned to someone else
     const [existing] = await sequelize.query(
       `SELECT u."user_FirstName", u."user_LastName" 
        FROM "User" u
        JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
-       WHERE LOWER(h."user_MachipId") = LOWER(:machip_id) AND u."deletedAt" IS NULL`,
-      { replacements: { machip_id }, type: QueryTypes.SELECT }
+       WHERE (h."machip_uid_hash" = :machip_hash OR LOWER(h."user_MachipId") = LOWER(:machip_id)) AND u."deletedAt" IS NULL`,
+      { replacements: { machip_id, machip_hash }, type: QueryTypes.SELECT }
     );
 
     if (existing) {
@@ -84,13 +86,14 @@ exports.assignRfidCard = async (req, res) => {
 
     // Upsert into User_Hardware
     await sequelize.query(
-      `INSERT INTO "User_Hardware" ("user_Id", "user_MachipId", "card_counter", "createdAt", "updatedAt")
-       VALUES (:user_Id, :machip_id, 0, :now, :now)
+      `INSERT INTO "User_Hardware" ("user_Id", "user_MachipId", "machip_uid_hash", "card_counter", "createdAt", "updatedAt")
+       VALUES (:user_Id, :machip_id, :machip_hash, 0, :now, :now)
        ON CONFLICT ("user_Id") DO UPDATE SET
         "user_MachipId" = EXCLUDED."user_MachipId",
+        "machip_uid_hash" = EXCLUDED."machip_uid_hash",
         "card_counter" = 0,
         "updatedAt" = EXCLUDED."updatedAt"`,
-      { replacements: { user_Id, machip_id, now: nowStr }, type: QueryTypes.INSERT }
+      { replacements: { user_Id, machip_id, machip_hash, now: nowStr }, type: QueryTypes.INSERT }
     );
 
     await logTransaction(user_Id, req.user?.user_Id, "HARDWARE_ASSIGN", `RFID Card ${machip_id} assigned to user.`, { machip_id }, req);
@@ -101,8 +104,6 @@ exports.assignRfidCard = async (req, res) => {
     res.status(500).json({ error: "Failed to assign hardware credentials." });
   }
 };
-
-const { encrypt } = require("../utils/encryption.js");
 
 exports.revokeRfidCard = async (req, res) => {
   const { userId } = req.params;
@@ -117,7 +118,7 @@ exports.revokeRfidCard = async (req, res) => {
 
     await sequelize.query(
       `UPDATE "User_Hardware" 
-       SET "user_MachipId" = NULL, "card_counter" = 0, "updatedAt" = :now
+       SET "user_MachipId" = NULL, "machip_uid_hash" = NULL, "card_counter" = 0, "updatedAt" = :now
        WHERE "user_Id" = :userId`,
       { replacements: { userId, now: nowStr }, type: QueryTypes.UPDATE }
     );

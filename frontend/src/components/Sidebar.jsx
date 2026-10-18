@@ -1143,18 +1143,17 @@ const Sidebar = ({ children }) => {
                     </SidebarMenuSubItem>
                   )}
 
-                  {isManagement && (
-                    <SidebarMenuSubItem>
-                      <SidebarMenuSubButton asChild isActive={isConfigActive} className={subMenuButtonClass(isConfigActive)}>
-                        <Link 
-                          to="/settings" 
-                          className={cn("text-inherit font-medium flex items-center", isConfigActive ? "font-bold" : "")}
-                        >
-                          <TuneIcon className="!text-[18px] mr-2" /> Configuration
-                        </Link>
-                      </SidebarMenuSubButton>
-                    </SidebarMenuSubItem>
-                  )}
+                  <SidebarMenuSubItem>
+                    <SidebarMenuSubButton asChild isActive={isConfigActive} className={subMenuButtonClass(isConfigActive)}>
+                      <Link 
+                        to="/settings" 
+                        className={cn("text-inherit font-medium flex items-center", isConfigActive ? "font-bold" : "")}
+                      >
+                        <TuneIcon className="!text-[18px] mr-2" />
+                        {isManagement ? "Configuration" : roleId === 2 ? "Operations & Settings" : "Preferences & Settings"}
+                      </Link>
+                    </SidebarMenuSubButton>
+                  </SidebarMenuSubItem>
 
                   <SidebarMenuSubItem>
                     <SidebarMenuSubButton asChild isActive={isFaqActive} className={subMenuButtonClass(isFaqActive)}>

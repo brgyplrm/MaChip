@@ -4377,6 +4377,7 @@ exports.releaseSeparationPay = async (req, res) => {
       `UPDATE "User_Hardware" 
        SET "deletedAt" = :now, 
            "user_MachipId" = :archivedMachipId, 
+           "machip_uid_hash" = NULL,
            "user_FingerprintId" = NULL, 
            "user_FingerprintTemplate" = NULL,
            "updatedAt" = :now
@@ -4841,6 +4842,7 @@ exports.releaseRetirementPay = async (req, res) => {
         `UPDATE "User_Hardware" 
          SET "deletedAt" = :now, 
              "user_MachipId" = :archivedMachipId, 
+             "machip_uid_hash" = NULL,
              "user_FingerprintId" = NULL, 
              "user_FingerprintTemplate" = NULL,
              "updatedAt" = :now

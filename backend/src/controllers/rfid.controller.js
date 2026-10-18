@@ -1,10 +1,10 @@
 const { sequelize, User, Notification, System_State, User_Hardware } = require("../config/sequelize.js");
-const { QueryTypes } = require("sequelize");
+const { QueryTypes, Op } = require("sequelize");
 const { getSystemTime, formatDateLocal } = require("../utils/systemTime.js");
 const { logAudit, logTransaction } = require("../utils/logger");
 const { getIO } = require("../config/socket");
 const { resolveLeaveConflict, calculateAndStoreAttendanceUnits } = require("../utils/attendanceHelper.js");
-const { decrypt } = require("../utils/encryption.js");
+const { decrypt, hashRfidBadge } = require("../utils/encryption.js");
 
 const maskUid = (uid, isAuthorized) => {
   if (isAuthorized) return "[REDACTED]";
@@ -522,7 +522,6 @@ exports.scanRFID = async (req, res) => {
     const settings = await SystemSettings.findOne();
 
     if (action === "fingerprint_scan") {
-      const { Op } = require("sequelize");
       user = await User.findOne({
         include: [{
           model: sequelize.models.User_Hardware,
@@ -537,11 +536,17 @@ exports.scanRFID = async (req, res) => {
         where: { deletedAt: null }
       });
     } else {
+      const rfidHash = hashRfidBadge(rfidUid);
       user = await User.findOne({
         include: [{
           model: sequelize.models.User_Hardware,
           as: 'hardware',
-          where: sequelize.where(sequelize.fn('LOWER', sequelize.col('hardware.user_MachipId')), rfidUid.toLowerCase())
+          where: {
+            [Op.or]: [
+              { machip_uid_hash: rfidHash },
+              sequelize.where(sequelize.fn('LOWER', sequelize.col('hardware.user_MachipId')), rfidUid.toLowerCase())
+            ]
+          }
         }],
         where: { deletedAt: null }
       });
@@ -1228,14 +1233,20 @@ exports.generateRfid = async (req, res) => {
       cleanup();
       System_State.destroy({ where: { key: 'REGISTRATION_SESSION' } }).catch(() => {});
       
+      const rfidHash = hashRfidBadge(uid);
       User.findOne({ 
         include: [{
           model: User_Hardware,
           as: 'hardware',
-          where: sequelize.where(
-            sequelize.fn('LOWER', sequelize.col('hardware.user_MachipId')),
-            uid.toLowerCase()
-          )
+          where: {
+            [Op.or]: [
+              { machip_uid_hash: rfidHash },
+              sequelize.where(
+                sequelize.fn('LOWER', sequelize.col('hardware.user_MachipId')),
+                uid.toLowerCase()
+              )
+            ]
+          }
         }],
         where: { deletedAt: null } 
       }).then(user => {
@@ -1689,14 +1700,16 @@ exports.confirmFingerprintEnroll = async (req, res) => {
           const nowStr = now.toISOString();
 
           if (fpCaptureSession.type === 'RFID') {
+            const rfidHash = hashRfidBadge(template);
             await sequelize.query(
-              `INSERT INTO "User_Hardware" ("user_Id", "user_MachipId", "card_counter", "createdAt", "updatedAt")
-               VALUES (:targetUserId, :template, 0, :now, :now)
+              `INSERT INTO "User_Hardware" ("user_Id", "user_MachipId", "machip_uid_hash", "card_counter", "createdAt", "updatedAt")
+               VALUES (:targetUserId, :template, :rfidHash, 0, :now, :now)
                ON CONFLICT ("user_Id") DO UPDATE SET
                 "user_MachipId" = EXCLUDED."user_MachipId",
+                "machip_uid_hash" = EXCLUDED."machip_uid_hash",
                 "card_counter" = 0,
                 "updatedAt" = EXCLUDED."updatedAt"`,
-              { replacements: { template, targetUserId, now: nowStr }, type: QueryTypes.INSERT }
+              { replacements: { template, rfidHash, targetUserId, now: nowStr }, type: QueryTypes.INSERT }
             );
             console.log(`[FP-LINK] Success! RFID ${template} saved for user ${targetUserId}`);
           } else {
@@ -1737,12 +1750,13 @@ exports.getFingerprintTemplate = async (req, res) => {
   }
 
   try {
+    const uidHash = hashRfidBadge(uid);
     const [user] = await sequelize.query(
       `SELECT u."user_Id", h."user_FingerprintTemplate" 
        FROM "User" u
        INNER JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
-       WHERE h."user_MachipId" = :uid AND u."deletedAt" IS NULL LIMIT 1`,
-      { replacements: { uid }, type: QueryTypes.SELECT }
+       WHERE (h."machip_uid_hash" = :uidHash OR h."user_MachipId" = :uid) AND u."deletedAt" IS NULL LIMIT 1`,
+      { replacements: { uid, uidHash }, type: QueryTypes.SELECT }
     );
 
     if (!user) {

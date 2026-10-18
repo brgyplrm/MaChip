@@ -2,11 +2,11 @@ const express = require("express");
 const router = express.Router();
 
 const systemController = require("../controllers/system.controller.js");
-const { requireAdmin, requireMaster, requireRole } = require("../middleware/roleCheck.js");
+const { requireAdmin, requireMaster, requireRole, requireStaff } = require("../middleware/roleCheck.js");
 const authMiddleware = require("../middleware/auth.js");
 const upload = require("../middleware/upload.js");
 
-router.get("/settings", requireAdmin, systemController.getSystemSettings);
+router.get("/settings", requireStaff, systemController.getSystemSettings);
 router.put("/settings", requireRole(1, 4, "Admin Manager", "Admin Accountant"), systemController.updateSystemSettings);
 router.patch("/mandated-wage", requireRole(1, 4, "Admin Manager", "Admin Accountant"), systemController.updateMandatedWage);
 router.get("/time", systemController.getSystemTime);
@@ -33,7 +33,9 @@ router.get("/payroll-periods", systemController.getPayrollPeriods);
 router.post("/payroll-periods", requireAdmin, systemController.createPayrollPeriod);
 
 router.get("/audit-logs", requireMaster, systemController.getAuditLogs);
+router.get("/audit-logs/verify-chain", requireMaster, systemController.verifyAuditChain);
 router.get("/transaction-logs", requireMaster, systemController.getTransactionLogs);
+router.get("/my-transparency-logs", authMiddleware, systemController.getMyTransparencyLogs);
 
 router.post("/reg-session", requireAdmin, systemController.setRegistrationSession);
 router.delete("/reg-session", requireAdmin, systemController.clearRegistrationSession);

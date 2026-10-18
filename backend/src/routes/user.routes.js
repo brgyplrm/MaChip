@@ -48,6 +48,10 @@ router.post("/request-password-reset", userController.requestPasswordReset);
 // Bulk Update Maxicare Deductions
 router.patch("/bulk-maxicare", requireAdmin, userController.bulkUpdateMaxicare);
 
+// User Self-Service Preferences (SEC-CFG-001)
+router.get("/preferences/my", requireRole(1, 2, 3, 4), userController.getUserPreferences);
+router.put("/preferences/my", requireRole(1, 2, 3, 4), userController.updateUserPreferences);
+
 // --- Parameterized Routes (Must be below static routes to prevent shadowing) ---
 
 // Check if MaChip exists

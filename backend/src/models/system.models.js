@@ -201,6 +201,8 @@ module.exports = (sequelize, DataTypes) => {
       new_Value: { type: DataTypes.JSONB },
       ip_Address: { type: DataTypes.STRING(45) },
       module: { type: DataTypes.STRING },
+      previous_hash: { type: DataTypes.STRING(64), allowNull: true },
+      entry_hash: { type: DataTypes.STRING(64), allowNull: true },
     },
     { timestamps: true, freezeTableName: true },
   );

@@ -16,7 +16,9 @@ import NotificationConfiguration from "@/components/NotificationConfiguration";
 import PositionManagement from "@/components/PositionManagement";
 import ReferenceDataManagement from "@/components/ReferenceDataManagement";
 import HardwareDiagnostics from "@/components/HardwareDiagnostics";
-import { Clock, Edit3, Save, Layers, X, Cpu } from 'lucide-react';
+import EmployeeSettings from "@/components/EmployeeSettings";
+import SupervisorSettings from "@/components/SupervisorSettings";
+import { Clock, Edit3, Save, Layers, X, Cpu, Users, UserCheck } from 'lucide-react';
 
 
 // shadcn/ui components
@@ -31,7 +33,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 const Settings = () => {
   const userData = JSON.parse(localStorage.getItem("userData"));
-  const isAdmin = userData?.user_RoleId === 1 || userData?.user_RoleId === 4;
+  const roleId = Number(userData?.user_RoleId);
+  const isAdmin = roleId === 1 || roleId === 4;
+  const isSupervisor = roleId === 2;
+  const isEmployee = roleId === 3;
 
   const { refreshSystemTime } = useSystemTime();
   const [realTime, setRealTime] = useState(new Date());
@@ -77,9 +82,13 @@ const Settings = () => {
 
   useEffect(() => {
     const timer = setInterval(() => setRealTime(new Date()), 1000);
-    fetchSettings();
+    if (isAdmin) {
+      fetchSettings();
+    } else {
+      setLoading(false);
+    }
     return () => clearInterval(timer);
-  }, []);
+  }, [isAdmin]);
 
   const showNotification = (message, type = "success") => {
     setToast({ message, type });
@@ -282,6 +291,28 @@ const Settings = () => {
     await sendSettingsUpdate(payload, "Payroll formulas updated successfully!");
   };
 
+  // Supervisor Direct View
+  if (isSupervisor) {
+    return (
+      <Sidebar>
+        <div className="p-2 md:p-6 overflow-x-hidden w-full max-w-6xl mx-auto">
+          <SupervisorSettings />
+        </div>
+      </Sidebar>
+    );
+  }
+
+  // Employee Direct View
+  if (isEmployee) {
+    return (
+      <Sidebar>
+        <div className="p-2 md:p-6 overflow-x-hidden w-full max-w-6xl mx-auto">
+          <EmployeeSettings />
+        </div>
+      </Sidebar>
+    );
+  }
+
   return (
     <Sidebar>
       <div className="p-2 md:p-0 overflow-x-hidden w-full max-w-6xl mx-auto">
@@ -337,6 +368,16 @@ const Settings = () => {
                     <SelectItem value="hardware" className="py-3 rounded-lg focus:bg-slate-100 cursor-pointer">
                       <div className="flex items-center font-semibold text-slate-700">
                         <Cpu className="mr-3 h-5 w-5 text-brand-primary" /> Terminal Diagnostics
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="supervisorHub" className="py-3 rounded-lg focus:bg-slate-100 cursor-pointer">
+                      <div className="flex items-center font-semibold text-amber-800">
+                        <Users className="mr-3 h-5 w-5 text-amber-600" /> Supervisor Operations View
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="employeeHub" className="py-3 rounded-lg focus:bg-slate-100 cursor-pointer">
+                      <div className="flex items-center font-semibold text-brand-primary">
+                        <UserCheck className="mr-3 h-5 w-5 text-brand-primary" /> Employee Preferences View
                       </div>
                     </SelectItem>
                   </SelectContent>
@@ -607,6 +648,16 @@ const Settings = () => {
                 {/* Tab 7: Terminal Diagnostics & Live Console */}
                 <TabsContent value="hardware" className="space-y-6 mt-0 animate-in fade-in-50 duration-200">
                   <HardwareDiagnostics />
+                </TabsContent>
+
+                {/* Tab 8: Supervisor Operations Hub (Admin Preview) */}
+                <TabsContent value="supervisorHub" className="space-y-6 mt-0 animate-in fade-in-50 duration-200">
+                  <SupervisorSettings />
+                </TabsContent>
+
+                {/* Tab 9: Employee Preferences Hub (Admin Preview) */}
+                <TabsContent value="employeeHub" className="space-y-6 mt-0 animate-in fade-in-50 duration-200">
+                  <EmployeeSettings />
                 </TabsContent>
                 </div>
               </>

@@ -23,17 +23,143 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { EyeIcon } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { EyeIcon, UserCheck, Terminal, Layers, Sparkles, ShieldCheck } from "lucide-react";
 import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { TablePagination } from "@/components/ui/table-pagination";
+import { cn } from "@/lib/utils";
+
+const PROPERTY_FRIENDLY_NAMES = {
+  // Compensation & Wage
+  dailyRate: "Daily Wage Rate",
+  previousDailyRate: "Previous Daily Rate",
+  rateUpdatedAt: "Rate Last Modified",
+  user_ShiftId: "Work Shift Schedule",
+  user_EmploymentStatusId: "Employment Status",
+  user_RoleId: "System Access Role",
+  is_time_exempt: "Time Tracking Exemption",
+  is_solo_parent: "Solo Parent Status",
+  civil_status: "Civil / Marital Status",
+  taxStatus: "Tax Exemption Status",
+
+  // Personal Information
+  user_FirstName: "First Name",
+  user_LastName: "Last Name",
+  user_MiddleName: "Middle Name",
+  name: "Account Full Name",
+  user_DOB: "Date of Birth",
+  user_Phone: "Contact Phone Number",
+  user_Address: "Home Address",
+  user_Email: "Corporate Email",
+  department: "Assigned Department",
+  position: "Job Position",
+  hireDate: "Official Hire Date",
+  role: "System Access Role",
+  status: "Account Status",
+  title: "Position Title",
+
+  // Banking
+  account_Number: "Bank Account Number",
+  bank_Company: "Bank Entity",
+  bank_AccountName: "Account Holder Name",
+
+  // Statutory Shares
+  sss_Share: "SSS Contribution Share",
+  philhealth_Share: "PhilHealth Contribution Share",
+  hdmf_Share: "Pag-IBIG Contribution Share",
+  tax_Share: "Withholding Tax Share",
+  healthCard_Amnt: "Maxicare / Health Card",
+
+  // Loans & Deductions
+  SSS_Loan: "SSS Loan Deduction",
+  HDMF_Loan: "Pag-IBIG Loan Deduction",
+  calamityLoan_Amnt: "Calamity Loan Deduction",
+  advances_Amnt: "Cash Advances Balance",
+  globe_Deduction: "Telecom / Globe Deduction",
+  eastwest_Loan: "EastWest Loan Deduction",
+  multiPurposeSavings: "Multi-Purpose Savings",
+
+  // Statutory Government Numbers (SEC-SPI-001)
+  sss_no: "SSS ID Number",
+  tin_no: "Taxpayer Identification No. (TIN)",
+  philhealth_no: "PhilHealth Number",
+  hdmf_no: "Pag-IBIG / HDMF MID",
+
+  // Hardware Credentials
+  user_MachipId: "RFID Card Badge",
+  user_FingerprintId: "Biometric Fingerprint Slot",
+  card_counter: "Hardware Card Punch Counter",
+
+  // Operational Fields
+  reason: "Audit Reason / Justification",
+  attendanceStatus: "Attendance Status Label",
+  holiday_Name: "Holiday Name",
+  holiday_Date: "Holiday Date",
+  is_Regular: "Holiday Type"
+};
+
+const formatFriendlyValue = (key, val) => {
+  if (val === null || val === undefined || val === "") return "—";
+
+  if (typeof val === "boolean") {
+    return val ? "Enabled / Active" : "Disabled / Inactive";
+  }
+
+  if (key === "user_ShiftId") {
+    return val === 1 || val === "1" ? "Morning Shift (08:30 – 17:30)" : "Night Shift (20:30 – 05:30)";
+  }
+
+  if (key === "user_EmploymentStatusId") {
+    const statuses = { 1: "Regular", 2: "Probationary", 3: "Contractual", 4: "Resigned", 5: "Terminated", 6: "Retired" };
+    return statuses[val] || `Status #${val}`;
+  }
+
+  if (key === "user_RoleId") {
+    const roles = { 1: "Admin / HR Manager", 2: "Supervisor", 3: "Employee", 4: "Super Admin / Accountant" };
+    return roles[val] || `Role #${val}`;
+  }
+
+  if (key === "account_Number" || ['sss_no', 'tin_no', 'philhealth_no', 'hdmf_no'].includes(key)) {
+    const s = String(val);
+    return s.length > 4 ? `••••••••${s.slice(-4)}` : "••••••••";
+  }
+
+  if (
+    key.toLowerCase().includes("rate") ||
+    key.toLowerCase().includes("share") ||
+    key.toLowerCase().includes("amnt") ||
+    key.toLowerCase().includes("loan") ||
+    key.toLowerCase().includes("savings") ||
+    key.toLowerCase().includes("deduction")
+  ) {
+    const num = parseFloat(val);
+    if (!isNaN(num)) {
+      return `₱${num.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+  }
+
+  if (typeof val === "object") {
+    return JSON.stringify(val);
+  }
+
+  return String(val);
+};
 
 const AuditLogs = () => {
   const [logs, setLogs] = useState([]);
+  const [usersMap, setUsersMap] = useState({});
   const [searchQuery, setSearchQuery] = useState("");
   const [filterAction, setFilterAction] = useState("All Categories");
   const [loading, setLoading] = useState(true);
   const [selectedLog, setSelectedLog] = useState(null);
+
+  // Dual-Mode Toggle: 'friendly' | 'technical'
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem("machip_audit_view_mode") || "friendly");
+  const handleToggleViewMode = (mode) => {
+    setViewMode(mode);
+    localStorage.setItem("machip_audit_view_mode", mode);
+  };
 
   // Pagination States
   const [currentPage, setCurrentPage] = useState(1);
@@ -45,45 +171,45 @@ const AuditLogs = () => {
 
   const ACTION_LABELS = {
     // Authentication
-    "LOGIN": "Admin Login",
-    "LOGOUT": "Admin Logout",
+    "LOGIN": "Web Portal Sign-In",
+    "LOGOUT": "Web Portal Sign-Out",
     
     // User Management
-    "CREATE_USER": "User Created",
-    "UPDATE_USER": "User Details Updated",
-    "SOFT_DELETE_USER": "User Deactivated",
-    "RESTORE_USER": "User Restored",
-    "PERMANENT_DELETE_USER": "User Permanently Deleted",
-    "UPDATE_DAILY_RATE": "Rate Adjustment",
+    "CREATE_USER": "User Account Created",
+    "UPDATE_USER": "Profile Details Updated",
+    "SOFT_DELETE_USER": "Account Deactivated",
+    "RESTORE_USER": "Account Restored",
+    "PERMANENT_DELETE_USER": "Account Permanently Removed",
+    "UPDATE_DAILY_RATE": "Daily Wage Rate Adjustment",
     
     // Attendance
-    "UPDATE_LOGS": "Attendance Logs Modified",
-    "DELETE_ALL_ATTENDANCE": "Attendance Data Purged",
+    "UPDATE_LOGS": "Attendance Logs Corrected",
+    "DELETE_ALL_ATTENDANCE": "Attendance Logs Reset",
     
     // Payroll
-    "UPDATE_PAYROLL_FULL": "Payroll Record Updated",
+    "UPDATE_PAYROLL_FULL": "Payroll Computation Updated",
     
     // System Settings
-    "CREATE_POSITION": "New Position Added",
-    "UPDATE_POSITION": "Position Updated",
-    "DELETE_POSITION": "Position Removed",
-    "CREATE_HOLIDAY": "Holiday Added",
-    "UPDATE_HOLIDAY": "Holiday Updated",
-    "DELETE_HOLIDAY": "Holiday Removed",
-    "UPDATE_MANDATED_WAGE": "Minimum Wage Updated",
-    "UPDATE_SETTINGS": "System Settings Updated",
-    "CREATE_PAYROLL_PERIOD": "Payroll Period Created",
-    "CREATE_DUE_DATE": "New Due Date Set",
-    "DELETE_DUE_DATE": "Due Date Removed",
+    "CREATE_POSITION": "Job Position Added",
+    "UPDATE_POSITION": "Job Position Updated",
+    "DELETE_POSITION": "Job Position Removed",
+    "CREATE_HOLIDAY": "Holiday Added to Calendar",
+    "UPDATE_HOLIDAY": "Holiday Schedule Updated",
+    "DELETE_HOLIDAY": "Holiday Removed from Calendar",
+    "UPDATE_MANDATED_WAGE": "Regional Minimum Wage Updated",
+    "UPDATE_SETTINGS": "System Configuration Updated",
+    "CREATE_PAYROLL_PERIOD": "Payroll Cutoff Created",
+    "CREATE_DUE_DATE": "Payment Due Date Set",
+    "DELETE_DUE_DATE": "Payment Due Date Removed",
 
     // Requests
-    "UPDATE_REQUEST_STATUS": "Request Status Changed",
+    "UPDATE_REQUEST_STATUS": "Employee Request Processed",
 
     // Common API Routes
-    "PUT /notifications/mark-all-read": "Notifications Marked as Read",
-    "PUT /notifications/mark-read": "Notification Read",
-    "POST /auth/login": "System Login Attempt",
-    "POST /auth/logout": "System Logout"
+    "PUT /notifications/mark-all-read": "All Notifications Marked Read",
+    "PUT /notifications/mark-read": "Notification Marked Read",
+    "POST /auth/login": "Web Portal Sign-In",
+    "POST /auth/logout": "Web Portal Sign-Out"
   };
 
   const formatAction = (action) => {
@@ -121,23 +247,217 @@ const AuditLogs = () => {
   };
 
   useEffect(() => {
-    const fetchLogs = async () => {
+    const fetchLogsAndUsers = async () => {
       try {
-        const response = await fetchWithAuth("/api/system/audit-logs");
-        const data = await response.json();
-        if (response.ok && Array.isArray(data)) {
-          setLogs(data);
-        } else {
-          console.warn("[AuditLogs] Non-ok or non-array response:", response.status, data);
+        const [logsRes, usersRes] = await Promise.all([
+          fetchWithAuth("/api/system/audit-logs"),
+          fetchWithAuth("/api/users").catch(() => null)
+        ]);
+
+        if (logsRes && logsRes.ok) {
+          const data = await logsRes.json();
+          if (Array.isArray(data)) setLogs(data);
+        }
+
+        if (usersRes && usersRes.ok) {
+          const uList = await usersRes.json();
+          if (Array.isArray(uList)) {
+            const map = {};
+            uList.forEach(u => {
+              map[u.user_Id] = {
+                name: `${u.user_FirstName} ${u.user_LastName}`,
+                formattedId: formatUserId(u.user_Id),
+                dept: u.positionDepartment || u.department || "",
+                position: u.positionTitle || u.position || u.user_Role || ""
+              };
+            });
+            setUsersMap(map);
+          }
         }
       } catch (error) {
-        console.error("Error fetching audit logs:", error);
+        console.error("Error fetching audit logs or users:", error);
       } finally {
         setLoading(false);
       }
     };
-    fetchLogs();
+    fetchLogsAndUsers();
   }, []);
+
+  const getFriendlyEvent = (log) => {
+    const adminName = log.user_FirstName ? `${log.user_FirstName} ${log.user_LastName}` : "System Automated";
+    const targetUser = log.target_Id && usersMap[log.target_Id] ? usersMap[log.target_Id] : null;
+    const targetLabel = targetUser ? `${targetUser.name} (${targetUser.formattedId})` : (log.target_Table ? `${log.target_Table} #${log.target_Id || ''}` : "System Resource");
+    
+    const action = (log.action || "").toUpperCase();
+
+    let parsedOld = {};
+    let parsedNew = {};
+    try {
+      parsedOld = typeof log.old_Value === "object" ? (log.old_Value || {}) : JSON.parse(log.old_Value || "{}");
+      parsedNew = typeof log.new_Value === "object" ? (log.new_Value || {}) : JSON.parse(log.new_Value || "{}");
+    } catch (e) {}
+
+    if (action === "UPDATE_DAILY_RATE" || (action.includes("UPDATE") && (parsedNew.dailyRate !== undefined || parsedOld.dailyRate !== undefined))) {
+      const oldR = parsedOld.dailyRate !== undefined ? `₱${parseFloat(parsedOld.dailyRate).toFixed(2)}` : null;
+      const newR = parsedNew.dailyRate !== undefined ? `₱${parseFloat(parsedNew.dailyRate).toFixed(2)}` : null;
+      return {
+        badge: "Wage Adjustment",
+        badgeColor: "bg-amber-100 text-amber-800 border-amber-200",
+        headline: oldR && newR ? `Adjusted daily rate from ${oldR} to ${newR}` : "Adjusted daily wage rate",
+        target: targetLabel,
+        targetSub: targetUser?.dept || "Employee Roster"
+      };
+    }
+
+    if (action === "CREATE_USER") {
+      return {
+        badge: "User Registered",
+        badgeColor: "bg-emerald-100 text-emerald-800 border-emerald-200",
+        headline: `Created new employee profile account`,
+        target: targetLabel,
+        targetSub: targetUser?.dept || "New Profile"
+      };
+    }
+
+    if (action === "UPDATE_USER") {
+      return {
+        badge: "Profile Updated",
+        badgeColor: "bg-blue-100 text-blue-800 border-blue-200",
+        headline: `Modified employee profile records`,
+        target: targetLabel,
+        targetSub: targetUser?.dept || "Employee Record"
+      };
+    }
+
+    if (action === "SOFT_DELETE_USER") {
+      return {
+        badge: "Account Deactivated",
+        badgeColor: "bg-rose-100 text-rose-800 border-rose-200",
+        headline: `Deactivated employee account access`,
+        target: targetLabel,
+        targetSub: targetUser?.dept || "Archived Employee"
+      };
+    }
+
+    if (action === "RESTORE_USER") {
+      return {
+        badge: "Account Restored",
+        badgeColor: "bg-emerald-100 text-emerald-800 border-emerald-200",
+        headline: `Restored active access for employee`,
+        target: targetLabel,
+        targetSub: targetUser?.dept || "Active Roster"
+      };
+    }
+
+    if (action === "PERMANENT_DELETE_USER") {
+      return {
+        badge: "Permanent Delete",
+        badgeColor: "bg-red-200 text-red-950 border-red-300",
+        headline: `Permanently purged employee record #${log.target_Id || ''}`,
+        target: targetLabel,
+        targetSub: "Purged Database Record"
+      };
+    }
+
+    if (action === "UPDATE_LOGS") {
+      return {
+        badge: "Attendance Modified",
+        badgeColor: "bg-purple-100 text-purple-800 border-purple-200",
+        headline: `Manually corrected attendance punch logs`,
+        target: targetLabel,
+        targetSub: "Time & Attendance DTR"
+      };
+    }
+
+    if (action === "UPDATE_PAYROLL_FULL") {
+      return {
+        badge: "Payroll Adjusted",
+        badgeColor: "bg-indigo-100 text-indigo-800 border-indigo-200",
+        headline: `Updated payroll computations or deductions`,
+        target: targetLabel,
+        targetSub: "Payroll Record"
+      };
+    }
+
+    if (action.includes("HOLIDAY")) {
+      const isAdd = action.includes("CREATE");
+      return {
+        badge: isAdd ? "Holiday Added" : "Holiday Modified",
+        badgeColor: "bg-sky-100 text-sky-800 border-sky-200",
+        headline: `${isAdd ? "Added" : "Updated"} official holiday on schedule`,
+        target: parsedNew.name || "Company Calendar",
+        targetSub: "Calendar Schedule"
+      };
+    }
+
+    if (action.includes("POSITION")) {
+      return {
+        badge: "Position Config",
+        badgeColor: "bg-teal-100 text-teal-800 border-teal-200",
+        headline: `Updated job position parameters`,
+        target: parsedNew.title || `Position #${log.target_Id || ""}`,
+        targetSub: "Company Org Chart"
+      };
+    }
+
+    if (action.includes("SETTINGS") || action.includes("WAGE")) {
+      return {
+        badge: "System Settings",
+        badgeColor: "bg-slate-100 text-slate-800 border-slate-300",
+        headline: `Modified global system configuration settings`,
+        target: "Global System Settings",
+        targetSub: "System Parameters"
+      };
+    }
+
+    if (action.includes("REQUEST")) {
+      return {
+        badge: "Request Workflow",
+        badgeColor: "bg-cyan-100 text-cyan-800 border-cyan-200",
+        headline: `Updated status of employee request`,
+        target: `Request #${log.target_Id || ""}`,
+        targetSub: "Approval Lifecycle"
+      };
+    }
+
+    if (action === "LOGIN" || action.includes("POST /AUTH/LOGIN")) {
+      return {
+        badge: "Web Portal Sign-In",
+        badgeColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
+        headline: `Signed in to the MaChip Web Portal`,
+        target: adminName,
+        targetSub: "System Authentication"
+      };
+    }
+
+    if (action === "LOGOUT" || action.includes("POST /AUTH/LOGOUT")) {
+      return {
+        badge: "Web Portal Sign-Out",
+        badgeColor: "bg-slate-100 text-slate-700 border-slate-200",
+        headline: `Signed out of the MaChip Web Portal`,
+        target: adminName,
+        targetSub: "System Authentication"
+      };
+    }
+
+    if (action.includes("SPI_VIEW") || action.includes("REVEAL")) {
+      return {
+        badge: "SPI Unmasked",
+        badgeColor: "bg-rose-100 text-rose-800 border-rose-300",
+        headline: `Viewed/unmasked sensitive personal information`,
+        target: targetLabel,
+        targetSub: "Data Privacy Access"
+      };
+    }
+
+    return {
+      badge: formatAction(log.action),
+      badgeColor: "bg-slate-100 text-slate-700 border-slate-200",
+      headline: `Executed ${formatAction(log.action).toLowerCase()} event`,
+      target: targetLabel,
+      targetSub: log.module || "General"
+    };
+  };
 
   useEffect(() => {
     setCurrentPage(1);
@@ -153,6 +473,7 @@ const AuditLogs = () => {
 
   const filteredLogs = logs.filter(log => {
     const actionLabel = formatAction(log.action);
+    const friendlyEv = getFriendlyEvent(log);
     const userNumber = log.user_Id ? formatUserId(log.user_Id) : "";
     const rawUserId = String(log.user_Id || "");
     const ipAddr = log.ip_Address || "";
@@ -160,6 +481,9 @@ const AuditLogs = () => {
     const searchLower = searchQuery.toLowerCase();
     const matchesSearch = (log.user_FirstName + " " + log.user_LastName).toLowerCase().includes(searchLower) || 
                           actionLabel.toLowerCase().includes(searchLower) ||
+                          friendlyEv.headline.toLowerCase().includes(searchLower) ||
+                          friendlyEv.target.toLowerCase().includes(searchLower) ||
+                          friendlyEv.badge.toLowerCase().includes(searchLower) ||
                           log.action.toLowerCase().includes(searchLower) ||
                           String(log.target_Id || "").toLowerCase().includes(searchLower) ||
                           userNumber.toLowerCase().includes(searchLower) ||
@@ -232,21 +556,64 @@ const AuditLogs = () => {
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
-                <h1 className="text-2xl md:text-3xl font-bold text-brand-primary">System Audit Logs</h1>
+                <div className="flex items-center gap-2.5">
+                  <h1 className="text-2xl md:text-3xl font-bold text-brand-primary">System Audit Logs</h1>
+                  <Badge variant="outline" className={cn(
+                    "text-[10px] font-bold uppercase tracking-wider py-0.5 px-2",
+                    viewMode === "friendly" 
+                      ? "bg-purple-50 text-brand-primary border-brand-primary/20" 
+                      : "bg-slate-900 text-slate-100 border-slate-700"
+                  )}>
+                    {viewMode === "friendly" ? "Executive Narrative Mode" : "Forensic Technical Mode"}
+                  </Badge>
+                </div>
                 <span className="text-sm text-slate-500 mt-1 block">
-                  Detailed history of administrative changes, user numbers, IP addresses, and system modifications.
+                  {viewMode === "friendly" 
+                    ? "Plain-English timeline of administrative actions, payroll updates, and profile modifications."
+                    : "Forensic history of database mutations, client IP addresses, target tables, and raw change diffs."}
                 </span>
               </div>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button className="w-full md:w-auto bg-brand-primary text-white hover:bg-brand-primary-hover shadow-sm" onClick={handleExportPDF}>
-                    <FileDownloadIcon className="mr-2 h-4 w-4" /> Export PDF Log
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
-                  Export complete audit trail with IP addresses and user numbers
-                </TooltipContent>
-              </Tooltip>
+
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+                {/* Dual-Mode Toggle */}
+                <div className="inline-flex items-center bg-slate-200/70 p-1 rounded-lg border border-slate-300/70 h-9 sm:h-10 shadow-xs">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleViewMode("friendly")}
+                    className={cn(
+                      "h-full flex items-center gap-2 px-3.5 sm:px-4 rounded-md text-xs font-bold transition-all cursor-pointer whitespace-nowrap",
+                      viewMode === "friendly"
+                        ? "bg-white text-brand-primary shadow-xs border border-slate-200/80"
+                        : "text-slate-600 hover:text-slate-900"
+                    )}
+                  >
+                    <UserCheck className="w-4 h-4 text-brand-primary" /> Friendly View
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleViewMode("technical")}
+                    className={cn(
+                      "h-full flex items-center gap-2 px-3.5 sm:px-4 rounded-md text-xs font-bold transition-all cursor-pointer whitespace-nowrap",
+                      viewMode === "technical"
+                        ? "bg-slate-900 text-white shadow-xs"
+                        : "text-slate-600 hover:text-slate-900"
+                    )}
+                  >
+                    <Terminal className="w-4 h-4 text-amber-400" /> Technical View
+                  </button>
+                </div>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button className="w-full sm:w-auto h-9 sm:h-10 px-4 bg-brand-primary text-white hover:bg-brand-primary-hover shadow-sm text-xs font-bold" onClick={handleExportPDF}>
+                      <FileDownloadIcon className="mr-1.5 h-4 w-4" /> Export PDF Log
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                    Export complete audit trail with IP addresses and user numbers
+                  </TooltipContent>
+                </Tooltip>
+              </div>
             </div>
 
             {/* Statistics Cards */}
@@ -402,87 +769,173 @@ const AuditLogs = () => {
                 {loading ? <div className="p-12 text-center text-slate-400 text-xs">Loading audit records...</div> : (
                   <Table className="min-w-[1000px] md:min-w-full">
                     <TableHeader className="bg-brand-primary">
-                      <TableRow className="hover:bg-transparent border-b-0">
-                        <TableHead className="font-semibold text-white py-4 px-6 uppercase text-xs tracking-wider">Timestamp</TableHead>
-                        <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Administrator</TableHead>
-                        <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Module</TableHead>
-                        <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Event Category</TableHead>
-                        <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Target</TableHead>
-                        <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">IP Address</TableHead>
-                        <TableHead className="font-semibold text-white py-4 text-right pr-6 uppercase text-xs tracking-wider">Details</TableHead>
-                      </TableRow>
+                      {viewMode === "friendly" ? (
+                        <TableRow className="hover:bg-transparent border-b-0">
+                          <TableHead className="font-semibold text-white py-4 px-6 uppercase text-xs tracking-wider">Date & Time</TableHead>
+                          <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Action Taken By</TableHead>
+                          <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Activity Summary</TableHead>
+                          <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Staff / Account Involved</TableHead>
+                          <TableHead className="font-semibold text-white py-4 text-right pr-6 uppercase text-xs tracking-wider">Details</TableHead>
+                        </TableRow>
+                      ) : (
+                        <TableRow className="hover:bg-transparent border-b-0">
+                          <TableHead className="font-semibold text-white py-4 px-6 uppercase text-xs tracking-wider">Timestamp</TableHead>
+                          <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Administrator</TableHead>
+                          <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Module</TableHead>
+                          <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Event Category</TableHead>
+                          <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">Target</TableHead>
+                          <TableHead className="font-semibold text-white py-4 uppercase text-xs tracking-wider">IP Address</TableHead>
+                          <TableHead className="font-semibold text-white py-4 text-right pr-6 uppercase text-xs tracking-wider">Details</TableHead>
+                        </TableRow>
+                      )}
                     </TableHeader>
                     <TableBody>
                       {currentLogs.length > 0 ? (
-                        currentLogs.map((log) => (
-                          <TableRow key={log.auditId} className="hover:bg-slate-50/50 border-b-slate-100 transition-colors">
-                            {/* Timestamp */}
-                            <TableCell className="text-slate-600 text-xs py-4 px-6 font-medium whitespace-nowrap">
-                              {new Date(log.createdAt).toLocaleString("en-US", {
-                                timeZone: "Asia/Manila",
-                                year: 'numeric',
-                                month: 'short',
-                                day: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                second: '2-digit'
-                              })}
-                            </TableCell>
+                        currentLogs.map((log) => {
+                          const friendlyEv = getFriendlyEvent(log);
 
-                            {/* Administrator & User Number */}
-                            <TableCell className="py-4">
-                              <p className="font-bold text-brand-primary text-xs">
-                                {log.user_FirstName ? `${log.user_FirstName} ${log.user_LastName}` : "System Automated"}
-                              </p>
-                              <span className="text-[10px] text-slate-400 font-mono font-semibold block mt-0.5">
-                                {log.user_Id ? formatUserId(log.user_Id) : "SYS"}
-                              </span>
-                            </TableCell>
+                          if (viewMode === "friendly") {
+                            return (
+                              <TableRow key={log.auditId} className="hover:bg-slate-50/60 border-b-slate-100 transition-colors">
+                                {/* Date & Time */}
+                                <TableCell className="text-slate-600 text-xs py-4 px-6 font-medium whitespace-nowrap">
+                                  <div className="font-semibold text-slate-800">
+                                    {new Date(log.createdAt).toLocaleDateString("en-US", {
+                                      timeZone: "Asia/Manila",
+                                      month: 'short',
+                                      day: 'numeric',
+                                      year: 'numeric'
+                                    })}
+                                  </div>
+                                  <span className="text-[11px] text-slate-400">
+                                    {new Date(log.createdAt).toLocaleTimeString("en-US", {
+                                      timeZone: "Asia/Manila",
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}
+                                  </span>
+                                </TableCell>
 
-                            {/* Module */}
-                            <TableCell className="py-4">
-                              <Badge variant="secondary" className="bg-slate-100 text-slate-700 text-[10px] font-bold uppercase tracking-wider">
-                                {log.module || "System"}
-                              </Badge>
-                            </TableCell>
+                                {/* Administrator */}
+                                <TableCell className="py-4">
+                                  <div className="flex items-center gap-2.5">
+                                    <div className="w-8 h-8 rounded-full bg-brand-primary/10 text-brand-primary flex items-center justify-center font-bold text-xs shrink-0">
+                                      {log.user_FirstName ? log.user_FirstName[0] : "S"}
+                                    </div>
+                                    <div>
+                                      <p className="font-bold text-slate-900 text-xs leading-tight">
+                                        {log.user_FirstName ? `${log.user_FirstName} ${log.user_LastName}` : "System Automated"}
+                                      </p>
+                                      <span className="text-[10px] text-slate-400 font-mono">
+                                        {log.user_Id ? formatUserId(log.user_Id) : "SYS"}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </TableCell>
 
-                            {/* Action */}
-                            <TableCell className="py-4">
-                              <Badge variant="outline" className="border-slate-200 bg-slate-50/80 text-[10px] uppercase font-bold text-slate-800 tracking-tight">
-                                {formatAction(log.action)}
-                              </Badge>
-                            </TableCell>
+                                {/* Action Summary */}
+                                <TableCell className="py-4 max-w-md">
+                                  <div className="space-y-1">
+                                    <Badge variant="outline" className={cn("text-[10px] font-bold uppercase tracking-wider py-0.5", friendlyEv.badgeColor)}>
+                                      {friendlyEv.badge}
+                                    </Badge>
+                                    <p className="text-xs font-semibold text-slate-800 leading-snug">
+                                      {friendlyEv.headline}
+                                    </p>
+                                  </div>
+                                </TableCell>
 
-                            {/* Target */}
-                            <TableCell className="font-semibold text-slate-700 text-xs py-4">
-                              {log.target_Table || "N/A"} {log.target_Id ? `#${log.target_Id}` : ""}
-                            </TableCell>
+                                {/* Affected Subject */}
+                                <TableCell className="py-4">
+                                  <p className="font-bold text-brand-primary text-xs leading-tight">
+                                    {friendlyEv.target}
+                                  </p>
+                                  <span className="text-[10px] text-slate-500 block mt-0.5 font-medium">
+                                    {friendlyEv.targetSub}
+                                  </span>
+                                </TableCell>
 
-                            {/* IP Address */}
-                            <TableCell className="py-4 whitespace-nowrap">
-                              <span className="font-mono text-xs text-slate-700 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200/80 font-bold inline-block">
-                                {log.ip_Address || "127.0.0.1"}
-                              </span>
-                            </TableCell>
-
-                            {/* View Action */}
-                            <TableCell className="text-right pr-6 py-4">
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button variant="ghost" size="sm" onClick={() => setSelectedLog(log)} className="border-brand-primary text-brand-primary hover:text-brand-primary-hover hover:bg-brand-primary-light hover:border-brand-primary-hover">
-                                    <EyeIcon className="h-4 w-4"/>
+                                {/* Action */}
+                                <TableCell className="text-right pr-6 py-4">
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    onClick={() => setSelectedLog(log)} 
+                                    className="border-brand-primary/30 text-brand-primary hover:bg-brand-primary/10 font-bold text-xs h-8"
+                                  >
+                                    View Details
                                   </Button>
-                                </TooltipTrigger>
-                                <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
-                                  Inspect full details, IP address, and change breakdown
-                                </TooltipContent>
-                              </Tooltip>
-                            </TableCell>
-                          </TableRow>
-                        ))
+                                </TableCell>
+                              </TableRow>
+                            );
+                          }
+
+                          // Technical View Mode
+                          return (
+                            <TableRow key={log.auditId} className="hover:bg-slate-50/50 border-b-slate-100 transition-colors">
+                              <TableCell className="text-slate-600 text-xs py-4 px-6 font-medium whitespace-nowrap">
+                                {new Date(log.createdAt).toLocaleString("en-US", {
+                                  timeZone: "Asia/Manila",
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  second: '2-digit'
+                                })}
+                              </TableCell>
+
+                              <TableCell className="py-4">
+                                <p className="font-bold text-brand-primary text-xs">
+                                  {log.user_FirstName ? `${log.user_FirstName} ${log.user_LastName}` : "System Automated"}
+                                </p>
+                                <span className="text-[10px] text-slate-400 font-mono font-semibold block mt-0.5">
+                                  {log.user_Id ? formatUserId(log.user_Id) : "SYS"}
+                                </span>
+                              </TableCell>
+
+                              <TableCell className="py-4">
+                                <Badge variant="secondary" className="bg-slate-100 text-slate-700 text-[10px] font-bold uppercase tracking-wider">
+                                  {log.module || "System"}
+                                </Badge>
+                              </TableCell>
+
+                              <TableCell className="py-4">
+                                <Badge variant="outline" className="border-slate-200 bg-slate-50/80 text-[10px] uppercase font-bold text-slate-800 tracking-tight">
+                                  {formatAction(log.action)}
+                                </Badge>
+                              </TableCell>
+
+                              <TableCell className="font-semibold text-slate-700 text-xs py-4">
+                                {log.target_Table || "N/A"} {log.target_Id ? `#${log.target_Id}` : ""}
+                              </TableCell>
+
+                              <TableCell className="py-4 whitespace-nowrap">
+                                <span className="font-mono text-xs text-slate-700 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200/80 font-bold inline-block">
+                                  {log.ip_Address || "127.0.0.1"}
+                                </span>
+                              </TableCell>
+
+                              <TableCell className="text-right pr-6 py-4">
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="sm" onClick={() => setSelectedLog(log)} className="border-brand-primary text-brand-primary hover:text-brand-primary-hover hover:bg-brand-primary-light hover:border-brand-primary-hover">
+                                      <EyeIcon className="h-4 w-4"/>
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                                    Inspect full details, IP address, and change breakdown
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
                       ) : (
                         <TableRow>
-                          <TableCell colSpan={7} className="text-center h-24 text-slate-400 italic text-xs">No audit logs found.</TableCell>
+                          <TableCell colSpan={viewMode === "friendly" ? 5 : 7} className="text-center h-24 text-slate-400 italic text-xs">
+                            No audit logs found.
+                          </TableCell>
                         </TableRow>
                       )}
                     </TableBody>
@@ -514,166 +967,405 @@ const AuditLogs = () => {
                 setDiffPage(1);
               }
             }}>
-            <DialogContent className="max-w-5xl! w-[200vw] p-0 overflow-hidden rounded-xl bg-white shadow-2xl">
-              {selectedLog && (
-                <div className="space-y-0">
-                  {/* Modal Header */}
-                  <div className="bg-brand-primary text-white p-6">
-                    <div className="flex items-center justify-between mb-2">
-                      <Badge className="bg-amber-400 text-slate-950 font-bold uppercase text-[10px] tracking-wider">
-                        {selectedLog.module || "SYSTEM"} AUDIT TRAIL
-                      </Badge>
-                      <span className="text-xs text-purple-200 font-mono">
-                        LOG-ID #{selectedLog.auditId}
-                      </span>
-                    </div>
-                    <h3 className="text-xl font-extrabold tracking-tight text-white">
-                      {formatAction(selectedLog.action)}
-                    </h3>
-                    <p className="text-purple-200 text-xs mt-1 font-mono">
-                      Action Key: {selectedLog.action}
-                    </p>
-                  </div>
+            <DialogContent className="max-w-4xl w-[95vw] p-0 overflow-hidden rounded-xl bg-white shadow-2xl border-0">
+              {selectedLog && (() => {
+                const friendlyEv = getFriendlyEvent(selectedLog);
+                const action = (selectedLog.action || "").toUpperCase();
+                const isAuthEvent = action === "LOGIN" || action === "LOGOUT" || action.includes("/AUTH/LOGIN") || action.includes("/AUTH/LOGOUT");
 
-                  {/* Metadata Cards Grid */}
-                  <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto custom-scrollbar">
-                    
-                    {/* Key Attributes Header Box */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                      
-                      {/* Initiator / User Number */}
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1.5 text-xs text-slate-500 font-bold uppercase tracking-wider">
-                          <PersonIcon fontSize="small" className="text-brand-primary" /> Administrator / User
-                        </div>
-                        <p className="font-bold text-slate-900 text-sm">
-                          {selectedLog.user_FirstName ? `${selectedLog.user_FirstName} ${selectedLog.user_LastName}` : "System Process"}
-                        </p>
-                        <div className="flex items-center gap-1.5">
-                          <span className="px-2 py-0.5 rounded bg-purple-100 text-brand-primary font-mono font-bold text-[11px]">
-                            {selectedLog.user_Id ? formatUserId(selectedLog.user_Id) : "SYS-000"}
-                          </span>
-                          {selectedLog.user_Id && (
-                            <span className="text-[10px] text-slate-400 font-mono">
-                              (ID: {selectedLog.user_Id})
-                            </span>
+                return (
+                  <div className="space-y-0">
+                    {/* Modal Header */}
+                    <div className="bg-brand-primary text-white p-6">
+                      <div className="flex items-center justify-between mb-2">
+                        <Badge className="bg-amber-400 text-slate-950 font-bold uppercase text-[10px] tracking-wider">
+                          {selectedLog.module || "SYSTEM"} AUDIT RECORD
+                        </Badge>
+                        <span className="text-xs text-purple-200 font-mono">
+                          LOG #{selectedLog.auditId}
+                        </span>
+                      </div>
+                      <h3 className="text-xl font-extrabold tracking-tight text-white">
+                        {viewMode === "friendly" 
+                          ? (isAuthEvent ? (action.includes("OUT") ? "Web Portal Sign-Out" : "Web Portal Sign-In") : formatAction(selectedLog.action))
+                          : selectedLog.action}
+                      </h3>
+                      <p className="text-purple-200 text-xs mt-1">
+                        {viewMode === "friendly" 
+                          ? friendlyEv.headline 
+                          : `Target: ${selectedLog.target_Table || "N/A"} #${selectedLog.target_Id || "N/A"} | IP: ${selectedLog.ip_Address || "127.0.0.1"}`}
+                      </p>
+
+                      {/* Header Mode Sub-Bar (Mirrors Page ViewMode - No internal tab switcher) */}
+                      <div className="flex items-center justify-between mt-4 border-t border-purple-400/20 pt-3">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-white/10 text-white border border-white/10">
+                          {viewMode === "friendly" ? (
+                            <>
+                              <UserCheck className="w-3.5 h-3.5 text-emerald-300" /> Friendly Summary View
+                            </>
+                          ) : (
+                            <>
+                              <Terminal className="w-3.5 h-3.5 text-amber-300" /> Raw Forensic View
+                            </>
                           )}
-                        </div>
-                      </div>
-
-                      {/* IP Address */}
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1.5 text-xs text-slate-500 font-bold uppercase tracking-wider">
-                          <LanguageIcon fontSize="small" className="text-blue-600" /> Client IP Address
-                        </div>
-                        <p className="font-mono font-bold text-slate-900 text-sm">
-                          {selectedLog.ip_Address || "127.0.0.1"}
-                        </p>
-                        <span className="text-[10px] text-slate-400 italic block">
-                          Network Origin IP
+                        </span>
+                        <span className="text-xs text-purple-200 font-medium">
+                          {viewMode === "friendly"
+                            ? (isAuthEvent 
+                                ? "Authentication Verified" 
+                                : diffData.allKeys.length === 0 
+                                  ? "Event Recorded" 
+                                  : `${diffData.allKeys.length} ${diffData.allKeys.length === 1 ? 'item updated' : 'items updated'}`)
+                            : `${diffData.allKeys.length} ${diffData.allKeys.length === 1 ? 'property' : 'properties'} in payload`}
                         </span>
                       </div>
-
-                      {/* Timestamp */}
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1.5 text-xs text-slate-500 font-bold uppercase tracking-wider">
-                          <AccessTimeIcon fontSize="small" className="text-amber-600" /> Timestamp
-                        </div>
-                        <p className="font-semibold text-slate-900 text-xs">
-                          {new Date(selectedLog.createdAt).toLocaleString("en-US", {
-                            timeZone: "Asia/Manila",
-                            weekday: 'short',
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            second: '2-digit'
-                          })}
-                        </p>
-                        <span className="text-[10px] text-slate-400 font-mono block">
-                          Target: {selectedLog.target_Table || "General"} #{selectedLog.target_Id || "N/A"}
-                        </span>
-                      </div>
-
                     </div>
 
-                    {/* Detailed Change Breakdown Table */}
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-                          Detailed Property Change Breakdown
-                        </h4>
-                        <span className="text-xs font-semibold text-slate-400">
-                          {diffData.allKeys.length} properties modified
-                        </span>
-                      </div>
+                    {/* Modal Body */}
+                    <div className="p-6 space-y-6 max-h-[72vh] overflow-y-auto custom-scrollbar">
+                      
+                      {viewMode === "friendly" ? (
+                        <>
+                          {isAuthEvent ? (
+                            /* Dedicated Web Portal Sign-In / Access Details Card */
+                            <div className="space-y-4">
+                              <div className="bg-emerald-50/70 p-5 rounded-xl border border-emerald-200 space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2 text-emerald-900 font-bold text-sm">
+                                    <UserCheck className="w-5 h-5 text-emerald-600" />
+                                    <span>Web Portal Authentication Record</span>
+                                  </div>
+                                  <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 text-[10px] font-bold uppercase">
+                                    Single Web Session
+                                  </Badge>
+                                </div>
+                                <p className="text-xs text-slate-600 leading-relaxed">
+                                  This verified log confirms a successful sign-in to the <strong>MaChip Web Portal</strong>. No employee profile, salary rate, or system configuration was modified during this authentication event.
+                                </p>
 
-                      <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-                        <Table className="min-w-full text-xs">
-                          <TableHeader className="bg-slate-100 border-b border-slate-200">
-                            <TableRow>
-                              <TableHead className="font-bold text-slate-700 w-1/3 py-3">Property Name</TableHead>
-                              <TableHead className="font-bold text-slate-700 w-1/3 py-3 bg-rose-50/50">Previous Value (Old)</TableHead>
-                              <TableHead className="font-bold text-slate-700 w-1/3 py-3 bg-emerald-50/50">New Value (Updated)</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {diffData.allKeys.length === 0 ? (
-                              <TableRow>
-                                <TableCell colSpan={3} className="text-center py-8 text-slate-400 italic text-xs">
-                                  No property modification differences recorded for this event.
-                                </TableCell>
-                              </TableRow>
-                            ) : (
-                              paginatedKeys.map(key => (
-                                <TableRow key={key} className="hover:bg-slate-50/50">
-                                  <TableCell className="font-bold text-slate-800 capitalize py-3">
-                                    {key.replace(/_/g, " ")}
-                                  </TableCell>
-                                  <TableCell className="font-mono text-[11px] bg-rose-50/30 text-rose-900 py-3 break-all">
-                                    {typeof diffData.oldObj[key] === 'object' ? JSON.stringify(diffData.oldObj[key]) : String(diffData.oldObj[key] ?? "—")}
-                                  </TableCell>
-                                  <TableCell className="font-mono text-[11px] bg-emerald-50/30 text-emerald-900 py-3 font-semibold break-all">
-                                    {typeof diffData.newObj[key] === 'object' ? JSON.stringify(diffData.newObj[key]) : String(diffData.newObj[key] ?? "—")}
-                                  </TableCell>
-                                </TableRow>
-                              ))
-                            )}
-                          </TableBody>
-                        </Table>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 text-xs">
+                                  <div className="bg-white p-3.5 rounded-xl border border-emerald-100 shadow-2xs space-y-1">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Authenticated Staff</span>
+                                    <p className="font-bold text-slate-900 text-sm">
+                                      {selectedLog.user_FirstName
+                                        ? `${selectedLog.user_FirstName} ${selectedLog.user_LastName}`
+                                        : (selectedLog.user_Id && usersMap[selectedLog.user_Id]?.name
+                                            ? usersMap[selectedLog.user_Id].name
+                                            : (diffData.newObj?.name || "System User"))}
+                                    </p>
+                                    <span className="text-[11px] text-brand-primary font-mono font-semibold block">
+                                      {selectedLog.user_Id ? formatUserId(selectedLog.user_Id) : "SYS"}
+                                    </span>
+                                  </div>
 
-                        {diffData.allKeys.length > DIFF_ITEMS_PER_PAGE && (
-                          <div className="flex items-center justify-between p-3 bg-slate-50 border-t border-slate-200">
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="text-xs font-semibold text-slate-600"
-                              disabled={diffPage === 1}
-                              onClick={() => setDiffPage(p => p - 1)}
-                            >
-                              Previous Properties
-                            </Button>
-                            <span className="text-xs text-slate-500 font-semibold">
-                              Page {diffPage} of {totalDiffPages}
-                            </span>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="text-xs font-semibold text-slate-600"
-                              disabled={diffPage === totalDiffPages}
-                              onClick={() => setDiffPage(p => p + 1)}
-                            >
-                              Next Properties
-                            </Button>
+                                  <div className="bg-white p-3.5 rounded-xl border border-emerald-100 shadow-2xs space-y-1">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Assigned System Role</span>
+                                    <p className="font-bold text-slate-900 text-sm">
+                                      {diffData.newObj?.role 
+                                        || (selectedLog.user_RoleId ? ({ 1: "Admin Manager", 2: "Department Supervisor", 3: "Employee", 4: "Admin Accountant" }[selectedLog.user_RoleId]) : null)
+                                        || (selectedLog.user_Id && usersMap[selectedLog.user_Id]?.position ? usersMap[selectedLog.user_Id].position : null)
+                                        || "Authorized Staff"}
+                                    </p>
+                                    <span className="text-[11px] text-slate-500 block">
+                                      {Number(selectedLog.user_RoleId) === 3
+                                        ? "Employee self-service and attendance access"
+                                        : Number(selectedLog.user_RoleId) === 2
+                                        ? "Departmental supervision and schedule management"
+                                        : Number(selectedLog.user_RoleId) === 4
+                                        ? "Financial accounting and payroll auditing authority"
+                                        : "Full administrative and human resources authority"}
+                                    </span>
+                                  </div>
+
+                                  <div className="bg-white p-3.5 rounded-xl border border-emerald-100 shadow-2xs space-y-1">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Network Location (IP Address)</span>
+                                    <p className="font-mono font-bold text-slate-900 text-sm">
+                                      {selectedLog.ip_Address || "127.0.0.1"}
+                                    </p>
+                                    <span className="text-[11px] text-slate-500 block">
+                                      {!selectedLog.ip_Address || selectedLog.ip_Address === "127.0.0.1" || selectedLog.ip_Address === "::1"
+                                        ? "Localhost / System Console Access"
+                                        : selectedLog.ip_Address?.startsWith("192.168") || selectedLog.ip_Address?.startsWith("10.") || selectedLog.ip_Address?.startsWith("172.16")
+                                        ? "Internal Office Local Area Network (LAN)"
+                                        : "Authorized External / Port-Forwarded Network"}
+                                    </span>
+                                  </div>
+
+                                  <div className="bg-white p-3.5 rounded-xl border border-emerald-100 shadow-2xs space-y-1">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Sign-In Timestamp</span>
+                                    <p className="font-bold text-slate-900 text-sm">
+                                      {new Date(selectedLog.createdAt).toLocaleTimeString("en-US", { timeZone: "Asia/Manila", hour: "2-digit", minute: "2-digit" })}
+                                    </p>
+                                    <span className="text-[11px] text-slate-500 block">
+                                      {new Date(selectedLog.createdAt).toLocaleDateString("en-US", { timeZone: "Asia/Manila", month: "short", day: "numeric", year: "numeric" })}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            /* Non-Auth Events: Friendly Overview + Changes Table */
+                            <>
+                              {/* Friendly Overview Hero Box */}
+                              <div className="bg-purple-50/60 p-4 rounded-xl border border-purple-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                <div>
+                                  <p className="text-[11px] font-bold uppercase tracking-wider text-brand-primary">Staff or Account Involved</p>
+                                  <h4 className="text-base font-extrabold text-slate-900 mt-0.5">{friendlyEv.target}</h4>
+                                  <span className="text-xs text-slate-500 font-medium">{friendlyEv.targetSub}</span>
+                                </div>
+                                <div className="text-left sm:text-right">
+                                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Action Taken By</p>
+                                  <p className="text-sm font-bold text-slate-800 mt-0.5">
+                                    {selectedLog.user_FirstName
+                                      ? `${selectedLog.user_FirstName} ${selectedLog.user_LastName}`
+                                      : (selectedLog.user_Id && usersMap[selectedLog.user_Id]?.name
+                                          ? usersMap[selectedLog.user_Id].name
+                                          : "System Automated")}
+                                  </p>
+                                  <span className="text-xs text-slate-400">
+                                    {new Date(selectedLog.createdAt).toLocaleString("en-US", { timeZone: "Asia/Manila", month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Friendly Properties Breakdown Table */}
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                                    Changes Made to Information
+                                  </h4>
+                                  <span className="text-xs text-slate-400 font-medium">
+                                    Summary of updated values
+                                  </span>
+                                </div>
+
+                                <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+                                  <Table className="min-w-full text-xs">
+                                    <TableHeader className="bg-slate-100 border-b border-slate-200">
+                                      <TableRow>
+                                        <TableHead className="font-bold text-slate-700 w-1/3 py-3">Information Field</TableHead>
+                                        <TableHead className="font-bold text-slate-700 w-1/3 py-3 bg-rose-50/60 text-rose-800">Previous (Before)</TableHead>
+                                        <TableHead className="font-bold text-slate-700 w-1/3 py-3 bg-emerald-50/60 text-emerald-800">Updated (After)</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {diffData.allKeys.length === 0 ? (
+                                        <TableRow>
+                                          <TableCell colSpan={3} className="text-center py-8 text-slate-400 italic text-xs">
+                                            No field values were altered in this recorded event.
+                                          </TableCell>
+                                        </TableRow>
+                                      ) : (
+                                        paginatedKeys.map(key => {
+                                          const label = PROPERTY_FRIENDLY_NAMES[key] || key.replace(/_/g, " ");
+                                          const oldF = formatFriendlyValue(key, diffData.oldObj[key]);
+                                          const newF = formatFriendlyValue(key, diffData.newObj[key]);
+
+                                          return (
+                                            <TableRow key={key} className="hover:bg-slate-50/50">
+                                              <TableCell className="font-bold text-slate-800 py-3 capitalize">
+                                                {label}
+                                              </TableCell>
+                                              <TableCell className="text-xs bg-rose-50/30 text-rose-900 py-3 font-semibold break-all">
+                                                {oldF}
+                                              </TableCell>
+                                              <TableCell className="text-xs bg-emerald-50/30 text-emerald-900 py-3 font-bold break-all">
+                                                {newF}
+                                              </TableCell>
+                                            </TableRow>
+                                          );
+                                        })
+                                      )}
+                                    </TableBody>
+                                  </Table>
+
+                                  {diffData.allKeys.length > DIFF_ITEMS_PER_PAGE && (
+                                    <div className="flex items-center justify-between p-3 bg-slate-50 border-t border-slate-200">
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm" 
+                                        className="text-xs font-semibold text-slate-600"
+                                        disabled={diffPage === 1}
+                                        onClick={() => setDiffPage(p => p - 1)}
+                                      >
+                                        Previous
+                                      </Button>
+                                      <span className="text-xs text-slate-500 font-semibold">
+                                        Page {diffPage} of {totalDiffPages}
+                                      </span>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm" 
+                                        className="text-xs font-semibold text-slate-600"
+                                        disabled={diffPage === totalDiffPages}
+                                        onClick={() => setDiffPage(p => p + 1)}
+                                      >
+                                        Next
+                                      </Button>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          {/* Technical Key Attributes Header Box */}
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1.5 text-xs text-slate-500 font-bold uppercase tracking-wider">
+                                <PersonIcon fontSize="small" className="text-brand-primary" /> Administrator / User
+                              </div>
+                              <p className="font-bold text-slate-900 text-sm">
+                                {selectedLog.user_FirstName ? `${selectedLog.user_FirstName} ${selectedLog.user_LastName}` : "System Process"}
+                              </p>
+                              <div className="flex items-center gap-1.5">
+                                <span className="px-2 py-0.5 rounded bg-purple-100 text-brand-primary font-mono font-bold text-[11px]">
+                                  {selectedLog.user_Id ? formatUserId(selectedLog.user_Id) : "SYS-000"}
+                                </span>
+                                {selectedLog.user_Id && (
+                                  <span className="text-[10px] text-slate-400 font-mono">
+                                    (ID: {selectedLog.user_Id})
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1.5 text-xs text-slate-500 font-bold uppercase tracking-wider">
+                                <LanguageIcon fontSize="small" className="text-blue-600" /> Client IP Address
+                              </div>
+                              <p className="font-mono font-bold text-slate-900 text-sm">
+                                {selectedLog.ip_Address || "127.0.0.1"}
+                              </p>
+                              <span className="text-[10px] text-slate-400 italic block">
+                                Network Origin IP
+                              </span>
+                            </div>
+
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1.5 text-xs text-slate-500 font-bold uppercase tracking-wider">
+                                <AccessTimeIcon fontSize="small" className="text-amber-600" /> Target Resource
+                              </div>
+                              <p className="font-mono font-bold text-slate-900 text-xs">
+                                {selectedLog.target_Table || "General"} #{selectedLog.target_Id || "N/A"}
+                              </p>
+                              <span className="text-[10px] text-slate-400 font-mono block">
+                                Action: {selectedLog.action}
+                              </span>
+                            </div>
                           </div>
-                        )}
-                      </div>
-                    </div>
 
+                          {/* Cryptographic Tamper-Evidence Block (SEC-AUD-001) */}
+                          {selectedLog.entry_hash && (
+                            <div className="bg-slate-900 text-slate-100 p-4 rounded-xl border border-slate-700 space-y-2.5 font-mono">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs">
+                                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                                  <span>Tamper-Evident Cryptographic Hash Chain (SEC-AUD-001)</span>
+                                </div>
+                                <span className="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800 px-2 py-0.5 rounded font-bold tracking-wider uppercase">
+                                  HMAC-SHA256 Verified
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-1 gap-2 text-[11px] pt-1">
+                                <div className="bg-slate-950/70 p-2.5 rounded-lg border border-slate-800">
+                                  <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider block mb-0.5">
+                                    Entry Hash (Block Signature):
+                                  </span>
+                                  <span className="text-amber-300 font-bold break-all select-all">
+                                    {selectedLog.entry_hash}
+                                  </span>
+                                </div>
+                                <div className="bg-slate-950/70 p-2.5 rounded-lg border border-slate-800">
+                                  <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider block mb-0.5">
+                                    Previous Hash (Predecessor Chain Link):
+                                  </span>
+                                  <span className="text-slate-300 font-bold break-all select-all">
+                                    {selectedLog.previous_hash || "0000000000000000000000000000000000000000000000000000000000000000 (Genesis)"}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Raw Property Diff Table */}
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wider font-mono">
+                                RAW_DIFF_BREAKDOWN ({diffData.allKeys.length} properties)
+                              </h4>
+                            </div>
+
+                            <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+                              <Table className="min-w-full text-xs font-mono">
+                                <TableHeader className="bg-slate-100 border-b border-slate-200">
+                                  <TableRow>
+                                    <TableHead className="font-bold text-slate-700 w-1/3 py-3">Property Key</TableHead>
+                                    <TableHead className="font-bold text-slate-700 w-1/3 py-3 bg-rose-50/50">old_Value</TableHead>
+                                    <TableHead className="font-bold text-slate-700 w-1/3 py-3 bg-emerald-50/50">new_Value</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {diffData.allKeys.length === 0 ? (
+                                    <TableRow>
+                                      <TableCell colSpan={3} className="text-center py-8 text-slate-400 italic text-xs font-sans">
+                                        No raw property differences recorded for this event.
+                                      </TableCell>
+                                    </TableRow>
+                                  ) : (
+                                    paginatedKeys.map(key => (
+                                      <TableRow key={key} className="hover:bg-slate-50/50">
+                                        <TableCell className="font-bold text-slate-800 py-3">
+                                          {key}
+                                        </TableCell>
+                                        <TableCell className="text-[11px] bg-rose-50/30 text-rose-900 py-3 break-all">
+                                          {typeof diffData.oldObj[key] === 'object' ? JSON.stringify(diffData.oldObj[key]) : String(diffData.oldObj[key] ?? "—")}
+                                        </TableCell>
+                                        <TableCell className="text-[11px] bg-emerald-50/30 text-emerald-900 py-3 font-semibold break-all">
+                                          {typeof diffData.newObj[key] === 'object' ? JSON.stringify(diffData.newObj[key]) : String(diffData.newObj[key] ?? "—")}
+                                        </TableCell>
+                                      </TableRow>
+                                    ))
+                                  )}
+                                </TableBody>
+                              </Table>
+
+                              {diffData.allKeys.length > DIFF_ITEMS_PER_PAGE && (
+                                <div className="flex items-center justify-between p-3 bg-slate-50 border-t border-slate-200">
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="text-xs font-semibold text-slate-600 font-sans"
+                                    disabled={diffPage === 1}
+                                    onClick={() => setDiffPage(p => p - 1)}
+                                  >
+                                    Previous
+                                  </Button>
+                                  <span className="text-xs text-slate-500 font-semibold font-mono">
+                                    Page {diffPage} of {totalDiffPages}
+                                  </span>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="text-xs font-semibold text-slate-600 font-sans"
+                                    disabled={diffPage === totalDiffPages}
+                                    onClick={() => setDiffPage(p => p + 1)}
+                                  >
+                                    Next
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </DialogContent>
           </Dialog>
         </TooltipProvider>
