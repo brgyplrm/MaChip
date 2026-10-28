@@ -4,6 +4,7 @@
 #include "NetworkManager.h"
 #include "BiometricSensor.h"
 #include "RfidDriver.h"
+#include "EnvSensor.h"
 
 // ── GLOBAL HARDWARE CONTROLLER INSTANTIATIONS ─────────────────────
 MFRC522 rfidIN(SS_PIN_IN, RST_PIN_IN);
@@ -132,20 +133,25 @@ void setup() {
 #endif
   pinMode(SS_PIN_IN, OUTPUT);
   pinMode(SS_PIN_OUT, OUTPUT);
-  pinMode(HARDWARE_RESET_PIN, OUTPUT);
+  pinMode(RFID_RESET_PIN, OUTPUT);
+  pinMode(TFT_RESET_PIN, OUTPUT);
 
-  // 2. Set Safe Default States (Lock at Rest / LOW, CS Unselected/High)
+  // 2. Set Safe Default States (Lock at Rest / LOW, CS Unselected/High, Resets High)
   digitalWrite(SOLENOID_PIN, LOW);
+  digitalWrite(RFID_RESET_PIN, HIGH);
+  digitalWrite(TFT_RESET_PIN, HIGH);
   solenoidActive = false;
   clearSpiBusPins();
 
   // 3. Hardware Master SPI Bus Setup
   SPI.begin(TFT_SCK, RFID_MISO, TFT_MOSI, -1);
 
-  // Master Hardware Reset Pulse for all SPI devices (MFRC522s and ST7789s)
-  digitalWrite(HARDWARE_RESET_PIN, LOW);
+  // Master Hardware Reset Pulse for RFID readers (GPIO 27) and ST7789 displays (GPIO 15)
+  digitalWrite(RFID_RESET_PIN, LOW);
+  digitalWrite(TFT_RESET_PIN, LOW);
   delay(50);
-  digitalWrite(HARDWARE_RESET_PIN, HIGH);
+  digitalWrite(RFID_RESET_PIN, HIGH);
+  digitalWrite(TFT_RESET_PIN, HIGH);
   delay(50);
 
   // 4. Reset & Initialize Front Display (ST7789 2.4" SPI 240x320 on J4)
@@ -177,6 +183,10 @@ void setup() {
   bool backDisplayOk = oledOk;
 #else
   bool backDisplayOk = false;
+#endif
+
+#if ENABLE_ENV_SENSOR
+  initEnvSensors();
 #endif
 
   // 6. Hardware Reset & Initialize Dual MFRC522 RFID Modules (4MHz Safe SPI Clock)
@@ -220,6 +230,11 @@ void setup() {
 #endif
   sysLog(F("  +-- [TFT FRONT]   INITIALIZED (ST7789 240x320 SPI J4 CS:33 DC:25)"));
   sysLog("  +-- [FP SENSOR]   " + String(fpOk ? "ONLINE (R307 UART2 RX:16 TX:17)" : "FAILED (Check RX:16 TX:17 5V GND)"));
+  sysLog("  +-- [ESP32 CORE]    TEMP: " + String(getEsp32ChipTemp(), 1) + " C");
+#if ENABLE_ENV_SENSOR
+  sysLog("  +-- [AHT20 TEMP/HUM] " + String(envAhtOk ? "ONLINE (0x38 - Temp: " + String(envTemperature, 1) + "C, Hum: " + String(envHumidity, 1) + "% RH)" : "NOT DETECTED (Check SDA:" + String(I2C_SDA_PIN) + " SCL:" + String(I2C_SCL_PIN) + ")"));
+  sysLog("  +-- [BMP280 PRESS]   " + String(envBmpOk ? "ONLINE (0x" + String(envBmpAddr, HEX) + " - Press: " + String(envPressure, 1) + " hPa, Temp: " + String(envBmpTemp, 1) + "C)" : "NOT DETECTED (Check SDA:" + String(I2C_SDA_PIN) + " SCL:" + String(I2C_SCL_PIN) + ")"));
+#endif
   
   bool isFrontOk = (vFront == 0x91 || vFront == 0x92 || vFront == 0x82 || vFront == 0x88 || vFront == 0x90);
   if (isFrontOk) {
@@ -250,6 +265,13 @@ void loop() {
   updateLEDs();
   updateSolenoid();
   updateStatusReset();
+#if ENABLE_ENV_SENSOR
+  static unsigned long lastEnvReadTime = 0;
+  if (millis() - lastEnvReadTime > 2500) {
+    lastEnvReadTime = millis();
+    readEnvSensors();
+  }
+#endif
   // tickRfidPulseAnimation() disabled to prevent continuous 24MHz SPI bus saturation and 3.3V rail ripple on the front panel
 
   if (WiFi.status() != WL_CONNECTED) {

@@ -46,25 +46,30 @@ const byte MIFARE_ACCESS_BITS[4] = { 0xFF, 0x07, 0x80, 0x69 }; // Transport defa
 #define SS_PIN_IN          26    // Front Door Select Pin (J3 Pin 1, GPIO 26)
 #define SS_PIN_OUT         5     // Back Door Select Pin (J2 Pin 1, GPIO 5)
 
-// Master Hardware Reset Pin on MAChip 3.0 PCB (Net "Resets" drives J2, J3, J4, J5)
-#define HARDWARE_RESET_PIN 27
-#define RST_PIN_IN         HARDWARE_RESET_PIN  // J2 RFID Inside Reset
-#define RST_PIN_OUT        HARDWARE_RESET_PIN  // J3 RFID Outside Reset
+// Master Hardware Reset Pins on MAChip 3.0 PCB
+#define RFID_RESET_PIN     27    // Net "RFID_Resets" (GPIO 27) drives J2, J3 (Dual MFRC522)
+#define TFT_RESET_PIN      15    // Net "TFT_RESETS" (GPIO 15) drives J4, J5 (Dual ST7789)
+#define HARDWARE_RESET_PIN RFID_RESET_PIN
+#define RST_PIN_IN         RFID_RESET_PIN  // J2 RFID Inside Reset
+#define RST_PIN_OUT        RFID_RESET_PIN  // J3 RFID Outside Reset
 
 // ── DISPLAY PIN DEFINITIONS (MACHIP 3.0 DUAL ST7789 SPI) ─────────
 // Front Terminal: 2.4" ST7789 SPI TFT (J4 Outside Display)
 #define TFT_CS             33    // J4 Outside Display Chip Select (GPIO 33)
 #define TFT_DC             25    // J4 Outside Display Data/Command (GPIO 25)
-#define TFT_RST            HARDWARE_RESET_PIN // J4 Shared Reset (GPIO 27)
+#define TFT_RST            TFT_RESET_PIN // J4 Dedicated Reset (GPIO 15)
 
 // Back Terminal: 2.4" ST7789 SPI TFT (J5 Inside Display)
 #define TFT_CS_INSIDE      21    // J5 Inside Display Chip Select (GPIO 21)
 #define TFT_DC_INSIDE      22    // J5 Inside Display Data/Command (GPIO 22)
-#define TFT_RST_INSIDE     HARDWARE_RESET_PIN // J5 Shared Reset (GPIO 27)
+#define TFT_RST_INSIDE     TFT_RESET_PIN // J5 Dedicated Reset (GPIO 15)
 
 // Display Configuration Flags
-#define ENABLE_DUAL_ST7789 true         // Default: MAChip 3.0 Dual ST7789 on J4 & J5
+#define ENABLE_DUAL_ST7789 true         // Enabled: J5 drives Back ST7789 TFT
 #define ENABLE_I2C_OLED    false        // Set true only if using legacy I2C OLED on GPIO 21/22
+#define ENABLE_ENV_SENSOR  true         // AHT20 + BMP280 I2C Sensor
+#define I2C_SDA_PIN        0            // ESP32 DevKit Pin 33 (GPIO 0)
+#define I2C_SCL_PIN        2            // ESP32 DevKit Pin 34 (GPIO 2)
 #define TFT_INVERT_COLOR   false        // Adafruit_ST7789 hardcodes INVON by default; false sends INVOFF
 #define RFID_PULSE_COLOR   ST77XX_WHITE // Pulse animation color
 

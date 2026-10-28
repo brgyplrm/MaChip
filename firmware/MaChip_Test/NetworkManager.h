@@ -2,6 +2,7 @@
 #include "Config.h"
 #include "DisplayManager.h"
 #include "HardwareDrivers.h"
+#include "EnvSensor.h"
 
 
 // ── WEB CONSOLE HTML UI ───────────────────────────────────────────
@@ -27,6 +28,7 @@ const char CONSOLE_HTML[] PROGMEM = R"rawliteral(
   <div class="header-bar">
     <h2>MAChip Hardware Live Serial Monitor</h2>
     <div>
+      <button class="btn" style="background: #238636; margin-right: 8px;" onclick="fetchEnv()">Read Sensors</button>
       <button class="btn" style="background: #1f6feb; margin-right: 8px;" onclick="testBuzzer()">Test Buzzer</button>
       <button class="btn" style="background: #8957e5; margin-right: 8px;" onclick="unlockRelay()">Unlock Relay</button>
       <button class="btn btn-danger" onclick="resetSensor()">Wipe R307 Sensor</button>
@@ -34,9 +36,29 @@ const char CONSOLE_HTML[] PROGMEM = R"rawliteral(
       <button class="btn" onclick="clearLogs()">Clear Terminal</button>
     </div>
   </div>
+  <div id="envBar" style="background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 12px 18px; margin: 12px 0; display: flex; flex-wrap: wrap; gap: 20px; font-size: 14px; align-items: center;">
+    <span style="color: #f0f6fc; font-weight: bold;">📦 Casing Telemetry:</span>
+    <span style="color: #ff7b72;">🌡️ Case Temp: <b id="valTemp" style="color: #f0f6fc;">--</b></span>
+    <span style="color: #79c0ff;">💧 Case Hum: <b id="valHum" style="color: #f0f6fc;">--</b></span>
+    <span style="color: #d2a8ff;">⏱️ Baro: <b id="valPres" style="color: #f0f6fc;">--</b></span>
+    <span style="border-left: 1px solid #30363d; padding-left: 16px; color: #ffa657;">⚡ ESP32 Core Temp: <b id="valEspTemp" style="color: #f0f6fc;">--</b></span>
+  </div>
   <div id="terminal">Loading streaming logs...</div>
 
   <script>
+    async function fetchEnv() {
+      try {
+        const res = await fetch('/api/env');
+        if (res.ok) {
+          const d = await res.json();
+          document.getElementById('valTemp').textContent = d.aht20_ok ? (d.temperature.toFixed(1) + ' °C') : 'Offline';
+          document.getElementById('valHum').textContent  = d.aht20_ok ? (d.humidity.toFixed(1) + ' % RH') : 'Offline';
+          document.getElementById('valPres').textContent = d.bmp280_ok ? (d.pressure.toFixed(1) + ' hPa') : 'Offline';
+          document.getElementById('valEspTemp').textContent = d.esp32_core_temp ? (d.esp32_core_temp.toFixed(1) + ' °C') : 'Offline';
+        }
+      } catch (err) {}
+      fetchLogs();
+    }
     async function testBuzzer() {
       try {
         await fetch('/console/test-buzzer?freq=2730&duration=200', { method: 'POST' });
@@ -86,6 +108,8 @@ const char CONSOLE_HTML[] PROGMEM = R"rawliteral(
 
     setInterval(fetchLogs, 1500);
     fetchLogs();
+    setInterval(fetchEnv, 3000);
+    fetchEnv();
   </script>
 </body>
 </html>
@@ -301,6 +325,20 @@ inline void handleConsoleUnlockRelay() {
   webServer.send(200, "application/json", "{\"success\":true,\"message\":\"Relay unlocked for 3 seconds\"}");
 }
 
+inline void handleConsoleEnv() {
+  readEnvSensors();
+  String json = "{";
+  json += "\"aht20_ok\":" + String(envAhtOk ? "true" : "false") + ",";
+  json += "\"temperature\":" + String(envTemperature, 2) + ",";
+  json += "\"humidity\":" + String(envHumidity, 2) + ",";
+  json += "\"bmp280_ok\":" + String(envBmpOk ? "true" : "false") + ",";
+  json += "\"pressure\":" + String(envPressure, 2) + ",";
+  json += "\"bmp_temp\":" + String(envBmpTemp, 2) + ",";
+  json += "\"esp32_core_temp\":" + String(esp32ChipTemp, 2);
+  json += "}";
+  webServer.send(200, "application/json", json);
+}
+
 inline void setupWebConsole() {
   if (webServerStarted) return;
 
@@ -314,6 +352,8 @@ inline void setupWebConsole() {
   webServer.on("/api/test-buzzer", HTTP_ANY, handleConsoleTestBuzzer);
   webServer.on("/console/unlock", HTTP_POST, handleConsoleUnlockRelay);
   webServer.on("/api/unlock", HTTP_ANY, handleConsoleUnlockRelay);
+  webServer.on("/console/env", HTTP_ANY, handleConsoleEnv);
+  webServer.on("/api/env", HTTP_ANY, handleConsoleEnv);
   webServer.on("/api/cancel", HTTP_ANY, handleCancelEnrollment);
   webServer.on("/cancel", HTTP_ANY, handleCancelEnrollment);
   webServer.on("/api/reset-screen", HTTP_ANY, handleResetScreen);
