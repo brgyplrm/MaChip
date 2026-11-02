@@ -684,3 +684,164 @@ exports.sendPasswordResetEmail = async ({ email, name, resetLink, expiresMinutes
 
 
 
+
+
+/**
+ * Sends a user-submitted support inquiry directly to the support inbox (machipcaps67@gmail.com).
+ * @param {Object} params
+ * @param {Object} params.user - Authenticated user details
+ * @param {string} params.subject - Inquiry subject
+ * @param {string} params.message - Inquiry message text
+ * @param {Object} [params.file] - Optional uploaded file from multer (image)
+ */
+exports.sendContactSupportEmail = async ({ user, subject, message, file }) => {
+  const { EMAIL_SERVICE, EMAIL_USER, EMAIL_PASS } = process.env;
+
+  if (!EMAIL_USER || !EMAIL_PASS) {
+    console.error("[EMAIL CONFIG ERROR]: Missing credentials in .env.");
+    throw new Error("Email service is not configured.");
+  }
+
+  const cleanPass = (EMAIL_PASS || '').replace(/["']/g, '');
+  const transporter = nodemailer.createTransport({
+    service: EMAIL_SERVICE || "gmail",
+    auth: {
+      user: EMAIL_USER,
+      pass: cleanPass,
+    },
+  });
+
+  const targetEmail = "machipcaps67@gmail.com";
+  const userFullName = `${user?.user_FirstName || ''} ${user?.user_LastName || ''}`.trim() || "Employee";
+  const userIdentifier = user?.user_DisplayId || user?.user_Id || "N/A";
+  const userEmail = user?.user_Email || "N/A";
+  const userRole = user?.user_Role || (user?.user_RoleId === 1 ? "Administrator" : user?.user_RoleId === 2 ? "Supervisor" : user?.user_RoleId === 4 ? "Accountant" : "Employee");
+
+  const formattedDate = new Date().toLocaleString("en-US", {
+    timeZone: "Asia/Manila",
+    dateStyle: "full",
+    timeStyle: "medium"
+  });
+
+  const attachments = [];
+  if (file && file.path && fs.existsSync(file.path)) {
+    attachments.push({
+      filename: file.originalname || ("attachment" + path.extname(file.path)),
+      path: file.path,
+      contentType: file.mimetype
+    });
+  }
+
+  // Escape HTML helper for message
+  const escapeHtml = (str) => {
+    if (!str) return "";
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  };
+
+  const safeMessage = escapeHtml(message).replace(/\n/g, "<br/>");
+  const safeSubject = escapeHtml(subject);
+
+  const mailOptions = {
+    from: `"MaChip Support Inquiry" <${EMAIL_USER}>`,
+    to: targetEmail,
+    replyTo: user?.user_Email && user.user_Email.includes("@") ? user.user_Email : undefined,
+    subject: `[Support Inquiry] ${safeSubject} - ${userFullName} (${userIdentifier})`,
+    html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b; max-width: 650px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: #ffffff;">
+        <div style="background: #4C2882; padding: 24px; text-align: center; color: white;">
+          <h1 style="margin: 0; font-size: 20px; font-weight: 700; letter-spacing: 0.5px;">MAChip Help &amp; Support</h1>
+          <p style="margin: 4px 0 0; font-size: 13px; color: #e9d5ff;">Inquiry Submitted via Employee Knowledge Base Portal</p>
+        </div>
+
+        <div style="padding: 24px;">
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+            <p style="margin: 0 0 10px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; color: #64748b;">
+              Requester Profile
+            </p>
+            <table style="width: 100%; font-size: 13px; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 4px 0; color: #64748b; width: 28%;">Name:</td>
+                <td style="padding: 4px 0; font-weight: 700; color: #0f172a;">${userFullName}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #64748b;">User ID:</td>
+                <td style="padding: 4px 0; font-weight: 600; color: #4C2882;">${userIdentifier}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #64748b;">Email Address:</td>
+                <td style="padding: 4px 0; font-weight: 600; color: #0f172a;">
+                  <a href="mailto:${userEmail}" style="color: #4C2882; text-decoration: underline;">${userEmail}</a>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #64748b;">Role:</td>
+                <td style="padding: 4px 0; font-weight: 600; color: #0f172a;">${userRole}</td>
+              </tr>
+              ${user?.position ? `
+              <tr>
+                <td style="padding: 4px 0; color: #64748b;">Position:</td>
+                <td style="padding: 4px 0; color: #334155;">${user.position}</td>
+              </tr>` : ''}
+              ${user?.department ? `
+              <tr>
+                <td style="padding: 4px 0; color: #64748b;">Department:</td>
+                <td style="padding: 4px 0; color: #334155;">${user.department}</td>
+              </tr>` : ''}
+              <tr>
+                <td style="padding: 4px 0; color: #64748b;">Submitted At:</td>
+                <td style="padding: 4px 0; color: #64748b;">${formattedDate}</td>
+              </tr>
+            </table>
+          </div>
+
+          <div style="margin-bottom: 20px;">
+            <p style="margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; color: #64748b;">
+              Subject
+            </p>
+            <div style="font-size: 16px; font-weight: 700; color: #0f172a; padding: 10px 14px; background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 8px;">
+              ${safeSubject}
+            </div>
+          </div>
+
+          <div style="margin-bottom: 24px;">
+            <p style="margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; color: #64748b;">
+              Message Body
+            </p>
+            <div style="font-size: 14px; color: #1e293b; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px; min-height: 100px;">
+              ${safeMessage}
+            </div>
+          </div>
+
+          ${file ? `
+          <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-left: 4px solid #16a34a; padding: 12px 16px; border-radius: 8px; margin-bottom: 20px;">
+            <p style="margin: 0; font-size: 13px; color: #166534; font-weight: 700;">
+              📎 Attachment Included: ${escapeHtml(file.originalname)}
+            </p>
+            <p style="margin: 4px 0 0; font-size: 11px; color: #15803d;">
+              ${(file.size / 1024).toFixed(1)} KB &bull; ${escapeHtml(file.mimetype)}
+            </p>
+          </div>
+          ` : ''}
+
+          <div style="background: #fffbeb; border: 1px solid #fef3c7; border-radius: 8px; padding: 12px 16px; font-size: 12px; color: #92400e;">
+            <strong>Note:</strong> You can respond directly to this email to contact the employee at <strong>${userEmail}</strong>.
+          </div>
+        </div>
+
+        <div style="background: #f8fafc; padding: 14px 24px; text-align: center; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8;">
+          <p style="margin: 0;">MAC-J Int'l Forwarding Ltd., Co. &bull; MAChip System</p>
+          <p style="margin: 3px 0 0;">Automated System Support Routing</p>
+        </div>
+      </div>
+    `,
+    attachments
+  };
+
+  await transporter.sendMail(mailOptions);
+  console.log(`[CONTACT SUPPORT EMAIL SENT] Inquiry from ${userFullName} (${userIdentifier}) sent to ${targetEmail}`);
+};

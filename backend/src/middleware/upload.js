@@ -22,6 +22,8 @@ const storage = multer.diskStorage({
         finalPath = path.join(rootPath, 'ProfilePictures');
       } else if (file.fieldname === 'proofFile' || file.fieldname === 'proof_File' || file.fieldname === 'damageProofFile' || req.originalUrl.includes('/request')) {
         finalPath = path.join(rootPath, 'requestsFiles');
+      } else if (file.fieldname === 'image' || req.originalUrl.includes('/contact-support')) {
+        finalPath = path.join(rootPath, 'supportFiles');
       }
 
       // Ensure the directory exists
@@ -59,7 +61,7 @@ const fileFilter = (req, file, cb) => {
     }
   }
 
-  const allowedTypes = /jpeg|jpg|png|gif|pdf|csv/;
+  const allowedTypes = /jpeg|jpg|png|gif|webp|pdf|csv/;
   const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
   const mimetype = allowedTypes.test(file.mimetype) || 
                    file.mimetype === 'text/csv' || 
@@ -68,7 +70,7 @@ const fileFilter = (req, file, cb) => {
   if (extname || mimetype) {
     return cb(null, true);
   } else {
-    cb(new Error('Invalid file format. Only images (jpeg, jpg, png, gif), PDF, and CSV are allowed!'), false);
+    cb(new Error('Invalid file format. Only images (jpeg, jpg, png, gif, webp), PDF, and CSV are allowed!'), false);
   }
 };
 

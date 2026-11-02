@@ -40,4 +40,7 @@ router.get("/my-transparency-logs", authMiddleware, systemController.getMyTransp
 router.post("/reg-session", requireAdmin, systemController.setRegistrationSession);
 router.delete("/reg-session", requireAdmin, systemController.clearRegistrationSession);
 
+// Contact Support Inquiry Route (Dispatches to machipcaps67@gmail.com)
+router.post("/contact-support", authMiddleware, upload.single("image"), systemController.contactSupport);
+
 module.exports = router;

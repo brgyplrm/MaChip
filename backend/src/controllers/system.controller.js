@@ -2,7 +2,7 @@ const { sequelize, SystemSettings, Holiday, DueDate, PayrollPeriod, System_State
 const { getSystemTime } = require("../utils/systemTime.js");
 const { QueryTypes } = require("sequelize");
 const { syncHolidaysService } = require('../utils/holidaySyncService');
-const { logAudit } = require("../utils/logger");
+const { logAudit, formatUserNumber } = require("../utils/logger");
 const { verifyAuditLogChain } = require("../utils/encryption");
 const fs = require('fs');
 const path = require('path');
@@ -1147,5 +1147,88 @@ exports.toggleReferenceTableVersion = async (req, res) => {
     res.status(200).json({ success: true, message: `Successfully updated active status for version #${auditId} to ${!!isActive}.` });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+};
+
+
+const { sendContactSupportEmail } = require("../utils/emailService");
+const { User } = require("../config/sequelize.js");
+
+/**
+ * Processes a user's contact support inquiry and sends an email to machipcaps67@gmail.com
+ */
+exports.contactSupport = async (req, res) => {
+  try {
+    const { subject, message } = req.body;
+    const userId = req.user?.user_Id;
+
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized session. Please log in again." });
+    }
+
+    if (!subject || !subject.trim()) {
+      return res.status(400).json({ error: "Subject is required." });
+    }
+
+    if (!message || !message.trim()) {
+      return res.status(400).json({ error: "Message is required." });
+    }
+
+    // Retrieve sender details (only query real User table columns)
+    const user = await User.findByPk(userId, {
+      attributes: [
+        "user_Id",
+        "user_FirstName",
+        "user_LastName",
+        "user_Email",
+        "user_RoleId",
+        "position",
+        "department"
+      ]
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: "User account not found." });
+    }
+
+    const userData = user.toJSON ? user.toJSON() : { ...user };
+    const roleMap = { 1: "Administrator", 2: "Supervisor", 3: "Employee", 4: "Accountant" };
+    userData.user_Role = roleMap[userData.user_RoleId] || "Employee";
+    userData.user_DisplayId = formatUserNumber(userData.user_Id);
+
+    // Dispatch email to machipcaps67@gmail.com with optional attachment
+    await sendContactSupportEmail({
+      user: userData,
+      subject: subject.trim(),
+      message: message.trim(),
+      file: req.file || null
+    });
+
+    // Write audit log entry
+    await logAudit(
+      req,
+      userId,
+      "Help & Support",
+      "SUPPORT_INQUIRY_SENT",
+      "SupportInquiry",
+      null,
+      null,
+      {
+        subject: subject.trim(),
+        hasAttachment: !!req.file,
+        attachmentName: req.file ? req.file.originalname : null,
+        targetEmail: "machipcaps67@gmail.com"
+      }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Your support inquiry has been sent to the administration team."
+    });
+  } catch (error) {
+    console.error("[CONTACT SUPPORT CONTROLLER ERROR]:", error);
+    res.status(500).json({
+      error: "Failed to dispatch support inquiry. " + (error.message || "Please try again later.")
+    });
   }
 };
