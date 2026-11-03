@@ -100,9 +100,18 @@ const VisitorLogs = () => {
 
   useEffect(() => {
     fetchVisitorLogs();
-    // Real-time polling for access events
-    const interval = setInterval(fetchVisitorLogs, 5000);
-    return () => clearInterval(interval);
+    // Socket.io instantly triggers dataRefresh on new access events.
+    // 30s background fallback only runs if the browser tab is active.
+    const handleRefresh = () => fetchVisitorLogs();
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") fetchVisitorLogs();
+    }, 30000);
+
+    window.addEventListener("dataRefresh", handleRefresh);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("dataRefresh", handleRefresh);
+    };
   }, [fetchVisitorLogs]);
 
   const handleOpenDoorClick = () => {

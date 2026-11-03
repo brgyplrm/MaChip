@@ -8,6 +8,7 @@ const http = require("http");
 const cors = require("cors");
 const helmet = require("helmet");
 const cookieParser = require("cookie-parser");
+const compression = require("compression");
 const { connectDB, sequelize } = require("./config/sequelize"); 
 const { QueryTypes } = require("sequelize"); 
 const { initSocket } = require("./config/socket");
@@ -31,6 +32,17 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+// 2.1 Enable HTTP Response Compression (Gzip / Deflate)
+app.use(
+  compression({
+    threshold: 1024,
+    filter: (req, res) => {
+      if (req.headers["x-no-compression"]) return false;
+      return compression.filter(req, res);
+    },
+  })
+);
 
 // 3. Security Headers
 app.use(
@@ -116,6 +128,9 @@ app.use("/api/uploads", async (req, res, next) => {
   }
 });
 app.use("/uploads", (req, res, next) => res.redirect(`/api/uploads${req.url}`));
+
+// 7.1 API Rate Limiting (DoS & Flood Protection)
+app.use("/api", generalLimiter);
 
 // 8. Public routes
 const authRoutes = require("./routes/auth.routes.js");

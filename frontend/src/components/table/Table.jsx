@@ -48,9 +48,18 @@ const List = ({ userId }) => {
 
     fetchUserLogs();
     
-    // Set up polling (15s interval for smooth LAN performance)
-    const interval = setInterval(fetchUserLogs, 15000);
-    return () => clearInterval(interval);
+    // Socket.io triggers dataRefresh on new card taps.
+    // 45s fallback only fires when the browser tab is active.
+    const handleRefresh = () => fetchUserLogs();
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") fetchUserLogs();
+    }, 45000);
+
+    window.addEventListener("dataRefresh", handleRefresh);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("dataRefresh", handleRefresh);
+    };
   }, [userId]);
 
   const getLogStatusClass = (logStatus) => {

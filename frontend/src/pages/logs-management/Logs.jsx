@@ -213,7 +213,11 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
 
     if (viewMode === "raw") {
       fetchLogs();
-      const interval = setInterval(fetchLogs, 5000); 
+      // Socket.io instantly triggers dataRefresh on new card taps.
+      // 30s background fallback only runs if the browser tab is active.
+      const interval = setInterval(() => {
+        if (document.visibilityState === "visible") fetchLogs();
+      }, 30000); 
       window.addEventListener("dataRefresh", handleRefresh);
       return () => {
         clearInterval(interval);
@@ -222,7 +226,9 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
     } else {
       fetchDayLogs();
       fetchLogs(); // Pre-load raw logs to calculate system-generated counts
-      const interval = setInterval(fetchDayLogs, 30000); 
+      const interval = setInterval(() => {
+        if (document.visibilityState === "visible") fetchDayLogs();
+      }, 45000); 
       window.addEventListener("dataRefresh", handleRefresh);
       return () => {
         clearInterval(interval);

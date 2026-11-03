@@ -1495,8 +1495,8 @@ exports.getPayrollPreviewBatch = async (req, res) => {
       });
     }
 
-    // 2. Compute previews in concurrent chunks of 6 to protect database connection pool
-    const chunkSize = 6;
+    // 2. Compute previews in concurrent chunks of 4 to protect database connection pool
+    const chunkSize = 4;
     const results = [];
 
     for (let i = 0; i < employees.length; i += chunkSize) {

@@ -16,6 +16,12 @@ module.exports = {
       typeCast: true,
     },
     logging: false,
+    pool: {
+      max: 20,
+      min: 2,
+      acquire: 60000,
+      idle: 10000,
+    },
   },
   test: {
     username: process.env.DB_USERNAME,
@@ -34,9 +40,9 @@ module.exports = {
     dialect: "postgres",
     logging: false,
     pool: {
-      max: 5,
-      min: 0,
-      acquire: 30000,
+      max: 20,
+      min: 2,
+      acquire: 60000,
       idle: 10000,
     },
   },

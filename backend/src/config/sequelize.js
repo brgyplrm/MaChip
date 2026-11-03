@@ -292,6 +292,21 @@ const connectDB = async () => {
       "Connection to the database has been established successfully.",
     );
 
+    // Automatically apply any pending database migrations on boot
+    try {
+      const { execSync } = require("child_process");
+      const backendRoot = path.resolve(__dirname, "../../");
+      execSync("npx sequelize-cli db:migrate", {
+        cwd: backendRoot,
+        stdio: "inherit",
+        env: process.env,
+        shell: true
+      });
+      console.log("[MIGRATE] Database schema migrations verified & up-to-date.");
+    } catch (migErr) {
+      console.warn("[MIGRATE WARNING] Automated migration check notice:", migErr.message);
+    }
+
     // Ensure all base models & tables exist
     await sequelize.sync();
 
