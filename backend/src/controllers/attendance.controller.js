@@ -2138,6 +2138,43 @@ exports.getAttendanceReport = async (req, res) => {
       }
     }
 
+    // Calculate overall attendance totals across the whole queried range
+    const presentCount = logs.filter(l => l.attendanceStatusName === 'Present' || l.attendance_StatusId === 1).length;
+    const absentCount = logs.filter(l => l.attendanceStatusName === 'Absent' || l.attendance_StatusId === 2).length;
+    const lateCount = logs.filter(l => parseFloat(l.late_minutes || 0) > 0).length;
+    const totalOTHrs = logs.reduce((sum, l) => sum + parseFloat(l.ot_Total_Hrs || 0), 0).toFixed(1);
+
+    const periodSummary = {
+      totalRecords: logs.length,
+      presentCount,
+      absentCount,
+      lateCount,
+      totalOTHrs,
+      ...(payrollSummary || {})
+    };
+
+    const isPaginated = req.query.page !== undefined || req.query.limit !== undefined;
+    const isExport = req.query.export === 'true';
+
+    if (isPaginated && !isExport) {
+      const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+      const limit = Math.max(1, Math.min(100, parseInt(req.query.limit, 10) || 10));
+      const offset = (page - 1) * limit;
+      const pagedLogs = logs.slice(offset, offset + limit);
+
+      return res.status(200).json({
+        logs: pagedLogs,
+        summary: periodSummary,
+        payrollSummary,
+        pagination: {
+          total: logs.length,
+          page,
+          limit,
+          totalPages: Math.ceil(logs.length / limit) || 1
+        }
+      });
+    }
+
     // Return as object if summary exists, else stay as array for backward compatibility
     if (payrollSummary) {
       return res.status(200).json({ logs, summary: payrollSummary });

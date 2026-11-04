@@ -45,6 +45,37 @@ exports.GetUserNotifications = async (req, res) => {
       query += ` AND ("title" IN (:managementTitles) OR "title" LIKE 'Pending Action%' OR "title" LIKE 'Pending Request%' OR "title" LIKE 'Pending Approver%')`;
     }
 
+    const isPaginated = req.query.page !== undefined || req.query.limit !== undefined;
+
+    if (isPaginated) {
+      const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+      const limit = Math.max(1, Math.min(100, parseInt(req.query.limit, 10) || 10));
+      const offset = (page - 1) * limit;
+
+      const countQuery = `SELECT COUNT(*) as total FROM (${query}) as sub`;
+      const [countResult] = await sequelize.query(countQuery, { replacements, type: QueryTypes.SELECT });
+      const total = parseInt(countResult?.total || 0, 10);
+
+      replacements.limit = limit;
+      replacements.offset = offset;
+      query += ` ORDER BY "createdAt" DESC LIMIT :limit OFFSET :offset`;
+
+      const notifications = await sequelize.query(query, {
+        replacements,
+        type: QueryTypes.SELECT,
+      });
+
+      return res.status(200).json({
+        data: notifications,
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit) || 1
+        }
+      });
+    }
+
     query += ` ORDER BY "createdAt" DESC`;
 
     const notifications = await sequelize.query(query, {

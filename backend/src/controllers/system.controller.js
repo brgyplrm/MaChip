@@ -512,16 +512,150 @@ exports.getPayrollPeriods = async (req, res) => {
 
 exports.getAuditLogs = async (req, res) => {
   try {
-    const logs = await sequelize.query(
+    const pageParam = req.query.page;
+    const limitParam = req.query.limit;
+    const search = req.query.search ? String(req.query.search).trim() : '';
+    const action = req.query.action && req.query.action !== 'All Categories' ? String(req.query.action).trim() : '';
+    const startDate = req.query.startDate;
+    const endDate = req.query.endDate;
+    const isExport = req.query.export === 'true';
+
+    // Legacy fallback: if no pagination, search, action, or export is requested, return flat array for backward compatibility
+    const isLegacyCall = pageParam === undefined && limitParam === undefined && !search && !action && !startDate && !endDate && !isExport;
+
+    if (isLegacyCall) {
+      const logs = await sequelize.query(
+        `SELECT
+           a.*,
+           u."user_FirstName", u."user_LastName", u."user_Email", u."user_RoleId"
+         FROM "Audit_Log" a
+         LEFT JOIN "User" u ON u."user_Id" = a."user_Id"
+         ORDER BY a."createdAt" DESC`,
+        { type: QueryTypes.SELECT }
+      );
+      const sanitized = logs.map(log => {
+        const copy = { ...log };
+        if (copy.old_Value && typeof copy.old_Value === 'object') {
+          delete copy.old_Value.user_Password;
+          delete copy.old_Value.resetPasswordToken;
+          delete copy.old_Value.resetPasswordExpires;
+        }
+        if (copy.new_Value && typeof copy.new_Value === 'object') {
+          delete copy.new_Value.user_Password;
+          delete copy.new_Value.resetPasswordToken;
+          delete copy.new_Value.resetPasswordExpires;
+        }
+        return copy;
+      });
+      return res.status(200).json(sanitized);
+    }
+
+    const whereConditions = [];
+    const replacements = {};
+
+    if (search) {
+      whereConditions.push(`(
+        u."user_FirstName" ILIKE :searchLike OR 
+        u."user_LastName" ILIKE :searchLike OR 
+        a."action" ILIKE :searchLike OR 
+        a."target_Table" ILIKE :searchLike OR 
+        a."ip_Address" ILIKE :searchLike OR 
+        CAST(a."target_Id" AS TEXT) ILIKE :searchLike OR 
+        CAST(a."user_Id" AS TEXT) ILIKE :searchLike OR
+        a."module" ILIKE :searchLike
+      )`);
+      replacements.searchLike = `%${search}%`;
+    }
+
+    if (action) {
+      whereConditions.push('(a."action" = :action OR a."action" ILIKE :actionLike)');
+      replacements.action = action;
+      replacements.actionLike = `%${action}%`;
+    }
+
+    if (startDate) {
+      whereConditions.push('a."createdAt" >= :startDate');
+      replacements.startDate = startDate;
+    }
+
+    if (endDate) {
+      whereConditions.push('a."createdAt" <= :endDate');
+      replacements.endDate = endDate;
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    // Calculate database stats across matching records
+    const [statsResult] = await sequelize.query(
+      `SELECT 
+         COUNT(*) AS "total",
+         COUNT(CASE WHEN a."action" LIKE '%DELETE%' OR a."action" LIKE '%PERMANENT%' THEN 1 END) AS "securityAlerts",
+         COUNT(CASE WHEN a."action" LIKE '%USER%' OR a."action" LIKE '%RATE%' THEN 1 END) AS "userUpdates",
+         COUNT(DISTINCT a."user_Id") AS "activeAdmins"
+       FROM "Audit_Log" a
+       LEFT JOIN "User" u ON u."user_Id" = a."user_Id"
+       ${whereClause}`,
+      { replacements, type: QueryTypes.SELECT }
+    );
+
+    const total = parseInt(statsResult?.total || 0, 10);
+
+    // Get distinct actions for dropdown
+    const distinctActionRows = await sequelize.query(
+      `SELECT DISTINCT a."action" FROM "Audit_Log" a ORDER BY a."action" ASC LIMIT 50`,
+      { type: QueryTypes.SELECT }
+    );
+    const uniqueActions = ["All Categories", ...distinctActionRows.map(r => r.action).filter(Boolean)];
+
+    if (isExport) {
+      const exportLogs = await sequelize.query(
+        `SELECT
+           a.*,
+           u."user_FirstName", u."user_LastName", u."user_Email", u."user_RoleId"
+         FROM "Audit_Log" a
+         LEFT JOIN "User" u ON u."user_Id" = a."user_Id"
+         ${whereClause}
+         ORDER BY a."createdAt" DESC
+         LIMIT 5000`,
+        { replacements, type: QueryTypes.SELECT }
+      );
+      const sanitizedExport = exportLogs.map(log => {
+        const copy = { ...log };
+        if (copy.old_Value && typeof copy.old_Value === 'object') {
+          delete copy.old_Value.user_Password;
+          delete copy.old_Value.resetPasswordToken;
+          delete copy.old_Value.resetPasswordExpires;
+        }
+        if (copy.new_Value && typeof copy.new_Value === 'object') {
+          delete copy.new_Value.user_Password;
+          delete copy.new_Value.resetPasswordToken;
+          delete copy.new_Value.resetPasswordExpires;
+        }
+        return copy;
+      });
+      return res.status(200).json(sanitizedExport);
+    }
+
+    const page = Math.max(1, parseInt(pageParam, 10) || 1);
+    const limit = Math.max(1, Math.min(100, parseInt(limitParam, 10) || 10));
+    const offset = (page - 1) * limit;
+
+    replacements.limit = limit;
+    replacements.offset = offset;
+
+    const pageLogs = await sequelize.query(
       `SELECT
          a.*,
          u."user_FirstName", u."user_LastName", u."user_Email", u."user_RoleId"
        FROM "Audit_Log" a
        LEFT JOIN "User" u ON u."user_Id" = a."user_Id"
-       ORDER BY a."createdAt" DESC`,
-      { type: QueryTypes.SELECT }
+       ${whereClause}
+       ORDER BY a."createdAt" DESC
+       LIMIT :limit OFFSET :offset`,
+      { replacements, type: QueryTypes.SELECT }
     );
-    const sanitized = logs.map(log => {
+
+    const sanitized = pageLogs.map(log => {
       const copy = { ...log };
       if (copy.old_Value && typeof copy.old_Value === 'object') {
         delete copy.old_Value.user_Password;
@@ -535,7 +669,52 @@ exports.getAuditLogs = async (req, res) => {
       }
       return copy;
     });
-    res.status(200).json(sanitized);
+
+    res.status(200).json({
+      data: sanitized,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit) || 1
+      },
+      stats: {
+        totalActions: total,
+        securityAlerts: parseInt(statsResult?.securityAlerts || 0, 10),
+        userUpdates: parseInt(statsResult?.userUpdates || 0, 10),
+        activeAdmins: parseInt(statsResult?.activeAdmins || 0, 10)
+      },
+      uniqueActions
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.getAuditLogById = async (req, res) => {
+  try {
+    const auditId = parseInt(req.params.auditId, 10);
+    if (isNaN(auditId)) return res.status(400).json({ error: "Invalid audit ID." });
+    const logs = await sequelize.query(
+      `SELECT a.*, u."user_FirstName", u."user_LastName", u."user_Email", u."user_RoleId"
+       FROM "Audit_Log" a
+       LEFT JOIN "User" u ON u."user_Id" = a."user_Id"
+       WHERE a."auditId" = :auditId LIMIT 1`,
+      { replacements: { auditId }, type: QueryTypes.SELECT }
+    );
+    if (logs.length === 0) return res.status(404).json({ error: "Audit log not found." });
+    const copy = { ...logs[0] };
+    if (copy.old_Value && typeof copy.old_Value === 'object') {
+      delete copy.old_Value.user_Password;
+      delete copy.old_Value.resetPasswordToken;
+      delete copy.old_Value.resetPasswordExpires;
+    }
+    if (copy.new_Value && typeof copy.new_Value === 'object') {
+      delete copy.new_Value.user_Password;
+      delete copy.new_Value.resetPasswordToken;
+      delete copy.new_Value.resetPasswordExpires;
+    }
+    res.status(200).json(copy);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -561,7 +740,101 @@ exports.verifyAuditChain = async (req, res) => {
 
 exports.getTransactionLogs = async (req, res) => {
   try {
-    const logs = await sequelize.query(
+    const pageParam = req.query.page;
+    const limitParam = req.query.limit;
+    const search = req.query.search ? String(req.query.search).trim() : '';
+    const action = req.query.action && req.query.action !== 'All Actions' ? String(req.query.action).trim() : '';
+    const isExport = req.query.export === 'true';
+
+    // Legacy fallback: return flat array when called with no pagination, search, action, or export
+    const isLegacyCall = pageParam === undefined && limitParam === undefined && !search && !action && !isExport;
+
+    if (isLegacyCall) {
+      const logs = await sequelize.query(
+        `SELECT
+           t.*,
+           u."user_FirstName" AS "emp_FirstName", u."user_LastName" AS "emp_LastName",
+           a."user_FirstName" AS "admin_FirstName", a."user_LastName" AS "admin_LastName"
+         FROM "Transaction_Log" t
+         LEFT JOIN "User" u ON u."user_Id" = t."user_Id"
+         LEFT JOIN "User" a ON a."user_Id" = t."initiated_By"
+         ORDER BY t."createdAt" DESC`,
+        { type: QueryTypes.SELECT }
+      );
+      return res.status(200).json(logs);
+    }
+
+    const whereConditions = [];
+    const replacements = {};
+
+    if (search) {
+      whereConditions.push(`(
+        u."user_FirstName" ILIKE :searchLike OR 
+        u."user_LastName" ILIKE :searchLike OR 
+        a."user_FirstName" ILIKE :searchLike OR 
+        a."user_LastName" ILIKE :searchLike OR 
+        t."event_Type" ILIKE :searchLike OR 
+        t."description" ILIKE :searchLike OR 
+        t."ip_Address" ILIKE :searchLike OR 
+        CAST(t."user_Id" AS TEXT) ILIKE :searchLike OR 
+        CAST(t."initiated_By" AS TEXT) ILIKE :searchLike
+      )`);
+      replacements.searchLike = `%${search}%`;
+    }
+
+    if (action) {
+      whereConditions.push('t."event_Type" = :action');
+      replacements.action = action;
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    const [statsResult] = await sequelize.query(
+      `SELECT 
+         COUNT(*) AS "total",
+         COUNT(CASE WHEN t."event_Type" = 'PAYROLL_RELEASE' THEN 1 END) AS "payrollReleases",
+         COUNT(CASE WHEN t."event_Type" = 'BATCH_PAYROLL_GEN' THEN 1 END) AS "batchRuns",
+         COUNT(CASE WHEN t."event_Type" IN ('UNAUTHORIZED_SCAN', 'UNRECOGNIZED_SCAN', 'IRREGULAR_LOG', '2FA_FAILURE', 'SUSPICIOUS_SCAN', 'ATTENDANCE_LOG_SUSPICIOUS') THEN 1 END) AS "unauthorizedScans"
+       FROM "Transaction_Log" t
+       LEFT JOIN "User" u ON u."user_Id" = t."user_Id"
+       LEFT JOIN "User" a ON a."user_Id" = t."initiated_By"
+       ${whereClause}`,
+      { replacements, type: QueryTypes.SELECT }
+    );
+
+    const total = parseInt(statsResult?.total || 0, 10);
+
+    const distinctEvents = await sequelize.query(
+      `SELECT DISTINCT t."event_Type" FROM "Transaction_Log" t ORDER BY t."event_Type" ASC LIMIT 50`,
+      { type: QueryTypes.SELECT }
+    );
+    const uniqueActions = ["All Actions", ...distinctEvents.map(r => r.event_Type).filter(Boolean)];
+
+    if (isExport) {
+      const exportLogs = await sequelize.query(
+        `SELECT
+           t.*,
+           u."user_FirstName" AS "emp_FirstName", u."user_LastName" AS "emp_LastName",
+           a."user_FirstName" AS "admin_FirstName", a."user_LastName" AS "admin_LastName"
+         FROM "Transaction_Log" t
+         LEFT JOIN "User" u ON u."user_Id" = t."user_Id"
+         LEFT JOIN "User" a ON a."user_Id" = t."initiated_By"
+         ${whereClause}
+         ORDER BY t."createdAt" DESC
+         LIMIT 5000`,
+        { replacements, type: QueryTypes.SELECT }
+      );
+      return res.status(200).json(exportLogs);
+    }
+
+    const page = Math.max(1, parseInt(pageParam, 10) || 1);
+    const limit = Math.max(1, Math.min(100, parseInt(limitParam, 10) || 10));
+    const offset = (page - 1) * limit;
+
+    replacements.limit = limit;
+    replacements.offset = offset;
+
+    const pageLogs = await sequelize.query(
       `SELECT
          t.*,
          u."user_FirstName" AS "emp_FirstName", u."user_LastName" AS "emp_LastName",
@@ -569,10 +842,28 @@ exports.getTransactionLogs = async (req, res) => {
        FROM "Transaction_Log" t
        LEFT JOIN "User" u ON u."user_Id" = t."user_Id"
        LEFT JOIN "User" a ON a."user_Id" = t."initiated_By"
-       ORDER BY t."createdAt" DESC`,
-      { type: QueryTypes.SELECT }
+       ${whereClause}
+       ORDER BY t."createdAt" DESC
+       LIMIT :limit OFFSET :offset`,
+      { replacements, type: QueryTypes.SELECT }
     );
-    res.status(200).json(logs);
+
+    res.status(200).json({
+      data: pageLogs,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit) || 1
+      },
+      stats: {
+        total,
+        payrollReleases: parseInt(statsResult?.payrollReleases || 0, 10),
+        batchRuns: parseInt(statsResult?.batchRuns || 0, 10),
+        unauthorizedScans: parseInt(statsResult?.unauthorizedScans || 0, 10)
+      },
+      uniqueActions
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

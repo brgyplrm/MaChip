@@ -1820,13 +1820,31 @@ exports.GetUserRequests = async (req, res) => {
 };
 
 exports.GetAllRequests = async (req, res) => {
-  const { startDate, endDate } = req.query;
+  const { startDate, endDate, type, status, typeIds } = req.query;
   try {
     const now = await getSystemTime();
     const currentYear = now.getFullYear();
 
     let dateFilter = "";
     const replacements = { currentYear };
+
+    if (type === "loan") {
+      dateFilter += ' AND (er."emp_reqTypeId" IN (13, 14) OR rt."reqTypeName" ILIKE \'%loan%\')';
+    } else if (typeIds) {
+      const parsedIds = typeIds.split(',').map(n => parseInt(n.trim(), 10)).filter(n => !isNaN(n));
+      if (parsedIds.length > 0) {
+        dateFilter += ' AND er."emp_reqTypeId" IN (:typeIds)';
+        replacements.typeIds = parsedIds;
+      }
+    }
+
+    if (status) {
+      const statusId = parseInt(status, 10);
+      if (!isNaN(statusId)) {
+        dateFilter += ' AND er."emp_reqStatusId" = :statusId';
+        replacements.statusId = statusId;
+      }
+    }
 
     if (startDate && endDate) {
       if (new Date(startDate) > new Date(endDate)) {
@@ -3263,6 +3281,56 @@ exports.DeleteRequest = async (req, res) => {
     res.status(200).json({ message: "Request deleted successfully." });
   } catch (error) {
     console.error("[DELETE REQUEST ERROR]:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+};
+exports.getPendingPreview = async (req, res) => {
+  try {
+    const limit = Math.max(1, Math.min(20, parseInt(req.query.limit, 10) || 3));
+    const currentUserId = req.user?.user_Id ? Number(req.user.user_Id) : null;
+    const userRoleId = req.user?.user_RoleId ? Number(req.user.user_RoleId) : null;
+
+    let roleCondition = '';
+    const replacements = { limit };
+
+    if (currentUserId) {
+      roleCondition += ' AND er."user_Id" != :currentUserId';
+      replacements.currentUserId = currentUserId;
+    }
+
+    if (userRoleId === 2) {
+      // Supervisors only process standard staff requests
+      roleCondition += ' AND er."emp_reqStatusId" = 1 AND u."user_RoleId" = 3';
+    } else {
+      // Admins (Role 1) and Accountants (Role 4) process pending (1) or recommended (4)
+      roleCondition += ' AND er."emp_reqStatusId" IN (1, 4)';
+    }
+
+    const requests = await sequelize.query(
+      `SELECT
+        er."emp_reqId",
+        er."user_Id",
+        u."user_RoleId",
+        u."user_FirstName" || ' ' || u."user_LastName" as "userName",
+        u."user_FirstName",
+        u."user_LastName",
+        er."emp_reqTypeId",
+        rt."reqTypeName",
+        er."emp_reqStatusId",
+        rs."reqStatName" as "status",
+        er."date_Filed"
+      FROM "emp_Request" er
+      INNER JOIN "User" u ON er."user_Id" = u."user_Id"
+      LEFT JOIN "request_Type" rt ON er."emp_reqTypeId" = rt."reqTypeId"
+      LEFT JOIN "request_Status" rs ON er."emp_reqStatusId" = rs."reqStatId"
+      WHERE 1=1 ${roleCondition}
+      ORDER BY er."date_Filed" DESC, er."emp_reqId" DESC
+      LIMIT :limit`,
+      { replacements, type: QueryTypes.SELECT }
+    );
+
+    res.status(200).json(requests);
+  } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };

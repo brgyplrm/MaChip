@@ -164,6 +164,19 @@ const AuditLogs = () => {
   // Pagination States
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [serverStats, setServerStats] = useState(null);
+  const [uniqueActions, setUniqueActions] = useState(["All Categories"]);
+
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
 
   // Diff Pagination States
   const [diffPage, setDiffPage] = useState(1);
@@ -246,42 +259,61 @@ const AuditLogs = () => {
     ).join(" ");
   };
 
-  useEffect(() => {
-    const fetchLogsAndUsers = async () => {
-      try {
-        const [logsRes, usersRes] = await Promise.all([
-          fetchWithAuth("/api/system/audit-logs"),
-          fetchWithAuth("/api/users").catch(() => null)
-        ]);
+  const fetchLogs = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: currentPage,
+        limit: itemsPerPage
+      });
+      if (debouncedSearch.trim()) params.append("search", debouncedSearch.trim());
+      if (filterAction && filterAction !== "All Categories") params.append("action", filterAction);
 
-        if (logsRes && logsRes.ok) {
-          const data = await logsRes.json();
-          if (Array.isArray(data)) setLogs(data);
-        }
+      const [logsRes, usersRes] = await Promise.all([
+        fetchWithAuth(`/api/system/audit-logs?${params.toString()}`),
+        Object.keys(usersMap).length === 0 ? fetchWithAuth("/api/users").catch(() => null) : Promise.resolve(null)
+      ]);
 
-        if (usersRes && usersRes.ok) {
-          const uList = await usersRes.json();
-          if (Array.isArray(uList)) {
-            const map = {};
-            uList.forEach(u => {
-              map[u.user_Id] = {
-                name: `${u.user_FirstName} ${u.user_LastName}`,
-                formattedId: formatUserId(u.user_Id),
-                dept: u.positionDepartment || u.department || "",
-                position: u.positionTitle || u.position || u.user_Role || ""
-              };
-            });
-            setUsersMap(map);
-          }
+      if (logsRes && logsRes.ok) {
+        const result = await logsRes.json();
+        if (result && Array.isArray(result.data)) {
+          setLogs(result.data);
+          setTotalItems(result.pagination?.total || 0);
+          setTotalPages(result.pagination?.totalPages || 1);
+          if (result.stats) setServerStats(result.stats);
+          if (result.uniqueActions) setUniqueActions(result.uniqueActions);
+        } else if (Array.isArray(result)) {
+          setLogs(result);
+          setTotalItems(result.length);
+          setTotalPages(Math.ceil(result.length / itemsPerPage) || 1);
         }
-      } catch (error) {
-        console.error("Error fetching audit logs or users:", error);
-      } finally {
-        setLoading(false);
       }
-    };
-    fetchLogsAndUsers();
-  }, []);
+
+      if (usersRes && usersRes.ok) {
+        const uList = await usersRes.json();
+        if (Array.isArray(uList)) {
+          const map = {};
+          uList.forEach(u => {
+            map[u.user_Id] = {
+              name: `${u.user_FirstName} ${u.user_LastName}`,
+              formattedId: formatUserId(u.user_Id),
+              dept: u.positionDepartment || u.department || "",
+              position: u.positionTitle || u.position || u.user_Role || ""
+            };
+          });
+          setUsersMap(map);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching audit logs or users:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentPage, itemsPerPage, debouncedSearch, filterAction]);
+
+  useEffect(() => {
+    fetchLogs();
+  }, [fetchLogs]);
 
   const getFriendlyEvent = (log) => {
     const adminName = log.user_FirstName ? `${log.user_FirstName} ${log.user_LastName}` : "System Automated";
@@ -465,62 +497,46 @@ const AuditLogs = () => {
 
   const handleClearFilters = () => {
     setSearchQuery("");
+    setDebouncedSearch("");
     setFilterAction("All Categories");
     setCurrentPage(1);
   };
 
   const isFiltering = searchQuery !== "" || filterAction !== "All Categories";
+  const currentLogs = logs;
 
-  const filteredLogs = logs.filter(log => {
-    const actionLabel = formatAction(log.action);
-    const friendlyEv = getFriendlyEvent(log);
-    const userNumber = log.user_Id ? formatUserId(log.user_Id) : "";
-    const rawUserId = String(log.user_Id || "");
-    const ipAddr = log.ip_Address || "";
-    
-    const searchLower = searchQuery.toLowerCase();
-    const matchesSearch = (log.user_FirstName + " " + log.user_LastName).toLowerCase().includes(searchLower) || 
-                          actionLabel.toLowerCase().includes(searchLower) ||
-                          friendlyEv.headline.toLowerCase().includes(searchLower) ||
-                          friendlyEv.target.toLowerCase().includes(searchLower) ||
-                          friendlyEv.badge.toLowerCase().includes(searchLower) ||
-                          log.action.toLowerCase().includes(searchLower) ||
-                          String(log.target_Id || "").toLowerCase().includes(searchLower) ||
-                          userNumber.toLowerCase().includes(searchLower) ||
-                          rawUserId.includes(searchLower) ||
-                          ipAddr.includes(searchLower);
-
-    const matchesAction = filterAction === "All Categories" || actionLabel === filterAction;
-    return matchesSearch && matchesAction;
-  });
-
-  const totalItems = filteredLogs.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
-  const currentLogs = filteredLogs.slice(startIndex, endIndex);
-
-  const uniqueActions = ["All Categories", ...new Set(logs.map(l => formatAction(l.action)))];
-
-  const stats = {
-    totalActions: logs.length,
-    securityAlerts: logs.filter(l => l.action?.includes("DELETE") || l.action?.includes("PERMANENT")).length,
-    userUpdates: logs.filter(l => l.action?.includes("USER") || l.action?.includes("RATE")).length,
-    activeAdmins: new Set(logs.map(l => l.user_Id)).size,
+  const stats = serverStats || {
+    totalActions: totalItems,
+    securityAlerts: 0,
+    userUpdates: 0,
+    activeAdmins: 0,
   };
 
-  const handleExportPDF = () => {
-    const headers = ["Timestamp", "User No.", "Administrator", "Module", "Event Category", "Target", "IP Address"];
-    const data = filteredLogs.map(log => [
-      new Date(log.createdAt).toLocaleString("en-US", { timeZone: "Asia/Manila" }),
-      log.user_Id ? formatUserId(log.user_Id) : "SYS",
-      log.user_FirstName ? `${log.user_FirstName} ${log.user_LastName}` : "System",
-      log.module || "System",
-      formatAction(log.action),
-      `${log.target_Table || "N/A"} #${log.target_Id || "N/A"}`,
-      log.ip_Address || "127.0.0.1"
-    ]);
-    exportToPDF("Detailed System Audit Logs", headers, data, `Audit_Logs_${new Date().toISOString().split('T')[0]}.pdf`, { orientation: "l" });
+  const handleExportPDF = async () => {
+    try {
+      const params = new URLSearchParams({ export: "true" });
+      if (debouncedSearch.trim()) params.append("search", debouncedSearch.trim());
+      if (filterAction && filterAction !== "All Categories") params.append("action", filterAction);
+
+      const res = await fetchWithAuth(`/api/system/audit-logs?${params.toString()}`);
+      if (!res.ok) return;
+      const exportLogs = await res.json();
+      const exportList = Array.isArray(exportLogs) ? exportLogs : (exportLogs.data || []);
+
+      const headers = ["Timestamp", "User No.", "Administrator", "Module", "Event Category", "Target", "IP Address"];
+      const data = exportList.map(log => [
+        new Date(log.createdAt).toLocaleString("en-US", { timeZone: "Asia/Manila" }),
+        log.user_Id ? formatUserId(log.user_Id) : "SYS",
+        log.user_FirstName ? `${log.user_FirstName} ${log.user_LastName}` : "System",
+        log.module || "System",
+        formatAction(log.action),
+        `${log.target_Table || "N/A"} #${log.target_Id || "N/A"}`,
+        log.ip_Address || "127.0.0.1"
+      ]);
+      exportToPDF("Detailed System Audit Logs", headers, data, `Audit_Logs_${new Date().toISOString().split('T')[0]}.pdf`, { orientation: "l" });
+    } catch (e) {
+      console.error("PDF export error:", e);
+    }
   };
 
   const diffData = useMemo(() => {

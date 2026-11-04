@@ -49,53 +49,79 @@ const TransactionLog = () => {
   // Pagination States
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [serverStats, setServerStats] = useState(null);
+  const [uniqueActions, setUniqueActions] = useState(["All Actions"]);
 
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   useEffect(() => {
-    const fetchTransactionsAndUsers = async () => {
-      try {
-        const [transRes, usersRes] = await Promise.allSettled([
-          fetchWithAuth("/api/system/transaction-logs"),
-          fetchWithAuth("/api/users")
-        ]);
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
 
-        if (transRes.status === "fulfilled" && transRes.value.ok) {
-          const data = await transRes.value.json();
-          if (Array.isArray(data)) {
-            setTransactions(data);
-          }
-        }
+  const fetchTransactions = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: currentPage,
+        limit: itemsPerPage
+      });
+      if (debouncedSearch.trim()) params.append("search", debouncedSearch.trim());
+      if (actionFilter && actionFilter !== "All Actions") params.append("action", actionFilter);
 
-        if (usersRes.status === "fulfilled" && usersRes.value.ok) {
-          const uData = await usersRes.value.json();
-          if (Array.isArray(uData)) {
-            const map = {};
-            uData.forEach(u => {
-              map[u.user_Id] = {
-                name: `${u.user_FirstName} ${u.user_LastName}`,
-                formattedId: formatUserId(u.user_Id),
-                dept: u.positionDepartment || u.department || "",
-                position: u.positionTitle || u.position || u.user_Role || ""
-              };
-            });
-            setUsersMap(map);
-          }
+      const [transRes, usersRes] = await Promise.allSettled([
+        fetchWithAuth(`/api/system/transaction-logs?${params.toString()}`),
+        Object.keys(usersMap).length === 0 ? fetchWithAuth("/api/users") : Promise.resolve(null)
+      ]);
+
+      if (transRes.status === "fulfilled" && transRes.value.ok) {
+        const result = await transRes.value.json();
+        if (result && Array.isArray(result.data)) {
+          setTransactions(result.data);
+          setTotalItems(result.pagination?.total || 0);
+          setTotalPages(result.pagination?.totalPages || 1);
+          if (result.stats) setServerStats(result.stats);
+          if (result.uniqueActions) setUniqueActions(result.uniqueActions);
+        } else if (Array.isArray(result)) {
+          setTransactions(result);
+          setTotalItems(result.length);
+          setTotalPages(Math.ceil(result.length / itemsPerPage) || 1);
         }
-      } catch (error) {
-        console.error("Error fetching transaction logs or users:", error);
-      } finally {
-        setLoading(false);
       }
-    };
-    fetchTransactionsAndUsers();
-  }, []);
 
-  // Reset pagination on filter change
+      if (usersRes.status === "fulfilled" && usersRes.value && usersRes.value.ok) {
+        const uData = await usersRes.value.json();
+        if (Array.isArray(uData)) {
+          const map = {};
+          uData.forEach(u => {
+            map[u.user_Id] = {
+              name: `${u.user_FirstName} ${u.user_LastName}`,
+              formattedId: formatUserId(u.user_Id),
+              dept: u.positionDepartment || u.department || "",
+              position: u.positionTitle || u.position || u.user_Role || ""
+            };
+          });
+          setUsersMap(map);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching transaction logs or users:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentPage, itemsPerPage, debouncedSearch, actionFilter]);
+
   useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, actionFilter, itemsPerPage]);
+    fetchTransactions();
+  }, [fetchTransactions]);
 
   const handleClearFilters = () => {
     setSearchTerm("");
+    setDebouncedSearch("");
     setActionFilter("All Actions");
     setCurrentPage(1);
   };
@@ -284,37 +310,44 @@ const TransactionLog = () => {
     return matchesSearch && matchesAction;
   });
 
-  // Pagination Logic
-  const totalItems = filteredData.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
-  const currentLogs = filteredData.slice(startIndex, endIndex);
+  // Server-Side Paginated current logs
+  const currentLogs = transactions;
 
-  const uniqueActions = ["All Actions", ...new Set(transactions.map(t => t.event_Type))];
-
-  const stats = {
-    total: transactions.length,
-    payrollReleases: transactions.filter(t => t.event_Type === "PAYROLL_RELEASE").length,
-    batchRuns: transactions.filter(t => t.event_Type === "BATCH_PAYROLL_GEN").length,
-    unauthorizedScans: transactions.filter(t => ["UNAUTHORIZED_SCAN", "UNRECOGNIZED_SCAN", "IRREGULAR_LOG", "2FA_FAILURE", "SUSPICIOUS_SCAN", "ATTENDANCE_LOG_SUSPICIOUS"].includes(t.event_Type)).length,
+  const stats = serverStats || {
+    total: totalItems,
+    payrollReleases: 0,
+    batchRuns: 0,
+    unauthorizedScans: 0,
   };
 
-  const handleExportPDF = () => {
-    const headers = ["Timestamp", "User No.", "Initiated By", "Event Category", "Description", "IP Address"];
-    const data = filteredData.map(t => [
-      new Date(t.createdAt).toLocaleString("en-US", { timeZone: "Asia/Manila" }),
-      t.initiated_By ? formatUserId(t.initiated_By) : t.user_Id ? formatUserId(t.user_Id) : "SYS",
-      t.admin_FirstName 
-        ? `${t.admin_FirstName} ${t.admin_LastName}`
-        : t.emp_FirstName 
-          ? `${t.emp_FirstName} ${t.emp_LastName}`
-          : "System",
-      getEventLabel(t.event_Type),
-      t.description,
-      t.ip_Address || t.metadata?.deviceIp || "127.0.0.1"
-    ]);
-    exportToPDF("Detailed System Transaction Logs", headers, data, `Transaction_Logs_${new Date().toISOString().split('T')[0]}.pdf`, { orientation: "l" });
+  const handleExportPDF = async () => {
+    try {
+      const params = new URLSearchParams({ export: "true" });
+      if (debouncedSearch.trim()) params.append("search", debouncedSearch.trim());
+      if (actionFilter && actionFilter !== "All Actions") params.append("action", actionFilter);
+
+      const res = await fetchWithAuth(`/api/system/transaction-logs?${params.toString()}`);
+      if (!res.ok) return;
+      const exportLogs = await res.json();
+      const exportList = Array.isArray(exportLogs) ? exportLogs : (exportLogs.data || []);
+
+      const headers = ["Timestamp", "User No.", "Initiated By", "Event Category", "Description", "IP Address"];
+      const data = exportList.map(t => [
+        new Date(t.createdAt).toLocaleString("en-US", { timeZone: "Asia/Manila" }),
+        t.initiated_By ? formatUserId(t.initiated_By) : t.user_Id ? formatUserId(t.user_Id) : "SYS",
+        t.admin_FirstName 
+          ? `${t.admin_FirstName} ${t.admin_LastName}`
+          : t.emp_FirstName 
+            ? `${t.emp_FirstName} ${t.emp_LastName}`
+            : "System",
+        getEventLabel(t.event_Type),
+        t.description,
+        t.ip_Address || t.metadata?.deviceIp || "127.0.0.1"
+      ]);
+      exportToPDF("Detailed System Transaction Logs", headers, data, `Transaction_Logs_${new Date().toISOString().split('T')[0]}.pdf`, { orientation: "l" });
+    } catch (e) {
+      console.error("PDF export error:", e);
+    }
   };
 
   const handleExportCSV = () => {

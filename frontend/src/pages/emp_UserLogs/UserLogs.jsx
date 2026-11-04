@@ -240,14 +240,11 @@ const UserLogs = () => {
   const fetchDailyLogs = async () => {
     if (!userData?.user_Id) return;
     try {
-      const response = await fetchWithAuth(`/api/attendance/logs/${userData.user_Id}`);
+      // OPT-07: Pass date boundaries to backend so PostgreSQL filters the dates in SQL
+      const response = await fetchWithAuth(`/api/attendance/logs/${userData.user_Id}?startDate=${dtrStartDate}&endDate=${dtrEndDate}`);
       if (response.ok) {
         const data = await response.json();
-        const filtered = data.filter((log) => {
-          const logDate = String(log.log_Date).split("T")[0];
-          return logDate >= dtrStartDate && logDate <= dtrEndDate;
-        });
-        setDailyLogs(filtered);
+        setDailyLogs(Array.isArray(data) ? data : []);
       }
     } catch (error) {
       console.error("Error fetching daily logs:", error);

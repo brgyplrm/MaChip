@@ -154,6 +154,10 @@ const AdminReports = () => {
   // Pagination States
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [payrollSummary, setPayrollSummary] = useState(null);
+  const [attendanceSummary, setAttendanceSummary] = useState(null);
+  const [payrollPagination, setPayrollPagination] = useState({ total: 0, totalPages: 1 });
+  const [attendancePagination, setAttendancePagination] = useState({ total: 0, totalPages: 1 });
 
   const [showBatchZipModal, setShowBatchZipModal] = useState(false);
   const [zipPassword, setZipPassword] = useState("");
@@ -219,17 +223,26 @@ const AdminReports = () => {
       } else {
         params.append("user_Id", "All Employees");
       }
+      params.append("page", currentPage);
+      params.append("limit", itemsPerPage);
       const response = await fetchWithAuth(`/api/attendance/report?${params.toString()}`);
       if (response.ok) {
         const data = await response.json();
-        setAttendanceData(Array.isArray(data) ? data : (data.logs || []));
+        if (data && Array.isArray(data.logs)) {
+          setAttendanceData(data.logs);
+          if (data.summary) setAttendanceSummary(data.summary);
+          if (data.pagination) setAttendancePagination(data.pagination);
+        } else if (Array.isArray(data)) {
+          setAttendanceData(data);
+          setAttendancePagination({ total: data.length, totalPages: Math.ceil(data.length / itemsPerPage) || 1 });
+        }
       }
     } catch (error) {
       console.error("Error fetching attendance report:", error);
     } finally {
       setLoading(false);
     }
-  }, [startDate, endDate, selectedEmployee]);
+  }, [startDate, endDate, selectedEmployee, currentPage, itemsPerPage]);
 
   const fetchPayrollReport = useCallback(async () => {
     setLoading(true);
@@ -242,17 +255,26 @@ const AdminReports = () => {
       } else {
         params.append("user_Id", "All Employees");
       }
+      params.append("page", currentPage);
+      params.append("limit", itemsPerPage);
       const response = await fetchWithAuth(`/api/payroll/report?${params.toString()}`);
       if (response.ok) {
         const data = await response.json();
-        setPayrollData(data);
+        if (data && Array.isArray(data.data)) {
+          setPayrollData(data.data);
+          if (data.summary) setPayrollSummary(data.summary);
+          if (data.pagination) setPayrollPagination(data.pagination);
+        } else if (Array.isArray(data)) {
+          setPayrollData(data);
+          setPayrollPagination({ total: data.length, totalPages: Math.ceil(data.length / itemsPerPage) || 1 });
+        }
       }
     } catch (error) {
       console.error("Error fetching payroll report:", error);
     } finally {
       setLoading(false);
     }
-  }, [startDate, endDate, selectedEmployee]);
+  }, [startDate, endDate, selectedEmployee, currentPage, itemsPerPage]);
 
   const fetchCalendarReport = useCallback(async () => {
     setLoading(true);
@@ -484,7 +506,11 @@ const AdminReports = () => {
     return acc;
   }, { present: 0, absent: 0, late: 0, totalHours: 0 });
 
-  const payStats = payrollData.reduce((acc, curr) => {
+  const payStats = payrollSummary ? {
+    net: parseFloat(payrollSummary.totalNet) || 0,
+    earn: parseFloat(payrollSummary.totalGross) || 0,
+    ded: parseFloat(payrollSummary.totalDeductions) || 0
+  } : payrollData.reduce((acc, curr) => {
     acc.net += parseFloat(curr.netPay) || 0;
     acc.earn += parseFloat(curr.totalEarnings) || 0;
     acc.ded += parseFloat(curr.totalDeductions) || 0;
@@ -520,11 +546,22 @@ const AdminReports = () => {
         ? filteredCalendarData 
         : filteredRequests;
 
-  const totalItems = activeData.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
-  const currentData = activeData.slice(startIndex, endIndex);
+  const totalItems = activeReport === "attendance" 
+    ? attendancePagination.total 
+    : activeReport === "payroll" 
+      ? payrollPagination.total 
+      : activeData.length;
+
+  const totalPages = activeReport === "attendance" 
+    ? attendancePagination.totalPages 
+    : activeReport === "payroll" 
+      ? payrollPagination.totalPages 
+      : Math.ceil(totalItems / itemsPerPage) || 1;
+
+  // For attendance and payroll, data is already sliced to current page rows by server
+  const currentData = (activeReport === "attendance" || activeReport === "payroll")
+    ? activeData
+    : activeData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   return (
     <Sidebar>

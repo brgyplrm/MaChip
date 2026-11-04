@@ -2975,11 +2975,62 @@ exports.getPayrollById = async (req, res) => {
 
 // ── Get Payroll Report ────────────────────────────────────────────────────────
 exports.getPayrollReport = async (req, res) => {
-  const { startDate, endDate, user_Id } = req.query;
+  const { startDate, endDate, user_Id, page: pageParam, limit: limitParam, export: exportParam } = req.query;
   if (startDate && endDate && startDate > endDate) {
     return res.status(400).json({ error: "Invalid date range: startDate cannot be after endDate." });
   }
   try {
+    const isExport = exportParam === 'true';
+    const isPaginated = pageParam !== undefined || limitParam !== undefined;
+
+    let baseFilter = ' WHERE 1=1';
+    const replacements = {};
+
+    if (startDate && startDate !== "undefined" && startDate !== "null") {
+      baseFilter += ` AND p."period_Start" >= :startDate`;
+      replacements.startDate = startDate;
+    }
+    if (endDate && endDate !== "undefined" && endDate !== "null") {
+      baseFilter += ` AND p."period_End" <= :endDate`;
+      replacements.endDate = endDate;
+    }
+    if (user_Id && user_Id !== "All Employees" && user_Id !== "all") {
+      baseFilter += ` AND p."user_Id" = :user_Id`;
+      replacements.user_Id = user_Id;
+    }
+
+    // Always calculate complete period summary via SQL aggregations
+    const [aggResult] = await sequelize.query(`
+      SELECT 
+        COUNT(*) as "total",
+        COUNT(DISTINCT p."user_Id") as "employeeCount",
+        COALESCE(SUM(p."netPay"), 0) as "totalNet",
+        COALESCE(SUM(p."totalEarnings"), 0) as "totalGross",
+        COALESCE(SUM(p."totalDeductions"), 0) as "totalDeductions",
+        COALESCE(SUM(e."OT_Hrs"), 0) as "totalOT",
+        COALESCE(SUM(d."Tax_Ded"), 0) as "totalTax",
+        COALESCE(SUM(d."SSS_Ded"), 0) as "totalSSS",
+        COALESCE(SUM(d."Philhealth_Ded"), 0) as "totalPhilhealth",
+        COALESCE(SUM(d."HDMF_Ded"), 0) as "totalPagibig"
+      FROM "Payroll" p
+      LEFT JOIN "Payroll_Deductions" d ON d."payrollId" = p."payrollId"
+      LEFT JOIN "Payroll_Earnings" e ON e."payrollId" = p."payrollId"
+      ${baseFilter}
+    `, { replacements, type: QueryTypes.SELECT });
+
+    const total = parseInt(aggResult?.total || 0, 10);
+    const summary = {
+      totalGross: parseFloat(aggResult?.totalGross || 0).toFixed(2),
+      totalNet: parseFloat(aggResult?.totalNet || 0).toFixed(2),
+      totalDeductions: parseFloat(aggResult?.totalDeductions || 0).toFixed(2),
+      totalTax: parseFloat(aggResult?.totalTax || 0).toFixed(2),
+      totalSSS: parseFloat(aggResult?.totalSSS || 0).toFixed(2),
+      totalPhilhealth: parseFloat(aggResult?.totalPhilhealth || 0).toFixed(2),
+      totalPagibig: parseFloat(aggResult?.totalPagibig || 0).toFixed(2),
+      totalOT: parseFloat(aggResult?.totalOT || 0).toFixed(1),
+      employeeCount: parseInt(aggResult?.employeeCount || 0, 10)
+    };
+
     let query = `
       SELECT
         p.*,
@@ -2992,33 +3043,42 @@ exports.getPayrollReport = async (req, res) => {
          COALESCE(d."eastwest_Loan",0)) AS "Other_Deductions",
         e."OT_Hrs", e."OT_Amnt", e."restDay_OT_Hrs", e."restDay_OT_Amnt",
         e."nightOT_Hrs", e."nightOT_Amnt",
-        e."nightDiff_Hrs", e."nightDiff_Amnt", e."specialHol_Amnt", e."legalHol_Amnt",        e."specialHol_Adj", e."incentives", e."allowance"
+        e."nightDiff_Hrs", e."nightDiff_Amnt", e."specialHol_Amnt", e."legalHol_Amnt", e."specialHol_Adj", e."incentives", e."allowance"
       FROM "Payroll" p
       LEFT JOIN "User" u ON u."user_Id" = p."user_Id"
       LEFT JOIN "User_Hardware" h ON u."user_Id" = h."user_Id"
       LEFT JOIN "Payroll_status" ps ON ps."PaystatusId" = p."status"
       LEFT JOIN "Payroll_Deductions" d ON d."payrollId" = p."payrollId"
       LEFT JOIN "Payroll_Earnings" e ON e."payrollId" = p."payrollId"
-      WHERE 1=1
+      ${baseFilter}
+      ORDER BY p."period_Start" DESC, u."user_Id" ASC
     `;
 
-    const replacements = {};
-    if (startDate && startDate !== "undefined" && startDate !== "null") {
-      query += ` AND p."period_Start" >= :startDate`;
-      replacements.startDate = startDate;
-    }
-    if (endDate && endDate !== "undefined" && endDate !== "null") {
-      query += ` AND p."period_End" <= :endDate`;
-      replacements.endDate = endDate;
-    }
-    if (user_Id && user_Id !== "All Employees" && user_Id !== "all") {
-      query += ` AND p."user_Id" = :user_Id`;
-      replacements.user_Id = user_Id;
-    }
+    if (isPaginated && !isExport) {
+      const page = Math.max(1, parseInt(pageParam, 10) || 1);
+      const limit = Math.max(1, Math.min(100, parseInt(limitParam, 10) || 10));
+      const offset = (page - 1) * limit;
 
-    query += ` ORDER BY p."period_Start" DESC, u."user_Id" ASC`;
+      replacements.limit = limit;
+      replacements.offset = offset;
+      query += ` LIMIT :limit OFFSET :offset`;
+
+      const payrolls = await sequelize.query(query, { replacements, type: QueryTypes.SELECT });
+
+      return res.status(200).json({
+        data: payrolls,
+        summary,
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit) || 1
+        }
+      });
+    }
 
     const payrolls = await sequelize.query(query, { replacements, type: QueryTypes.SELECT });
+    // If export or legacy call without pagination, return flat array or with summary header
     res.status(200).json(payrolls);
   } catch (error) {
     res.status(500).json({ error: error.message });

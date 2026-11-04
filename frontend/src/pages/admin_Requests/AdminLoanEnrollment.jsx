@@ -77,15 +77,11 @@ const AdminLoanEnrollment = () => {
   const fetchRequests = async (isBackground = false) => {
     if (!isBackground) setLoading(true);
     try {
-      const response = await fetchWithAuth("/api/request/all");
+      // OPT-08: Query only loan requests directly from the database
+      const response = await fetchWithAuth("/api/request/all?type=loan");
       const data = await response.json();
       if (response.ok && Array.isArray(data)) {
-        const loanRequests = data.filter(
-          (req) =>
-            LOAN_TYPE_IDS.includes(req.emp_reqTypeId) ||
-            req.reqTypeName?.toLowerCase().includes("loan")
-        );
-        setRequests(loanRequests);
+        setRequests(data);
       } else {
         console.warn("[AdminLoanEnrollment] Failed to refresh loan requests:", response.status, data);
       }

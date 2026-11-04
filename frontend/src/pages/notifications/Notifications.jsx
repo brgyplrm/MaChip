@@ -187,7 +187,8 @@ const Notifications = () => {
       const response = await fetchWithAuth(`/api/notifications/${userData.user_Id}?viewMode=${effectiveViewMode}`);
       if (response.ok) {
         const data = await response.json();
-        const formattedData = data.map((n) => ({ ...n, id: n.notifId }));
+        const rawList = Array.isArray(data) ? data : (data.data || []);
+        const formattedData = rawList.map((n) => ({ ...n, id: n.notifId }));
         setNotifications(formattedData);
       }
     } catch (err) {

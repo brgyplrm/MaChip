@@ -34,6 +34,7 @@ router.post("/payroll-periods", requireAdmin, systemController.createPayrollPeri
 
 router.get("/audit-logs", requireMaster, systemController.getAuditLogs);
 router.get("/audit-logs/verify-chain", requireMaster, systemController.verifyAuditChain);
+router.get("/audit-logs/:auditId", requireMaster, systemController.getAuditLogById);
 router.get("/transaction-logs", requireMaster, systemController.getTransactionLogs);
 router.get("/my-transparency-logs", authMiddleware, systemController.getMyTransparencyLogs);
 

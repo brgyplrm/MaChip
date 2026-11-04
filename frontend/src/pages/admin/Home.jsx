@@ -174,27 +174,11 @@ const Home = () => {
 
   const fetchPendingRequests = async () => {
     try {
-      const response = await fetchWithAuth("/api/request/all");
+      // OPT-06: Fast preview endpoint fetches only the top 3 pending records computed directly in SQL
+      const response = await fetchWithAuth("/api/request/pending-preview?limit=3");
       if (response.ok) {
         const data = await response.json();
-        const currentUserId = Number(userData?.user_Id || JSON.parse(localStorage.getItem("userData") || "{}")?.user_Id);
-        const userRole = Number(userData?.user_RoleId || JSON.parse(localStorage.getItem("userData") || "{}")?.user_RoleId);
-
-        const pending = data
-          .filter((r) => {
-            const isPendingOrRecommended = r.emp_reqStatusId === 1 || r.emp_reqStatusId === 4;
-            const isNotSelf = Number(r.user_Id) !== currentUserId;
-            
-            if (userRole === 2) {
-              // Supervisors only process standard staff requests
-              return r.emp_reqStatusId === 1 && isNotSelf && Number(r.user_RoleId) === 3;
-            }
-            // Admins (Role 1) and Accountants (Role 4) process requests from other accounts
-            return isPendingOrRecommended && isNotSelf;
-          })
-          .slice(0, 3);
-
-        setPendingRequests(pending);
+        setPendingRequests(Array.isArray(data) ? data : []);
       }
     } catch (error) {
       console.error("Error fetching pending requests:", error);

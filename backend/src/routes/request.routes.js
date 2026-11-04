@@ -7,6 +7,7 @@ const {
   UpdateStatusRequest,
   GetLeaveBalance,
   GetPendingCount,
+  getPendingPreview,
   GetRequestDetails,
   getCalendarReport,
   DeleteRequest,
@@ -34,6 +35,7 @@ router.get("/all", requireStaff, GetAllRequests);
 router.get("/calendar-report", authMiddleware, getCalendarReport);
 router.get("/report/calendar", authMiddleware, getCalendarReport);
 router.get("/pending-count", requireStaff, GetPendingCount);
+router.get("/pending-preview", requireStaff, getPendingPreview);
 router.get("/summary/:year", requireStaff, getLeaveSummary);
 router.get("/balance/:userId", (req, res, next) => {
   if (req.user.user_Id == req.params.userId) {
