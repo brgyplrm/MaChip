@@ -14,7 +14,7 @@ import SummarizeOutlinedIcon from '@mui/icons-material/SummarizeOutlined';
 import EventRepeatIcon from '@mui/icons-material/EventRepeat';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
-import { EyeIcon, ChevronLeft, Mail, ChevronDown, RotateCw } from "lucide-react";  
+import { EyeIcon, ChevronLeft, Mail } from "lucide-react";  
 import Toast from "../../components/toast/Toast";
 import PayrollAlertBanner from "../../components/PayrollAlertBanner";
 import ReleaseSummaryModal from "../../components/ReleaseSummaryModal";
@@ -78,22 +78,6 @@ const PayrollPeriod = () => {
   const [deadlineDays, setDeadlineDays] = useState(3);
   const [toast, setToast] = useState({ message: "", type: "success" });
   const [isSendingBatchEmails, setIsSendingBatchEmails] = useState(false);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const dropdownRef = useRef(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsDropdownOpen(false);
-      }
-    };
-    if (isDropdownOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [isDropdownOpen]);
 
   const handleOpenResendConfirm = () => {
     if (!selectedPeriod) return;
@@ -142,6 +126,11 @@ const PayrollPeriod = () => {
     const dd = String(d.getDate()).padStart(2, '0');
     return `${yyyy}-${mm}-${dd}`;
   }, [systemToday]);
+
+  const isCutoffOngoing = useMemo(() => {
+    if (!selectedPeriod?.endDate || !todayStr) return false;
+    return todayStr < selectedPeriod.endDate;
+  }, [selectedPeriod, todayStr]);
 
   const isProcessingWindow = useMemo(() => {
     if (!selectedPeriod?.endDate || !systemToday) return false;
@@ -512,58 +501,46 @@ const PayrollPeriod = () => {
               </TooltipContent>
             </Tooltip>
 
-            {/* If Draft and already has records generated: Unified Release & Lock (Primary) + Recalculate Draft Action */}
-            {selectedPeriod?.status === 'Draft' && payrolls.length > 0 && (
-              <div className="relative inline-flex rounded-lg shadow-sm w-full sm:w-auto" ref={dropdownRef}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
+            {/* If Draft and cutoff is still ongoing: Release & Lock is guarded */}
+            {selectedPeriod?.status === 'Draft' && payrolls.length > 0 && isCutoffOngoing && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-block w-full sm:w-auto">
                     <Button
-                      className="w-full sm:w-auto rounded-r-none bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm border border-emerald-600 border-r-emerald-700/50"
-                      onClick={() => {
-                        setConfirmMode("release");
-                        setIsConfirmOpen(true);
-                      }}
-                      disabled={loading}
+                      className="w-full sm:w-auto bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed hover:bg-slate-100"
+                      disabled={true}
                     >
-                      <LockOutlinedIcon className="mr-2 h-4 w-4" />
+                      <LockOutlinedIcon className="mr-2 h-4 w-4 text-slate-400" />
                       Release &amp; Lock Payroll
                     </Button>
-                  </TooltipTrigger>
-                  <TooltipContent className="bg-slate-900 text-white border-slate-800">
-                    Recalculate latest attendance, permanently lock records, archive PDFs, and send payslip emails.
-                  </TooltipContent>
-                </Tooltip>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent className="bg-slate-900 text-white border-slate-800 max-w-xs text-center">
+                  Cutoff period is ongoing until {selectedPeriod?.endDate}. Releasing and locking opens on or after cutoff concludes.
+                </TooltipContent>
+              </Tooltip>
+            )}
 
-                <Button
-                  type="button"
-                  className="rounded-l-none bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 border border-l-0 border-emerald-600 flex items-center justify-center cursor-pointer transition-colors"
-                  disabled={loading}
-                  onClick={() => setIsDropdownOpen((prev) => !prev)}
-                  title="More payroll batch actions"
-                >
-                  <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isDropdownOpen ? "rotate-180" : ""}`} />
-                </Button>
-
-                {isDropdownOpen && (
-                  <div className="absolute right-0 top-full mt-1.5 w-64 bg-white rounded-lg shadow-xl border border-slate-200 z-50 py-1.5 animate-in fade-in-0 zoom-in-95 duration-150">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsDropdownOpen(false);
-                        setConfirmMode("draft");
-                        setIsConfirmOpen(true);
-                      }}
-                      className="w-full text-left px-3 py-2.5 flex items-start gap-2.5 hover:bg-purple-50 transition-colors group cursor-pointer"
-                    >
-                      <RotateCw className="h-4 w-4 text-brand-primary mt-0.5 shrink-0 group-hover:rotate-45 transition-transform" />
-                      <div className="flex flex-col">
-                        <span className="font-semibold text-xs text-slate-800 group-hover:text-brand-primary">Recalculate Draft Only</span>
-                        <span className="text-[11px] text-slate-500 leading-tight mt-0.5">Preview latest logs and rates without locking</span>
-                      </div>
-                    </button>
-                  </div>
-                )}
-              </div>
+            {/* If Draft and cutoff has concluded: Release & Lock is active */}
+            {selectedPeriod?.status === 'Draft' && payrolls.length > 0 && !isCutoffOngoing && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm border border-emerald-600"
+                    onClick={() => {
+                      setConfirmMode("release");
+                      setIsConfirmOpen(true);
+                    }}
+                    disabled={loading}
+                  >
+                    <LockOutlinedIcon className="mr-2 h-4 w-4" />
+                    Release &amp; Lock Payroll
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent className="bg-slate-900 text-white border-slate-800">
+                  Permanently lock records, archive PDFs, and send payslip emails.
+                </TooltipContent>
+              </Tooltip>
             )}
 
             {/* If Draft and NO records generated yet */}

@@ -14,7 +14,9 @@
     "env:prod": "node scripts/switch_env.js prod",
     "env:status": "node scripts/switch_env.js status",
     "ota": "python scripts/ota_flash.py",
-    "ota:build": "python scripts/ota_flash.py --compile"
+    "ota:build": "python scripts/ota_flash.py --compile",
+    "update:all": "node scripts/safe_update_all.js",
+    "test:guardrails": "node scripts/verify_employee_guardrails.js"
   },
   "devDependencies": {
     "autoprefixer": "^10.5.0",

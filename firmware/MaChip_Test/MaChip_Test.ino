@@ -774,6 +774,9 @@ void loop() {
               } else if (modeStr == "REPLAY_ATTACK") {
                 updateFrontDisplay("SECURITY FAULT", "Replay/Clone Card\nAccess Blocked!", ST77XX_RED);
                 provideFeedback(ERROR_FAIL);
+              } else if (modeStr == "HOURS_RESTRICTED" || errMsg.indexOf("Facility Closed") >= 0) {
+                updateFrontDisplay("CURFEW RESTRICTION", "Facility Closed\n(10PM - 6AM)", ST77XX_RED);
+                provideFeedback(ERROR_FAIL);
               } else if (modeStr == "FINGERPRINT_REQUIRED" || errMsg.indexOf("Fingerprint") >= 0) {
                 updateFrontDisplay("DENIED", (name != "" ? name + "\n" : "") + "Fingerprint Required!", ST77XX_RED);
                 provideFeedback(ERROR_FAIL); // Error Beep, solenoid remains LOCKED
@@ -922,6 +925,10 @@ void loop() {
               triggerStatusReset(3000);
             } else if (modeStr == "REPLAY_ATTACK") {
               updateBackDisplay("SECURITY", "Replay Blocked");
+              provideFeedback(ERROR_FAIL);
+              triggerStatusReset(3000);
+            } else if (modeStr == "HOURS_RESTRICTED" || errMsg.indexOf("Facility Closed") >= 0) {
+              updateBackDisplay("RESTRICTED", "Curfew (10PM-6AM)");
               provideFeedback(ERROR_FAIL);
               triggerStatusReset(3000);
             } else if (errMsg.indexOf("outside") >= 0 || errMsg.indexOf("Outside") >= 0) {

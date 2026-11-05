@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { fetchWithAuth } from "../utils/api";
 import { getStoredUser } from "../utils/authStorage";
 import { formatUserId } from "../utils/formatUserId";
@@ -20,7 +21,6 @@ import {
   Eye,
   EyeOff,
   Bell,
-  Sliders,
   Cpu,
   UserCheck,
   KeyRound,
@@ -46,10 +46,6 @@ export default function EmployeeSettings() {
   const [notifyAttendanceAnomaly, setNotifyAttendanceAnomaly] = useState(true);
   const [notifyRequestLifecycle, setNotifyRequestLifecycle] = useState(true);
   const [notifyLoanPreview, setNotifyLoanPreview] = useState(true);
-  const [defaultLandingPage, setDefaultLandingPage] = useState("dashboard");
-  const [calendarViewMode, setCalendarViewMode] = useState("cutoff");
-  const [bilingualLabels, setBilingualLabels] = useState(false);
-  const [timeFormat, setTimeFormat] = useState("12h"); // "12h" (05:30 PM) or "24h" (17:30 Military)
 
   // Live Profile & Financial Data States
   const [userProfile, setUserProfile] = useState(null);
@@ -118,10 +114,6 @@ export default function EmployeeSettings() {
     if (p.notifyAttendanceAnomaly !== undefined) setNotifyAttendanceAnomaly(p.notifyAttendanceAnomaly);
     if (p.notifyRequestLifecycle !== undefined) setNotifyRequestLifecycle(p.notifyRequestLifecycle);
     if (p.notifyLoanPreview !== undefined) setNotifyLoanPreview(p.notifyLoanPreview);
-    if (p.defaultLandingPage !== undefined) setDefaultLandingPage(p.defaultLandingPage);
-    if (p.calendarViewMode !== undefined) setCalendarViewMode(p.calendarViewMode);
-    if (p.bilingualLabels !== undefined) setBilingualLabels(p.bilingualLabels);
-    if (p.timeFormat !== undefined) setTimeFormat(p.timeFormat);
   };
 
   const handleSavePreferences = async (overrides = {}) => {
@@ -134,10 +126,6 @@ export default function EmployeeSettings() {
       notifyAttendanceAnomaly,
       notifyRequestLifecycle,
       notifyLoanPreview,
-      defaultLandingPage,
-      calendarViewMode,
-      bilingualLabels,
-      timeFormat,
       ...overrides
     };
 
@@ -145,12 +133,10 @@ export default function EmployeeSettings() {
       // 1. Cache immediately in localStorage
       localStorage.setItem(`machip_user_pref_${currentUser?.user_Id}`, JSON.stringify(newPrefs));
       localStorage.setItem("machip_privacy_shield", String(newPrefs.privacyShield));
-      localStorage.setItem("machip_time_format", newPrefs.timeFormat);
 
       // 2. Dispatch cross-component events
       window.dispatchEvent(new CustomEvent("privacyShieldChange", { detail: { enabled: newPrefs.privacyShield } }));
       window.dispatchEvent(new CustomEvent("machip_preferences_updated", { detail: newPrefs }));
-      window.dispatchEvent(new CustomEvent("machip_time_format_change", { detail: { format: newPrefs.timeFormat } }));
 
       // 3. Persist to backend
       const res = await fetchWithAuth("/api/users/preferences/my", {
@@ -241,7 +227,7 @@ export default function EmployeeSettings() {
 
       {/* Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid grid-cols-2 md:grid-cols-4 bg-slate-100 p-1 rounded-xl h-auto border border-slate-200/80 gap-1">
+        <TabsList className="grid grid-cols-1 sm:grid-cols-3 bg-slate-100 p-1 rounded-xl h-auto border border-slate-200/80 gap-1">
           <TabsTrigger
             value="privacy"
             className="flex items-center gap-2 py-2.5 text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-xs"
@@ -253,12 +239,6 @@ export default function EmployeeSettings() {
             className="flex items-center gap-2 py-2.5 text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-xs"
           >
             <Bell className="w-4 h-4 text-brand-primary" /> Notifications & Alerts
-          </TabsTrigger>
-          <TabsTrigger
-            value="display"
-            className="flex items-center gap-2 py-2.5 text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-xs"
-          >
-            <Sliders className="w-4 h-4 text-brand-primary" /> Display & Localization
           </TabsTrigger>
           <TabsTrigger
             value="hardware"
@@ -341,9 +321,9 @@ export default function EmployeeSettings() {
                   asChild
                   className="border-brand-primary/30 text-brand-primary hover:bg-brand-primary/10 font-bold text-xs h-9 cursor-pointer shrink-0"
                 >
-                  <a href="/profile?tab=transparency">
+                  <Link to="/profile?tab=transparency">
                     Open Transparency Hub <ExternalLink className="w-3.5 h-3.5 ml-1.5" />
-                  </a>
+                  </Link>
                 </Button>
               </div>
 
@@ -431,89 +411,7 @@ export default function EmployeeSettings() {
           </Card>
         </TabsContent>
 
-        {/* ── Tab 3: Display & Localization Preferences ── */}
-        <TabsContent value="display" className="space-y-4 mt-6">
-          <Card className="border-slate-200 shadow-xs">
-            <CardHeader className="pb-3 border-b border-slate-100">
-              <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Sliders className="w-5 h-5 text-brand-primary" />
-                Portal Display & Localization Preferences
-              </CardTitle>
-              <CardDescription className="text-xs text-slate-500">
-                Tailor your view layout, landing tab, and language labels for day-to-day warehouse or office ergonomics.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-4 space-y-4 text-xs">
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label className="font-bold text-slate-800 text-xs">Default Portal Landing View</Label>
-                  <Select value={defaultLandingPage} onValueChange={setDefaultLandingPage}>
-                    <SelectTrigger className="h-10 text-xs bg-white border-slate-200 rounded-lg">
-                      <SelectValue placeholder="Select landing page" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="dashboard">Dashboard / Home Overview</SelectItem>
-                      <SelectItem value="calendar">My Attendance Calendar</SelectItem>
-                      <SelectItem value="payslip">Latest Official Payslip</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <span className="text-[11px] text-slate-400">The first screen displayed upon signing in.</span>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="font-bold text-slate-800 text-xs">Attendance Calendar View Format</Label>
-                  <Select value={calendarViewMode} onValueChange={setCalendarViewMode}>
-                    <SelectTrigger className="h-10 text-xs bg-white border-slate-200 rounded-lg">
-                      <SelectValue placeholder="Select calendar view" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="cutoff">Cutoff Split View (1st–15th / 16th–31st)</SelectItem>
-                      <SelectItem value="monthly">Full Calendar Month Grid</SelectItem>
-                      <SelectItem value="weekly">Weekly Operational Agenda</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <span className="text-[11px] text-slate-400">Preferred layout for your attendance records.</span>
-                </div>
-              </div>
-
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-4">
-                <div className="space-y-0.5">
-                  <Label className="font-bold text-slate-900 text-xs">Bilingual Terminology Support (English / Tagalog)</Label>
-                  <p className="text-slate-500 text-[11px]">
-                    Displays friendly Tagalog labels alongside English terms (e.g. &quot;Huli / Late&quot;, &quot;Dagdag Oras / Overtime&quot;, &quot;Bakasyon / Leave&quot;).
-                  </p>
-                </div>
-                <Switch checked={bilingualLabels} onCheckedChange={setBilingualLabels} />
-              </div>
-
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-4">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <Label className="font-bold text-slate-900 text-xs">Time Display Format (Standard vs Military)</Label>
-                    <Badge variant="outline" className="text-[10px] bg-slate-100 text-slate-700 font-mono">
-                      {timeFormat === "24h" ? "24H (17:30)" : "12H (05:30 PM)"}
-                    </Badge>
-                  </div>
-                  <p className="text-slate-500 text-[11px]">
-                    Switch between 12-Hour standard clock (e.g. 05:30 PM) and 24-Hour military/logistics format (e.g. 17:30) used on airport cargo manifests.
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className={`text-[11px] font-bold ${timeFormat === "12h" ? "text-brand-primary" : "text-slate-400"}`}>12-Hour</span>
-                  <Switch 
-                    checked={timeFormat === "24h"} 
-                    onCheckedChange={(checked) => setTimeFormat(checked ? "24h" : "12h")} 
-                  />
-                  <span className={`text-[11px] font-bold ${timeFormat === "24h" ? "text-brand-primary" : "text-slate-400"}`}>24-Hour (Military)</span>
-                </div>
-              </div>
-
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* ── Tab 4: Hardware & Biometrics Health Status ── */}
+        {/* ── Tab 3: Hardware & Biometrics Health Status ── */}
         <TabsContent value="hardware" className="space-y-4 mt-6">
           <Card className="border-slate-200 shadow-xs">
             <CardHeader className="pb-3 border-b border-slate-100">

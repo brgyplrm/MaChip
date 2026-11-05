@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useLocation } from "react-router-dom";
 import Sidebar from "../../components/Sidebar";
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
@@ -43,6 +44,7 @@ const isSaturday = (dateStr) => {
 };
 
 const UserRequests = () => {
+  const location = useLocation();
   const { systemToday } = useSystemTime();
   const [userData, setUserData] = useState(() => getStoredUser() || {});
   const [activeTab, setActiveTab] = useState("submit"); // "submit" or "history"
@@ -231,6 +233,55 @@ const UserRequests = () => {
     };
     syncProfile();
   }, []);
+
+  // Handle incoming redirect navigation for Cash Advance / Loan requests
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const isCashAdvance =
+      location.state?.openCashAdvance ||
+      location.state?.requestType === "cash_advance" ||
+      searchParams.get("type") === "cash_advance" ||
+      searchParams.get("request") === "cash_advance";
+
+    const isLoanEnrollment =
+      location.state?.defaultTab === "loan" ||
+      searchParams.get("tab") === "loan" ||
+      searchParams.get("type") === "loan";
+
+    if (isCashAdvance) {
+      setActiveTab("submit");
+      setFormData((prev) => ({
+        ...prev,
+        emp_reqTypeId: "14",
+        agency: "Company",
+        loanType: "Cash Advance",
+        monthsToPay: "1",
+        deductionFrequency: "semi-monthly"
+      }));
+
+      if (location.state?.openCashAdvance || location.state?.requestType === "cash_advance") {
+        window.history.replaceState({}, document.title);
+      }
+
+      setTimeout(() => {
+        const input = document.getElementById("cashAdvanceAmount");
+        if (input) {
+          input.focus();
+          input.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 250);
+    } else if (isLoanEnrollment) {
+      setActiveTab("submit");
+      setFormData((prev) => ({
+        ...prev,
+        emp_reqTypeId: "14"
+      }));
+
+      if (location.state?.defaultTab === "loan") {
+        window.history.replaceState({}, document.title);
+      }
+    }
+  }, [location.state, location.search]);
 
   // Demographic eligibility helpers for statutory leave benefits
   const userGender = (userData?.user_Gender || "").toLowerCase().trim();
@@ -562,6 +613,24 @@ const UserRequests = () => {
           message: `You are requesting ${reqDays} day(s) of Emergency Leave, but only have ${combinedBal} day(s) remaining in your combined VL/SL balance. The extra ${excess} day(s) will have No Pay (LWOP) or be considered as AWOL if unapproved.`,
         });
       }
+
+      // Same-Day 6:30 AM Cutoff Notice
+      if (formData.leaveStartDate) {
+        const todayStr = (systemToday instanceof Date ? systemToday : new Date()).toISOString().split('T')[0];
+        if (formData.leaveStartDate === todayStr) {
+          const now = new Date();
+          const cutoff = new Date();
+          cutoff.setHours(6, 30, 0, 0);
+          if (now > cutoff) {
+            warnings.push({
+              type: "danger",
+              title: "Emergency Leave Cutoff Passed (6:30 AM)",
+              message: "Emergency Leave for today must be filed at least 2 hours before work hours (by 6:30 AM). Submissions after this cutoff are locked by policy. Please file a regular Sick Leave or Vacation Leave instead.",
+              isBlocking: true
+            });
+          }
+        }
+      }
     }
 
     // 4. Half-Day (HD)
@@ -656,8 +725,141 @@ const UserRequests = () => {
       }
     }
 
+    // 7. Schedule Overlap & Conflict Check against Active Requests
+    if (historyRequests && historyRequests.length > 0) {
+      const activeRequests = historyRequests.filter(r => [1, 2].includes(r.emp_reqStatusId));
+      const toIso = (d) => {
+        if (!d) return null;
+        return typeof d === "string" ? d.split("T")[0] : new Date(d).toISOString().split("T")[0];
+      };
+
+      const typeId = parseInt(formData.emp_reqTypeId);
+      const isLeave = [3, 4, 6, 7, 8, 9, 10, 11, 12].includes(typeId);
+
+      // Check Leave Collisions
+      if (isLeave) {
+        const curStart = formData.leaveStartDate || formData.leaveEndDate;
+        const curEnd = formData.leaveEndDate || formData.leaveStartDate || curStart;
+
+        if (curStart && curEnd) {
+          for (const req of activeRequests) {
+            const range = {
+              start: toIso(req.VL_StartDate || req.SL_StartDate || req.ST_StartDate || req.EL_DateOfLeave || req.HD_DateOfLeave || req.DateonField),
+              end: toIso(req.VL_EndDate || req.SL_EndDate || req.ST_EndDate || req.EL_DateOfLeave || req.HD_DateOfLeave || req.DateonField)
+            };
+
+            if (range.start && range.end) {
+              const overlaps = range.start <= curEnd && range.end >= curStart;
+              if (overlaps) {
+                // If both are Half-Days, allow complementary periods (e.g., Morning + Afternoon)
+                const isBothHalfDay = typeId === 7 && req.emp_reqTypeId === 7;
+                const isDiffPeriod = isBothHalfDay && formData.period && req.HD_period && formData.period.toLowerCase() !== req.HD_period.toLowerCase();
+                
+                if (!isDiffPeriod) {
+                  warnings.push({
+                    type: "danger",
+                    title: "Schedule Collision Detected",
+                    message: `You already have an active ${req.reqTypeName} (REQ-${req.emp_reqId}, ${req.emp_reqStatusId === 1 ? 'Pending Review' : 'Approved'}) covering ${range.start === range.end ? range.start : `${range.start} to ${range.end}`}. You cannot submit overlapping requests for the same date.`,
+                    isBlocking: true
+                  });
+                  break;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Check Overtime Collisions (Type 1)
+      if (typeId === 1 && formData.otDate) {
+        const otDateIso = toIso(formData.otDate);
+        for (const req of activeRequests) {
+          const leaveStart = toIso(req.VL_StartDate || req.SL_StartDate || req.ST_StartDate || req.EL_DateOfLeave || req.DateonField);
+          const leaveEnd = toIso(req.VL_EndDate || req.SL_EndDate || req.ST_EndDate || req.EL_DateOfLeave || req.DateonField) || leaveStart;
+          if (leaveStart && leaveEnd && leaveStart <= otDateIso && leaveEnd >= otDateIso) {
+            warnings.push({
+              type: "danger",
+              title: "Overtime Collision with Leave",
+              message: `You have an active ${req.reqTypeName} (REQ-${req.emp_reqId}) on ${otDateIso}. Overtime cannot be filed on days with an approved or pending leave.`,
+              isBlocking: true
+            });
+            break;
+          }
+          if (req.emp_reqTypeId === 1 && toIso(req.OT_DateOf) === otDateIso) {
+            warnings.push({
+              type: "danger",
+              title: "Duplicate Overtime Request",
+              message: `You already have an active Overtime request (REQ-${req.emp_reqId}, ${req.emp_reqStatusId === 1 ? 'Pending Review' : 'Approved'}) on ${otDateIso}.`,
+              isBlocking: true
+            });
+            break;
+          }
+        }
+      }
+
+      // Check Log Correction Collisions (Type 5)
+      if (typeId === 5 && formData.logCorrDate) {
+        const lcDateIso = toIso(formData.logCorrDate);
+        for (const req of activeRequests) {
+          if (req.emp_reqTypeId === 5 && toIso(req.LC_logDate) === lcDateIso) {
+            warnings.push({
+              type: "danger",
+              title: "Duplicate Log Correction",
+              message: `You already have an active Log Correction request (REQ-${req.emp_reqId}, ${req.emp_reqStatusId === 1 ? 'Pending Review' : 'Approved'}) for ${lcDateIso}.`,
+              isBlocking: true
+            });
+            break;
+          }
+        }
+      }
+
+      // Check Loan & Cash Advance Collisions & Debt Burden (Tickets 06 & 08)
+      if (["13", "14"].includes(String(typeId)) && formData.agency && formData.loanType) {
+        const pendingLoan = activeRequests.find(
+          r => r.emp_reqStatusId === 1 && 
+               r.LR_agency === formData.agency && 
+               r.LR_loanType === formData.loanType
+        );
+        if (pendingLoan) {
+          warnings.push({
+            type: "danger",
+            title: "Pending Loan Request Already Exists",
+            message: `You already have a pending ${formData.agency} ${formData.loanType} request (REQ-${pendingLoan.emp_reqId}) awaiting administrative review. Multiple concurrent applications for the same loan stream are prohibited.`,
+            isBlocking: true
+          });
+        }
+
+        const dailyRate = parseFloat(userData?.dailyRate || 0);
+        if (dailyRate > 0) {
+          const estimatedCutoffPay = dailyRate * 13;
+          const deductionAmount = formData.loanType === "Cash Advance"
+            ? parseFloat(formData.amountRequested || 0)
+            : (parseFloat(formData.monthlyAmortization || 0) / 2);
+
+          if (deductionAmount > 0) {
+            if (deductionAmount > estimatedCutoffPay) {
+              warnings.push({
+                type: "danger",
+                title: "Excessive Debt Burden (Zero Net Pay Risk)",
+                message: `This cutoff deduction (₱${deductionAmount.toLocaleString('en-PH', {minimumFractionDigits: 2})}) exceeds your estimated semi-monthly basic salary (₱${estimatedCutoffPay.toLocaleString('en-PH', {minimumFractionDigits: 2})}). This will absorb 100% of your earnings and result in zero take-home pay.`,
+                isBlocking: true
+              });
+            } else if (deductionAmount > (estimatedCutoffPay * 0.6)) {
+              warnings.push({
+                type: "warning",
+                title: "High Debt-to-Income Warning",
+                message: `This loan deduction absorbs over 60% of your estimated semi-monthly basic salary (₱${deductionAmount.toLocaleString('en-PH', {minimumFractionDigits: 2})} of ₱${estimatedCutoffPay.toLocaleString('en-PH', {minimumFractionDigits: 2})}). Ensure you maintain sufficient funds for living expenses and statutory contributions.`,
+              });
+            }
+          }
+        }
+      }
+    }
+
     return warnings;
-  }, [formData.emp_reqTypeId, formData.noDays, formData.leaveStartDate, formData.leaveEndDate, formData.proofFile, balance, holidays]);
+  }, [formData.emp_reqTypeId, formData.noDays, formData.leaveStartDate, formData.leaveEndDate, formData.proofFile, formData.otDate, formData.logCorrDate, formData.period, formData.agency, formData.loanType, formData.amountRequested, formData.monthlyAmortization, userData?.dailyRate, balance, holidays, historyRequests]);
+
+  const hasBlockingConflict = useMemo(() => formWarnings.some(w => w.isBlocking), [formWarnings]);
 
   const calculateAmortizationStart = (dateStr, agency, loanType) => {
     if (!dateStr) return "";
@@ -959,6 +1161,11 @@ const UserRequests = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (hasBlockingConflict) {
+      setToast({ message: "Cannot submit: Please resolve schedule collisions before submitting.", type: "error" });
+      return;
+    }
+
     // Date range & working days validation for leave requests
     if (["3", "4", "8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId)) {
       if (!formData.leaveStartDate) {
@@ -1011,6 +1218,17 @@ const UserRequests = () => {
     if (isGovLoan && !formData.proofFile) {
       setToast({ message: "Voucher or Disclosure Statement is mandatory for government loan enrollment.", type: "error" });
       return;
+    }
+
+    if (formData.emp_reqTypeId === "14" && formData.agency === "Company" && formData.loanType === "Cash Advance") {
+      if (!formData.amountRequested || parseFloat(formData.amountRequested) <= 0) {
+        setToast({ message: "Please specify a valid requested cash advance amount.", type: "warning" });
+        return;
+      }
+      if (!formData.remarks || !formData.remarks.trim()) {
+        setToast({ message: "Please state the purpose of your cash advance request.", type: "warning" });
+        return;
+      }
     }
 
     let isLateFiling = false;
@@ -1719,7 +1937,7 @@ const UserRequests = () => {
                         
                         <SelectGroup>
                           <SelectLabel>Loan Notice</SelectLabel>
-                          <SelectItem value="14">Loan Enrollment (Payroll Setup)</SelectItem>
+                          <SelectItem value="14">Loan Enrollment / Cash Advance</SelectItem>
                         </SelectGroup>
 
                         {hasAnyStatutory && (
@@ -2467,6 +2685,7 @@ const UserRequests = () => {
                                   <div className="space-y-2">
                                     <label className="text-sm font-bold text-slate-700">Requested Amount <span className="text-red-500">*</span></label>
                                     <Input 
+                                      id="cashAdvanceAmount"
                                       type="number" 
                                       name="amountRequested" 
                                       value={formData.amountRequested || ""} 
@@ -2633,10 +2852,20 @@ const UserRequests = () => {
                   <div className="pt-4 border-t border-slate-100 flex justify-end">
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button type="submit" className="bg-brand-primary text-white hover:bg-brand-primary-hover w-full sm:w-auto px-8">Submit Request</Button>
+                        <Button 
+                          type="submit" 
+                          disabled={hasBlockingConflict}
+                          className={`w-full sm:w-auto px-8 font-semibold transition-all ${
+                            hasBlockingConflict 
+                              ? "bg-rose-600 hover:bg-rose-700 text-white opacity-90 cursor-not-allowed" 
+                              : "bg-brand-primary text-white hover:bg-brand-primary-hover"
+                          }`}
+                        >
+                          {hasBlockingConflict ? "Resolve Collision to Submit" : "Submit Request"}
+                        </Button>
                       </TooltipTrigger>
                       <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
-                        Submit this request for review
+                        {hasBlockingConflict ? "Resolve the active schedule collision before submitting" : "Submit this request for review"}
                       </TooltipContent>
                     </Tooltip>
                   </div>

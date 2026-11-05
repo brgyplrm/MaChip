@@ -22,8 +22,11 @@ import {
   ArrowUpRight,
   Layers,
   Banknote,
-  Sliders
+  Sliders,
+  Eye,
+  EyeOff
 } from "lucide-react";
+import { usePrivacyShield } from "@/hooks/usePrivacyShield";
 
 // Recharts components
 import {
@@ -149,8 +152,14 @@ const OtDeckTooltip = ({ active, payload }) => {
 
 const EmployeeHome = () => {
   const { systemToday, isMockTime } = useSystemTime();
+  const { isMasked, isPeeking, togglePeek, shieldActive } = usePrivacyShield();
   const [userData, setUserData] = useState(() => JSON.parse(localStorage.getItem("userData")));
   const [viewMode, setViewMode] = useState(() => localStorage.getItem("viewMode") || "employee");
+
+  const displayCurrency = (amount) => {
+    if (isMasked) return "₱••••••••";
+    return formatCurrency(amount);
+  };
   
   const formattedTime = systemToday.toLocaleTimeString('en-US', {
     hour: 'numeric',
@@ -726,9 +735,25 @@ const EmployeeHome = () => {
                       </div>
                       <CardContent className="px-5 py-5 flex flex-col justify-between h-full relative z-10">
                         <div>
-                          <p className="text-xs font-bold text-white uppercase tracking-wider mb-2">Latest Net Pay</p>
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-xs font-bold text-white uppercase tracking-wider">Latest Net Pay</p>
+                            {shieldActive && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  togglePeek();
+                                }}
+                                className="p-1 rounded bg-black/20 hover:bg-black/40 text-white transition-colors cursor-pointer"
+                                title={isPeeking ? "Privacy Mask Active: Click to hide" : "Privacy Mask Active: Click to peek (5s)"}
+                              >
+                                {isPeeking ? <EyeOff className="w-3.5 h-3.5 text-white" /> : <Eye className="w-3.5 h-3.5 text-white" />}
+                              </button>
+                            )}
+                          </div>
                           <p className="text-4xl font-bold text-white">
-                            {payrolls.length > 0 ? formatCurrency(payrolls[0].netPay) : "₱0.00"}
+                            {payrolls.length > 0 ? displayCurrency(payrolls[0].netPay) : "₱0.00"}
                           </p>
                         </div>
                         <p className="text-xs font-semibold text-white/70 italic mt-4">From your most recent released payslip</p>
@@ -1016,7 +1041,7 @@ const EmployeeHome = () => {
                             <p className="text-xs font-bold text-slate-800">{new Date(p.period_End).toLocaleDateString()}</p>
                           </div>
                           <div className="text-right flex flex-col items-end">
-                            <p className="text-sm font-black text-brand-primary">{formatCurrency(p.netPay)}</p>
+                            <p className="text-sm font-black text-brand-primary">{displayCurrency(p.netPay)}</p>
                             <Link to={`/employee/payslip/${p.payrollId}`} className="text-[9px] font-bold text-blue-500 hover:underline mt-0.5">VIEW SLIP</Link>
                           </div>
                         </div>
@@ -1122,21 +1147,21 @@ const EmployeeHome = () => {
                           <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Gross Income</span>
                             <p className="text-2xl font-black text-brand-primary mt-1">
-                              {formatCurrency(latestPayroll?.totalEarnings || 0)}
+                              {displayCurrency(latestPayroll?.totalEarnings || 0)}
                             </p>
                             <span className="text-[11px] text-slate-500 italic">Latest Cutoff Release</span>
                           </div>
                           <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Deductions</span>
                             <p className="text-2xl font-black text-accent-gold mt-1">
-                              {formatCurrency(latestPayroll?.totalDeductions || 0)}
+                              {displayCurrency(latestPayroll?.totalDeductions || 0)}
                             </p>
                             <span className="text-[11px] text-slate-500 italic">{latestDeductionRate}% deduction rate</span>
                           </div>
                           <div className="p-4 bg-emerald-50/50 rounded-xl border border-emerald-100">
                             <span className="text-[10px] font-bold text-accent-green uppercase tracking-wider block">Credited Net Pay</span>
                             <p className="text-2xl font-black text-accent-green mt-1">
-                              {formatCurrency(latestPayroll?.netPay || 0)}
+                              {displayCurrency(latestPayroll?.netPay || 0)}
                             </p>
                             <span className="text-[11px] text-emerald-700 italic">Deposited to payroll account</span>
                           </div>

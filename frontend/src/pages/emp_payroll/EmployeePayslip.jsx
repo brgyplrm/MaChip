@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import Sidebar from "../../components/Sidebar";
 import ViewPayslipModal from "../../components/ViewPayslipModal";
 import { fetchWithAuth } from "../../utils/api";
+import { usePrivacyShield } from "@/hooks/usePrivacyShield";
 import { 
   FileText, 
   ChevronLeft, 
@@ -113,6 +114,7 @@ const EmployeePayslip = () => {
   const [isDownloading, setIsDownloading] = useState(null); // 'standard' | 'detailed' | 'dtr' | null
   const [isHolidayExpanded, setIsHolidayExpanded] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "info" });
+  const { isMasked, isPeeking, togglePeek, shieldActive } = usePrivacyShield();
 
   useEffect(() => {
     const fetchPayslip = async () => {
@@ -135,6 +137,7 @@ const EmployeePayslip = () => {
   }, [id]);
 
   const formatCurrency = (amount) => {
+    if (isMasked) return "₱••••••••";
     return new Intl.NumberFormat("en-PH", {
       style: "currency",
       currency: "PHP",
@@ -324,6 +327,17 @@ const EmployeePayslip = () => {
           
             {/* View & Download Payslip Action Buttons */}
             <div className="flex flex-wrap items-center gap-2">
+              {shieldActive && (
+                <Button 
+                  variant="outline"
+                  size="sm"
+                  onClick={togglePeek}
+                  className="border-slate-200 text-slate-700 font-semibold h-10 px-3 rounded-xl gap-1.5 shadow-none hover:bg-slate-50"
+                >
+                  <Eye className="h-4 w-4 text-slate-500" />
+                  <span>{isPeeking ? "Masking in 5s..." : "Peek Amounts"}</span>
+                </Button>
+              )}
               {/* View Payslips Modal Button */}
               <Button 
                 variant="outline" 

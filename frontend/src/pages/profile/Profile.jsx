@@ -90,8 +90,11 @@ const formatFriendlyValue = (key, val) => {
 };
 
 const Profile = () => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const storedUserData = getStoredUser();
+  const [user, setUser] = useState(storedUserData || null);
+  const [loading, setLoading] = useState(!storedUserData);
+  const [attendanceLoading, setAttendanceLoading] = useState(true);
+  const [transparencyLoading, setTransparencyLoading] = useState(true);
   const [showMachipId, setShowMachipId] = useState(false);
   const [attendanceLogs, setAttendanceLogs] = useState([]);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -101,6 +104,31 @@ const Profile = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [monthFilter, setMonthFilter] = useState("All");
+
+  const tabFromUrl = searchParams.get("tab");
+  const [activeProfileTab, setActiveProfileTab] = useState(
+    tabFromUrl === "transparency" ? "transparency" : "attendance"
+  );
+
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam === "transparency" || tabParam === "attendance") {
+      setActiveProfileTab(tabParam);
+    }
+  }, [searchParams]);
+
+  const handleTabChange = (val) => {
+    setActiveProfileTab(val);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (val === "transparency") {
+        next.set("tab", "transparency");
+      } else {
+        next.delete("tab");
+      }
+      return next;
+    }, { replace: true });
+  };
 
   useEffect(() => {
     const pageFromUrl = parseInt(searchParams.get("page") || "1", 10);
@@ -119,7 +147,6 @@ const Profile = () => {
   };
 
   // Transparency & Activity Log States
-  const [activeProfileTab, setActiveProfileTab] = useState("attendance"); // "attendance" | "transparency"
   const [transparencyData, setTransparencyData] = useState({ transparencyTrail: [], personalActivity: [] });
   const [transparencySubTab, setTransparencySubTab] = useState("admin"); // "admin" | "personal"
   const [selectedAuditLog, setSelectedAuditLog] = useState(null);
@@ -237,41 +264,49 @@ const Profile = () => {
 
   useEffect(() => {
     const fetchProfileData = async () => {
-      const storedUserData = getStoredUser();
-      const userId = storedUserData?.user_Id;
+      const currentStored = getStoredUser();
+      const userId = currentStored?.user_Id;
 
       if (!userId) {
         setLoading(false);
+        setAttendanceLoading(false);
+        setTransparencyLoading(false);
         return;
       }
 
-      try {
-        const [userRes, logsRes, transRes] = await Promise.allSettled([
-          fetchWithAuth(`/api/users/${userId}`),
-          fetchWithAuth(`/api/attendance/logs/${userId}`),
-          fetchWithAuth("/api/system/my-transparency-logs")
-        ]);
+      // 1. Live profile refresh (non-blocking)
+      fetchWithAuth(`/api/users/${userId}`)
+        .then(async (res) => {
+          if (res.ok) {
+            const userData = await res.json();
+            setUser(userData);
+            setStoredUser(userData);
+          }
+        })
+        .catch((err) => console.error("Error fetching user data:", err))
+        .finally(() => setLoading(false));
 
-        if (userRes.status === "fulfilled" && userRes.value.ok) {
-          const userData = await userRes.value.json();
-          setUser(userData);
-          setStoredUser(userData);
-        }
-        
-        if (logsRes.status === "fulfilled" && logsRes.value.ok) {
-          const logsData = await logsRes.value.json();
-          setAttendanceLogs(Array.isArray(logsData) ? logsData : []);
-        }
+      // 2. Transparency audit trail logs (non-blocking, fast)
+      fetchWithAuth("/api/system/my-transparency-logs")
+        .then(async (res) => {
+          if (res.ok) {
+            const tData = await res.json();
+            setTransparencyData(tData || { transparencyTrail: [], personalActivity: [] });
+          }
+        })
+        .catch((err) => console.error("Error fetching transparency logs:", err))
+        .finally(() => setTransparencyLoading(false));
 
-        if (transRes.status === "fulfilled" && transRes.value.ok) {
-          const tData = await transRes.value.json();
-          setTransparencyData(tData || { transparencyTrail: [], personalActivity: [] });
-        }
-      } catch (error) {
-        console.error("Error fetching profile data:", error);
-      } finally {
-        setLoading(false);
-      }
+      // 3. Attendance history logs (non-blocking, independent)
+      fetchWithAuth(`/api/attendance/logs/${userId}`)
+        .then(async (res) => {
+          if (res.ok) {
+            const logsData = await res.json();
+            setAttendanceLogs(Array.isArray(logsData) ? logsData : []);
+          }
+        })
+        .catch((err) => console.error("Error fetching attendance logs:", err))
+        .finally(() => setAttendanceLoading(false));
     };
 
     fetchProfileData();
@@ -420,7 +455,7 @@ const Profile = () => {
 
               {/* Primary Profile Tabs Navigation */}
               <div className="mb-6 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                <Tabs value={activeProfileTab} onValueChange={setActiveProfileTab} className="w-full sm:w-auto">
+                <Tabs value={activeProfileTab} onValueChange={handleTabChange} className="w-full sm:w-auto">
                   <TabsList className="bg-slate-200/80 p-1 w-full sm:w-auto grid grid-cols-2">
                     <TabsTrigger value="attendance" className="text-xs font-bold gap-2 py-2 px-4 data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-xs">
                       <Calendar className="w-4 h-4 text-brand-primary" /> Attendance & Time Tracking
@@ -604,6 +639,15 @@ const Profile = () => {
                               </TableRow>
                             );
                           })
+                        ) : attendanceLoading ? (
+                          <TableRow className="h-48">
+                            <TableCell colSpan={5} className="text-center py-12">
+                              <div className="space-y-2 max-w-xs mx-auto">
+                                <Skeleton className="h-4 w-full" />
+                                <Skeleton className="h-4 w-3/4 mx-auto" />
+                              </div>
+                            </TableCell>
+                          </TableRow>
                         ) : (
                           <TableRow className="h-48">
                             <TableCell colSpan={5} className="text-center py-12 text-slate-400 text-sm italic">
@@ -788,6 +832,15 @@ const Profile = () => {
                                 </TableRow>
                               );
                             })
+                        ) : transparencyLoading ? (
+                          <TableRow>
+                            <TableCell colSpan={5} className="text-center py-12">
+                              <div className="space-y-2 max-w-xs mx-auto">
+                                <Skeleton className="h-4 w-full" />
+                                <Skeleton className="h-4 w-3/4 mx-auto" />
+                              </div>
+                            </TableCell>
+                          </TableRow>
                         ) : (
                           <TableRow>
                             <TableCell colSpan={5} className="text-center py-12 text-slate-400 text-xs italic">
@@ -906,6 +959,15 @@ const Profile = () => {
                                 </TableRow>
                               );
                             })
+                        ) : transparencyLoading ? (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center py-12">
+                              <div className="space-y-2 max-w-xs mx-auto">
+                                <Skeleton className="h-4 w-full" />
+                                <Skeleton className="h-4 w-3/4 mx-auto" />
+                              </div>
+                            </TableCell>
+                          </TableRow>
                         ) : (
                           <TableRow>
                             <TableCell colSpan={4} className="text-center py-12 text-slate-400 text-xs italic">

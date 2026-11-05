@@ -18,6 +18,7 @@ import ReferenceDataManagement from "@/components/ReferenceDataManagement";
 import HardwareDiagnostics from "@/components/HardwareDiagnostics";
 import EmployeeSettings from "@/components/EmployeeSettings";
 import SupervisorSettings from "@/components/SupervisorSettings";
+import { getStoredUser, getStoredViewMode } from "../../utils/authStorage";
 import { Clock, Edit3, Save, Layers, X, Cpu, Users, UserCheck } from 'lucide-react';
 
 
@@ -32,11 +33,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 
 const Settings = () => {
-  const userData = JSON.parse(localStorage.getItem("userData"));
+  const userData = getStoredUser();
   const roleId = Number(userData?.user_RoleId);
-  const isAdmin = roleId === 1 || roleId === 4;
-  const isSupervisor = roleId === 2;
-  const isEmployee = roleId === 3;
+
+  const [viewMode, setViewMode] = useState(() => {
+    if (roleId === 3) return "employee";
+    return getStoredViewMode("management");
+  });
+
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const mode = roleId === 3 ? "employee" : getStoredViewMode("management");
+      setViewMode(mode);
+    };
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, [roleId]);
+
+  const isEmployeeView = roleId === 3 || viewMode === "employee";
+  const isSupervisorView = roleId === 2 && viewMode === "management";
+  const isAdmin = (roleId === 1 || roleId === 4);
 
   const { refreshSystemTime } = useSystemTime();
   const [realTime, setRealTime] = useState(new Date());
@@ -291,23 +307,23 @@ const Settings = () => {
     await sendSettingsUpdate(payload, "Payroll formulas updated successfully!");
   };
 
-  // Supervisor Direct View
-  if (isSupervisor) {
+  // Employee View (Rendered for Role 3 natively, or any management role toggled to Employee View)
+  if (isEmployeeView) {
     return (
       <Sidebar>
         <div className="p-2 md:p-6 overflow-x-hidden w-full max-w-6xl mx-auto">
-          <SupervisorSettings />
+          <EmployeeSettings />
         </div>
       </Sidebar>
     );
   }
 
-  // Employee Direct View
-  if (isEmployee) {
+  // Supervisor Direct View (Supervisor in Management View)
+  if (isSupervisorView) {
     return (
       <Sidebar>
         <div className="p-2 md:p-6 overflow-x-hidden w-full max-w-6xl mx-auto">
-          <EmployeeSettings />
+          <SupervisorSettings />
         </div>
       </Sidebar>
     );
@@ -365,18 +381,13 @@ const Settings = () => {
                         <Layers className="mr-3 h-5 w-5 text-brand-primary" /> Ref Tables
                       </div>
                     </SelectItem>
-                    <SelectItem value="hardware" className="py-3 rounded-lg focus:bg-slate-100 cursor-pointer">
-                      <div className="flex items-center font-semibold text-slate-700">
-                        <Cpu className="mr-3 h-5 w-5 text-brand-primary" /> Terminal Diagnostics
-                      </div>
-                    </SelectItem>
                     <SelectItem value="supervisorHub" className="py-3 rounded-lg focus:bg-slate-100 cursor-pointer">
-                      <div className="flex items-center font-semibold text-amber-800">
-                        <Users className="mr-3 h-5 w-5 text-amber-600" /> Supervisor Operations View
+                      <div className="flex items-center font-semibold text-slate-700">
+                        <Users className="mr-3 h-5 w-5 text-brand-primary" /> Supervisor Operations View
                       </div>
                     </SelectItem>
                     <SelectItem value="employeeHub" className="py-3 rounded-lg focus:bg-slate-100 cursor-pointer">
-                      <div className="flex items-center font-semibold text-brand-primary">
+                      <div className="flex items-center font-semibold text-slate-700">
                         <UserCheck className="mr-3 h-5 w-5 text-brand-primary" /> Employee Preferences View
                       </div>
                     </SelectItem>
@@ -645,17 +656,12 @@ const Settings = () => {
                   <ReferenceDataManagement />
                 </TabsContent>
 
-                {/* Tab 7: Terminal Diagnostics & Live Console */}
-                <TabsContent value="hardware" className="space-y-6 mt-0 animate-in fade-in-50 duration-200">
-                  <HardwareDiagnostics />
-                </TabsContent>
-
-                {/* Tab 8: Supervisor Operations Hub (Admin Preview) */}
+                {/* Tab 7: Supervisor Operations Hub (Admin Preview) */}
                 <TabsContent value="supervisorHub" className="space-y-6 mt-0 animate-in fade-in-50 duration-200">
                   <SupervisorSettings />
                 </TabsContent>
 
-                {/* Tab 9: Employee Preferences Hub (Admin Preview) */}
+                {/* Tab 8: Employee Preferences Hub (Admin Preview) */}
                 <TabsContent value="employeeHub" className="space-y-6 mt-0 animate-in fade-in-50 duration-200">
                   <EmployeeSettings />
                 </TabsContent>

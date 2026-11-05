@@ -1,6 +1,6 @@
 const { sequelize, SystemSettings } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
-const { getSystemTime, formatForSQL } = require("../utils/systemTime");
+const { getSystemTime, formatForSQL, formatDateLocal } = require("../utils/systemTime");
 const { 
   sendPayrollEmail, 
   sendTerminationNoticeEmail, 
@@ -1561,6 +1561,11 @@ exports.getPayrollPreviewBatch = async (req, res) => {
 async function generateBatchPayrollInternal(period_Start, period_End, adminId = 1, shouldRelease = false, customDailyRate = null, targetUserId = null, awaitReleaseTasks = false, req = null) {
   const now = await getSystemTime();
   const nowStr = formatForSQL(now);
+  const todayStr = formatDateLocal(now);
+
+  if (shouldRelease && todayStr < period_End) {
+    throw new Error(`Premature release blocked. The cutoff period is still ongoing until ${period_End}. Payroll can only be released and locked on or after the cutoff end date.`);
+  }
 
   const periodRow = await sequelize.query(
     `SELECT "periodId" FROM "PayrollPeriod" 
@@ -2097,6 +2102,14 @@ exports.generateBatchPayroll = async (req, res) => {
     return res.status(400).json({ error: "Invalid date range: period_Start cannot be after period_End." });
   }
 
+  const now = await getSystemTime();
+  const todayStr = formatDateLocal(now);
+  if (shouldRelease && todayStr < period_End) {
+    return res.status(400).json({
+      error: `Premature release blocked. The cutoff period is still ongoing until ${period_End}. Payroll can only be released and locked on or after the cutoff end date.`
+    });
+  }
+
   try {
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
     const releaseNow = Boolean(shouldRelease);
@@ -2573,6 +2586,19 @@ exports.releasePayroll = async (req, res) => {
   try {
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
+    const todayStr = formatDateLocal(now);
+
+    const payroll = await sequelize.query(
+      `SELECT "user_Id", "period_End" FROM "Payroll" WHERE "payrollId" = :payrollId`,
+      { replacements: { payrollId }, type: QueryTypes.SELECT }
+    );
+    if (!payroll[0]) return res.status(404).json({ error: "Payroll not found." });
+
+    if (todayStr < payroll[0].period_End) {
+      return res.status(400).json({
+        error: `Premature release blocked. The cutoff period is still ongoing until ${payroll[0].period_End}. Payroll can only be released and locked on or after the cutoff end date.`
+      });
+    }
 
     const [updated] = await sequelize.query(
       `UPDATE "Payroll" SET "status" = 5, "updatedAt" = :now WHERE "payrollId" = :payrollId`,
@@ -2582,10 +2608,6 @@ exports.releasePayroll = async (req, res) => {
     if (updated === 0) return res.status(404).json({ error: "Payroll not found." });
 
     // Reset User advances_Amnt since it's already deducted in this released payroll
-    const payroll = await sequelize.query(
-      `SELECT "user_Id" FROM "Payroll" WHERE "payrollId" = :payrollId`,
-      { replacements: { payrollId }, type: QueryTypes.SELECT }
-    );
     if (payroll.length > 0) {
       await sequelize.query(
         `UPDATE "User_Deduction_Profile" SET "advances_Amnt" = 0, "updatedAt" = :now WHERE "user_Id" = :user_Id`,

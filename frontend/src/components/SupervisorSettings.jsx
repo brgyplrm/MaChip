@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { fetchWithAuth } from "../utils/api";
 import { getStoredUser } from "../utils/authStorage";
 import { formatUserId } from "../utils/formatUserId";
@@ -19,7 +20,6 @@ import {
   Clock,
   ShieldCheck,
   Bell,
-  UserCheck,
   AlertTriangle,
   FileCheck,
   Calendar,
@@ -48,16 +48,7 @@ export default function SupervisorSettings() {
   const [escalationWarning48h, setEscalationWarning48h] = useState(true);
   const [safeQuickEndorse, setSafeQuickEndorse] = useState(true);
 
-  // 3. Delegation States
-  const [delegationActive, setDelegationActive] = useState(false);
-  const [delegateStartDate, setDelegateStartDate] = useState("");
-  const [delegateEndDate, setDelegateEndDate] = useState("");
-  const [delegateActingSupervisor, setDelegateActingSupervisor] = useState("");
-  const [handoverFormat, setHandoverFormat] = useState("pdf");
-  const [handoverIncludeOT, setHandoverIncludeOT] = useState(true);
-  const [handoverIncludeAnomalies, setHandoverIncludeAnomalies] = useState(true);
-
-  // 4. Personal Privacy States
+  // 3. Personal Privacy States
   const [privacyShield, setPrivacyShield] = useState(false);
 
   // Live Staff & Operational Settings States
@@ -119,13 +110,6 @@ export default function SupervisorSettings() {
     if (p.notificationMode !== undefined) setNotificationMode(p.notificationMode);
     if (p.escalationWarning48h !== undefined) setEscalationWarning48h(p.escalationWarning48h);
     if (p.safeQuickEndorse !== undefined) setSafeQuickEndorse(p.safeQuickEndorse);
-    if (p.delegationActive !== undefined) setDelegationActive(p.delegationActive);
-    if (p.delegateStartDate !== undefined) setDelegateStartDate(p.delegateStartDate);
-    if (p.delegateEndDate !== undefined) setDelegateEndDate(p.delegateEndDate);
-    if (p.delegateActingSupervisor !== undefined) setDelegateActingSupervisor(p.delegateActingSupervisor);
-    if (p.handoverFormat !== undefined) setHandoverFormat(p.handoverFormat);
-    if (p.handoverIncludeOT !== undefined) setHandoverIncludeOT(p.handoverIncludeOT);
-    if (p.handoverIncludeAnomalies !== undefined) setHandoverIncludeAnomalies(p.handoverIncludeAnomalies);
     if (p.privacyShield !== undefined) setPrivacyShield(p.privacyShield);
   };
 
@@ -139,13 +123,6 @@ export default function SupervisorSettings() {
       notificationMode,
       escalationWarning48h,
       safeQuickEndorse,
-      delegationActive,
-      delegateStartDate,
-      delegateEndDate,
-      delegateActingSupervisor,
-      handoverFormat,
-      handoverIncludeOT,
-      handoverIncludeAnomalies,
       privacyShield,
       ...overrides
     };
@@ -185,16 +162,6 @@ export default function SupervisorSettings() {
     ? Math.round((Number(systemSettings.nightDiffRate) - 1.0) * 100)
     : 10;
 
-  // Filter eligible staff for acting supervisor delegation (Roles 1, 2, 4 excluding current user)
-  const eligibleActingSupervisors = staffUsers.filter(u =>
-    [1, 2, 4].includes(Number(u.user_RoleId)) && Number(u.user_Id) !== Number(currentUser?.user_Id)
-  );
-
-  const selectedSupervisorObj = staffUsers.find(u => String(u.user_Id) === String(delegateActingSupervisor));
-  const actingSupervisorLabel = selectedSupervisorObj
-    ? `${selectedSupervisorObj.user_FirstName} ${selectedSupervisorObj.user_LastName} (${formatUserId(selectedSupervisorObj.user_Id)})`
-    : "the designated acting supervisor";
-
   const userRoleBadge = currentUser?.user_Role ? `${currentUser.user_Role} Hub` : "Department Supervisor";
 
   return (
@@ -209,7 +176,7 @@ export default function SupervisorSettings() {
             </Badge>
           </div>
           <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
-            Configure departmental staffing coverage thresholds, approval notification routing, temporary out-of-office delegation, and shift handover presets.
+            Configure departmental staffing coverage thresholds, approval notification routing, and personal privacy controls.
           </p>
         </div>
 
@@ -231,7 +198,7 @@ export default function SupervisorSettings() {
 
       {/* Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid grid-cols-2 md:grid-cols-4 bg-slate-100 p-1 rounded-xl h-auto border border-slate-200/80 gap-1">
+        <TabsList className="grid grid-cols-1 sm:grid-cols-3 bg-slate-100 p-1 rounded-xl h-auto border border-slate-200/80 gap-1">
           <TabsTrigger
             value="team"
             className="flex items-center gap-2 py-2.5 text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:text-amber-800 data-[state=active]:shadow-xs"
@@ -243,12 +210,6 @@ export default function SupervisorSettings() {
             className="flex items-center gap-2 py-2.5 text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:text-amber-800 data-[state=active]:shadow-xs"
           >
             <FileCheck className="w-4 h-4 text-amber-600" /> Approval Routing
-          </TabsTrigger>
-          <TabsTrigger
-            value="delegation"
-            className="flex items-center gap-2 py-2.5 text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:text-amber-800 data-[state=active]:shadow-xs"
-          >
-            <UserCheck className="w-4 h-4 text-amber-600" /> Out-of-Office Delegation
           </TabsTrigger>
           <TabsTrigger
             value="privacy"
@@ -434,121 +395,7 @@ export default function SupervisorSettings() {
           </Card>
         </TabsContent>
 
-        {/* ── Tab 3: Delegation & Out-of-Office Mode ── */}
-        <TabsContent value="delegation" className="space-y-4 mt-6">
-          <Card className="border-slate-200 shadow-xs">
-            <CardHeader className="pb-3 border-b border-slate-100">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-                    <UserCheck className="w-5 h-5 text-amber-600" />
-                    Temporary Out-of-Office Authority Delegation
-                  </CardTitle>
-                  <CardDescription className="text-xs text-slate-500 mt-1">
-                    Delegate leave and overtime endorsement authority to a peer supervisor while on business travel or PTO.
-                  </CardDescription>
-                </div>
-                <Switch checked={delegationActive} onCheckedChange={setDelegationActive} />
-              </div>
-            </CardHeader>
-            <CardContent className="pt-4 space-y-4 text-xs">
-              
-              {delegationActive ? (
-                <div className="bg-amber-50/70 p-4 rounded-xl border border-amber-300 space-y-4">
-                  <div className="flex items-center gap-2 text-amber-900 font-bold text-xs">
-                    <AlertTriangle className="w-4 h-4 text-amber-600" />
-                    <span>Out-of-Office Delegation is Currently Active</span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="space-y-1">
-                      <Label className="font-bold text-slate-800 text-[11px]">Delegation Start Date</Label>
-                      <Input
-                        type="date"
-                        value={delegateStartDate}
-                        onChange={(e) => setDelegateStartDate(e.target.value)}
-                        className="h-9 text-xs bg-white border-amber-200"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label className="font-bold text-slate-800 text-[11px]">Delegation End Date</Label>
-                      <Input
-                        type="date"
-                        value={delegateEndDate}
-                        onChange={(e) => setDelegateEndDate(e.target.value)}
-                        className="h-9 text-xs bg-white border-amber-200"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label className="font-bold text-slate-800 text-[11px]">Acting Supervisor</Label>
-                      <Select value={delegateActingSupervisor ? String(delegateActingSupervisor) : ""} onValueChange={setDelegateActingSupervisor}>
-                        <SelectTrigger className="h-9 text-xs bg-white border-amber-200">
-                          <SelectValue placeholder="Select acting supervisor" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {eligibleActingSupervisors.length > 0 ? (
-                            eligibleActingSupervisors.map(sup => (
-                              <SelectItem key={sup.user_Id} value={String(sup.user_Id)}>
-                                {sup.positionTitle || sup.user_Role} — {sup.user_FirstName} {sup.user_LastName} ({formatUserId(sup.user_Id)})
-                              </SelectItem>
-                            ))
-                          ) : (
-                            <SelectItem value="none" disabled>No eligible supervisors found</SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <p className="text-[11px] text-amber-900/80 leading-relaxed">
-                    <strong>Audit Integrity Guarantee:</strong> All approvals made by <strong>{actingSupervisorLabel}</strong> during this period are cryptographically linked in the <code>Audit_Log</code> table as <em>&quot;Endorsed by Acting Supervisor on behalf of {currentUser?.user_FirstName}&quot;</em>.
-                  </p>
-                </div>
-              ) : (
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-slate-500">
-                  Out-of-Office delegation is inactive. Toggle the switch above to designate an acting supervisor when planning planned leaves or off-site audits.
-                </div>
-              )}
-
-              {/* Shift Handover Report Presets */}
-              <div className="pt-3 border-t border-slate-100 space-y-3">
-                <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">
-                  Daily Shift Handover Sheet Export Preset
-                </h4>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="space-y-1">
-                    <Label className="font-bold text-slate-700 text-[11px]">Export Format</Label>
-                    <Select value={handoverFormat} onValueChange={setHandoverFormat}>
-                      <SelectTrigger className="h-9 text-xs bg-white border-slate-200">
-                        <SelectValue placeholder="Format" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="pdf">Official PDF Report (Formatted)</SelectItem>
-                        <SelectItem value="csv">Raw CSV Sheet (Excel / ERP)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between">
-                    <span className="font-semibold text-slate-700 text-xs">Include OT Breakdown</span>
-                    <Switch checked={handoverIncludeOT} onCheckedChange={setHandoverIncludeOT} />
-                  </div>
-
-                  <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between">
-                    <span className="font-semibold text-slate-700 text-xs">Include Door Anomalies</span>
-                    <Switch checked={handoverIncludeAnomalies} onCheckedChange={setHandoverIncludeAnomalies} />
-                  </div>
-                </div>
-              </div>
-
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* ── Tab 4: Personal Privacy & Display ── */}
+        {/* ── Tab 3: Personal Privacy & Display ── */}
         <TabsContent value="privacy" className="space-y-4 mt-6">
           <Card className="border-slate-200 shadow-xs">
             <CardHeader className="pb-3 border-b border-slate-100">
@@ -589,11 +436,11 @@ export default function SupervisorSettings() {
                   variant="outline"
                   size="sm"
                   asChild
-                  className="border-amber-300 text-amber-800 hover:bg-amber-50 font-bold text-xs h-8"
+                  className="border-amber-300 text-amber-800 hover:bg-amber-50 font-bold text-xs h-8 cursor-pointer"
                 >
-                  <a href="/profile?tab=transparency">
+                  <Link to="/profile?tab=transparency">
                     Open Transparency Hub <ExternalLink className="w-3.5 h-3.5 ml-1.5" />
-                  </a>
+                  </Link>
                 </Button>
               </div>
 

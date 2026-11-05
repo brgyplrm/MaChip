@@ -674,6 +674,45 @@ exports.scanRFID = async (req, res) => {
     const todayEnd   = new Date(workDate + "T23:59:59");
     // ------------------------------------
 
+    // ── CURFEW RESTRICTION (10:00 PM to 6:00 AM) ────────────────────────────
+    // CTPAT Facility Security: Attendance logging is barred between 22:00:00 and 06:00:00
+    // unless the employee has active night shift scheduling (Shift 2) or an approved OT permit.
+    const currentHour = now.getHours();
+    const isCurfewHour = (currentHour >= 22 || currentHour < 6);
+    if (isCurfewHour) {
+      const otPermits = await sequelize.query(
+        `SELECT ot."otId" FROM "Overtime_Request" ot 
+         JOIN "emp_Request" er ON ot."emp_reqId" = er."emp_reqId"
+         WHERE ot."user_Id" = :target_user_Id 
+           AND (ot."OT_DateOf" = :workDate OR ot."OT_DateOf" = :todayStr) 
+           AND er."emp_reqStatusId" = 2
+         LIMIT 1`,
+        { replacements: { target_user_Id, workDate, todayStr }, type: QueryTypes.SELECT }
+      );
+      const hasApprovedOTPermit = otPermits.length > 0;
+
+      if (!isNightShiftActive && !hasApprovedOTPermit) {
+        console.warn(`[CURFEW GUARDRAIL] Access denied for ${user.user_FirstName} (ID: ${user.user_Id}) during curfew (${currentHour}:00). No active night shift or approved OT permit.`);
+        await logTransaction(
+          user.user_Id,
+          null,
+          "OFF_HOURS_ACCESS_DENIED",
+          `Curfew Restriction: Facility closed (10:00 PM - 6:00 AM). Access denied for ${user.user_FirstName} ${user.user_LastName}.`,
+          { reason: "Curfew Restriction (10PM-6AM)", terminal: terminalType || "FRONT", hour: currentHour },
+          req
+        );
+
+        return res.status(200).json({
+          success: false,
+          mode: "HOURS_RESTRICTED",
+          message: "Facility Closed (10PM-6AM)",
+          employeeName: user.user_FirstName,
+          name: user.user_FirstName,
+          error: "Facility Closed: Attendance logging is restricted between 10:00 PM and 6:00 AM."
+        });
+      }
+    }
+
     // ── 2. DETERMINE FINAL ACTION ────────────────────────────────────────────
     // Fetch granular daily status directly from user_logging for highest reliability
     const lastLogs = await sequelize.query(

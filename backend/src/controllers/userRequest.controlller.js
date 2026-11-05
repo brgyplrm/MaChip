@@ -293,6 +293,63 @@ exports.UpdateUserRequest = async (req, res) => {
     const effectiveReason = reason || remarks || request.remarks || "";
     const effectiveWithPay = WithPayID ? parseInt(WithPayID) : 1;
 
+    // Overlap validation for modified leave requests (excluding current request)
+    const isLeave = [3, 4, 6, 7, 8, 9, 10, 11, 12].includes(typeId);
+    if (isLeave) {
+      const reqStart = StartDate || req.body.DateOfLeave || req.body.leaveStartDate;
+      const reqEnd = EndDate || req.body.DateOfLeave || req.body.leaveEndDate || reqStart;
+      const reqPeriod = req.body.period || null;
+
+      if (reqStart && reqEnd) {
+        const overlapLeaves = await sequelize.query(
+          `SELECT 
+            er."emp_reqId", 
+            er."emp_reqTypeId",
+            rt."reqTypeName",
+            COALESCE(vl."StartDate", sl."StartDate", el."DateOfLeave", hd."DateOfLeave", st."StartDate") AS "leaveStart",
+            COALESCE(vl."EndDate", sl."EndDate", el."DateOfLeave", hd."DateOfLeave", st."EndDate") AS "leaveEnd",
+            hd."period" AS "halfDayPeriod"
+          FROM "emp_Request" er
+          LEFT JOIN "Vacation_Leave" vl ON er."emp_reqId" = vl."emp_reqId"
+          LEFT JOIN "Sick_Leave" sl ON er."emp_reqId" = sl."emp_reqId"
+          LEFT JOIN "Emergency_Leave" el ON er."emp_reqId" = el."emp_reqId"
+          LEFT JOIN "HalfDay_Leave" hd ON er."emp_reqId" = hd."emp_reqId"
+          LEFT JOIN "Statutory_Leave" st ON er."emp_reqId" = st."emp_reqId"
+          JOIN "request_Type" rt ON er."emp_reqTypeId" = rt."reqTypeId"
+          WHERE er."user_Id" = :userId 
+            AND er."emp_reqId" != :requestId
+            AND er."emp_reqStatusId" IN (1, 2)
+            AND er."emp_reqTypeId" IN (3, 4, 6, 7, 8, 9, 10, 11, 12)
+            AND (
+              COALESCE(vl."StartDate", sl."StartDate", el."DateOfLeave", hd."DateOfLeave", st."StartDate") <= :EndDate 
+              AND
+              COALESCE(vl."EndDate", sl."EndDate", el."DateOfLeave", hd."DateOfLeave", st."EndDate") >= :StartDate
+            )`,
+          {
+            replacements: { userId: request.user_Id, requestId, StartDate: reqStart, EndDate: reqEnd },
+            type: QueryTypes.SELECT,
+            transaction: t
+          },
+        );
+
+        const trueCollisions = overlapLeaves.filter(exist => {
+          if (typeId === 7 && exist.emp_reqTypeId === 7) {
+            return reqPeriod && exist.halfDayPeriod && reqPeriod.toLowerCase() === exist.halfDayPeriod.toLowerCase();
+          }
+          return true;
+        });
+
+        if (trueCollisions.length > 0) {
+          const conflict = trueCollisions[0];
+          const dateRangeStr = conflict.leaveStart === conflict.leaveEnd ? conflict.leaveStart : `${conflict.leaveStart} to ${conflict.leaveEnd}`;
+          await t.rollback();
+          return res.status(400).json({ 
+            error: `Schedule conflict: Modified dates conflict with existing ${conflict.reqTypeName} (REQ-${conflict.emp_reqId}) covering ${dateRangeStr}.` 
+          });
+        }
+      }
+    }
+
     let statusId = request.emp_reqStatusId;
     if (resend || request.emp_reqStatusId === 5) statusId = 1;
 
@@ -697,7 +754,12 @@ exports.UserCreateRequest = async (req, res) => {
     remarks,
   } = req.body || {};
 
-  const finalUserId = parseInt(userId || user_Id);
+  // Ticket 12: Zero-Trust Parameter Hardening (Never trust client-sent userId unless admin)
+  const authenticatedUserId = req.user?.user_Id ? parseInt(req.user.user_Id) : null;
+  const isAdmin = req.user?.user_RoleId === 1 || ["Admin", "Admin Manager"].includes(req.user?.user_Role);
+  const targetUserId = parseInt(userId || user_Id);
+  const finalUserId = (isAdmin && targetUserId) ? targetUserId : (authenticatedUserId || targetUserId);
+
   const finalReqTypeId = parseInt(emp_reqTypeId);
   const finalOTDate = OT_Dateof || OT_DateOf;
   const finalDateOnField = DateonField || DateOnField;
@@ -1086,33 +1148,59 @@ exports.UserCreateRequest = async (req, res) => {
       }
     }
 
-    // Check for overlapping leaves
-    if (finalReqTypeId === 3 || finalReqTypeId === 4) {
-      const overlapCheck = await sequelize.query(
-        `SELECT er."emp_reqId", rt."reqTypeName", vl."StartDate" as "VL_S", vl."EndDate" as "VL_E", sl."StartDate" as "SL_S", sl."EndDate" as "SL_E"
-         FROM "emp_Request" er
-         LEFT JOIN "Vacation_Leave" vl ON er."emp_reqId" = vl."emp_reqId"
-         LEFT JOIN "Sick_Leave" sl ON er."emp_reqId" = sl."emp_reqId"
-         LEFT JOIN "request_Type" rt ON er."emp_reqTypeId" = rt."reqTypeId"
-         WHERE er."user_Id" = :userId 
-         AND er."emp_reqStatusId" IN (1, 2)
-         AND er."emp_reqTypeId" IN (3, 4)
-         AND (
-           (vl."StartDate" <= :EndDate AND vl."EndDate" >= :StartDate) OR
-           (sl."StartDate" <= :EndDate AND sl."EndDate" >= :StartDate)
-         )`,
-        {
-          replacements: { userId: finalUserId, StartDate, EndDate },
-          type: QueryTypes.SELECT,
-          transaction: t
-        },
-      );
+    // Check for overlapping leaves across all leave types (VL, SL, EL, Half-Day, Statutory)
+    const isLeaveType = [3, 4, 6, 7, 8, 9, 10, 11, 12].includes(finalReqTypeId);
+    if (isLeaveType) {
+      const reqStart = StartDate || req.body.DateOfLeave || req.body.leaveStartDate;
+      const reqEnd = EndDate || req.body.DateOfLeave || req.body.leaveEndDate || reqStart;
+      const reqPeriod = req.body.period || null;
 
-      if (overlapCheck.length > 0) {
-        await t.rollback();
-        return res.status(400).json({ 
-          error: "You already have a pending or approved leave request for these dates." 
+      if (reqStart && reqEnd) {
+        const overlapLeaves = await sequelize.query(
+          `SELECT 
+            er."emp_reqId", 
+            er."emp_reqTypeId",
+            rt."reqTypeName",
+            COALESCE(vl."StartDate", sl."StartDate", el."DateOfLeave", hd."DateOfLeave", st."StartDate") AS "leaveStart",
+            COALESCE(vl."EndDate", sl."EndDate", el."DateOfLeave", hd."DateOfLeave", st."EndDate") AS "leaveEnd",
+            hd."period" AS "halfDayPeriod"
+          FROM "emp_Request" er
+          LEFT JOIN "Vacation_Leave" vl ON er."emp_reqId" = vl."emp_reqId"
+          LEFT JOIN "Sick_Leave" sl ON er."emp_reqId" = sl."emp_reqId"
+          LEFT JOIN "Emergency_Leave" el ON er."emp_reqId" = el."emp_reqId"
+          LEFT JOIN "HalfDay_Leave" hd ON er."emp_reqId" = hd."emp_reqId"
+          LEFT JOIN "Statutory_Leave" st ON er."emp_reqId" = st."emp_reqId"
+          JOIN "request_Type" rt ON er."emp_reqTypeId" = rt."reqTypeId"
+          WHERE er."user_Id" = :userId 
+            AND er."emp_reqStatusId" IN (1, 2)
+            AND er."emp_reqTypeId" IN (3, 4, 6, 7, 8, 9, 10, 11, 12)
+            AND (
+              COALESCE(vl."StartDate", sl."StartDate", el."DateOfLeave", hd."DateOfLeave", st."StartDate") <= :EndDate 
+              AND
+              COALESCE(vl."EndDate", sl."EndDate", el."DateOfLeave", hd."DateOfLeave", st."EndDate") >= :StartDate
+            )`,
+          {
+            replacements: { userId: finalUserId, StartDate: reqStart, EndDate: reqEnd },
+            type: QueryTypes.SELECT,
+            transaction: t
+          },
+        );
+
+        const trueCollisions = overlapLeaves.filter(exist => {
+          if (finalReqTypeId === 7 && exist.emp_reqTypeId === 7) {
+            return reqPeriod && exist.halfDayPeriod && reqPeriod.toLowerCase() === exist.halfDayPeriod.toLowerCase();
+          }
+          return true;
         });
+
+        if (trueCollisions.length > 0) {
+          const conflict = trueCollisions[0];
+          const dateRangeStr = conflict.leaveStart === conflict.leaveEnd ? conflict.leaveStart : `${conflict.leaveStart} to ${conflict.leaveEnd}`;
+          await t.rollback();
+          return res.status(400).json({ 
+            error: `Schedule conflict: You already have an active ${conflict.reqTypeName} (REQ-${conflict.emp_reqId}) covering ${dateRangeStr}.` 
+          });
+        }
       }
     }
 
@@ -1147,6 +1235,63 @@ exports.UserCreateRequest = async (req, res) => {
       if (!finalOTDate || !HrFrom || !HrTo || !Total_Hrs || !reason) {
         await t.rollback();
         return res.status(400).json({ error: "Overtime fields are required" });
+      }
+
+      // Check if an approved full-day leave already exists for finalOTDate
+      const conflictingLeaves = await sequelize.query(
+        `SELECT er."emp_reqId", rt."reqTypeName"
+         FROM "emp_Request" er
+         LEFT JOIN "Vacation_Leave" vl ON er."emp_reqId" = vl."emp_reqId"
+         LEFT JOIN "Sick_Leave" sl ON er."emp_reqId" = sl."emp_reqId"
+         LEFT JOIN "Emergency_Leave" el ON er."emp_reqId" = el."emp_reqId"
+         LEFT JOIN "Statutory_Leave" st ON er."emp_reqId" = st."emp_reqId"
+         JOIN "request_Type" rt ON er."emp_reqTypeId" = rt."reqTypeId"
+         WHERE er."user_Id" = :userId
+           AND er."emp_reqStatusId" = 2
+           AND er."emp_reqTypeId" IN (3, 4, 6, 8, 9, 10, 11, 12)
+           AND (
+             COALESCE(vl."StartDate", sl."StartDate", el."DateOfLeave", st."StartDate") <= :otDate
+             AND
+             COALESCE(vl."EndDate", sl."EndDate", el."DateOfLeave", st."EndDate") >= :otDate
+           )
+         LIMIT 1`,
+        {
+          replacements: { userId: finalUserId, otDate: finalOTDate },
+          type: QueryTypes.SELECT,
+          transaction: t
+        }
+      );
+
+      if (conflictingLeaves.length > 0) {
+        await t.rollback();
+        return res.status(400).json({ 
+          error: `Cannot file Overtime: You have an approved ${conflictingLeaves[0].reqTypeName} (REQ-${conflictingLeaves[0].emp_reqId}) on ${finalOTDate}.` 
+        });
+      }
+
+      // Check for overlapping/duplicate Overtime requests on finalOTDate
+      const existingOT = await sequelize.query(
+        `SELECT er."emp_reqId", ot."HrFrom", ot."HrTo", er."emp_reqStatusId"
+         FROM "emp_Request" er
+         JOIN "Overtime_Request" ot ON er."emp_reqId" = ot."emp_reqId"
+         WHERE er."user_Id" = :userId
+           AND er."emp_reqTypeId" = 1
+           AND er."emp_reqStatusId" IN (1, 2)
+           AND ot."OT_DateOf" = :otDate
+           AND (ot."HrFrom" < :hrTo AND ot."HrTo" > :hrFrom)
+         LIMIT 1`,
+        {
+          replacements: { userId: finalUserId, otDate: finalOTDate, hrFrom: HrFrom, hrTo: HrTo },
+          type: QueryTypes.SELECT,
+          transaction: t
+        }
+      );
+
+      if (existingOT.length > 0) {
+        await t.rollback();
+        return res.status(400).json({ 
+          error: `Overtime conflict: You already have an active Overtime request (REQ-${existingOT[0].emp_reqId}) overlapping ${HrFrom} to ${HrTo} on ${finalOTDate}.` 
+        });
       }
       const otResult = await sequelize.query(
         `INSERT INTO "Overtime_Request" ("emp_reqId", "user_Id", "OT_DateOf", "HrFrom", "HrTo", "Total_Hrs", "reason") VALUES (:emp_reqId, :userId, :OT_DateOf, :HrFrom, :HrTo, :Total_Hrs, :reason) RETURNING *`,
@@ -1409,6 +1554,97 @@ exports.UserCreateRequest = async (req, res) => {
       if (!agency || !loanType) {
         await t.rollback();
         return res.status(400).json({ error: "Agency and Loan Type are required for loan requests." });
+      }
+
+      // Ticket 06: Pending Duplicate Loan Request Guardrail
+      const existingPendingLoan = await sequelize.query(
+        `SELECT er."emp_reqId", lr."agency", lr."loanType"
+         FROM "emp_Request" er
+         JOIN "Loan_Request" lr ON er."emp_reqId" = lr."emp_reqId"
+         WHERE er."user_Id" = :userId
+           AND er."emp_reqStatusId" = 1
+           AND lr."agency" = :agency
+           AND lr."loanType" = :loanType
+         LIMIT 1`,
+        {
+          replacements: { userId: finalUserId, agency, loanType },
+          type: QueryTypes.SELECT,
+          transaction: t
+        }
+      );
+
+      if (existingPendingLoan.length > 0) {
+        await t.rollback();
+        return res.status(400).json({ 
+          error: `Duplicate Request: You already have a pending ${agency} ${loanType} request (REQ-${existingPendingLoan[0].emp_reqId}) awaiting review.` 
+        });
+      }
+
+      // Ticket 06: Active Duplicate Loan Check in Loan_Deductions
+      if (isEnrollment && loanType !== 'SSS Conso Loan') {
+        let dedType = 'multipurpose';
+        if (agency === 'SSS') {
+          if (loanType === 'Calamity Loan') dedType = 'calamity';
+          else if (loanType === 'Emergency Loan') dedType = 'sss_emergency';
+          else dedType = 'sss_loan';
+        } else if (agency === 'Pag-IBIG') {
+          if (loanType === 'Calamity Loan') dedType = 'hdmf_calamity';
+          else dedType = 'hdmf_loan';
+        } else if (agency === 'Company') {
+          dedType = 'cash_advance';
+        }
+
+        const existingActiveLoan = await sequelize.query(
+          `SELECT id, "provider", "deductionType", "remainingBalance"
+           FROM "Loan_Deductions"
+           WHERE "userId" = :userId
+             AND "status" = 'active'
+             AND "remainingBalance" > 0
+             AND ("deductionType" = :dedType OR ("provider" = :agency AND "notes" ILIKE :loanTypeLike))
+           LIMIT 1`,
+          {
+            replacements: { 
+              userId: finalUserId, 
+              dedType, 
+              agency, 
+              loanTypeLike: `%${loanType}%` 
+            },
+            type: QueryTypes.SELECT,
+            transaction: t
+          }
+        );
+
+        if (existingActiveLoan.length > 0) {
+          await t.rollback();
+          return res.status(400).json({ 
+            error: `Active Loan Conflict: You already have an active ${agency} ${loanType} on file (Balance: ₱${parseFloat(existingActiveLoan[0].remainingBalance).toLocaleString('en-PH', {minimumFractionDigits: 2})}). Existing balances must be settled or consolidated before new enrollment.` 
+          });
+        }
+      }
+
+      // Ticket 07: Global Loan Reference Number Uniqueness Guardrail
+      if (loanReferenceNo && loanReferenceNo.trim() !== "") {
+        const cleanRef = loanReferenceNo.trim();
+        const existingRef = await sequelize.query(
+          `SELECT er."emp_reqId", lr."loanReferenceNo"
+           FROM "emp_Request" er
+           JOIN "Loan_Request" lr ON er."emp_reqId" = lr."emp_reqId"
+           WHERE lr."loanReferenceNo" = :cleanRef
+             AND er."emp_reqStatusId" IN (1, 2)
+           LIMIT 1`,
+          {
+            replacements: { cleanRef },
+            type: QueryTypes.SELECT,
+            transaction: t
+          }
+        );
+
+        if (existingRef.length > 0) {
+          await t.rollback();
+          return res.status(400).json({ 
+            error: `Duplicate Reference Number: Loan Reference No. "${cleanRef}" has already been enrolled in the system under REQ-${existingRef[0].emp_reqId}.` 
+          });
+        }
       }
 
       // Auto-derive amortizationStartMonth if not explicitly provided but approval date is present

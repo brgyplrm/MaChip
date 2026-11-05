@@ -349,7 +349,7 @@ export default function EmployeeLoans() {
                   asChild
                   className="w-full sm:w-auto border-slate-200 text-slate-700 hover:text-brand-primary hover:border-brand-primary/40 font-semibold shadow-xs"
                 >
-                  <Link to="/requests" state={{ defaultTab: "loan" }}>
+                  <Link to="/requests" state={{ openCashAdvance: true, defaultTab: "loan" }}>
                     <PlusCircle className="mr-2 h-4 w-4 text-brand-primary" /> Apply for Loan / Advance
                   </Link>
                 </Button>
@@ -800,7 +800,7 @@ export default function EmployeeLoans() {
                       You do not have any registered company loans, salary advances, or bank amortizations on file.
                     </p>
                     <Button asChild size="sm" className="bg-brand-primary text-white">
-                      <Link to="/requests" state={{ defaultTab: "loan" }}>
+                      <Link to="/requests" state={{ openCashAdvance: true, defaultTab: "loan" }}>
                         Submit Cash Advance Request
                       </Link>
                     </Button>
