@@ -432,7 +432,14 @@ async function ensureAbsentsMarked(dateOverride = null) {
             total_payable_hrs: 8
           });
 
-          const existingUserLog = await user_logging.findOne({ where: { user_id: userId, log_Date: todayStr } });
+          const existingUserLog = await user_logging.findOne({
+            where: {
+              user_id: userId,
+              [sequelize.Sequelize.Op.and]: [
+                sequelize.where(sequelize.cast(sequelize.col('log_Date'), 'date'), todayStr)
+              ]
+            }
+          });
           if (existingUserLog) {
             await existingUserLog.update({
               time_Logged: "08:30:00",
@@ -511,7 +518,12 @@ async function ensureAbsentsMarked(dateOverride = null) {
       // THRESHOLD CHECK: Use dynamic threshold from settings (default to 4 if not found)
       const threshold = settings?.workHourThreshold || 4.0;
       const logs = await user_logging.findAll({ 
-        where: { user_id: userId, log_Date: todayStr },
+        where: { 
+          user_id: userId, 
+          [sequelize.Sequelize.Op.and]: [
+            sequelize.where(sequelize.cast(sequelize.col('log_Date'), 'date'), todayStr)
+          ]
+        },
         order: [['time_Logged', 'ASC']]
       });
 
@@ -594,4 +606,149 @@ async function ensureAbsentsMarked(dateOverride = null) {
   } catch (error) { console.error("[ERROR] ensureAbsentsMarked:", error); }
 }
 
-module.exports = { ensureAbsentsMarked, calculateMultiBucketHours, resolveLeaveConflict, calculateAndStoreAttendanceUnits, mapLogsToBuckets };
+
+async function syncExemptAttendance(nowOverride = null) {
+  try {
+    const now = nowOverride || await getSystemTime();
+    const todayStr = formatDateLocal(now);
+    const dayOfWeek = now.getDay();
+
+    // 1. Skip Sundays
+    if (dayOfWeek === 0) return;
+
+    // 2. Skip Holidays
+    const isHoliday = await Holiday.findOne({ where: { date: todayStr } });
+    if (isHoliday) return;
+
+    // 3. Find active exempt employees (is_time_exempt = true OR President in Admin)
+    const exemptUsers = await User.findAll({
+      where: {
+        user_Id: { [sequelize.Sequelize.Op.ne]: 999 },
+        deletedAt: null,
+        [sequelize.Sequelize.Op.or]: [
+          { is_time_exempt: true },
+          {
+            [sequelize.Sequelize.Op.and]: [
+              sequelize.where(sequelize.fn('UPPER', sequelize.col('position')), 'PRESIDENT'),
+              sequelize.where(sequelize.fn('UPPER', sequelize.col('department')), 'ADMIN')
+            ]
+          }
+        ]
+      }
+    });
+
+    if (!exemptUsers || exemptUsers.length === 0) return;
+
+    const currentHour = now.getHours();
+    const currentMin = now.getMinutes();
+    const currentTimeMinutes = currentHour * 60 + currentMin;
+
+    // Shift milestones in minutes
+    const MORNING_IN_MIN = 8 * 60 + 30; // 08:30 (510 min)
+    const MORNING_OUT_MIN = 12 * 60;    // 12:00 (720 min)
+    const AFTERNOON_IN_MIN = 13 * 60;   // 13:00 (780 min)
+    const AFTERNOON_OUT_MIN = 17 * 60 + 30; // 17:30 (1050 min)
+
+    // Shift has not started yet
+    if (currentTimeMinutes < MORNING_IN_MIN) return;
+
+    for (const emp of exemptUsers) {
+      const userId = emp.user_Id;
+
+      if (emp.hireDate && todayStr < String(emp.hireDate).split('T')[0]) continue;
+
+      let inArr = ["08:30:00"];
+      let outArr = [];
+      let loggedStatusId = 1; // Morning IN
+      let reg_hrs = 0;
+      let total_payable_hrs = 0;
+
+      if (currentTimeMinutes >= AFTERNOON_OUT_MIN) {
+        inArr = ["08:30:00", "13:00:00"];
+        outArr = ["12:00:00", "17:30:00"];
+        loggedStatusId = 4; // Afternoon OUT
+        reg_hrs = 8;
+        total_payable_hrs = 8;
+      } else if (currentTimeMinutes >= AFTERNOON_IN_MIN) {
+        inArr = ["08:30:00", "13:00:00"];
+        outArr = ["12:00:00"];
+        loggedStatusId = 3; // Afternoon IN
+        reg_hrs = 3.5;
+        total_payable_hrs = 3.5;
+      } else if (currentTimeMinutes >= MORNING_OUT_MIN) {
+        inArr = ["08:30:00"];
+        outArr = ["12:00:00"];
+        loggedStatusId = 2; // Morning OUT
+        reg_hrs = 3.5;
+        total_payable_hrs = 3.5;
+      } else {
+        inArr = ["08:30:00"];
+        outArr = [];
+        loggedStatusId = 1; // Morning IN
+        reg_hrs = 0;
+        total_payable_hrs = 0;
+      }
+
+      const existingReport = await employee_Logging_report.findOne({
+        where: { user_id: userId, log_Date: todayStr }
+      });
+
+      if (!existingReport) {
+        await employee_Logging_report.create({
+          user_id: userId,
+          log_Date: todayStr,
+          time_Logged_inArr: JSON.stringify(inArr),
+          time_Logged_outArr: JSON.stringify(outArr),
+          attendance_StatusId: 6, // Exempt
+          logged_StatusId: loggedStatusId,
+          reg_hrs,
+          total_payable_hrs
+        });
+      } else {
+        if (existingReport.attendance_StatusId === 6 || !existingReport.time_Logged_inArr || existingReport.time_Logged_inArr === '[]') {
+          let curIn = [];
+          let curOut = [];
+          try {
+            curIn = JSON.parse(existingReport.time_Logged_inArr || '[]');
+            curOut = JSON.parse(existingReport.time_Logged_outArr || '[]');
+          } catch (e) {}
+
+          const mergedIn = Array.from(new Set([...inArr, ...curIn])).sort();
+          const mergedOut = Array.from(new Set([...outArr, ...curOut])).sort();
+
+          await existingReport.update({
+            time_Logged_inArr: JSON.stringify(mergedIn),
+            time_Logged_outArr: JSON.stringify(mergedOut),
+            attendance_StatusId: 6,
+            logged_StatusId: Math.max(existingReport.logged_StatusId || 1, loggedStatusId),
+            reg_hrs: Math.max(parseFloat(existingReport.reg_hrs || 0), reg_hrs),
+            total_payable_hrs: Math.max(parseFloat(existingReport.total_payable_hrs || 0), total_payable_hrs)
+          });
+        }
+      }
+
+      // Always ensure raw log exists in user_logging for transparency
+      const existingUserLog = await user_logging.findOne({
+        where: {
+          user_id: userId,
+          [sequelize.Sequelize.Op.and]: [
+            sequelize.where(sequelize.cast(sequelize.col('log_Date'), 'date'), todayStr)
+          ]
+        }
+      });
+      if (!existingUserLog) {
+        await user_logging.create({
+          user_id: userId,
+          log_Date: todayStr,
+          time_Logged: "08:30:00",
+          logged_StatusId: 7, // System Generated
+          attendance_StatusId: 6
+        });
+      }
+    }
+  } catch (error) {
+    console.error("[ERROR] syncExemptAttendance:", error);
+  }
+}
+
+module.exports = { ensureAbsentsMarked, calculateMultiBucketHours, resolveLeaveConflict, calculateAndStoreAttendanceUnits, mapLogsToBuckets, syncExemptAttendance };

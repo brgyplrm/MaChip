@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Sidebar from "../../components/Sidebar";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import FilterListIcon from "@mui/icons-material/FilterList";
@@ -117,10 +117,15 @@ const AdminReports = () => {
     return Array.from({ length: 7 }, (_, i) => (currentY + 1 - i).toString());
   }, [currentSysDate]);
 
+  // Default to current year, month, and cutoff period on component mount
+  const [defaultYear] = useState(() => (systemToday || new Date()).getFullYear().toString());
+  const [defaultMonth] = useState(() => ((systemToday || new Date()).getMonth() + 1).toString());
+  const [defaultPeriod] = useState(() => ((systemToday || new Date()).getDate() <= 15 ? "1" : "2"));
+
   // --- Attendance & Payroll Filters (Year, Month, Period, Employee) ---
-  const [selectedYear, setSelectedYear] = useState("all");
-  const [selectedMonth, setSelectedMonth] = useState("all");
-  const [selectedPeriod, setSelectedPeriod] = useState("all");
+  const [selectedYear, setSelectedYear] = useState(defaultYear);
+  const [selectedMonth, setSelectedMonth] = useState(defaultMonth);
+  const [selectedPeriod, setSelectedPeriod] = useState(defaultPeriod);
   const [selectedEmployee, setSelectedEmployee] = useState("All Employees");
 
   // Derive active attendance & payroll cutoff dates
@@ -350,9 +355,9 @@ const AdminReports = () => {
   const isFiltering = useMemo(() => {
     if (activeReport === "attendance" || activeReport === "payroll") {
       return Boolean(
-        (selectedYear && selectedYear !== "all") ||
-        (selectedMonth && selectedMonth !== "all") ||
-        (selectedPeriod && selectedPeriod !== "all") ||
+        selectedYear !== defaultYear ||
+        selectedMonth !== defaultMonth ||
+        selectedPeriod !== defaultPeriod ||
         (selectedEmployee && selectedEmployee !== "All Employees" && selectedEmployee !== "all")
       );
     }
@@ -497,7 +502,12 @@ const AdminReports = () => {
   };
 
   // --- Reducer Operational Loops ---
-  const attStats = attendanceData.reduce((acc, curr) => {
+  const attStats = attendanceSummary ? {
+    present: attendanceSummary.presentCount || 0,
+    absent: attendanceSummary.absentCount || 0,
+    late: attendanceSummary.lateCount || 0,
+    totalHours: parseFloat(attendanceSummary.totalHours || 0)
+  } : attendanceData.reduce((acc, curr) => {
     const s = (curr.status || "").toLowerCase().replace(/[^a-z]/g, "");
     if (s === "ontime" || s === "present" || s === "exempt") acc.present++;
     else if (s === "late") { acc.present++; acc.late++; }
@@ -558,10 +568,13 @@ const AdminReports = () => {
       ? payrollPagination.totalPages 
       : Math.ceil(totalItems / itemsPerPage) || 1;
 
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = Math.min(currentPage * itemsPerPage, totalItems);
+
   // For attendance and payroll, data is already sliced to current page rows by server
   const currentData = (activeReport === "attendance" || activeReport === "payroll")
     ? activeData
-    : activeData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+    : activeData.slice(startIndex, endIndex);
 
   return (
     <Sidebar>
@@ -1006,6 +1019,22 @@ const AdminReports = () => {
                   {isFiltering && (
                     <Button variant="ghost" size="sm" onClick={handleClearFilters} className="text-slate-500 hover:text-red-600 font-semibold h-9 gap-1 transition-colors">
                       <CloseIcon className="h-4 w-4" /> Clear Filters
+                    </Button>
+                  )}
+
+                  {(selectedYear !== defaultYear || selectedMonth !== defaultMonth || selectedPeriod !== defaultPeriod) && (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => {
+                        setSelectedYear(defaultYear);
+                        setSelectedMonth(defaultMonth);
+                        setSelectedPeriod(defaultPeriod);
+                        setSelectedEmployee("All Employees");
+                      }}
+                      className="border-brand-primary/30 text-brand-primary hover:bg-brand-primary/10 font-semibold h-9 gap-1 transition-colors text-xs"
+                    >
+                      Current Cutoff
                     </Button>
                   )}
                 </div>

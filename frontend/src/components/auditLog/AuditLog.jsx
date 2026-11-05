@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import Sidebar from "../../components/Sidebar";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import SearchIcon from "@mui/icons-material/Search";
@@ -562,6 +562,9 @@ const AuditLogs = () => {
 
   const totalDiffPages = Math.ceil(diffData.allKeys.length / DIFF_ITEMS_PER_PAGE) || 1;
   const paginatedKeys = diffData.allKeys.slice((diffPage - 1) * DIFF_ITEMS_PER_PAGE, diffPage * DIFF_ITEMS_PER_PAGE);
+
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = Math.min(currentPage * itemsPerPage, totalItems);
 
   return (
     <div className="flex flex-col w-full min-h-screen bg-slate-50">

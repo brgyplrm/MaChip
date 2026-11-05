@@ -17,7 +17,8 @@ const {
   calculateMultiBucketHours, 
   resolveLeaveConflict, 
   calculateAndStoreAttendanceUnits,
-  mapLogsToBuckets 
+  mapLogsToBuckets,
+  syncExemptAttendance
 } = require("../utils/attendanceHelper");
 
 // ... (rest of imports)
@@ -958,6 +959,24 @@ exports.getOverallAttendanceStats = async (req, res) => {
     const currentYear = now.getFullYear();
     const selectedFiscalYear = req.query.fiscalYear ? parseInt(req.query.fiscalYear, 10) : currentYear;
 
+    // Ensure exempt employees have their milestone punches synced for today
+    await syncExemptAttendance(now);
+
+    // Active staff count for realistic company-wide percentage
+    const [activeStaffRes] = await sequelize.query(
+      `SELECT COUNT(*)::integer as count FROM "User" 
+       WHERE "user_RoleId" IN (1, 2, 3, 4) AND "deletedAt" IS NULL AND "user_Id" != 999`,
+      { type: QueryTypes.SELECT }
+    );
+    const totalStaff = parseInt(activeStaffRes?.count || 25, 10) || 25;
+
+    // Holidays lookup
+    const holidays = await Holiday.findAll();
+    const holidayDateSet = new Set(holidays.map(h => {
+      if (h.date instanceof Date) return formatDateLocal(h.date);
+      return String(h.date).split('T')[0];
+    }));
+
     // 1. Weekly Stats (Fixed: Mon, Tues, Wed, Thu, Fri, Sat for the active week)
     const dayOfWeek = now.getDay();
     const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
@@ -969,6 +988,7 @@ exports.getOverallAttendanceStats = async (req, res) => {
       `SELECT 
          COUNT(*) as total,
          COUNT(*) FILTER (WHERE "attendance_StatusId" = 3) as absent,
+         COUNT(*) FILTER (WHERE "attendance_StatusId" IN (1, 2, 4, 5, 6)) as present,
          "log_Date"::text as log_date
        FROM "employee_Logging_report"
        WHERE "log_Date" >= :startOfWeekStr
@@ -1000,25 +1020,40 @@ exports.getOverallAttendanceStats = async (req, res) => {
 
       // Future days in current week do not plot points but keep the fixed axis
       if (dStr > todayStr) {
-        return {
-          name: item.name,
-          percentage: null
-        };
+        return { name: item.name, percentage: null };
+      }
+
+      // Check if day is a company holiday
+      if (holidayDateSet.has(dStr)) {
+        return { name: item.name, percentage: null };
       }
 
       const found = weeklyRowMap.get(dStr);
-      if (!found) {
+
+      if (dStr === todayStr) {
+        // Today: If shift has not started (before 08:30), return null
+        const currentMins = now.getHours() * 60 + now.getMinutes();
+        if (currentMins < 8 * 60 + 30) {
+          return { name: item.name, percentage: null };
+        }
+        const presentToday = parseInt(found?.present || 0, 10);
         return {
           name: item.name,
-          percentage: 100
+          percentage: totalStaff > 0 ? Math.round((presentToday / totalStaff) * 1000) / 10 : 0
         };
       }
 
+      // Past working day in this week
+      if (!found) {
+        return { name: item.name, percentage: 0 };
+      }
+
       const total = parseInt(found.total, 10);
-      const absent = parseInt(found.absent, 10);
+      const present = parseInt(found.present, 10);
+      const denom = Math.max(total, totalStaff);
       return {
         name: item.name,
-        percentage: total > 0 ? Math.round(((total - absent) / total) * 1000) / 10 : 100
+        percentage: denom > 0 ? Math.round((present / denom) * 1000) / 10 : 0
       };
     });
 
@@ -1032,6 +1067,7 @@ exports.getOverallAttendanceStats = async (req, res) => {
          to_char(to_date(EXTRACT(MONTH FROM "log_Date")::text, 'MM'), 'Mon') as name,
          COUNT(*) as total,
          COUNT(*) FILTER (WHERE "attendance_StatusId" = 3) as absent,
+         COUNT(*) FILTER (WHERE "attendance_StatusId" IN (1, 2, 4, 5, 6)) as present,
          EXTRACT(MONTH FROM "log_Date") as month_num
        FROM "employee_Logging_report"
        WHERE EXTRACT(YEAR FROM "log_Date") = :currentYear
@@ -1045,10 +1081,10 @@ exports.getOverallAttendanceStats = async (req, res) => {
     );
     const quarterly = quarterlyRaw.map(d => {
       const total = parseInt(d.total);
-      const absent = parseInt(d.absent);
+      const present = parseInt(d.present);
       return {
         name: d.name,
-        percentage: total > 0 ? Math.round(((total - absent) / total) * 1000) / 10 : 100
+        percentage: total > 0 ? Math.round((present / total) * 1000) / 10 : null
       };
     });
 
@@ -1057,7 +1093,8 @@ exports.getOverallAttendanceStats = async (req, res) => {
       `SELECT 
          EXTRACT(YEAR FROM "log_Date")::text as name,
          COUNT(*) as total,
-         COUNT(*) FILTER (WHERE "attendance_StatusId" = 3) as absent
+         COUNT(*) FILTER (WHERE "attendance_StatusId" = 3) as absent,
+         COUNT(*) FILTER (WHERE "attendance_StatusId" IN (1, 2, 4, 5, 6)) as present
        FROM "employee_Logging_report"
        WHERE "user_id" != 999
        AND "log_Date" <= :now::date
@@ -1069,10 +1106,10 @@ exports.getOverallAttendanceStats = async (req, res) => {
     );
     const yearly = yearlyRaw.map(d => {
       const total = parseInt(d.total);
-      const absent = parseInt(d.absent);
+      const present = parseInt(d.present);
       return {
         name: d.name,
-        percentage: total > 0 ? Math.round(((total - absent) / total) * 1000) / 10 : 100
+        percentage: total > 0 ? Math.round((present / total) * 1000) / 10 : null
       };
     });
 
@@ -1082,7 +1119,8 @@ exports.getOverallAttendanceStats = async (req, res) => {
          EXTRACT(MONTH FROM "log_Date")::integer as month_num,
          to_char(to_date(EXTRACT(MONTH FROM "log_Date")::text, 'MM'), 'Mon') as name,
          COUNT(*) as total,
-         COUNT(*) FILTER (WHERE "attendance_StatusId" = 3) as absent
+         COUNT(*) FILTER (WHERE "attendance_StatusId" = 3) as absent,
+         COUNT(*) FILTER (WHERE "attendance_StatusId" IN (1, 2, 4, 5, 6)) as present
        FROM "employee_Logging_report"
        WHERE EXTRACT(YEAR FROM "log_Date") = :selectedFiscalYear
          AND "log_Date" <= :now::date
@@ -1107,10 +1145,10 @@ exports.getOverallAttendanceStats = async (req, res) => {
         return { name, percentage: null };
       }
       const total = parseInt(found.total, 10);
-      const absent = parseInt(found.absent, 10);
+      const present = parseInt(found.present, 10);
       return {
         name,
-        percentage: total > 0 ? Math.round(((total - absent) / total) * 1000) / 10 : 100
+        percentage: total > 0 ? Math.round((present / total) * 1000) / 10 : null
       };
     });
 
@@ -2139,10 +2177,25 @@ exports.getAttendanceReport = async (req, res) => {
     }
 
     // Calculate overall attendance totals across the whole queried range
-    const presentCount = logs.filter(l => l.attendanceStatusName === 'Present' || l.attendance_StatusId === 1).length;
-    const absentCount = logs.filter(l => l.attendanceStatusName === 'Absent' || l.attendance_StatusId === 2).length;
-    const lateCount = logs.filter(l => parseFloat(l.late_minutes || 0) > 0).length;
-    const totalOTHrs = logs.reduce((sum, l) => sum + parseFloat(l.ot_Total_Hrs || 0), 0).toFixed(1);
+    let presentCount = 0;
+    let absentCount = 0;
+    let lateCount = 0;
+    let totalHours = 0;
+
+    for (const l of logs) {
+      const s = (l.status || l.attendanceStatusName || "").toLowerCase().replace(/[^a-z]/g, "");
+      if (s === "ontime" || s === "present" || s === "exempt") {
+        presentCount++;
+      } else if (s === "late") {
+        presentCount++;
+        lateCount++;
+      } else if (s === "absent") {
+        absentCount++;
+      }
+      totalHours += parseFloat(l.hoursWorked || l.reg_hrs || 0);
+    }
+
+    const totalOTHrs = logs.reduce((sum, l) => sum + parseFloat(l.ot_hrs || l.ot_Total_Hrs || 0), 0).toFixed(1);
 
     const periodSummary = {
       totalRecords: logs.length,
@@ -2150,6 +2203,7 @@ exports.getAttendanceReport = async (req, res) => {
       absentCount,
       lateCount,
       totalOTHrs,
+      totalHours: Math.round(totalHours * 100) / 100,
       ...(payrollSummary || {})
     };
 

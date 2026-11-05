@@ -16,9 +16,8 @@ export const TablePagination = ({
   className = "",
   compact = false,
   paramKey = "page",
-  syncUrl = true,
+  syncUrl = false,
 }) => {
-  if (totalItems <= 0) return null;
 
   const actualStart = startIndex !== undefined ? startIndex + 1 : Math.min((currentPage - 1) * itemsPerPage + 1, totalItems);
   const actualEnd = endIndex !== undefined ? endIndex : Math.min(currentPage * itemsPerPage, totalItems);
@@ -37,7 +36,8 @@ export const TablePagination = ({
       try {
         const url = new URL(window.location.href);
         url.searchParams.set(paramKey, target.toString());
-        window.history.pushState({ [paramKey]: target }, "", url.toString());
+        const currentState = (window.history && typeof window.history.state === "object" && window.history.state !== null) ? window.history.state : {};
+        window.history.pushState({ ...currentState, [paramKey]: target }, "", url.toString());
       } catch (err) {
         console.error("[PAGINATION-SYNC] Failed to push history state:", err);
       }
@@ -56,7 +56,8 @@ export const TablePagination = ({
         // Anchor baseline history state so clicking Back from Page 2 returns to Page 1
         const initialUrl = new URL(window.location.href);
         initialUrl.searchParams.set(paramKey, "1");
-        window.history.replaceState({ [paramKey]: 1 }, "", initialUrl.toString());
+        const currentState = (window.history && typeof window.history.state === "object" && window.history.state !== null) ? window.history.state : {};
+        window.history.replaceState({ ...currentState, [paramKey]: 1 }, "", initialUrl.toString());
       }
     } catch (err) {
       console.error("[PAGINATION-SYNC] Mount check failed:", err);
@@ -87,6 +88,8 @@ export const TablePagination = ({
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, [currentPage, setCurrentPage, paramKey, syncUrl]);
+
+  if (totalItems <= 0) return null;
 
   if (compact) {
     return (

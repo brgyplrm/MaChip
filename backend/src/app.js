@@ -185,7 +185,7 @@ app.get("/test-query", async (req, res) => {
 const errorHandler = require("./middleware/errorHandler");
 app.use(errorHandler);
 
-const { ensureAbsentsMarked } = require("./utils/attendanceHelper");
+const { ensureAbsentsMarked, syncExemptAttendance } = require("./utils/attendanceHelper");
 const { syncHolidaysService } = require("./utils/holidaySyncService");
 const { checkPendingRequests } = require("./utils/requestEscalation");
 const { getSystemTime } = require("./utils/systemTime");
@@ -264,10 +264,12 @@ connectDB().then(async () => {
       const month = now.getMonth();
       const day = now.getDate();
       let periodStart = (day <= 15) ? new Date(year, month, 1) : new Date(year, month, 16);
+      periodStart.setHours(0, 0, 0, 0);
 
       // Backfill from period start until YESTERDAY (today is handled by 5:30 PM task)
       let yesterday = new Date(now);
       yesterday.setDate(yesterday.getDate() - 1);
+      yesterday.setHours(23, 59, 59, 999);
 
       let checkDate = new Date(periodStart);
       while (checkDate <= yesterday) {
@@ -307,9 +309,11 @@ connectDB().then(async () => {
         const month = now.getMonth();
         const day = now.getDate();
         let periodStart = (day <= 15) ? new Date(year, month, 1) : new Date(year, month, 16);
+        periodStart.setHours(0, 0, 0, 0);
 
         let yesterday = new Date(now);
         yesterday.setDate(yesterday.getDate() - 1);
+        yesterday.setHours(23, 59, 59, 999);
 
         let checkDate = new Date(periodStart);
         while (checkDate <= yesterday) {
@@ -336,9 +340,10 @@ connectDB().then(async () => {
         checkAndTriggerArchival();
       }
 
-      checkPendingRequests();
-      processEmailQueue();
-      processAutoSeparations();
+      await syncExemptAttendance();
+      await checkPendingRequests().catch(e => console.error("[SCHEDULED] Escalation check failed:", e.message));
+      await processEmailQueue().catch(e => console.error("[SCHEDULED] Email queue process failed:", e.message));
+      await processAutoSeparations().catch(e => console.error("[SCHEDULED] Auto-separation process failed:", e.message));
     } catch (err) {
       console.error("[SCHEDULED] Task error:", err.message);
     }
