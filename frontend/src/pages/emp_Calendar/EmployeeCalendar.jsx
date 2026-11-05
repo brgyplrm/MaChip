@@ -17,6 +17,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import SearchableSelect from "../../components/SearchableSelect";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -828,36 +829,32 @@ const EmployeeCalendar = () => {
             </DialogHeader>
             <div className="flex flex-col gap-5 py-4">
               <div className="flex flex-col gap-2">
-                <Label>Select Month</Label>
-                <Select 
-                  value={pickerMonth} 
-                  onValueChange={setPickerMonth}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((m, i) => (
-                      <SelectItem key={i} value={i.toString()}>{m}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="emp-jump-month">Select Month</Label>
+                <SearchableSelect
+                  id="emp-jump-month"
+                  searchable={false}
+                  value={pickerMonth}
+                  onChange={setPickerMonth}
+                  options={["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((m, i) => ({
+                    value: i.toString(),
+                    label: m
+                  }))}
+                  placeholder="Select Month"
+                />
               </div>
               <div className="flex flex-col gap-2">
-                <Label>Select Year</Label>
-                <Select 
-                  value={pickerYear} 
-                  onValueChange={setPickerYear}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Array.from({ length: 21 }, (_, i) => systemToday.getFullYear() - 10 + i).map(y => (
-                      <SelectItem key={y} value={y.toString()}>{y}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="emp-jump-year">Select Year</Label>
+                <SearchableSelect
+                  id="emp-jump-year"
+                  searchable={false}
+                  value={pickerYear}
+                  onChange={setPickerYear}
+                  options={Array.from({ length: 21 }, (_, i) => {
+                    const y = systemToday.getFullYear() - 10 + i;
+                    return { value: y.toString(), label: y.toString() };
+                  })}
+                  placeholder="Select Year"
+                />
               </div>
             </div>
             <DialogFooter className="grid grid-cols-2 gap-2 w-full pt-1 sm:grid-cols-2 sm:space-x-0">

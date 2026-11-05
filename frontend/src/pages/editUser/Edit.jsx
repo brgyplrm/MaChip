@@ -23,10 +23,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 // ── Validation helpers ────────────────────────────────────────────────────────
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const nameRegex = /^[a-zA-Z\s]+$/;
+// Permits Unicode letters (diacritics/accents), spaces, apostrophes (' and ’), hyphens (-), and periods (.)
+// Must contain at least one letter
+const nameRegex = /^(?=.*\p{L})[\p{L}\s.'’\-]+$/u;
 
 const PHILIPPINE_BANKS = [
   "BDO Unibank (BDO)",
@@ -48,19 +51,19 @@ const validateForm = (formData) => {
 
   if (!formData.user_FirstName || !formData.user_FirstName.trim()) {
     errors.user_FirstName = "First name is required.";
-  } else if (!nameRegex.test(formData.user_FirstName)) {
-    errors.user_FirstName = "First Name cannot contain numbers or special characters";
+  } else if (!nameRegex.test(formData.user_FirstName.trim())) {
+    errors.user_FirstName = "First name contains invalid characters. Only letters, spaces, hyphens, apostrophes, and periods are allowed.";
   }
 
   if (!formData.user_LastName || !formData.user_LastName.trim()) {
     errors.user_LastName = "Last name is required.";
-  } else if (!nameRegex.test(formData.user_LastName)) {
-    errors.user_LastName = "Last Name cannot contain numbers or special characters";
+  } else if (!nameRegex.test(formData.user_LastName.trim())) {
+    errors.user_LastName = "Last name contains invalid characters. Only letters, spaces, hyphens, apostrophes, and periods are allowed.";
   }
 
   if (formData.user_MiddleName && formData.user_MiddleName.trim()) {
-    if (!nameRegex.test(formData.user_MiddleName)) {
-      errors.user_MiddleName = "Middle Name cannot contain numbers or special characters";
+    if (!nameRegex.test(formData.user_MiddleName.trim())) {
+      errors.user_MiddleName = "Middle name contains invalid characters. Only letters, spaces, hyphens, apostrophes, and periods are allowed.";
     }
   }
 
@@ -678,8 +681,11 @@ const Edit = () => {
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       console.error("[VALIDATION ERROR] Fields failed validation:", validationErrors);
-      const errMsgs = Object.values(validationErrors).slice(0, 2).join("; ");
-      showToastMsg(`Please fix errors: ${errMsgs}`, "error");
+      const errList = Object.values(validationErrors);
+      const toastMsg = errList.length === 1 
+        ? errList[0] 
+        : `Please fix errors: ${errList.slice(0, 2).join("; ")}${errList.length > 2 ? "..." : ""}`;
+      showToastMsg(toastMsg, "error");
       return;
     }
 
@@ -847,32 +853,32 @@ const Edit = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 w-full md:w-3/4">
                       <div className="space-y-2">
                         <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">First Name <span className="text-red-500">*</span></Label>
-                        <Input name="user_FirstName" value={formData.user_FirstName} onChange={handleChange} className="border-slate-200 focus-visible:ring-brand-primary"/>
+                        <Input name="user_FirstName" value={formData.user_FirstName} onChange={handleChange} className={cn("border-slate-200 focus-visible:ring-brand-primary", errors.user_FirstName && "border-red-500 focus-visible:ring-red-500 bg-red-50/10")}/>
                         {renderError("user_FirstName")}
                       </div>
                       <div className="space-y-2">
                         <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Middle Name</Label>
-                        <Input name="user_MiddleName" placeholder="Optional" value={formData.user_MiddleName} onChange={handleChange} className="border-slate-200 focus-visible:ring-brand-primary"/>
+                        <Input name="user_MiddleName" placeholder="Optional" value={formData.user_MiddleName} onChange={handleChange} className={cn("border-slate-200 focus-visible:ring-brand-primary", errors.user_MiddleName && "border-red-500 focus-visible:ring-red-500 bg-red-50/10")}/>
                         {renderError("user_MiddleName")}
                       </div>
                       <div className="space-y-2">
                         <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Last Name <span className="text-red-500">*</span></Label>
-                        <Input name="user_LastName" value={formData.user_LastName} onChange={handleChange} className="border-slate-200 focus-visible:ring-brand-primary"/>
+                        <Input name="user_LastName" value={formData.user_LastName} onChange={handleChange} className={cn("border-slate-200 focus-visible:ring-brand-primary", errors.user_LastName && "border-red-500 focus-visible:ring-red-500 bg-red-50/10")}/>
                         {renderError("user_LastName")}
                       </div>
                       <div className="space-y-2 sm:col-span-1">
                         <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Email Address <span className="text-red-500">*</span></Label>
-                        <Input name="user_Email" type="email" value={formData.user_Email} onChange={handleChange} className="border-slate-200 focus-visible:ring-brand-primary"/>
+                        <Input name="user_Email" type="email" value={formData.user_Email} onChange={handleChange} className={cn("border-slate-200 focus-visible:ring-brand-primary", errors.user_Email && "border-red-500 focus-visible:ring-red-500 bg-red-50/10")}/>
                         {renderError("user_Email")}
                       </div>
                       <div className="space-y-2 sm:col-span-2">
                         <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Phone Number <span className="text-red-500">*</span></Label>
-                        <Input name="user_Phone" value={formData.user_Phone} onChange={handleChange} className="border-slate-200 focus-visible:ring-brand-primary"/>
+                        <Input name="user_Phone" value={formData.user_Phone} onChange={handleChange} className={cn("border-slate-200 focus-visible:ring-brand-primary", errors.user_Phone && "border-red-500 focus-visible:ring-red-500 bg-red-50/10")}/>
                         {renderError("user_Phone")}
                       </div>
                       <div className="space-y-2 sm:col-span-3">
                         <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Home Address <span className="text-red-500">*</span></Label>
-                        <Input name="user_Address" value={formData.user_Address} onChange={handleChange} className="border-slate-200 focus-visible:ring-brand-primary"/>
+                        <Input name="user_Address" value={formData.user_Address} onChange={handleChange} className={cn("border-slate-200 focus-visible:ring-brand-primary", errors.user_Address && "border-red-500 focus-visible:ring-red-500 bg-red-50/10")}/>
                         {renderError("user_Address")}
                       </div>
                       <div className="space-y-2">
@@ -922,9 +928,9 @@ const Edit = () => {
                 </CardContent>
               </Card>
 
-              {/* Bank Details (Visible to everyone in Personal Tab if non-master, otherwise in Comp tab) */}
+              {/* Administrative Configuration (Visible to isMaster only) */}
               {isMaster && (
-                <div className="space-y-6">
+                <>
               <Card className="shadow-sm border-0 bg-white">
                 <CardHeader className="border-b border-slate-100 pb-4">
                   <CardTitle className="text-lg text-brand-primary">Role & Status</CardTitle>
@@ -948,7 +954,7 @@ const Edit = () => {
                       />
                     ) : (
                       <Select value={formData.user_Role} onValueChange={(val) => handleSelectChange("user_Role", val)}>
-                        <SelectTrigger className="border-slate-200 focus-visible:ring-brand-primary">
+                        <SelectTrigger className={cn("border-slate-200 focus-visible:ring-brand-primary", errors.user_Role && "border-red-500 focus-visible:ring-red-500 bg-red-50/10")}>
                           <SelectValue placeholder="Select Role" />
                         </SelectTrigger>
                         <SelectContent>
@@ -964,7 +970,7 @@ const Edit = () => {
                   <div className="space-y-2">
                     <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Employment Status <span className="text-red-500">*</span></Label>
                     <Select value={formData.user_EmploymentStatus} onValueChange={(val) => handleSelectChange("user_EmploymentStatus", val)}>
-                      <SelectTrigger className="border-slate-200 focus-visible:ring-brand-primary">
+                      <SelectTrigger className={cn("border-slate-200 focus-visible:ring-brand-primary", errors.user_EmploymentStatus && "border-red-500 focus-visible:ring-red-500 bg-red-50/10")}>
                         <SelectValue placeholder="Select Status" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1130,7 +1136,10 @@ const Edit = () => {
 
                 </CardContent>
               </Card>
+                </>
+              )}
 
+              {/* Bank & Payroll Details (Visible and editable to all users) */}
               <Card className="shadow-sm border-0 bg-white">
                 <CardHeader className="border-b border-slate-100 pb-4">
                   <CardTitle className="text-lg text-brand-primary">Bank & Payroll Details</CardTitle>
@@ -1141,7 +1150,7 @@ const Edit = () => {
                   <div className="space-y-2">
                     <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Bank Company <span className="text-red-500">*</span></Label>
                     <Select value={formData.bank_Company} onValueChange={(val) => handleSelectChange("bank_Company", val)}>
-                      <SelectTrigger className="border-slate-200 focus-visible:ring-brand-primary">
+                      <SelectTrigger className={cn("border-slate-200 focus-visible:ring-brand-primary", errors.bank_Company && "border-red-500 focus-visible:ring-red-500 bg-red-50/10")}>
                         <SelectValue placeholder="Select Bank" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1160,7 +1169,7 @@ const Edit = () => {
                       placeholder="Juan Dela Cruz" 
                       value={formData.bank_AccountName} 
                       onChange={handleChange} 
-                      className="border-slate-200 focus-visible:ring-brand-primary" 
+                      className={cn("border-slate-200 focus-visible:ring-brand-primary", errors.bank_AccountName && "border-red-500 focus-visible:ring-red-500 bg-red-50/10")} 
                     />
                     {renderError("bank_AccountName")}
                   </div>
@@ -1174,7 +1183,7 @@ const Edit = () => {
                         placeholder="e.g. 00123456789" 
                         value={formData.account_Number} 
                         onChange={handleChange} 
-                        className="pr-10 border-slate-200 focus-visible:ring-brand-primary" 
+                        className={cn("pr-10 border-slate-200 focus-visible:ring-brand-primary", errors.account_Number && "border-red-500 focus-visible:ring-red-500 bg-red-50/10")} 
                       />
                       <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" onClick={() => setShowAccountNumber(!showAccountNumber)}>
                         {showAccountNumber ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
@@ -1195,7 +1204,7 @@ const Edit = () => {
                 {/* Password Section */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2 relative">
-                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">System Password <span className="text-red-500">*</span></Label>
+                    <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Password <span className="text-slate-400 font-normal lowercase text-[10px]">(leave blank to keep current)</span></Label>
                     <div className="relative">
                       <Input
                         type={showPassword ? "text" : "password"}
@@ -1204,7 +1213,7 @@ const Edit = () => {
                         onChange={handleChange}
                         onFocus={() => setIsPasswordFocused(true)}
                         onBlur={() => setIsPasswordFocused(false)}
-                        className="pr-10 border-slate-200 focus-visible:ring-brand-primary"
+                        className={cn("pr-10 border-slate-200 focus-visible:ring-brand-primary", errors.user_Password && "border-red-500 focus-visible:ring-red-500 bg-red-50/10")}
                       />
                       <div 
                         className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-slate-400 hover:text-slate-600" 
@@ -1269,9 +1278,15 @@ const Edit = () => {
                         </p>
                       </div>
                     </div>
-                    <Button onClick={handleScanRFID} className="w-full bg-brand-primary text-white hover:bg-brand-primary-hover">
-                      Scan / Assign MaChip
-                    </Button>
+                    {isMaster ? (
+                      <Button onClick={handleScanRFID} className="w-full bg-brand-primary text-white hover:bg-brand-primary-hover">
+                        Scan / Assign MaChip
+                      </Button>
+                    ) : (
+                      <div className="pt-2 border-t border-slate-200/60">
+                        <p className="text-xs text-slate-500 italic">Managed by Administrator</p>
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-3 bg-slate-50 p-5 rounded-xl border border-slate-200">
@@ -1283,16 +1298,20 @@ const Edit = () => {
                         </p>
                       </div>
                     </div>
-                    <Button onClick={handleScanFingerprint} className="w-full bg-brand-primary text-white hover:bg-brand-primary-hover">
-                      Enroll Fingerprint
-                    </Button>
+                    {isMaster ? (
+                      <Button onClick={handleScanFingerprint} className="w-full bg-brand-primary text-white hover:bg-brand-primary-hover">
+                        Enroll Fingerprint
+                      </Button>
+                    ) : (
+                      <div className="pt-2 border-t border-slate-200/60">
+                        <p className="text-xs text-slate-500 italic">Managed by Administrator</p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
               </CardContent>
             </Card>
-            </div>
-              )}
             </div>
             <div className="h-6"></div>
 

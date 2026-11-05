@@ -21,6 +21,7 @@ import GroupIcon from '@mui/icons-material/Group';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import SearchableSelect from "../../../components/SearchableSelect";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Table, TableHeader, TableRow, TableHead, TableBody } from "@/components/ui/table";
@@ -841,16 +842,18 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
           </Tooltip>
 
           <div className="flex items-center gap-2">
-            <Select value={selectedYear} onValueChange={setSelectedYear}>
-              <SelectTrigger className="w-[160px] h-9 bg-white font-bold text-slate-700">
-                <SelectValue placeholder="Select Year" />
-              </SelectTrigger>
-              <SelectContent>
-                {Array.from({ length: 21 }, (_, i) => 2020 + i).map(year => (
-                  <SelectItem key={year} value={year.toString()}>Fiscal Year {year}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="w-[170px]">
+              <SearchableSelect
+                searchable={false}
+                value={selectedYear}
+                onChange={setSelectedYear}
+                options={Array.from({ length: 21 }, (_, i) => {
+                  const year = 2020 + i;
+                  return { value: year.toString(), label: `Fiscal Year ${year}` };
+                })}
+                placeholder="Select Year"
+              />
+            </div>
           </div>
         </div>
       </div>

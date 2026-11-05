@@ -30,6 +30,7 @@ import Toast from "../../components/toast/Toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import SearchableSelect from "../../components/SearchableSelect";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -952,8 +953,8 @@ const AdminReports = () => {
           </div>
 
           {/* Tab-Isolated Filters */}
-          <Card className="mb-6 mt-6 shadow-sm border-0 bg-white py-0">
-            <CardContent className="p-4 sm:p-6 flex flex-col xl:flex-row gap-4 items-center justify-between">
+          <Card className="mb-6 mt-6 shadow-sm border-0 bg-white py-0 overflow-visible relative z-30">
+            <CardContent className="p-4 sm:p-6 flex flex-col xl:flex-row gap-4 items-center justify-between overflow-visible">
               
               <div className="flex items-center gap-2 font-bold text-slate-700 w-full xl:w-auto">
                 <FilterListIcon className="text-slate-400 h-5 w-5" /> Filters
@@ -963,58 +964,73 @@ const AdminReports = () => {
               {(activeReport === "attendance" || activeReport === "payroll") && (
                 <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto flex-wrap">
                   {/* Year Selection */}
-                  <Select value={selectedYear} onValueChange={setSelectedYear}>
-                    <SelectTrigger className="w-full sm:w-[120px] border-slate-200 bg-slate-50 font-medium text-slate-700">
-                      <SelectValue placeholder="All Years" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Years</SelectItem>
-                      {availableYears.map(year => (
-                        <SelectItem key={year} value={year}>{year}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="w-full sm:w-[130px]">
+                    <SearchableSelect
+                      searchable={false}
+                      value={selectedYear}
+                      onChange={setSelectedYear}
+                      options={[
+                        { value: "all", label: "All Years" },
+                        ...availableYears.map(year => ({
+                          value: year.toString(),
+                          label: year.toString()
+                        }))
+                      ]}
+                      placeholder="All Years"
+                    />
+                  </div>
 
                   {/* Month Selection */}
-                  <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                    <SelectTrigger className="w-full sm:w-[140px] border-slate-200 bg-slate-50 font-medium text-slate-700">
-                      <SelectValue placeholder="All Months" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Months</SelectItem>
-                      {MONTHS.map(m => (
-                        <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="w-full sm:w-[140px]">
+                    <SearchableSelect
+                      searchable={false}
+                      value={selectedMonth}
+                      onChange={setSelectedMonth}
+                      options={[
+                        { value: "all", label: "All Months" },
+                        ...MONTHS.map(m => ({
+                          value: m.value,
+                          label: m.label
+                        }))
+                      ]}
+                      placeholder="All Months"
+                    />
+                  </div>
 
                   {/* Period Selection (1st or 2nd) */}
-                  <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-                    <SelectTrigger className="w-full sm:w-[200px] border-slate-200 bg-slate-50 font-medium text-slate-700">
-                      <SelectValue placeholder="All Periods" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Periods</SelectItem>
-                      {PERIOD_OPTIONS.map(p => (
-                        <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="w-full sm:w-[180px]">
+                    <SearchableSelect
+                      searchable={false}
+                      value={selectedPeriod}
+                      onChange={setSelectedPeriod}
+                      options={[
+                        { value: "all", label: "All Periods" },
+                        ...PERIOD_OPTIONS.map(p => ({
+                          value: p.value,
+                          label: p.label
+                        }))
+                      ]}
+                      placeholder="All Periods"
+                    />
+                  </div>
 
                   {/* Employee Selection */}
-                  <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
-                    <SelectTrigger className="w-full sm:w-[180px] border-slate-200 bg-slate-50 font-medium text-slate-700">
-                      <SelectValue placeholder="All Employees" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="All Employees">All Employees</SelectItem>
-                      {employees.map(emp => (
-                        <SelectItem key={emp.user_Id} value={emp.user_Id.toString()}>
-                          {emp.user_LastName}, {emp.user_FirstName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="w-full sm:w-[220px]">
+                    <SearchableSelect
+                      options={[
+                        { value: "All Employees", label: "All Employees" },
+                        ...employees.map(emp => ({
+                          value: emp.user_Id.toString(),
+                          label: `${emp.user_LastName}, ${emp.user_FirstName}`,
+                          sublabel: formatUserId(emp.user_Id)
+                        }))
+                      ]}
+                      value={selectedEmployee}
+                      onChange={setSelectedEmployee}
+                      placeholder="All Employees"
+                      searchPlaceholder="Filter employee..."
+                    />
+                  </div>
 
                   {isFiltering && (
                     <Button variant="ghost" size="sm" onClick={handleClearFilters} className="text-slate-500 hover:text-red-600 font-semibold h-9 gap-1 transition-colors">

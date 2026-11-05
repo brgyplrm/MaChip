@@ -22,6 +22,7 @@ import { TablePagination } from "@/components/ui/table-pagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import SearchableSelect from "../../components/SearchableSelect";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -813,18 +814,17 @@ const HardwareManagement = () => {
                   {loadingUnassigned ? "Refreshing..." : "Refresh List"}
                 </button>
               </div>
-              <Select value={selectedUserId} onValueChange={handleSelectEmployee}>
-                <SelectTrigger className="w-full h-12 bg-white border-slate-200 rounded-lg focus:ring-brand-primary"><SelectValue placeholder="Select an unassigned employee..." /></SelectTrigger>
-                <SelectContent className="max-h-[220px]">
-                  {loadingUnassigned ? <div className="p-4 text-center text-xs text-slate-400 italic">Updating registry...</div> : 
-                    unassignedEmployees.length > 0 ? unassignedEmployees.map((emp) => (
-                      <SelectItem key={emp.user_Id} value={emp.user_Id.toString()}>
-                        {emp.user_FirstName} {emp.user_LastName} ({formatUserId(emp.user_Id)}) {activeTab === 'fingerprint' ? emp.hasSlot1 : ""}
-                      </SelectItem>
-                    )) : <div className="p-4 text-center text-xs text-slate-400 italic">No unassigned employees found.</div>
-                  }
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                options={unassignedEmployees.map((emp) => ({
+                  value: emp.user_Id.toString(),
+                  label: `${emp.user_FirstName} ${emp.user_LastName} (${formatUserId(emp.user_Id)})${activeTab === 'fingerprint' && emp.hasSlot1 ? ' ' + emp.hasSlot1 : ''}`,
+                  sublabel: emp.department ? `${emp.department}${emp.position ? ' - ' + emp.position : ''}` : ""
+                }))}
+                value={selectedUserId}
+                onChange={handleSelectEmployee}
+                placeholder="Select an unassigned employee..."
+                searchPlaceholder="Search unassigned employee..."
+              />
             </div>
 
             {activeTab === 'fingerprint' && selectedUserId && (

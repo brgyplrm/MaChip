@@ -32,6 +32,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import SearchableSelect from "../../components/SearchableSelect";
 
 
 const CalendarManagement = () => {
@@ -948,36 +949,32 @@ const CalendarManagement = () => {
             </DialogHeader>
             <div className="flex flex-col gap-5 py-4">
               <div className="flex flex-col gap-2">
-                <Label>Select Month</Label>
-                <Select 
-                  value={pickerMonth} 
-                  onValueChange={setPickerMonth}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((m, i) => (
-                      <SelectItem key={i} value={i.toString()}>{m}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="jump-picker-month">Select Month</Label>
+                <SearchableSelect
+                  id="jump-picker-month"
+                  searchable={false}
+                  value={pickerMonth}
+                  onChange={setPickerMonth}
+                  options={["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((m, i) => ({
+                    value: i.toString(),
+                    label: m
+                  }))}
+                  placeholder="Select Month"
+                />
               </div>
               <div className="flex flex-col gap-2">
-                <Label>Select Year</Label>
-                <Select 
-                  value={pickerYear} 
-                  onValueChange={setPickerYear}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Array.from({ length: 21 }, (_, i) => systemToday.getFullYear() - 10 + i).map(y => (
-                      <SelectItem key={y} value={y.toString()}>{y}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="jump-picker-year">Select Year</Label>
+                <SearchableSelect
+                  id="jump-picker-year"
+                  searchable={false}
+                  value={pickerYear}
+                  onChange={setPickerYear}
+                  options={Array.from({ length: 21 }, (_, i) => {
+                    const y = systemToday.getFullYear() - 10 + i;
+                    return { value: y.toString(), label: y.toString() };
+                  })}
+                  placeholder="Select Year"
+                />
               </div>
             </div>
             <DialogFooter className="grid grid-cols-2 gap-2 w-full pt-1 sm:grid-cols-2 sm:space-x-0">
@@ -1026,18 +1023,17 @@ const CalendarManagement = () => {
                   <TabsContent value="single" className="space-y-4">
                     <div className="grid gap-2">
                       <Label>Select Employee</Label>
-                      <Select value={fieldWorkForm.userId} onValueChange={(val) => setFieldWorkForm({...fieldWorkForm, userId: val})}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Choose Employee..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {employees.map(emp => (
-                            <SelectItem key={emp.user_Id} value={emp.user_Id.toString()}>
-                              {formatUserId(emp.user_Id)} - {emp.user_LastName}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <SearchableSelect
+                        options={employees.map(emp => ({
+                          value: emp.user_Id.toString(),
+                          label: `${formatUserId(emp.user_Id)} - ${emp.user_LastName}, ${emp.user_FirstName || ""}`,
+                          sublabel: emp.position ? `${emp.position} (${emp.department || ""})` : ""
+                        }))}
+                        value={fieldWorkForm.userId}
+                        onChange={(val) => setFieldWorkForm({...fieldWorkForm, userId: val})}
+                        placeholder="Choose Employee..."
+                        searchPlaceholder="Search employee name or ID..."
+                      />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="grid gap-2">

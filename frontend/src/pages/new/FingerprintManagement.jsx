@@ -478,28 +478,17 @@ const FingerprintManagement = () => {
             {/* Target Variable Selection Dropdown */}
             <div className="space-y-2">
               <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Assign Target Employee Profile</Label>
-              <Select value={selectedUserId} onValueChange={handleSelectEmployee}>
-                <SelectTrigger className="w-full h-12 bg-white border-slate-200 rounded-lg focus:ring-brand-primary">
-                  <SelectValue placeholder="Select an unassigned employee..." />
-                </SelectTrigger>
-                <SelectContent className="max-h-[220px]">
-                  {loadingUnassigned ? (
-                    <div className="p-4 text-center text-xs text-slate-400 italic animate-pulse">
-                      Searching for unassigned profiles...
-                    </div>
-                  ) : unassignedEmployees.length > 0 ? (
-                    unassignedEmployees.map((emp) => (
-                      <SelectItem key={emp.user_Id} value={emp.user_Id.toString()}>
-                        {emp.user_FirstName} {emp.user_LastName} ({formatUserId(emp.user_Id)}) {emp.hasSlot1 ? "• Secondary Fallback" : "• Primary"}
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <div className="p-4 text-center text-xs text-slate-400 italic">
-                      All employees currently contain assigned biometric references.
-                    </div>
-                  )}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                options={unassignedEmployees.map((emp) => ({
+                  value: emp.user_Id.toString(),
+                  label: `${emp.user_FirstName} ${emp.user_LastName} (${formatUserId(emp.user_Id)}) ${emp.hasSlot1 ? "• Secondary Fallback" : "• Primary"}`,
+                  sublabel: emp.department ? `${emp.department}${emp.position ? ' - ' + emp.position : ''}` : ""
+                }))}
+                value={selectedUserId}
+                onChange={handleSelectEmployee}
+                placeholder="Select an unassigned employee..."
+                searchPlaceholder="Search unassigned employee..."
+              />
             </div>
 
             {/* Fingerprint Slot Selection */}
