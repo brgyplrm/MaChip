@@ -129,7 +129,6 @@ const buildReportHTML = (rawRows, periodLabel, signatures = {}) => {
     advances: sum(payrollRows, "advances_Amnt"),
     globe: sum(payrollRows, "globe_Deduction"),
     mpSavings: sum(payrollRows, "multiPurposeSavings"),
-    eastwest: sum(payrollRows, "eastwest_Loan"),
     healthCardCount: payrollRows.filter(r => parseFloat(r.healthCard_Amnt) > 0).length,
     // Extra Earnings
     nightDiff: sum(payrollRows, "nightDiff_Amnt"),
@@ -145,8 +144,8 @@ const buildReportHTML = (rawRows, periodLabel, signatures = {}) => {
     totalMonthlyRate: sum(payrollRows, "dailyRate") * 26
   };
 
-  // Final BDO Deposit = Received by (Net Pay subtotal) - EastWest
-  totals.totalForDeposit = totals.totalNetPay - totals.eastwest;
+  // Final BDO Deposit = Received by (Net Pay subtotal)
+  totals.totalForDeposit = totals.totalNetPay;
 
   const commonHeader = `
     <div class="company-header">
@@ -361,7 +360,6 @@ const buildReportHTML = (rawRows, periodLabel, signatures = {}) => {
           <tr>
             <th>EMP#</th><th>NAME</th><th>TAX STATUS</th>
             <th>ALLOWANCES</th><th>NET PAY</th>
-            <th>Deduction<br/>EASTWEST Loan</th>
             <th>FOR DEPOSIT</th>
           </tr>
         </thead>
@@ -373,9 +371,6 @@ const buildReportHTML = (rawRows, periodLabel, signatures = {}) => {
             const taxableIncome = gross - govt;
             const other = parseFloat(r.Tax_Ded || 0) + parseFloat(r.healthCard_Amnt || 0) + parseFloat(r.SSS_Loan || 0) + parseFloat(r.HDMF_Loan || 0) + parseFloat(r.multiPurposeSavings || 0) + parseFloat(r.advances_Amnt || 0);
             const formulaNetPay = taxableIncome - other + parseFloat(r.allowance || 0);
-            
-            // FOR DEPOSIT: Net Pay - EastWest
-            const forDeposit = formulaNetPay - parseFloat(r.eastwest_Loan || 0);
 
             return `
             <tr>
@@ -383,15 +378,13 @@ const buildReportHTML = (rawRows, periodLabel, signatures = {}) => {
               <td class="center">${r.taxStatus || 'S'}</td>
               <td class="amt">${peso(r.allowance)}</td>
               <td class="amt bold">${peso(formulaNetPay)}</td>
-              <td class="amt">${peso(r.eastwest_Loan)}</td>
-              <td class="amt bold" style="color:#166534">${peso(forDeposit)}</td>
+              <td class="amt bold" style="color:#166534">${peso(formulaNetPay)}</td>
             </tr>`}).join('')}
           <tr class="totals-row">
             <td colspan="3">TOTAL</td>
             <td class="amt">${peso(totals.allowance)}</td>
             <td class="amt">${peso(totals.totalNetPay)}</td>
-            <td class="amt">${peso(totals.eastwest)}</td>
-            <td class="amt">${peso(totals.totalNetPay - totals.eastwest)}</td>
+            <td class="amt bold" style="color:#166534">${peso(totals.totalNetPay)}</td>
           </tr>
         </tbody>
       </table>

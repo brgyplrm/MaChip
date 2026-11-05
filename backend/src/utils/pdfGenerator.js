@@ -175,9 +175,9 @@ exports.generatePayslipPDF = async (payroll, password = null) => {
         eL: "Others",
         eH: "",
         eA: formatCurrency(payroll.Bonus || 0),
-        dL: "Calamity / Personal Loans",
+        dL: "Calamity Loan",
         dH: "",
-        dA: formatCurrency(parseFloat(payroll.calamityLoan_Amnt || 0) + parseFloat(payroll.eastwest_Loan || 0))
+        dA: formatCurrency(parseFloat(payroll.calamityLoan_Amnt || 0))
       },
       {
         eL: "",
@@ -398,7 +398,6 @@ exports.generateDetailedPayslipPDF = async (payroll, password = null) => {
       { name: "SSS Salary Loan", amnt: parseFloat(payroll.SSS_Loan || 0), cond: true },
       { name: "Pag-IBIG (HDMF) Loan", amnt: parseFloat(payroll.HDMF_Loan || 0), cond: true },
       { name: "Calamity Loan", amnt: parseFloat(payroll.calamityLoan_Amnt || 0), cond: true },
-      { name: "Personal Loan (Eastwest)", amnt: parseFloat(payroll.eastwest_Loan || 0), cond: true },
       { name: "Cash Advances", amnt: parseFloat(payroll.advances_Amnt || 0), cond: true },
       { name: "Health Card (HMO)", amnt: parseFloat(payroll.healthCard_Amnt || 0), cond: true },
       { name: "Multi-Purpose Savings", amnt: parseFloat(payroll.multiPurposeSavings || 0), cond: true },

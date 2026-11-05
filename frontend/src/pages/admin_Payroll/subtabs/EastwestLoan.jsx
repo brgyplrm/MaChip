@@ -119,7 +119,7 @@ const EastwestLoan = () => {
         name: `${emp.user_LastName}, ${emp.user_FirstName}`,
         id: `MACJ-${String(emp.user_Id).padStart(3, "0")}`,
         key: emp.user_Id.toString(),
-        eastwest_Loan: parseFloat(emp.eastwest_Loan || 0),
+        advances_Amnt: parseFloat(emp.advances_Amnt || 0),
       }));
 
       if (Array.isArray(history)) {
@@ -156,7 +156,7 @@ const EastwestLoan = () => {
               : `Employee #${uid}`,
             id: `MACJ-${String(uid).padStart(3, "0")}`,
             key: uid,
-            eastwest_Loan: found ? parseFloat(found.eastwest_Loan || 0) : 0,
+            advances_Amnt: found ? parseFloat(found.advances_Amnt || 0) : 0,
           };
         }).sort((a, b) => a.name.localeCompare(b.name));
 
@@ -458,7 +458,7 @@ const EastwestLoan = () => {
 
     // Also include any employee who has an active recurring deduction in their profile
     employeeList.forEach(emp => {
-      if ((parseFloat(emp.eastwest_Loan) || 0) > 0) {
+      if ((parseFloat(emp.advances_Amnt) || 0) > 0) {
         activeBorrowers.add(emp.key || emp.user_Id.toString());
       }
     });
@@ -471,7 +471,7 @@ const EastwestLoan = () => {
   };
 
   const stats = getSummaryStats();
-  const expectedTotal = employeeList.reduce((sum, emp) => sum + (parseFloat(emp.eastwest_Loan) || 0), 0) * expectedDates.length;
+  const expectedTotal = employeeList.reduce((sum, emp) => sum + (parseFloat(emp.advances_Amnt) || 0), 0) * expectedDates.length;
   const peso = (val) => `₱${parseFloat(val || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const getRowTotal = (dateStr) => {
@@ -1108,9 +1108,9 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
                           return acc + ((period && period.values[emp.key]) ? period.values[emp.key].amount : 0);
                         }, 0);
 
-                        const empExpectedAnnual = (parseFloat(emp.eastwest_Loan) || 0) * expectedDates.length;
+                        const empExpectedAnnual = (parseFloat(emp.advances_Amnt) || 0) * expectedDates.length;
                         const completionPercent = empExpectedAnnual > 0 ? Math.min(100, (empYtdPaid / empExpectedAnnual) * 100) : 0;
-                        const targetMonthlyFull = emp.eastwest_Loan * 2;
+                        const targetMonthlyFull = (parseFloat(emp.advances_Amnt) || 0) * 2;
 
                         return (
                           <tr key={emp.key} className="hover:bg-slate-50 transition-colors border-b border-slate-100">
@@ -1126,7 +1126,7 @@ const [displayLayout, setDisplayLayout] = useState("card"); // "table" or "card"
 
                             {/* Monthly Cutoff Rate */}
                             <td className="p-2 text-right font-mono font-bold text-slate-700 border-r border-slate-100">
-                              {peso(emp.eastwest_Loan)}
+                              {peso(emp.advances_Amnt)}
                             </td>
 
                             {/* 12 Month Status Pills */}

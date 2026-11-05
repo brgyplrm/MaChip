@@ -149,7 +149,7 @@ const ViewPayslipModal = ({ isOpen, onClose, payroll, onDownload }) => {
                   </tr>
                   <tr>
                     <td className="border border-slate-200 p-2">Others</td><td className="border border-slate-200 p-2"></td><td className="border border-slate-200 p-2">0.00</td>
-                    <td className="border border-slate-200 p-2">Calamity / Personal Loans</td><td className="border border-slate-200 p-2"></td><td className="border border-slate-200 p-2">{formatCurrency(parseFloat(payroll.calamityLoan_Amnt || 0) + parseFloat(payroll.eastwest_Loan || 0))}</td>
+                    <td className="border border-slate-200 p-2">Calamity Loan</td><td className="border border-slate-200 p-2"></td><td className="border border-slate-200 p-2">{formatCurrency(parseFloat(payroll.calamityLoan_Amnt || 0))}</td>
                   </tr>
                   <tr>
                     <td className="border border-slate-200 p-2"></td><td className="border border-slate-200 p-2"></td><td className="border border-slate-200 p-2"></td>
@@ -378,12 +378,6 @@ const ViewPayslipModal = ({ isOpen, onClose, payroll, onDownload }) => {
                       <tr>
                         <td className="p-3 pl-5 border-r border-slate-200 w-1/2">Calamity Loan</td>
                         <td className="p-3 text-right font-semibold text-rose-600">({formatCurrency(payroll.calamityLoan_Amnt)})</td>
-                      </tr>
-                    )}
-                    {parseFloat(payroll.eastwest_Loan || 0) > 0 && (
-                      <tr>
-                        <td className="p-3 pl-5 border-r border-slate-200 w-1/2">Personal Loan (Eastwest)</td>
-                        <td className="p-3 text-right font-semibold text-rose-600">({formatCurrency(payroll.eastwest_Loan)})</td>
                       </tr>
                     )}
                     {parseFloat(payroll.advances_Amnt || 0) > 0 && (

@@ -140,14 +140,6 @@ Payroll_Cash_Advances.belongsTo(User, {
   as: "user",
 });
 
-// User ↔ Payroll_Eastwest
-User.hasMany(Payroll_Eastwest, { foreignKey: "user_Id", sourceKey: "user_Id" });
-Payroll_Eastwest.belongsTo(User, {
-  foreignKey: "user_Id",
-  targetKey: "user_Id",
-  as: "user",
-});
-
 // User ↔ Payroll_GovernmentLoans
 User.hasMany(Payroll_GovernmentLoans, {
   foreignKey: "user_Id",

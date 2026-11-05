@@ -478,7 +478,7 @@ exports.viewAllUsers = async (req, res) => {
               b."account_Number", b."bank_Company", b."bank_AccountName",
               d."sss_Share", d."philhealth_Share", d."hdmf_Share", d."tax_Share",
               d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
-              d."advances_Amnt", d."globe_Deduction", d."eastwest_Loan", d."multiPurposeSavings",
+              d."advances_Amnt", d."globe_Deduction", d."multiPurposeSavings",
               d."sss_no", d."tin_no", d."philhealth_no", d."hdmf_no",
               h."user_MachipId", h."user_FingerprintId",
               u."user_ShiftId",
@@ -551,7 +551,6 @@ exports.viewAllUsers = async (req, res) => {
         delete user.calamityLoan_Amnt;
         delete user.advances_Amnt;
         delete user.globe_Deduction;
-        delete user.eastwest_Loan;
         delete user.multiPurposeSavings;
         delete user.sss_no;
         delete user.tin_no;
@@ -579,7 +578,7 @@ exports.viewArchivedUsers = async (req, res) => {
               b."account_Number", b."bank_Company", b."bank_AccountName",
               d."sss_Share", d."philhealth_Share", d."hdmf_Share", d."tax_Share",
               d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
-              d."advances_Amnt", d."globe_Deduction", d."eastwest_Loan", d."multiPurposeSavings",
+              d."advances_Amnt", d."globe_Deduction", d."multiPurposeSavings",
               h."user_MachipId", h."user_FingerprintId",
               u."user_ShiftId",
               (SELECT COUNT(*) > 0 FROM "Payroll_maxicare" m 
@@ -653,7 +652,7 @@ exports.viewUserById = async (req, res) => {
               b."account_Number", b."bank_Company", b."bank_AccountName",
               d."sss_Share", d."philhealth_Share", d."hdmf_Share", d."tax_Share",
               d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
-              d."advances_Amnt", d."globe_Deduction", d."eastwest_Loan", d."multiPurposeSavings",
+              d."advances_Amnt", d."globe_Deduction", d."multiPurposeSavings",
               d."sss_no", d."tin_no", d."philhealth_no", d."hdmf_no",
               h."user_MachipId", h."user_FingerprintId",
               u."user_ShiftId",
@@ -1156,7 +1155,6 @@ exports.updateUser = async (req, res) => {
     SSS_Loan,
     HDMF_Loan,
     calamityLoan_Amnt,
-    eastwest_Loan,
     globe_Deduction,
     multiPurposeSavings,
     advances_Amnt
@@ -1221,7 +1219,7 @@ exports.updateUser = async (req, res) => {
               b."account_Number", b."bank_Company", b."bank_AccountName",
               d."sss_Share", d."sss_is_manual", d."philhealth_Share", d."ph_is_manual", d."hdmf_Share", d."hdmf_is_manual", d."tax_Share",
               d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
-              d."advances_Amnt", d."globe_Deduction", d."eastwest_Loan", d."multiPurposeSavings",
+              d."advances_Amnt", d."globe_Deduction", d."multiPurposeSavings",
               d."sss_no", d."sss_no_bidx", d."tin_no", d."tin_no_bidx", d."philhealth_no", d."philhealth_no_bidx", d."hdmf_no", d."hdmf_no_bidx",
               h."user_MachipId", h."user_FingerprintId"
        FROM "User" u
@@ -1343,7 +1341,6 @@ exports.updateUser = async (req, res) => {
         sl: isMaster ? (parseFloat(SSS_Loan) || 0) : (oldUser.SSS_Loan || 0),
         hl: isMaster ? (parseFloat(HDMF_Loan) || 0) : (oldUser.HDMF_Loan || 0),
         cl: isMaster ? (parseFloat(calamityLoan_Amnt) || 0) : (oldUser.calamityLoan_Amnt || 0),
-        el: isMaster ? (parseFloat(eastwest_Loan) || 0) : (oldUser.eastwest_Loan || 0),
         gd: isMaster ? (parseFloat(globe_Deduction) || 0) : (oldUser.globe_Deduction || 0),
         ms: isMaster ? (parseFloat(multiPurposeSavings) || 0) : (oldUser.multiPurposeSavings || 0),
         aa: isMaster ? (parseFloat(advances_Amnt) || 0) : (oldUser.advances_Amnt || 0),
@@ -1460,12 +1457,12 @@ exports.updateUser = async (req, res) => {
       await sequelize.query(
         `INSERT INTO "User_Deduction_Profile" (
           "user_Id", "sss_Share", "sss_is_manual", "philhealth_Share", "ph_is_manual", "hdmf_Share", "hdmf_is_manual", "tax_Share", "healthCard_Amnt",
-          "SSS_Loan", "HDMF_Loan", "calamityLoan_Amnt", "eastwest_Loan", "globe_Deduction",
+          "SSS_Loan", "HDMF_Loan", "calamityLoan_Amnt", "globe_Deduction",
           "multiPurposeSavings", "advances_Amnt",
           "sss_no", "sss_no_bidx", "tin_no", "tin_no_bidx", "philhealth_no", "philhealth_no_bidx", "hdmf_no", "hdmf_no_bidx",
           "createdAt", "updatedAt"
         ) VALUES (
-          :targetId, :sss, :sss_is_manual, :ph, :ph_is_manual, :hd, :hdmf_is_manual, :tax, :hc, :sl, :hl, :cl, :el, :gd, :ms, :aa,
+          :targetId, :sss, :sss_is_manual, :ph, :ph_is_manual, :hd, :hdmf_is_manual, :tax, :hc, :sl, :hl, :cl, :gd, :ms, :aa,
           :sss_no, :sss_no_bidx, :tin_no, :tin_no_bidx, :philhealth_no, :philhealth_no_bidx, :hdmf_no, :hdmf_no_bidx,
           :updatedAt, :updatedAt
         ) ON CONFLICT ("user_Id") DO UPDATE SET
@@ -1480,7 +1477,6 @@ exports.updateUser = async (req, res) => {
           "SSS_Loan" = EXCLUDED."SSS_Loan",
           "HDMF_Loan" = EXCLUDED."HDMF_Loan",
           "calamityLoan_Amnt" = EXCLUDED."calamityLoan_Amnt",
-          "eastwest_Loan" = EXCLUDED."eastwest_Loan",
           "globe_Deduction" = EXCLUDED."globe_Deduction",
           "multiPurposeSavings" = EXCLUDED."multiPurposeSavings",
           "advances_Amnt" = EXCLUDED."advances_Amnt",
@@ -1551,7 +1547,7 @@ exports.updateUser = async (req, res) => {
               b."account_Number", b."bank_Company", b."bank_AccountName",
               d."sss_Share", d."philhealth_Share", d."hdmf_Share", d."tax_Share",
               d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
-              d."advances_Amnt", d."globe_Deduction", d."eastwest_Loan", d."multiPurposeSavings",
+              d."advances_Amnt", d."globe_Deduction", d."multiPurposeSavings",
               h."user_MachipId", h."user_FingerprintId"
        FROM "User" u
        LEFT JOIN "User_Banking" b ON u."user_Id" = b."user_Id"
@@ -1630,7 +1626,7 @@ exports.getMasterlist = async (req, res) => {
          b."account_Number", b."bank_Company", b."bank_AccountName",
          d."sss_Share", d."philhealth_Share", d."hdmf_Share", d."tax_Share",
          d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
-         d."advances_Amnt", d."globe_Deduction", d."eastwest_Loan", d."multiPurposeSavings",
+         d."advances_Amnt", d."globe_Deduction", d."multiPurposeSavings",
          h."user_MachipId", h."user_FingerprintId", h."user_FingerprintId2",
          r."roleName"          AS "user_Role",
          es."statusName"       AS "employmentStatus"
@@ -1681,7 +1677,6 @@ exports.getMasterlist = async (req, res) => {
       let activeSSS = 0;
       let activeHDMF = 0;
       let activeCalamity = 0;
-      let activeEastWest = 0;
       let activeAdvances = 0;
       let activeMultiPurpose = 0;
 
@@ -1694,9 +1689,7 @@ exports.getMasterlist = async (req, res) => {
           activeHDMF += perCutoff;
         } else if (type === "calamity" || type === "sss_calamity" || type === "hdmf_calamity" || type === "sss_emergency") {
           activeCalamity += perCutoff;
-        } else if (type === "eastwest") {
-          activeEastWest += perCutoff;
-        } else if (type === "cash_advance") {
+        } else if (type === "cash_advance" || type === "eastwest") {
           activeAdvances += perCutoff;
         } else if (type === "multipurpose") {
           activeMultiPurpose += perCutoff;
@@ -1706,7 +1699,6 @@ exports.getMasterlist = async (req, res) => {
       if (activeSSS > 0) emp.SSS_Loan = activeSSS;
       if (activeHDMF > 0) emp.HDMF_Loan = activeHDMF;
       if (activeCalamity > 0) emp.calamityLoan_Amnt = activeCalamity;
-      if (activeEastWest > 0) emp.eastwest_Loan = activeEastWest;
       if (activeAdvances > 0) emp.advances_Amnt = activeAdvances;
       if (activeMultiPurpose > 0) emp.multiPurposeSavings = activeMultiPurpose;
 
@@ -1734,7 +1726,7 @@ exports.updateDailyRate = async (req, res) => {
   const {
     newDailyRate, sss_Share, philhealth_Share, hdmf_Share,
     healthCard_Amnt, SSS_Loan, HDMF_Loan, calamityLoan_Amnt,
-    advances_Amnt, globe_Deduction, eastwest_Loan, multiPurposeSavings
+    advances_Amnt, globe_Deduction, multiPurposeSavings
   } = req.body;
   if (newDailyRate === undefined || newDailyRate === null) {
     return res.status(400).json({ error: "newDailyRate is required." });
@@ -1810,11 +1802,10 @@ exports.updateDailyRate = async (req, res) => {
     const fCL = parseFloat(calamityLoan_Amnt) || 0;
     const fAA = parseFloat(advances_Amnt) || 0;
     const fGD = parseFloat(globe_Deduction) || 0;
-    const fEL = parseFloat(eastwest_Loan) || 0;
     const fMS = parseFloat(multiPurposeSavings) || 0;
 
     console.log(`[UPDATE_RATE] Final Shares: SSS=${finalSSS}, PH=${finalPH}, HD=${finalHD}, Tax=${finalTax}`);
-    console.log(`[UPDATE_RATE] Other Deds: HC=${fHC}, SL=${fSL}, HL=${fHL}, CL=${fCL}, AA=${fAA}, GD=${fGD}, EL=${fEL}, MS=${fMS}`);
+    console.log(`[UPDATE_RATE] Other Deds: HC=${fHC}, SL=${fSL}, HL=${fHL}, CL=${fCL}, AA=${fAA}, GD=${fGD}, MS=${fMS}`);
 
     const transaction = await sequelize.transaction();
     try {
@@ -1858,10 +1849,10 @@ exports.updateDailyRate = async (req, res) => {
         `INSERT INTO "User_Deduction_Profile" (
           "user_Id", "sss_Share", "philhealth_Share", "hdmf_Share", "tax_Share",
           "healthCard_Amnt", "SSS_Loan", "HDMF_Loan", "calamityLoan_Amnt",
-          "advances_Amnt", "globe_Deduction", "eastwest_Loan", "multiPurposeSavings",
+          "advances_Amnt", "globe_Deduction", "multiPurposeSavings",
           "createdAt", "updatedAt"
         ) VALUES (
-          :user_Id, :sss, :ph, :hd, :tax, :hc, :sl, :hl, :cl, :aa, :gd, :el, :ms, :now, :now
+          :user_Id, :sss, :ph, :hd, :tax, :hc, :sl, :hl, :cl, :aa, :gd, :ms, :now, :now
         ) ON CONFLICT ("user_Id") DO UPDATE SET
           "sss_Share" = EXCLUDED."sss_Share",
           "philhealth_Share" = EXCLUDED."philhealth_Share",
@@ -1873,7 +1864,6 @@ exports.updateDailyRate = async (req, res) => {
           "calamityLoan_Amnt" = EXCLUDED."calamityLoan_Amnt",
           "advances_Amnt" = EXCLUDED."advances_Amnt",
           "globe_Deduction" = EXCLUDED."globe_Deduction",
-          "eastwest_Loan" = EXCLUDED."eastwest_Loan",
           "multiPurposeSavings" = EXCLUDED."multiPurposeSavings",
           "updatedAt" = EXCLUDED."updatedAt"`,
         {
@@ -1889,7 +1879,6 @@ exports.updateDailyRate = async (req, res) => {
             cl: fCL,
             aa: fAA,
             gd: fGD,
-            el: fEL,
             ms: fMS,
             now: nowStr
           },
@@ -1911,7 +1900,7 @@ exports.updateDailyRate = async (req, res) => {
          u."dailyRate", u."previousDailyRate", u."rateUpdatedAt",
          d."sss_Share", d."philhealth_Share", d."hdmf_Share", d."tax_Share",
          d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
-         d."advances_Amnt", d."globe_Deduction", d."eastwest_Loan", d."multiPurposeSavings"
+         d."advances_Amnt", d."globe_Deduction", d."multiPurposeSavings"
        FROM "User" u
        LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
        WHERE u."user_Id" = :user_Id`,
@@ -1927,21 +1916,19 @@ exports.updateDailyRate = async (req, res) => {
         { replacements: { user_Id }, type: QueryTypes.SELECT }
       );
       updated.activeLoansList = activeLoans;
-      let activeSSS = 0, activeHDMF = 0, activeCalamity = 0, activeEastWest = 0, activeAdvances = 0, activeMultiPurpose = 0;
+      let activeSSS = 0, activeHDMF = 0, activeCalamity = 0, activeAdvances = 0, activeMultiPurpose = 0;
       for (const al of activeLoans) {
         const perCutoff = parseFloat(al.deductionPerCutoff || 0);
         const type = (al.deductionType || "").toLowerCase();
         if (type === "sss_loan" || type === "sss_conso") activeSSS += perCutoff;
         else if (type === "hdmf_loan") activeHDMF += perCutoff;
         else if (type === "calamity" || type === "sss_calamity" || type === "hdmf_calamity" || type === "sss_emergency") activeCalamity += perCutoff;
-        else if (type === "eastwest") activeEastWest += perCutoff;
-        else if (type === "cash_advance") activeAdvances += perCutoff;
+        else if (type === "cash_advance" || type === "eastwest") activeAdvances += perCutoff;
         else if (type === "multipurpose") activeMultiPurpose += perCutoff;
       }
       if (activeSSS > 0) updated.SSS_Loan = activeSSS;
       if (activeHDMF > 0) updated.HDMF_Loan = activeHDMF;
       if (activeCalamity > 0) updated.calamityLoan_Amnt = activeCalamity;
-      if (activeEastWest > 0) updated.eastwest_Loan = activeEastWest;
       if (activeAdvances > 0) updated.advances_Amnt = activeAdvances;
       if (activeMultiPurpose > 0) updated.multiPurposeSavings = activeMultiPurpose;
     } catch (loanErr) {

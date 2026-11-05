@@ -108,7 +108,6 @@ module.exports = (sequelize, DataTypes) => {
       multiPurposeSavings: { type: DataTypes.FLOAT, defaultValue: 0 },
       advances_Amnt: { type: DataTypes.FLOAT, defaultValue: 0 },
       globe_Deduction: { type: DataTypes.FLOAT, defaultValue: 0 },
-      eastwest_Loan: { type: DataTypes.FLOAT, defaultValue: 0 },
     },
     { timestamps: false, freezeTableName: true },
   );
@@ -151,12 +150,18 @@ module.exports = (sequelize, DataTypes) => {
       user_Id: { 
         type: DataTypes.SMALLINT, 
         allowNull: false,
-        unique: 'user_ca_date_unique'
+        unique: 'user_ca_date_type_unique'
       },
       date: { 
         type: DataTypes.DATEONLY, 
         allowNull: false,
-        unique: 'user_ca_date_unique'
+        unique: 'user_ca_date_type_unique'
+      },
+      type: {
+        type: DataTypes.STRING(50),
+        allowNull: false,
+        defaultValue: 'Cash Advance',
+        unique: 'user_ca_date_type_unique'
       },
       amount: { type: DataTypes.FLOAT, defaultValue: 0 },
       payrollId: { type: DataTypes.INTEGER, allowNull: true },
@@ -165,30 +170,8 @@ module.exports = (sequelize, DataTypes) => {
     { timestamps: true, freezeTableName: true },
   );
 
-  const Payroll_Eastwest = sequelize.define(
-    "Payroll_Eastwest",
-    {
-      eastwestId: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true,
-      },
-      user_Id: { 
-        type: DataTypes.SMALLINT, 
-        allowNull: false,
-        unique: 'user_ew_date_unique'
-      },
-      date: { 
-        type: DataTypes.DATEONLY, 
-        allowNull: false,
-        unique: 'user_ew_date_unique'
-      },
-      amount: { type: DataTypes.FLOAT, defaultValue: 0 },
-      payrollId: { type: DataTypes.INTEGER, allowNull: true },
-      notes: { type: DataTypes.TEXT, allowNull: true },
-    },
-    { timestamps: true, freezeTableName: true },
-  );
+  // Alias for backward compatibility while retiring redundant table
+  const Payroll_Eastwest = Payroll_Cash_Advances;
 
   const Payroll_GovernmentLoans = sequelize.define(
     "Payroll_GovernmentLoans",
@@ -349,9 +332,6 @@ module.exports = (sequelize, DataTypes) => {
 
   Payroll.hasMany(Payroll_Cash_Advances, { foreignKey: "payrollId" });
   Payroll_Cash_Advances.belongsTo(Payroll, { foreignKey: "payrollId" });
-
-  Payroll.hasMany(Payroll_Eastwest, { foreignKey: "payrollId" });
-  Payroll_Eastwest.belongsTo(Payroll, { foreignKey: "payrollId" });
 
   Payroll.hasMany(Payroll_GovernmentLoans, { foreignKey: "payrollId" });
   Payroll_GovernmentLoans.belongsTo(Payroll, { foreignKey: "payrollId" });

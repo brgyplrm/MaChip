@@ -142,9 +142,7 @@ const PayrollDetails = () => {
               SSS_Loan: preview.SSS_Loan,
               HDMF_Loan: preview.HDMF_Loan,
               calamityLoan_Amnt: preview.calamityLoan_Amnt,
-              // advances_Amnt: preview.advances_Amnt,
-              // globe_Deduction: preview.globe_Deduction,
-              eastwest_Loan: preview.eastwest_Loan,
+              advances_Amnt: preview.advances_Amnt,
               multiPurposeSavings: preview.multiPurposeSavings,
               totalDeductions: preview.totalDeductions,
               netPay: preview.netPay,
@@ -231,7 +229,7 @@ const PayrollDetails = () => {
     const totalEEShare = eeSSS + eePH + eeHD + eeTax;
     const totalERShare = erSSS + erPH + erHD;
     const totalRemittance = totalEEShare + totalERShare;
-    const totalLoans = parseFloat(payroll.SSS_Loan || 0) + parseFloat(payroll.HDMF_Loan || 0) + parseFloat(payroll.calamityLoan_Amnt || 0) + parseFloat(payroll.eastwest_Loan || 0);
+    const totalLoans = parseFloat(payroll.SSS_Loan || 0) + parseFloat(payroll.HDMF_Loan || 0) + parseFloat(payroll.calamityLoan_Amnt || 0) + parseFloat(payroll.advances_Amnt || 0);
     const totalMisc = parseFloat(payroll.healthCard_Amnt || 0) + parseFloat(payroll.multiPurposeSavings || 0);
     const totalAllDeductions = totalTimeDeductions + totalEEShare + totalLoans + totalMisc;
     const taxable = Math.max(0, (parseFloat(payroll.totalEarnings || 0) - (eeSSS + eePH + eeHD)));
@@ -531,9 +529,9 @@ const PayrollDetails = () => {
                       </span>
                     </div>
                     <div className="flex justify-between items-center py-2.5">
-                      <span className="text-slate-700 font-medium">EastWest Cash Advance</span>
-                      <span className={parseFloat(payroll.eastwest_Loan || 0) > 0 ? "font-semibold text-slate-900" : "text-slate-400"}>
-                        ₱{formatMoney(payroll.eastwest_Loan || 0)}
+                      <span className="text-slate-700 font-medium">Cash Advance</span>
+                      <span className={parseFloat(payroll.advances_Amnt || 0) > 0 ? "font-semibold text-slate-900" : "text-slate-400"}>
+                        ₱{formatMoney(payroll.advances_Amnt || 0)}
                       </span>
                     </div>
                     <div className="flex justify-between items-center py-2.5">

@@ -867,13 +867,13 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   let dailyRate = customDailyRate;
   let sss_Share = 0, philhealth_Share = 0, hdmf_Share = 0, tax_Share = 0;
   let SSS_Ded_ER = 0, Philhealth_Ded_ER = 0, HDMF_Ded_ER = 0;
-  let hCard = 0, sLoan = 0, hLoan = 0, cLoan = 0, advAmnt = 0, gDed = 0, mpSave = 0, ewLoan = 0;
+  let hCard = 0, sLoan = 0, hLoan = 0, cLoan = 0, advAmnt = 0, gDed = 0, mpSave = 0;
 
   const user = await sequelize.query(
     `SELECT u."dailyRate", u."previousDailyRate", u."rateUpdatedAt", u."position", u."department", u."is_time_exempt",
             d."sss_Share", d."sss_is_manual", d."philhealth_Share", d."ph_is_manual", d."hdmf_Share", d."hdmf_is_manual", d."tax_Share",
             d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", d."calamityLoan_Amnt",
-            d."advances_Amnt", d."globe_Deduction", d."multiPurposeSavings", d."eastwest_Loan"
+            d."advances_Amnt", d."globe_Deduction", d."multiPurposeSavings"
      FROM "User" u
      LEFT JOIN "User_Deduction_Profile" d ON u."user_Id" = d."user_Id"
      WHERE u."user_Id" = :user_Id`,
@@ -939,22 +939,6 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
    }
   } catch (err) {
    advAmnt = user[0]?.advances_Amnt || 0;
-  }
-
-  // ── Eastwest Loan Override Check ───────────────────────────────────────────
-  try {
-    const ewRecord = await sequelize.query(
-      `SELECT "amount" FROM "Payroll_Eastwest"
-       WHERE "user_Id" = :user_Id AND "date" = :period_End LIMIT 1`,
-      { replacements: { user_Id, period_End }, type: QueryTypes.SELECT }
-    );
-    if (ewRecord.length > 0) {
-      ewLoan = ewRecord[0].amount;
-    } else {
-      ewLoan = user[0]?.eastwest_Loan || 0;
-    }
-  } catch (err) {
-    ewLoan = user[0]?.eastwest_Loan || 0;
   }
   // ── Maxicare Override Check ─────────────────────────────────────────────────
   try {
@@ -1225,8 +1209,7 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
   const govtTotal = grossEarnings > 0 ? addMoney(sss_Share, philhealth_Share, hdmf_Share) : 0;
   
   // 6. Other Deductions
-  const personalLoanCombined = addMoney(advAmnt, ewLoan);
-  const otherTotal = grossEarnings > 0 ? addMoney(hCard, sLoan, hLoan, cLoan, personalLoanCombined, gDed, mpSave) : 0;
+  const otherTotal = grossEarnings > 0 ? addMoney(hCard, sLoan, hLoan, cLoan, advAmnt, gDed, mpSave) : 0;
 
   let Tax_Ded_Final = 0;
   if (grossEarnings > 0 && isMidMonth) {
@@ -1324,7 +1307,6 @@ async function calculatePayrollStats(user_Id, period_Start, period_End, customDa
     calamityLoan_Amnt: cLoan,
     advances_Amnt: advAmnt,
     globe_Deduction: gDed,
-    eastwest_Loan: personalLoanCombined, // COMBINED FIELD FOR UI
     multiPurposeSavings: mpSave,
     Tax_Ded: Tax_Ded_Final,
     totalDeductions,
@@ -1677,7 +1659,7 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
           "SSS_Ded" = :sss, "Philhealth_Ded" = :ph, "HDMF_Ded" = :hd, "Tax_Ded" = :tax,
           "SSS_Ded_ER" = :sssER, "Philhealth_Ded_ER" = :phER, "HDMF_Ded_ER" = :hdER,
           "healthCard_Amnt" = :hc, "SSS_Loan" = :sl, "HDMF_Loan" = :hl, "calamityLoan_Amnt" = :cl,
-          "multiPurposeSavings" = :ms, "advances_Amnt" = :aa, "globe_Deduction" = :gd, "eastwest_Loan" = :el
+          "multiPurposeSavings" = :ms, "advances_Amnt" = :aa, "globe_Deduction" = :gd
          WHERE "payrollId" = :payrollId`,
         {
           replacements: {
@@ -1702,8 +1684,7 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
             cl: fullStats.calamityLoan_Amnt,
             ms: fullStats.multiPurposeSavings,
             aa: fullStats.advances_Amnt,
-            gd: fullStats.globe_Deduction,
-            el: fullStats.eastwest_Loan
+            gd: fullStats.globe_Deduction
           },
           type: QueryTypes.UPDATE
         }
@@ -1769,13 +1750,13 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
            "SSS_Ded", "Philhealth_Ded", "HDMF_Ded", "Tax_Ded",
            "SSS_Ded_ER", "Philhealth_Ded_ER", "HDMF_Ded_ER",
            "healthCard_Amnt", "SSS_Loan", "HDMF_Loan", "calamityLoan_Amnt", 
-           "multiPurposeSavings", "advances_Amnt", "globe_Deduction", "eastwest_Loan")
+           "multiPurposeSavings", "advances_Amnt", "globe_Deduction")
          VALUES
           (:payrollId, :absence_Hrs, :absence_Amnt, :tardiness_Mins, :tardiness_Amnt, 
            :unpaidLeave_Days, :unpaidLeave_Amnt, :paidLeave_Days,
            :sss, :ph, :hd, :tax,
            :sssER, :phER, :hdER,
-           :hc, :sl, :hl, :cl, :ms, :aa, :gd, :el)`,
+           :hc, :sl, :hl, :cl, :ms, :aa, :gd)`,
         {
           replacements: {
             payrollId,
@@ -1799,8 +1780,7 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
             cl: fullStats.calamityLoan_Amnt,
             ms: fullStats.multiPurposeSavings,
             aa: fullStats.advances_Amnt,
-            gd: fullStats.globe_Deduction,
-            el: fullStats.eastwest_Loan
+            gd: fullStats.globe_Deduction
           },
           type: QueryTypes.INSERT
         }
@@ -1865,22 +1845,15 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
     }
 
     if (shouldRelease) {
-      // 2. Cash Advance Link
+      // 2. Cash Advance & Personal Loan Link (Consolidated in Payroll_Cash_Advances)
       await sequelize.query(
         `UPDATE "Payroll_Cash_Advances" SET "payrollId" = :payrollId
          WHERE "user_Id" = :user_Id AND "date" = :period_End`,
         { replacements: { payrollId, user_Id: emp.user_Id, period_End }, type: QueryTypes.UPDATE }
       );
 
-      // 2.5 Eastwest / Company Loan Link
-      await sequelize.query(
-        `UPDATE "Payroll_Eastwest" SET "payrollId" = :payrollId
-         WHERE "user_Id" = :user_Id AND "date" = :period_End`,
-        { replacements: { payrollId, user_Id: emp.user_Id, period_End }, type: QueryTypes.UPDATE }
-      );
-
       // 2.7 DOLE Art. 113 Non-Statutory Deduction Authorization Verification & Audit
-      const hasNonStatutory = (parseFloat(fullStats.eastwest_Loan || 0) > 0 || parseFloat(fullStats.advances_Amnt || 0) > 0);
+      const hasNonStatutory = (parseFloat(fullStats.advances_Amnt || 0) > 0);
       if (hasNonStatutory) {
         try {
           const approvedReq = await sequelize.query(
@@ -1900,7 +1873,6 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
             null,
             {
               userId: emp.user_Id,
-              eastwest_Loan: fullStats.eastwest_Loan,
               advances_Amnt: fullStats.advances_Amnt,
               compliance: "DOLE Art. 113 & DO 195",
               authorizedByEmployeeRequest: isAuthorizedByRequest,
@@ -2206,8 +2178,7 @@ async function recalculatePayrollInternal(payrollId) {
            "SSS_Ded_ER" = :sssER, "Philhealth_Ded_ER" = :phER, "HDMF_Ded_ER" = :hdER,
            "healthCard_Amnt" = :hc,
            "SSS_Loan" = :sl, "HDMF_Loan" = :hl, "calamityLoan_Amnt" = :cl,
-           "multiPurposeSavings" = :ms, "advances_Amnt" = :aa, "globe_Deduction" = :gd,
-           "eastwest_Loan" = :el
+           "multiPurposeSavings" = :ms, "advances_Amnt" = :aa, "globe_Deduction" = :gd
        WHERE "payrollId" = :payrollId`,
       { replacements: {
           payrollId,
@@ -2222,8 +2193,7 @@ async function recalculatePayrollInternal(payrollId) {
           sssER: fullStats.SSS_Ded_ER, phER: fullStats.Philhealth_Ded_ER, hdER: fullStats.HDMF_Ded_ER,
           hc: fullStats.healthCard_Amnt, sl: fullStats.SSS_Loan, hl: fullStats.HDMF_Loan,
           cl: fullStats.calamityLoan_Amnt, ms: fullStats.multiPurposeSavings,
-          aa: fullStats.advances_Amnt, gd: fullStats.globe_Deduction,
-          el: fullStats.eastwest_Loan
+          aa: fullStats.advances_Amnt, gd: fullStats.globe_Deduction
         }, type: QueryTypes.UPDATE }
     );
 
@@ -2321,13 +2291,13 @@ exports.generatePayroll = async (req, res) => {
          "SSS_Ded", "Philhealth_Ded", "HDMF_Ded", "Tax_Ded",
          "SSS_Ded_ER", "Philhealth_Ded_ER", "HDMF_Ded_ER",
          "healthCard_Amnt", "SSS_Loan", "HDMF_Loan", "calamityLoan_Amnt", 
-         "multiPurposeSavings", "advances_Amnt", "globe_Deduction", "eastwest_Loan")
+         "multiPurposeSavings", "advances_Amnt", "globe_Deduction")
          VALUES
          (:payrollId, :absence_Hrs, :absence_Amnt, :tardiness_Mins, :tardiness_Amnt, 
          :unpaidLeave_Days, :unpaidLeave_Amnt, :paidLeave_Days,
          :sss, :ph, :hd, :tax,
          :sssER, :phER, :hdER,
-         :hc, :sl, :hl, :cl, :ms, :aa, :gd, :el)`,
+         :hc, :sl, :hl, :cl, :ms, :aa, :gd)`,
          {
          replacements: {
           payrollId,
@@ -2351,8 +2321,7 @@ exports.generatePayroll = async (req, res) => {
           cl: fullStats.calamityLoan_Amnt,
           ms: fullStats.multiPurposeSavings,
           aa: fullStats.advances_Amnt,
-          gd: fullStats.globe_Deduction,
-          el: fullStats.eastwest_Loan
+          gd: fullStats.globe_Deduction
          },
          type: QueryTypes.INSERT,
          }    );
@@ -2485,22 +2454,15 @@ exports.generatePayroll = async (req, res) => {
       }
     }
 
-    // 2. Cash Advance Link
+    // 2. Cash Advance & Personal Loan Link (Consolidated in Payroll_Cash_Advances)
     await sequelize.query(
       `UPDATE "Payroll_Cash_Advances" SET "payrollId" = :payrollId
        WHERE "user_Id" = :user_Id AND "date" = :period_End`,
       { replacements: { payrollId, user_Id, period_End }, type: QueryTypes.UPDATE }
     );
 
-    // 2.5 Eastwest / Company Loan Link
-    await sequelize.query(
-      `UPDATE "Payroll_Eastwest" SET "payrollId" = :payrollId
-       WHERE "user_Id" = :user_Id AND "date" = :period_End`,
-      { replacements: { payrollId, user_Id, period_End }, type: QueryTypes.UPDATE }
-    );
-
     // 2.7 DOLE Art. 113 Non-Statutory Deduction Authorization Verification & Audit
-    const hasNonStatutory = (parseFloat(fullStats.eastwest_Loan || 0) > 0 || parseFloat(fullStats.advances_Amnt || 0) > 0);
+    const hasNonStatutory = (parseFloat(fullStats.advances_Amnt || 0) > 0);
     if (hasNonStatutory) {
       try {
         const approvedReq = await sequelize.query(
@@ -2520,7 +2482,6 @@ exports.generatePayroll = async (req, res) => {
           null,
           {
             userId,
-            eastwest_Loan: fullStats.eastwest_Loan,
             advances_Amnt: fullStats.advances_Amnt,
             compliance: "DOLE Art. 113 & DO 195",
             authorizedByEmployeeRequest: isAuthorizedByRequest,
@@ -2877,8 +2838,7 @@ exports.getPayrollByUser = async (req, res) => {
          d.*,
          (COALESCE(d."healthCard_Amnt",0) +
           COALESCE(d."calamityLoan_Amnt",0) + COALESCE(d."multiPurposeSavings",0) +
-          COALESCE(d."advances_Amnt",0) + COALESCE(d."globe_Deduction",0) +
-          COALESCE(d."eastwest_Loan",0)) AS "Other_Deductions",
+          COALESCE(d."advances_Amnt",0) + COALESCE(d."globe_Deduction",0)) AS "Other_Deductions",
          u."user_FirstName", u."user_LastName", u."position" AS "user_Position", u."dailyRate",
          ps."PaystatusName"
        FROM "Payroll" p
@@ -2924,12 +2884,11 @@ exports.getPayrollById = async (req, res) => {
          d."SSS_Ded_ER", d."Philhealth_Ded_ER", d."HDMF_Ded_ER", 
          d."Tax_Ded", d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", 
          d."calamityLoan_Amnt", d."multiPurposeSavings", d."advances_Amnt", 
-         d."globe_Deduction", d."eastwest_Loan",
+         d."globe_Deduction",
          
          (COALESCE(d."healthCard_Amnt",0) +
           COALESCE(d."calamityLoan_Amnt",0) + COALESCE(d."multiPurposeSavings",0) +
-          COALESCE(d."advances_Amnt",0) + COALESCE(d."globe_Deduction",0) +
-          COALESCE(d."eastwest_Loan",0)) AS "Other_Deductions",
+          COALESCE(d."advances_Amnt",0) + COALESCE(d."globe_Deduction",0)) AS "Other_Deductions",
          u."user_FirstName", u."user_LastName", u."position" AS "user_Position",
          ps."PaystatusName"
        FROM "Payroll" p
@@ -2954,7 +2913,7 @@ exports.getPayrollById = async (req, res) => {
       "SSS_Ded", "Philhealth_Ded", "HDMF_Ded", "SSS_Ded_ER", "Philhealth_Ded_ER", 
       "HDMF_Ded_ER", "Tax_Ded", "healthCard_Amnt", "SSS_Loan", "HDMF_Loan", 
       "calamityLoan_Amnt", "multiPurposeSavings", "advances_Amnt", "globe_Deduction", 
-      "eastwest_Loan", "Other_Deductions"
+      "Other_Deductions"
     ];
     
     numericFields.forEach(field => {
@@ -3061,8 +3020,7 @@ exports.getPayrollReport = async (req, res) => {
         d.*,
         (COALESCE(d."healthCard_Amnt",0) +
          COALESCE(d."calamityLoan_Amnt",0) + COALESCE(d."multiPurposeSavings",0) +
-         COALESCE(d."advances_Amnt",0) + COALESCE(d."globe_Deduction",0) +
-         COALESCE(d."eastwest_Loan",0)) AS "Other_Deductions",
+         COALESCE(d."advances_Amnt",0) + COALESCE(d."globe_Deduction",0)) AS "Other_Deductions",
         e."OT_Hrs", e."OT_Amnt", e."restDay_OT_Hrs", e."restDay_OT_Amnt",
         e."nightOT_Hrs", e."nightOT_Amnt",
         e."nightDiff_Hrs", e."nightDiff_Amnt", e."specialHol_Amnt", e."legalHol_Amnt", e."specialHol_Adj", e."incentives", e."allowance"
@@ -3391,13 +3349,13 @@ exports.updatePayrollFull = async (req, res) => {
     const taxableIncome = subtractMoney(totalEarnings, attendanceDed, govtTotal);
     const computedNet = addMoney(subtractMoney(taxableIncome, otherTotal, taxTotal), allowance);
 
-    const computedTotalDed = addMoney(govtTotal, taxTotal, otherTotal, attendanceDed, req.body.eastwest_Loan || 0);
+    const computedTotalDed = addMoney(govtTotal, taxTotal, otherTotal, attendanceDed);
 
     await sequelize.query(`UPDATE "Payroll" SET "dailyRate"=:dailyRate, "ratePerHr"=:ratePerHr, "NoDays_Worked"=:NoDays_Worked, "NoHrs_Worked"=:NoHrs_Worked, "basicPay"=:basicPay, "totalEarnings"=:totalEarnings, "totalDeductions"=:totalDed, "netPay"=:netPay, "status"=:status, "updatedAt"=:now WHERE "payrollId" = :payrollId`, { replacements: { payrollId, dailyRate, ratePerHr, NoDays_Worked, NoHrs_Worked, basicPay, totalEarnings, totalDed: computedTotalDed, netPay: computedNet, status, now: nowStr }, type: QueryTypes.UPDATE });
     
     await sequelize.query(`UPDATE "Payroll_Earnings" SET "OT_Hrs"=:OT_Hrs, "OT_Amnt"=:OT_Amnt, "nightOT_Hrs"=:nightOT_Hrs, "nightOT_Amnt"=:nightOT_Amnt, "nightDiff_Hrs"=:nightDiff_Hrs, "nightDiff_Amnt"=:nightDiff_Amnt, "legalHol_Amnt"=:legalHol_Amnt, "specialHol_Amnt"=:specialHol_Amnt, "specialHol_Adj"=:specialHol_Adj, "incentives"=:incentives, "allowance"=:allowance WHERE "payrollId" = :payrollId`, { replacements: { payrollId, OT_Hrs, OT_Amnt, nightOT_Hrs, nightOT_Amnt, nightDiff_Hrs, nightDiff_Amnt, legalHol_Amnt, specialHol_Amnt, specialHol_Adj, incentives, allowance }, type: QueryTypes.UPDATE });
     
-    await sequelize.query(`UPDATE "Payroll_Deductions" SET "absence_Hrs"=:absence_Hrs, "absence_Amnt"=:absence_Amnt, "tardiness_Mins"=:tardiness_Mins, "tardiness_Amnt"=:tardiness_Amnt, "unpaidLeave_Days"=:unpaidLeave_Days, "unpaidLeave_Amnt"=:unpaidLeave_Amnt, "paidLeave_Days"=:paidLeave_Days, "SSS_Ded"=:SSS_Ded, "Philhealth_Ded"=:Philhealth_Ded, "HDMF_Ded"=:HDMF_Ded, "Tax_Ded"=:Tax_Ded, "SSS_Ded_ER"=:SSS_Ded_ER, "Philhealth_Ded_ER"=:Philhealth_Ded_ER, "HDMF_Ded_ER"=:HDMF_Ded_ER, "healthCard_Amnt"=:healthCard_Amnt, "SSS_Loan"=:SSS_Loan, "HDMF_Loan"=:HDMF_Loan, "calamityLoan_Amnt"=:calamityLoan_Amnt, "multiPurposeSavings"=:multiPurposeSavings, "advances_Amnt"=:advances_Amnt, "globe_Deduction"=:globe_Deduction, "eastwest_Loan"=:eastwest_Loan WHERE "payrollId" = :payrollId`, { replacements: { payrollId, absence_Hrs:(parseFloat(absence_Days||0)*8), absence_Amnt, tardiness_Mins, tardiness_Amnt, unpaidLeave_Days, unpaidLeave_Amnt, paidLeave_Days, SSS_Ded, Philhealth_Ded, HDMF_Ded, Tax_Ded, SSS_Ded_ER, Philhealth_Ded_ER, HDMF_Ded_ER, healthCard_Amnt, SSS_Loan, HDMF_Loan, calamityLoan_Amnt, multiPurposeSavings, advances_Amnt, globe_Deduction, eastwest_Loan: (req.body.eastwest_Loan || 0) }, type: QueryTypes.UPDATE });
+    await sequelize.query(`UPDATE "Payroll_Deductions" SET "absence_Hrs"=:absence_Hrs, "absence_Amnt"=:absence_Amnt, "tardiness_Mins"=:tardiness_Mins, "tardiness_Amnt"=:tardiness_Amnt, "unpaidLeave_Days"=:unpaidLeave_Days, "unpaidLeave_Amnt"=:unpaidLeave_Amnt, "paidLeave_Days"=:paidLeave_Days, "SSS_Ded"=:SSS_Ded, "Philhealth_Ded"=:Philhealth_Ded, "HDMF_Ded"=:HDMF_Ded, "Tax_Ded"=:Tax_Ded, "SSS_Ded_ER"=:SSS_Ded_ER, "Philhealth_Ded_ER"=:Philhealth_Ded_ER, "HDMF_Ded_ER"=:HDMF_Ded_ER, "healthCard_Amnt"=:healthCard_Amnt, "SSS_Loan"=:SSS_Loan, "HDMF_Loan"=:HDMF_Loan, "calamityLoan_Amnt"=:calamityLoan_Amnt, "multiPurposeSavings"=:multiPurposeSavings, "advances_Amnt"=:advances_Amnt, "globe_Deduction"=:globe_Deduction WHERE "payrollId" = :payrollId`, { replacements: { payrollId, absence_Hrs:(parseFloat(absence_Days||0)*8), absence_Amnt, tardiness_Mins, tardiness_Amnt, unpaidLeave_Days, unpaidLeave_Amnt, paidLeave_Days, SSS_Ded, Philhealth_Ded, HDMF_Ded, Tax_Ded, SSS_Ded_ER, Philhealth_Ded_ER, HDMF_Ded_ER, healthCard_Amnt, SSS_Loan, HDMF_Loan, calamityLoan_Amnt, multiPurposeSavings, advances_Amnt, globe_Deduction }, type: QueryTypes.UPDATE });
 
     const newPayroll = await sequelize.query(`SELECT p.*, pe.*, pd.* FROM "Payroll" p LEFT JOIN "Payroll_Earnings" pe ON pe."payrollId" = p."payrollId" LEFT JOIN "Payroll_Deductions" pd ON pd."payrollId" = p."payrollId" WHERE p."payrollId" = :payrollId LIMIT 1`, { replacements: { payrollId }, type: QueryTypes.SELECT });
     const currentAdminId = req.user ? req.user.user_Id : (req.headers["x-admin-id"] || 1);
@@ -3472,11 +3430,11 @@ exports.syncMaxicareHistory = async (req, res) => {
           await sequelize.query(
             `UPDATE "Payroll" p
              SET "totalDeductions" = (
-               SELECT (COALESCE(pd."absence_Amnt", 0) + COALESCE(pd."tardiness_Amnt", 0) + COALESCE(pd."unpaidLeave_Amnt", 0) + COALESCE(pd."SSS_Ded", 0) + COALESCE(pd."Philhealth_Ded", 0) + COALESCE(pd."HDMF_Ded", 0) + COALESCE(pd."Tax_Ded", 0) + COALESCE(pd."healthCard_Amnt", 0) + COALESCE(pd."SSS_Loan", 0) + COALESCE(pd."HDMF_Loan", 0) + COALESCE(pd."calamityLoan_Amnt", 0) + COALESCE(pd."multiPurposeSavings", 0) + COALESCE(pd."advances_Amnt", 0) + COALESCE(pd."globe_Deduction", 0) + COALESCE(pd."eastwest_Loan", 0))
+               SELECT (COALESCE(pd."absence_Amnt", 0) + COALESCE(pd."tardiness_Amnt", 0) + COALESCE(pd."unpaidLeave_Amnt", 0) + COALESCE(pd."SSS_Ded", 0) + COALESCE(pd."Philhealth_Ded", 0) + COALESCE(pd."HDMF_Ded", 0) + COALESCE(pd."Tax_Ded", 0) + COALESCE(pd."healthCard_Amnt", 0) + COALESCE(pd."SSS_Loan", 0) + COALESCE(pd."HDMF_Loan", 0) + COALESCE(pd."calamityLoan_Amnt", 0) + COALESCE(pd."multiPurposeSavings", 0) + COALESCE(pd."advances_Amnt", 0) + COALESCE(pd."globe_Deduction", 0))
                FROM "Payroll_Deductions" pd WHERE pd."payrollId" = p."payrollId"
              ),
              "netPay" = p."totalEarnings" - (
-               SELECT (COALESCE(pd."absence_Amnt", 0) + COALESCE(pd."tardiness_Amnt", 0) + COALESCE(pd."unpaidLeave_Amnt", 0) + COALESCE(pd."SSS_Ded", 0) + COALESCE(pd."Philhealth_Ded", 0) + COALESCE(pd."HDMF_Ded", 0) + COALESCE(pd."Tax_Ded", 0) + COALESCE(pd."healthCard_Amnt", 0) + COALESCE(pd."SSS_Loan", 0) + COALESCE(pd."HDMF_Loan", 0) + COALESCE(pd."calamityLoan_Amnt", 0) + COALESCE(pd."multiPurposeSavings", 0) + COALESCE(pd."advances_Amnt", 0) + COALESCE(pd."globe_Deduction", 0) + COALESCE(pd."eastwest_Loan", 0))
+               SELECT (COALESCE(pd."absence_Amnt", 0) + COALESCE(pd."tardiness_Amnt", 0) + COALESCE(pd."unpaidLeave_Amnt", 0) + COALESCE(pd."SSS_Ded", 0) + COALESCE(pd."Philhealth_Ded", 0) + COALESCE(pd."HDMF_Ded", 0) + COALESCE(pd."Tax_Ded", 0) + COALESCE(pd."healthCard_Amnt", 0) + COALESCE(pd."SSS_Loan", 0) + COALESCE(pd."HDMF_Loan", 0) + COALESCE(pd."calamityLoan_Amnt", 0) + COALESCE(pd."multiPurposeSavings", 0) + COALESCE(pd."advances_Amnt", 0) + COALESCE(pd."globe_Deduction", 0))
                FROM "Payroll_Deductions" pd WHERE pd."payrollId" = p."payrollId"
              )
              WHERE p."user_Id" = :user_Id AND p."period_End" = :date`,
@@ -3527,7 +3485,7 @@ const loanTypeMapper = {
   "Pag-IBIG Calamity": { dbType: "pagibig_calamity", dedCol: "calamityLoan_Amnt", govType: "Pag-IBIG Calamity" },
   "Calamity": { dbType: "calamity", dedCol: "calamityLoan_Amnt", govType: "Calamity" },
   "Multi-Purpose": { dbType: "multipurpose", dedCol: "multiPurposeSavings", govType: "Multi-Purpose" },
-  "Eastwest Loan": { dbType: "eastwest", dedCol: "eastwest_Loan" }
+  "Eastwest Loan": { dbType: "cash_advance", dedCol: "advances_Amnt" }
 };
 
 // ── Get Loan History for Matrix ──────────────────────────────────────────────
@@ -3538,25 +3496,13 @@ exports.getLoanHistory = async (req, res) => {
 
   try {
     // 1. Dedicated Ledger Tables
-    if (type === "Cash Advance") {
+    if (type === "Cash Advance" || type === "Eastwest Loan") {
       const history = await sequelize.query(
         `SELECT pca."date", pca."user_Id", pca."amount", pca."payrollId",
                 u."user_FirstName" || ' ' || u."user_LastName" as "userName"
          FROM "Payroll_Cash_Advances" pca
          JOIN "User" u ON pca."user_Id" = u."user_Id"
          ORDER BY pca."date" ASC`,
-        { type: QueryTypes.SELECT }
-      );
-      return res.status(200).json(history);
-    }
-
-    if (type === "Eastwest Loan") {
-      const history = await sequelize.query(
-        `SELECT pe."date", pe."user_Id", pe."amount", pe."payrollId", 'Eastwest' as "source",
-                u."user_FirstName" || ' ' || u."user_LastName" as "userName"
-         FROM "Payroll_Eastwest" pe
-         JOIN "User" u ON pe."user_Id" = u."user_Id"
-         ORDER BY pe."date" ASC`,
         { type: QueryTypes.SELECT }
       );
       return res.status(200).json(history);
@@ -3626,28 +3572,15 @@ exports.syncLoanHistory = async (req, res) => {
       if (!config) continue;
 
       // 1. Update Ledger (Source of Truth)
-      if (type === "Cash Advance") {
+      if (type === "Cash Advance" || type === "Eastwest Loan") {
         await sequelize.query(
-          `INSERT INTO "Payroll_Cash_Advances" ("user_Id", "date", "amount", "createdAt", "updatedAt")
-           VALUES (:user_Id, :date, :amount, :now, :now)
+          `INSERT INTO "Payroll_Cash_Advances" ("user_Id", "date", "amount", "type", "createdAt", "updatedAt")
+           VALUES (:user_Id, :date, :amount, 'Cash Advance', :now, :now)
            ON CONFLICT ("user_Id", "date") DO UPDATE SET "amount" = EXCLUDED."amount", "updatedAt" = EXCLUDED."updatedAt"`,
           { replacements: { user_Id, date, amount, now: nowStr } }
         );
         await sequelize.query(
           `UPDATE "User_Deduction_Profile" SET "advances_Amnt" = :amount, "updatedAt" = :now WHERE "user_Id" = :user_Id`,
-          { replacements: { amount, user_Id, now: nowStr }, type: QueryTypes.UPDATE }
-        );
-        totalUpdated++;
-      }
-      else if (type === "Eastwest Loan") {
-        await sequelize.query(
-          `INSERT INTO "Payroll_Eastwest" ("user_Id", "date", "amount", "createdAt", "updatedAt")
-           VALUES (:user_Id, :date, :amount, :now, :now)
-           ON CONFLICT ("user_Id", "date") DO UPDATE SET "amount" = EXCLUDED."amount", "updatedAt" = EXCLUDED."updatedAt"`,
-          { replacements: { user_Id, date, amount, now: nowStr } }
-        );
-        await sequelize.query(
-          `UPDATE "User_Deduction_Profile" SET "eastwest_Loan" = :amount, "updatedAt" = :now WHERE "user_Id" = :user_Id`,
           { replacements: { amount, user_Id, now: nowStr }, type: QueryTypes.UPDATE }
         );
         totalUpdated++;
@@ -3698,11 +3631,11 @@ exports.syncLoanHistory = async (req, res) => {
         await sequelize.query(
           `UPDATE "Payroll" p
            SET "totalDeductions" = (
-             SELECT (COALESCE(pd."absence_Amnt", 0) + COALESCE(pd."tardiness_Amnt", 0) + COALESCE(pd."unpaidLeave_Amnt", 0) + COALESCE(pd."SSS_Ded", 0) + COALESCE(pd."Philhealth_Ded", 0) + COALESCE(pd."HDMF_Ded", 0) + COALESCE(pd."Tax_Ded", 0) + COALESCE(pd."healthCard_Amnt", 0) + COALESCE(pd."SSS_Loan", 0) + COALESCE(pd."HDMF_Loan", 0) + COALESCE(pd."calamityLoan_Amnt", 0) + COALESCE(pd."multiPurposeSavings", 0) + COALESCE(pd."advances_Amnt", 0) + COALESCE(pd."globe_Deduction", 0) + COALESCE(pd."eastwest_Loan", 0))
+             SELECT (COALESCE(pd."absence_Amnt", 0) + COALESCE(pd."tardiness_Amnt", 0) + COALESCE(pd."unpaidLeave_Amnt", 0) + COALESCE(pd."SSS_Ded", 0) + COALESCE(pd."Philhealth_Ded", 0) + COALESCE(pd."HDMF_Ded", 0) + COALESCE(pd."Tax_Ded", 0) + COALESCE(pd."healthCard_Amnt", 0) + COALESCE(pd."SSS_Loan", 0) + COALESCE(pd."HDMF_Loan", 0) + COALESCE(pd."calamityLoan_Amnt", 0) + COALESCE(pd."multiPurposeSavings", 0) + COALESCE(pd."advances_Amnt", 0) + COALESCE(pd."globe_Deduction", 0))
              FROM "Payroll_Deductions" pd WHERE pd."payrollId" = p."payrollId"
            ),
            "netPay" = p."totalEarnings" - (
-             SELECT (COALESCE(pd."absence_Amnt", 0) + COALESCE(pd."tardiness_Amnt", 0) + COALESCE(pd."unpaidLeave_Amnt", 0) + COALESCE(pd."SSS_Ded", 0) + COALESCE(pd."Philhealth_Ded", 0) + COALESCE(pd."HDMF_Ded", 0) + COALESCE(pd."Tax_Ded", 0) + COALESCE(pd."healthCard_Amnt", 0) + COALESCE(pd."SSS_Loan", 0) + COALESCE(pd."HDMF_Loan", 0) + COALESCE(pd."calamityLoan_Amnt", 0) + COALESCE(pd."multiPurposeSavings", 0) + COALESCE(pd."advances_Amnt", 0) + COALESCE(pd."globe_Deduction", 0) + COALESCE(pd."eastwest_Loan", 0))
+             SELECT (COALESCE(pd."absence_Amnt", 0) + COALESCE(pd."tardiness_Amnt", 0) + COALESCE(pd."unpaidLeave_Amnt", 0) + COALESCE(pd."SSS_Ded", 0) + COALESCE(pd."Philhealth_Ded", 0) + COALESCE(pd."HDMF_Ded", 0) + COALESCE(pd."Tax_Ded", 0) + COALESCE(pd."healthCard_Amnt", 0) + COALESCE(pd."SSS_Loan", 0) + COALESCE(pd."HDMF_Loan", 0) + COALESCE(pd."calamityLoan_Amnt", 0) + COALESCE(pd."multiPurposeSavings", 0) + COALESCE(pd."advances_Amnt", 0) + COALESCE(pd."globe_Deduction", 0))
              FROM "Payroll_Deductions" pd WHERE pd."payrollId" = p."payrollId"
            )
            WHERE p."user_Id" = :user_Id AND p."period_End" = :date`,
@@ -5315,10 +5248,9 @@ exports.getMyPayrollById = async (req, res) => {
          d."SSS_Ded_ER", d."Philhealth_Ded_ER", d."HDMF_Ded_ER", 
          d."Tax_Ded", d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", 
          d."calamityLoan_Amnt", d."multiPurposeSavings", d."advances_Amnt", 
-         d."globe_Deduction", d."eastwest_Loan",
+         d."globe_Deduction",
          (COALESCE(d."calamityLoan_Amnt",0) + COALESCE(d."multiPurposeSavings",0) +
-          COALESCE(d."globe_Deduction",0) +
-          COALESCE(d."eastwest_Loan",0)) AS "Other_Deductions",
+          COALESCE(d."globe_Deduction",0)) AS "Other_Deductions",
          u."user_FirstName", u."user_LastName", u."position" AS "user_Position",
          b."account_Number",
          ps."PaystatusName"
@@ -5346,7 +5278,7 @@ exports.getMyPayrollById = async (req, res) => {
       "SSS_Ded", "Philhealth_Ded", "HDMF_Ded", "SSS_Ded_ER", "Philhealth_Ded_ER", 
       "HDMF_Ded_ER", "Tax_Ded", "healthCard_Amnt", "SSS_Loan", "HDMF_Loan", 
       "calamityLoan_Amnt", "multiPurposeSavings", "advances_Amnt", "globe_Deduction", 
-      "eastwest_Loan", "Other_Deductions"
+      "Other_Deductions"
     ];
     numericFields.forEach(field => {
       if (currentPayroll[field] !== undefined) {
@@ -5421,10 +5353,9 @@ exports.downloadMyPayslipPDF = async (req, res) => {
          d."SSS_Ded_ER", d."Philhealth_Ded_ER", d."HDMF_Ded_ER", 
          d."Tax_Ded", d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", 
          d."calamityLoan_Amnt", d."multiPurposeSavings", d."advances_Amnt", 
-         d."globe_Deduction", d."eastwest_Loan",
+         d."globe_Deduction",
          (COALESCE(d."calamityLoan_Amnt",0) + COALESCE(d."multiPurposeSavings",0) +
-          COALESCE(d."globe_Deduction",0) +
-          COALESCE(d."eastwest_Loan",0)) AS "Other_Deductions",
+          COALESCE(d."globe_Deduction",0)) AS "Other_Deductions",
          u."user_FirstName", u."user_LastName", u."position" AS "user_Position",
          b."account_Number",
          ps."PaystatusName"
@@ -5452,7 +5383,7 @@ exports.downloadMyPayslipPDF = async (req, res) => {
       "SSS_Ded", "Philhealth_Ded", "HDMF_Ded", "SSS_Ded_ER", "Philhealth_Ded_ER", 
       "HDMF_Ded_ER", "Tax_Ded", "healthCard_Amnt", "SSS_Loan", "HDMF_Loan", 
       "calamityLoan_Amnt", "multiPurposeSavings", "advances_Amnt", "globe_Deduction", 
-      "eastwest_Loan", "Other_Deductions"
+      "Other_Deductions"
     ];
     numericFields.forEach(field => {
       if (currentPayroll[field] !== undefined) {
@@ -5540,7 +5471,7 @@ exports.downloadMyDTRPDF = async (req, res) => {
          d."SSS_Ded_ER", d."Philhealth_Ded_ER", d."HDMF_Ded_ER", 
          d."Tax_Ded", d."healthCard_Amnt", d."SSS_Loan", d."HDMF_Loan", 
          d."calamityLoan_Amnt", d."multiPurposeSavings", d."advances_Amnt", 
-         d."globe_Deduction", d."eastwest_Loan",
+         d."globe_Deduction",
          u."user_FirstName", u."user_LastName", u."position" AS "user_Position",
          ps."PaystatusName"
        FROM "Payroll" p
@@ -5789,10 +5720,10 @@ exports.getEastwestLoanHistory = async (req, res) => {
           pe."user_Id",
           pe."amount",
           pe."payrollId",
-          'Eastwest Bank Loan' as "source",
+          'Cash Advance' as "source",
           pe."notes",
           u."user_FirstName" || ' ' || u."user_LastName" AS "userName"
-        FROM "Payroll_Eastwest" pe
+        FROM "Payroll_Cash_Advances" pe
         JOIN "User" u ON pe."user_Id" = u."user_Id"
 
         UNION ALL
@@ -5800,17 +5731,17 @@ exports.getEastwestLoanHistory = async (req, res) => {
         SELECT 
           p."period_End"::text as "date",
           p."user_Id",
-          pd."eastwest_Loan" as "amount",
+          pd."advances_Amnt" as "amount",
           p."payrollId",
-          'Eastwest Bank Loan' as "source",
+          'Cash Advance' as "source",
           'Payroll Deduction' as "notes",
           u."user_FirstName" || ' ' || u."user_LastName" AS "userName"
         FROM "Payroll_Deductions" pd
         JOIN "Payroll" p ON pd."payrollId" = p."payrollId"
         JOIN "User" u ON p."user_Id" = u."user_Id"
-        WHERE pd."eastwest_Loan" > 0
+        WHERE pd."advances_Amnt" > 0
           AND NOT EXISTS (
-            SELECT 1 FROM "Payroll_Eastwest" pe3 
+            SELECT 1 FROM "Payroll_Cash_Advances" pe3 
             WHERE pe3."user_Id" = p."user_Id" AND (pe3."payrollId" = p."payrollId" OR pe3."date" = p."period_End")
           )
       ) combined
@@ -5847,10 +5778,10 @@ exports.downloadEastwestLoanReportPDF = async (req, res) => {
           pe."user_Id",
           pe."amount",
           pe."payrollId",
-          'Eastwest Bank Loan' as "source",
+          'Cash Advance' as "source",
           pe."notes",
           u."user_FirstName" || ' ' || u."user_LastName" AS "userName"
-        FROM "Payroll_Eastwest" pe
+        FROM "Payroll_Cash_Advances" pe
         JOIN "User" u ON pe."user_Id" = u."user_Id"
 
         UNION ALL
@@ -5858,17 +5789,17 @@ exports.downloadEastwestLoanReportPDF = async (req, res) => {
         SELECT 
           p."period_End"::text as "date",
           p."user_Id",
-          pd."eastwest_Loan" as "amount",
+          pd."advances_Amnt" as "amount",
           p."payrollId",
-          'Eastwest Bank Loan' as "source",
+          'Cash Advance' as "source",
           'Payroll Deduction' as "notes",
           u."user_FirstName" || ' ' || u."user_LastName" AS "userName"
         FROM "Payroll_Deductions" pd
         JOIN "Payroll" p ON pd."payrollId" = p."payrollId"
         JOIN "User" u ON p."user_Id" = u."user_Id"
-        WHERE pd."eastwest_Loan" > 0
+        WHERE pd."advances_Amnt" > 0
           AND NOT EXISTS (
-            SELECT 1 FROM "Payroll_Eastwest" pe3 
+            SELECT 1 FROM "Payroll_Cash_Advances" pe3 
             WHERE pe3."user_Id" = p."user_Id" AND (pe3."payrollId" = p."payrollId" OR pe3."date" = p."period_End")
           )
       ) combined

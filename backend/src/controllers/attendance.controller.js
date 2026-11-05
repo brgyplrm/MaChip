@@ -2068,7 +2068,7 @@ const getAttendanceReportInternal = async (startDate, endDate, user_Id) => {
       const ot_In = (dayOT && dayOT.HrFrom && !isIrregularOrIncidental && !isExplicitAbsent) ? dayOT.HrFrom.substring(0, 5) : "—";
       const ot_Out = (dayOT && dayOT.HrFrom && !isIrregularOrIncidental && !isExplicitAbsent && outArr.length > 0 && outArr[outArr.length-1] && outArr[outArr.length-1].substring(0,5) > dayOT.HrFrom.substring(0,5)) ? outArr[outArr.length-1].substring(0,5) : "—";
 
-      let finalAfternoonOut = isIrregularOrIncidental ? "—" : (afternoon_Out !== "—" ? afternoon_Out : (effectiveOut !== "—" && effectiveOut !== effectiveIn ? effectiveOut : afternoon_Out));
+      let finalAfternoonOut = isIrregularOrIncidental ? "—" : (afternoon_Out !== "—" ? afternoon_Out : (effectiveOut !== "—" && effectiveOut !== effectiveIn && (afternoon_In === "—" || effectiveOut > afternoon_In) ? effectiveOut : afternoon_Out));
       // If approved overtime exists and employee worked into it continuously, cap afternoon out at overtime start (e.g. 17:30)
       if (dayOT && dayOT.HrFrom && ot_Out !== "—" && finalAfternoonOut !== "—") {
         const otStartTimeStr = dayOT.HrFrom.substring(0, 5);

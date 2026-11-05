@@ -118,7 +118,6 @@ module.exports = (sequelize, DataTypes) => {
       calamityLoan_Amnt: { type: DataTypes.FLOAT, defaultValue: 0 },
       advances_Amnt: { type: DataTypes.FLOAT, defaultValue: 0 },
       globe_Deduction: { type: DataTypes.FLOAT, defaultValue: 0 },
-      eastwest_Loan: { type: DataTypes.FLOAT, defaultValue: 0 },
       multiPurposeSavings: { type: DataTypes.FLOAT, defaultValue: 0 },
       // Statutory SPI & Blind Indexes (RA 10173 DPA Tier 2)
       sss_no: { type: DataTypes.TEXT, allowNull: true },

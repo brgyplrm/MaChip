@@ -2680,9 +2680,9 @@ exports.UpdateStatusRequest = async (req, res) => {
             : `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()).padStart(2, '0')}`;
 
           await sequelize.query(
-            `INSERT INTO "Payroll_Eastwest" ("user_Id", "date", "amount", "createdAt", "updatedAt")
-             VALUES (:userId, :date, :amount, :now, :now)
-             ON CONFLICT ("user_Id", "date") DO UPDATE SET "amount" = "Payroll_Eastwest"."amount" + EXCLUDED."amount"`,
+            `INSERT INTO "Payroll_Cash_Advances" ("user_Id", "date", "amount", "type", "createdAt", "updatedAt")
+             VALUES (:userId, :date, :amount, 'Eastwest Loan', :now, :now)
+             ON CONFLICT ("user_Id", "date", "type") DO UPDATE SET "amount" = "Payroll_Cash_Advances"."amount" + EXCLUDED."amount", "updatedAt" = EXCLUDED."updatedAt"`,
             { replacements: { userId: requesterId, date: targetDateStr, amount: totalAmount, now: nowStr }, transaction }
           );
         }

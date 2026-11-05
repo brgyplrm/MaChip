@@ -30,6 +30,18 @@ export default defineConfig({
         target: "http://127.0.0.1:4000",
         ws: true,
         changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on("error", (err, req, res) => {
+            if (err.code === "ECONNREFUSED") {
+              // Backend is still initializing; suppress transient socket startup noise
+              if (res && typeof res.writeHead === "function" && !res.headersSent) {
+                res.writeHead(502, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "Backend initializing" }));
+              }
+              return;
+            }
+          });
+        },
       },
     },
   },
@@ -49,6 +61,18 @@ export default defineConfig({
         target: "http://127.0.0.1:4000",
         ws: true,
         changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on("error", (err, req, res) => {
+            if (err.code === "ECONNREFUSED") {
+              // Backend is still initializing; suppress transient socket startup noise
+              if (res && typeof res.writeHead === "function" && !res.headersSent) {
+                res.writeHead(502, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "Backend initializing" }));
+              }
+              return;
+            }
+          });
+        },
       },
     },
   },

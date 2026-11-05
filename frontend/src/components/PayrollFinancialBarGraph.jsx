@@ -17,11 +17,10 @@ const PayrollFinancialBarGraph = ({ payrolls }) => {
     name: p.user_FirstName || p.userName,
     // HMO/Maxicare Deduction
     hmo: parseFloat(p.healthCard_Amnt || 0),
-    // Consolidating all Loan types (SSS, HDMF, Calamity, Eastwest)
+    // Consolidating all Loan types (SSS, HDMF, Calamity)
     loans: parseFloat(p.SSS_Loan || 0) + 
            parseFloat(p.HDMF_Loan || 0) + 
-           parseFloat(p.calamityLoan_Amnt || 0) + 
-           parseFloat(p.eastwest_Loan || 0),
+           parseFloat(p.calamityLoan_Amnt || 0),
     // Other miscellaneous deductions (Globe, Savings, Advances)
     others: parseFloat(p.advances_Amnt || 0) + 
             parseFloat(p.globe_Deduction || 0) + 

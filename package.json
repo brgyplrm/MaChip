@@ -16,7 +16,9 @@
     "ota": "python scripts/ota_flash.py",
     "ota:build": "python scripts/ota_flash.py --compile",
     "update:all": "node scripts/safe_update_all.js",
-    "test:guardrails": "node scripts/verify_employee_guardrails.js"
+    "test:guardrails": "node scripts/verify_employee_guardrails.js",
+    "test:november": "node scripts/verify_november_payroll_suite.js",
+    "test:modules": "node scripts/verify_modules_suite.js"
   },
   "devDependencies": {
     "autoprefixer": "^10.5.0",

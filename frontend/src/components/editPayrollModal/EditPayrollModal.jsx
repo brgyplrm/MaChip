@@ -17,7 +17,6 @@ const EditPayrollModal = ({ isOpen, onClose, data, onSave, isMasterlist = false 
     calamityLoan_Amnt: "",
     advances_Amnt: "",
     globe_Deduction: "",
-    eastwest_Loan: "",
     multiPurposeSavings: "",
   });
   const [loading, setLoading] = useState(false);
@@ -37,7 +36,6 @@ const EditPayrollModal = ({ isOpen, onClose, data, onSave, isMasterlist = false 
         calamityLoan_Amnt: data.calamityLoan_Amnt ?? "",
         advances_Amnt: data.advances_Amnt ?? "",
         globe_Deduction: data.globe_Deduction ?? "",
-        eastwest_Loan: data.eastwest_Loan ?? "",
         multiPurposeSavings: data.multiPurposeSavings ?? "",
       });
     }
@@ -117,7 +115,6 @@ const EditPayrollModal = ({ isOpen, onClose, data, onSave, isMasterlist = false 
     (parseFloat(formData.HDMF_Loan) || 0) +
     (parseFloat(formData.calamityLoan_Amnt) || 0) +
     (parseFloat(formData.advances_Amnt) || 0) +
-    (parseFloat(formData.eastwest_Loan) || 0) +
     (parseFloat(formData.globe_Deduction) || 0) +
     (parseFloat(formData.multiPurposeSavings) || 0) +
     (parseFloat(formData.healthCard_Amnt) || 0);
@@ -366,19 +363,6 @@ const EditPayrollModal = ({ isOpen, onClose, data, onSave, isMasterlist = false 
                       value={formatAmount(formData.advances_Amnt)} 
                       disabled 
                       title="Active Cash Advance Deduction (Display Only)"
-                    />
-                  </div>
-                </div>
-                <div className="field">
-                  <label>EastWest Loan</label>
-                  <div className="inputWrap disabled">
-                    <span className="prefix">₱</span>
-                    <input 
-                      type="text" 
-                      name="eastwest_Loan" 
-                      value={formatAmount(formData.eastwest_Loan)} 
-                      disabled 
-                      title="Active EastWest Loan Amortization (Display Only)"
                     />
                   </div>
                 </div>
