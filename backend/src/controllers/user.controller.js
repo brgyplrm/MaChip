@@ -2018,6 +2018,7 @@ exports.batchRegisterUsers = async (req, res) => {
   }
 
   const filePath = req.file.path;
+  const { parseCSVLine, sanitizeField } = require("../utils/sanitizer");
 
   try {
     const rawContent = fs.readFileSync(filePath, 'utf8');
@@ -2028,32 +2029,7 @@ exports.batchRegisterUsers = async (req, res) => {
       return res.status(400).json({ error: "CSV file is empty or missing data." });
     }
 
-    // Helper to parse CSV lines safely supporting quotes and commas
-    const parseCsvLine = (line) => {
-      const result = [];
-      let current = '';
-      let inQuotes = false;
-      for (let idx = 0; idx < line.length; idx++) {
-        const char = line[idx];
-        if (char === '"') {
-          if (inQuotes && line[idx + 1] === '"') {
-            current += '"';
-            idx++;
-          } else {
-            inQuotes = !inQuotes;
-          }
-        } else if (char === ',' && !inQuotes) {
-          result.push(current.trim());
-          current = '';
-        } else {
-          current += char;
-        }
-      }
-      result.push(current.trim());
-      return result;
-    };
-
-    const headers = parseCsvLine(lines[0]);
+    const headers = parseCSVLine(lines[0]);
     const usersData = [];
 
     // Map headers to indices
@@ -2111,7 +2087,7 @@ exports.batchRegisterUsers = async (req, res) => {
     const currentYear = now.getFullYear();
 
     for (let i = 1; i < lines.length; i++) {
-      const cols = parseCsvLine(lines[i]);
+      const cols = parseCSVLine(lines[i]);
       if (cols.length < headers.length) {
         results.failed++;
         results.errors.push(`Row ${i + 1}: Column count mismatch (expected ${headers.length}, got ${cols.length})`);
@@ -2120,7 +2096,14 @@ exports.batchRegisterUsers = async (req, res) => {
 
       const userData = {};
       headers.forEach((h, idx) => {
-        userData[h] = cols[idx];
+        const rawVal = cols[idx] !== undefined && cols[idx] !== null ? cols[idx] : "";
+        if (h === "user_Password") {
+          userData[h] = String(rawVal).trim();
+        } else if (h === "user_Email") {
+          userData[h] = String(rawVal).trim().toLowerCase();
+        } else {
+          userData[h] = sanitizeField(String(rawVal));
+        }
       });
 
       try {
@@ -2348,8 +2331,16 @@ exports.batchRegisterUsers = async (req, res) => {
 
   } catch (error) {
     console.error("[BATCH REGISTER ERROR]:", error);
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     res.status(500).json({ error: error.message });
+  } finally {
+    // Guaranteed cleanup on all paths (early returns, errors, or normal completion)
+    if (filePath && fs.existsSync(filePath)) {
+      try {
+        fs.unlinkSync(filePath);
+      } catch (unlinkErr) {
+        console.error("[BATCH CLEANUP ERROR]:", unlinkErr.message);
+      }
+    }
   }
 };
 

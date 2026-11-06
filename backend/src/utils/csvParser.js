@@ -1,3 +1,5 @@
+const { parseCSVLine, sanitizeField } = require("./sanitizer");
+
 /**
  * Parses raw CSV text into an array of objects.
  * Handles headers and trims whitespace.
@@ -89,7 +91,7 @@ exports.parseCSV = (csvText) => {
         // Strip out currency signs, commas, and percentage signs
         const cleanedVal = val.replace(/[₱$,%\s]/g, "");
         const num = parseFloat(cleanedVal);
-        row[header] = isNaN(num) ? val.trim() : num;
+        row[header] = isNaN(num) ? sanitizeField(val) : num;
       }
     });
     results.push(row);
@@ -97,34 +99,6 @@ exports.parseCSV = (csvText) => {
 
   return results;
 };
-
-/**
- * Parses a single CSV line, handling potential quoted fields containing commas.
- */
-function parseCSVLine(line) {
-  const result = [];
-  let currentToken = "";
-  let insideQuotes = false;
-
-  for (let i = 0; i < line.length; i++) {
-    const char = line[charIndex(i)];
-    if (char === '"') {
-      insideQuotes = !insideQuotes;
-    } else if (char === ',' && !insideQuotes) {
-      result.push(currentToken.trim());
-      currentToken = "";
-    } else {
-      currentToken += char;
-    }
-  }
-  result.push(currentToken.trim());
-  return result;
-}
-
-// Workaround function for safe index access
-function charIndex(i) {
-  return i;
-}
 
 /**
  * Normalizes header keys to match our database column names.

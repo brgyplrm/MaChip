@@ -21,8 +21,8 @@ router.get("/fingerprint/session/status", authMiddleware, rfidController.getSess
 // Called by UI or ESP32 to check hardware connection status
 router.get("/status", (req, res, next) => {
   const espKey = req.headers["x-esp32-key"];
-  const expectedKey = process.env.ESP32_API_KEY || "3771ba7b2f4c6b6377835448fe7559821481186d9f2bc7d646518b840ca13b97";
-  if (espKey && espKey === expectedKey) {
+  const expectedKey = process.env.ESP32_API_KEY;
+  if (expectedKey && espKey && espKey === expectedKey) {
     return next();
   }
   return authMiddleware(req, res, next);
@@ -42,14 +42,14 @@ router.get("/fingerprint/download/:uid", espValidator, rfidController.getFingerp
 router.post("/visitor-access", authMiddleware, requireRole(1, 4, "Admin Manager", "Admin Accountant"), rfidController.triggerVisitorAccess);
 router.post("/visitor-access/confirm", espValidator, rfidController.confirmVisitorAccess);
 
-// Reset TFT Screen to default state (Scan RFID to Clock In)
-router.post("/reset-screen", authMiddleware, rfidController.resetTftScreen);
-router.get("/reset-screen", authMiddleware, rfidController.resetTftScreen);
+// Reset TFT Screen to default state (Scan RFID to Clock In) - Restricted to Management (Role 1 and 4)
+router.post("/reset-screen", authMiddleware, requireRole(1, 4, "Admin Manager", "Admin Accountant"), rfidController.resetTftScreen);
+router.get("/reset-screen", authMiddleware, requireRole(1, 4, "Admin Manager", "Admin Accountant"), rfidController.resetTftScreen);
 
-// Telemetry & Hardware Testing Endpoints
+// Telemetry & Hardware Testing Endpoints - Restricted to Management (Role 1 and 4)
 router.post("/telemetry", espValidator, rfidController.receiveTelemetry);
-router.post("/test-buzzer", authMiddleware, rfidController.testBuzzerDirect);
-router.post("/unlock-relay", authMiddleware, rfidController.unlockRelayDirect);
+router.post("/test-buzzer", authMiddleware, requireRole(1, 4, "Admin Manager", "Admin Accountant"), rfidController.testBuzzerDirect);
+router.post("/unlock-relay", authMiddleware, requireRole(1, 4, "Admin Manager", "Admin Accountant"), rfidController.unlockRelayDirect);
 
 module.exports = router;
 

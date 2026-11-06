@@ -204,10 +204,14 @@ exports.testBuzzerDirect = async (req, res) => {
   const targetIp = lastEsp32Ip || getLastDiscoveredEspIp();
   if (!targetIp) return res.status(400).json({ success: false, message: "No active ESP32 IP discovered." });
 
+  const consoleUser = process.env.ESP32_CONSOLE_USER || "admin";
+  const consolePass = process.env.ESP32_CONSOLE_PASS || "machip2026";
+  const authHeader = "Basic " + Buffer.from(`${consoleUser}:${consolePass}`).toString("base64");
+
   try {
     const response = await fetch(`http://${targetIp}/console/test-buzzer`, {
       method: "POST",
-      headers: { "Authorization": "Basic " + Buffer.from("admin:machip2026").toString("base64") },
+      headers: { "Authorization": authHeader },
       signal: AbortSignal.timeout(2000)
     });
     const data = await response.json();
@@ -221,10 +225,14 @@ exports.unlockRelayDirect = async (req, res) => {
   const targetIp = lastEsp32Ip || getLastDiscoveredEspIp();
   if (!targetIp) return res.status(400).json({ success: false, message: "No active ESP32 IP discovered." });
 
+  const consoleUser = process.env.ESP32_CONSOLE_USER || "admin";
+  const consolePass = process.env.ESP32_CONSOLE_PASS || "machip2026";
+  const authHeader = "Basic " + Buffer.from(`${consoleUser}:${consolePass}`).toString("base64");
+
   try {
     const response = await fetch(`http://${targetIp}/console/unlock`, {
       method: "POST",
-      headers: { "Authorization": "Basic " + Buffer.from("admin:machip2026").toString("base64") },
+      headers: { "Authorization": authHeader },
       signal: AbortSignal.timeout(2000)
     });
     const data = await response.json();

@@ -211,7 +211,7 @@ exports.verifyPassword = async (req, res) => {
 };
 
 const crypto = require("crypto");
-const { sendPasswordResetEmail, sendPasswordUpdateEmail } = require("../utils/emailService");
+const emailService = require("../utils/emailService");
 
 // ── Self-Service Forgot Password ──────────────────────────────────────────────
 exports.forgotPassword = async (req, res) => {
@@ -236,21 +236,26 @@ exports.forgotPassword = async (req, res) => {
     );
 
     if (!users || users.length === 0) {
-      return res.status(404).json({ error: "No active user found with that email address." });
+      // Prevent user enumeration: Return identical success response without sending email
+      return res.status(200).json({
+        success: true,
+        message: "If that email address is registered, password reset instructions have been sent. Please check your inbox."
+      });
     }
 
     const user = users[0];
-    const token = crypto.randomBytes(32).toString("hex");
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const hashedToken = crypto.createHash("sha256").update(rawToken).digest("hex");
     const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour validity
 
-    // 2. Persist reset token
+    // 2. Persist cryptographically hashed reset token
     await sequelize.query(
       `UPDATE "User"
-       SET "resetPasswordToken" = :token,
+       SET "resetPasswordToken" = :hashedToken,
            "resetPasswordExpires" = :expires
        WHERE "user_Id" = :userId`,
       {
-        replacements: { token, expires, userId: user.user_Id },
+        replacements: { hashedToken, expires, userId: user.user_Id },
         type: QueryTypes.UPDATE
       }
     );
@@ -267,10 +272,10 @@ exports.forgotPassword = async (req, res) => {
       clientUrl = process.env.CLIENT_URL;
     }
 
-    const resetLink = `${clientUrl}/reset-password?token=${token}`;
+    const resetLink = `${clientUrl}/reset-password?token=${rawToken}`;
 
     // 4. Send email via Nodemailer
-    await sendPasswordResetEmail({
+    await emailService.sendPasswordResetEmail({
       email: user.user_Email,
       name: `${user.user_FirstName} ${user.user_LastName}`,
       resetLink,
@@ -284,7 +289,7 @@ exports.forgotPassword = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: `Password reset instructions have been sent to ${user.user_Email}. Please check your inbox.`
+      message: "If that email address is registered, password reset instructions have been sent. Please check your inbox."
     });
   } catch (err) {
     console.error("[FORGOT PASSWORD ERROR]:", err);
@@ -301,12 +306,13 @@ exports.verifyResetToken = async (req, res) => {
   }
 
   try {
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
     const users = await sequelize.query(
       `SELECT "user_Id", "user_FirstName", "user_LastName", "user_Email", "resetPasswordExpires"
        FROM "User"
-       WHERE "resetPasswordToken" = :token AND "deletedAt" IS NULL`,
+       WHERE "resetPasswordToken" = :hashedToken AND "deletedAt" IS NULL`,
       {
-        replacements: { token },
+        replacements: { hashedToken },
         type: QueryTypes.SELECT
       }
     );
@@ -347,12 +353,13 @@ exports.resetPassword = async (req, res) => {
   }
 
   try {
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
     const users = await sequelize.query(
       `SELECT "user_Id", "user_FirstName", "user_LastName", "user_Email", "resetPasswordExpires"
        FROM "User"
-       WHERE "resetPasswordToken" = :token AND "deletedAt" IS NULL`,
+       WHERE "resetPasswordToken" = :hashedToken AND "deletedAt" IS NULL`,
       {
-        replacements: { token },
+        replacements: { hashedToken },
         type: QueryTypes.SELECT
       }
     );
@@ -388,7 +395,7 @@ exports.resetPassword = async (req, res) => {
 
     // Send confirmation security alert email
     try {
-      await sendPasswordUpdateEmail({
+      await emailService.sendPasswordUpdateEmail({
         email: user.user_Email,
         newPassword: newPassword,
         name: `${user.user_FirstName} ${user.user_LastName}`
@@ -478,7 +485,7 @@ exports.setInitialPassword = async (req, res) => {
 
     // Send confirmation security alert email
     try {
-      await sendPasswordUpdateEmail({
+      await emailService.sendPasswordUpdateEmail({
         email: user.user_Email,
         newPassword: newPassword,
         name: `${user.user_FirstName} ${user.user_LastName}`

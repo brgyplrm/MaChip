@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import DOMPurify from "dompurify";
 import Sidebar from "../../components/Sidebar";
 import DownloadIcon from "@mui/icons-material/Download";
 import SearchIcon from "@mui/icons-material/Search";
@@ -1001,7 +1002,7 @@ const PayrollPeriod = () => {
                 </div>
               </div>
               <div className="flex-1 overflow-auto bg-slate-100 p-4 custom-scrollbar">
-                <div className="bg-white shadow-lg mx-auto min-w-[1000px] p-8" dangerouslySetInnerHTML={{ __html: previewContent }} />
+                <div className="bg-white shadow-lg mx-auto min-w-[1000px] p-8" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(previewContent) }} />
               </div>
             </CardContent>
           </Card>

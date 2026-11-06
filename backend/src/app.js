@@ -1,4 +1,6 @@
 const path = require('path');
+const fs = require('fs');
+const jwt = require('jsonwebtoken');
 require('dotenv').config({ path: path.join(__dirname, '../.env') }); // Load .env
 console.log("[DEBUG] JWT_SECRET loaded:", process.env.JWT_SECRET ? "Yes" : "No");
 process.env.TZ = process.env.TZ || "Asia/Manila";
@@ -51,7 +53,6 @@ app.use(
   })
 );
 
-const fs = require('fs');
 const { getClientIp, formatUserNumber } = require("./utils/logger");
 const logFile = path.join(__dirname, '../request_debug.log');
 
@@ -94,7 +95,11 @@ app.use((req, res, next) => {
 
       if (req.method !== "GET" && req.body && Object.keys(req.body).length > 0) {
         const sanitizedBody = { ...req.body };
-        ["password", "user_Password", "adminPassword", "token"].forEach(p => {
+        [
+          "password", "user_Password", "adminPassword", "token", "newPassword",
+          "adminConfirmPassword", "confirmPwd", "currentPassword", "pin",
+          "sss_no", "tin_no", "philhealth_no", "hdmf_no"
+        ].forEach(p => {
           if (sanitizedBody[p]) sanitizedBody[p] = "***REDACTED***";
         });
         if (sanitizedBody.account_Number && typeof sanitizedBody.account_Number === "string") {
@@ -116,15 +121,88 @@ app.use((req, res, next) => {
 // 7. Static files
 app.use(express.static("public"));
 
-// Dynamic mapping for uploads based on System Settings
+// Dynamic secure mapping for uploads with authentication & ownership guards
 app.use("/api/uploads", async (req, res, next) => {
   try {
-    const { SystemSettings } = require("./config/sequelize");
+    const { SystemSettings, sequelize } = require("./config/sequelize");
+    const { QueryTypes } = require("sequelize");
     const settings = await SystemSettings.findOne();
     const rootPath = settings?.storageRootPath || path.join(__dirname, "../uploads");
-    express.static(rootPath)(req, res, next);
+
+    // 1. Path Traversal Guard
+    const safeSubPath = path.normalize(req.path).replace(/^(\.\.[\/\\])+/, "");
+    const absoluteFilePath = path.join(rootPath, safeSubPath);
+
+    // Verify resolved path stays strictly within rootPath
+    if (!absoluteFilePath.startsWith(path.resolve(rootPath))) {
+      return res.status(403).json({ error: "Access denied: Path traversal detected." });
+    }
+
+    // 2. Set Defensive Security Headers on all file responses
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "SAMEORIGIN");
+    res.setHeader("Content-Security-Policy", "default-src 'none'; sandbox allow-same-origin");
+
+    // 3. Authorization Check for Sensitive Folders (requestsFiles & supportFiles)
+    if (safeSubPath.includes("requestsFiles") || safeSubPath.includes("supportFiles")) {
+      const token =
+        req.cookies?.machip_token ||
+        (req.header("Authorization") && req.header("Authorization").split(" ")[1]) ||
+        req.query?.token;
+
+      if (!token) {
+        return res.status(401).json({ error: "Authentication required to access uploaded verification documents." });
+      }
+
+      let decoded;
+      try {
+        decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ["HS256"] });
+      } catch (e) {
+        return res.status(401).json({ error: "Invalid or expired session token." });
+      }
+
+      req.user = decoded;
+
+      // Staff (Admin Manager = 1, Supervisor = 2, Admin Accountant = 4) have review privileges
+      const isStaff = [1, 2, 4].includes(req.user.user_RoleId);
+
+      if (!isStaff) {
+        // Employee (Role 3): Verify object ownership
+        const fileNameOnly = path.basename(safeSubPath);
+        const searchPattern = `%${fileNameOnly}%`;
+
+        const [owned] = await sequelize.query(
+          `SELECT "user_Id" FROM "Sick_Leave" WHERE "proof_File" LIKE :pattern AND "user_Id" = :userId
+           UNION
+           SELECT "user_Id" FROM "Onfield_Work" WHERE "proof_File" LIKE :pattern AND "user_Id" = :userId
+           UNION
+           SELECT "user_Id" FROM "Statutory_Leave" WHERE "proof_File" LIKE :pattern AND "user_Id" = :userId
+           UNION
+           SELECT "user_Id" FROM "LogCorrection_Request" WHERE "proof_File" LIKE :pattern AND "user_Id" = :userId
+           UNION
+           SELECT "user_Id" FROM "Loan_Request" WHERE ("proof_File" LIKE :pattern OR "damageProof_File" LIKE :pattern) AND "user_Id" = :userId
+           LIMIT 1`,
+          {
+            replacements: { pattern: searchPattern, userId: req.user.user_Id },
+            type: QueryTypes.SELECT
+          }
+        );
+
+        if (!owned) {
+          return res.status(403).json({ error: "Access denied: You do not have permission to view this attachment." });
+        }
+      }
+    }
+
+    // 4. File Existence & Stream
+    if (!fs.existsSync(absoluteFilePath) || fs.statSync(absoluteFilePath).isDirectory()) {
+      return res.status(404).json({ error: "File not found." });
+    }
+
+    return res.sendFile(absoluteFilePath);
   } catch (err) {
-    express.static("uploads")(req, res, next);
+    console.error("[SECURE FILE SERVING ERROR]:", err.message);
+    return res.status(500).json({ error: "Failed to serve file." });
   }
 });
 app.use("/uploads", (req, res, next) => res.redirect(`/api/uploads${req.url}`));
@@ -159,27 +237,30 @@ const notificationRoutes = require("./routes/notification.routes.js");
 const systemRoutes = require("./routes/system.routes.js");
 const positionRoutes = require("./routes/position.routes.js");
 const hardwareRoutes = require("./routes/hardware.routes.js");
+const { requireInternalNetwork } = require("./middleware/networkBoundary");
 
 app.use("/api/users", userRoutes);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/request", requestRoutes);
 app.use("/api/requests", requestRoutes);
 app.use("/api/userRequests", requestRoutes);
-app.use("/api/payroll", payrollRoutes);
+app.use("/api/payroll", requireInternalNetwork, payrollRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/system", systemRoutes);
 app.use("/api/positions", positionRoutes);
-app.use("/api/hardware", hardwareRoutes);
+app.use("/api/hardware", requireInternalNetwork, hardwareRoutes);
 
-// New route for testing database queries (now protected)
-app.get("/test-query", async (req, res) => {
-  try {
-    const [results] = await sequelize.query("SELECT 1+1 AS result");
-    res.json({ message: "Database query successful!", result: results });
-  } catch (error) {
-    res.status(500).json({ message: "Database query failed.", error: error.message });
-  }
-});
+// Database diagnostic test route: Restricted strictly to development mode
+if (process.env.NODE_ENV !== "production") {
+  app.get("/test-query", async (req, res) => {
+    try {
+      const [results] = await sequelize.query("SELECT 1+1 AS result");
+      res.json({ message: "Database query successful!", result: results });
+    } catch (error) {
+      res.status(500).json({ message: "Database query failed." });
+    }
+  });
+}
 
 // ── Error Handling Middleware ────────────────────────────────────────────────
 const errorHandler = require("./middleware/errorHandler");

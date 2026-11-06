@@ -21,7 +21,7 @@ const keyByUser = (req) => {
       token = req.cookies.machip_token;
     }
     if (token) {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ["HS256"] });
       if (decoded && decoded.user_Id) {
         return `user_${decoded.user_Id}`;
       }
@@ -101,4 +101,33 @@ const generalLimiter = rateLimit({
   validate: { trustProxy: true, keyGeneratorIpFallback: false },
 });
 
-module.exports = { loginLimiter, verifyLimiter, generalLimiter, pollingLimiter, HIGH_FREQ_ROUTES };
+// ── Request Submission Limiter (Internet-Exposed Form Defense) ────────────────
+const submissionLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15-minute window
+  max: 20, // 20 submissions per 15 minutes per user bucket
+  keyGenerator: keyByUser,
+  message: { error: "Too many request submissions. Please wait a few minutes before submitting another request.", code: 429 },
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { trustProxy: true, keyGeneratorIpFallback: false },
+});
+
+// ── Password Reset Limiter (Enumeration & Email Flooding Defense) ────────────
+const passwordResetLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15-minute window
+  max: 5, // Maximum 5 reset attempts per 15 minutes per IP
+  message: { error: "Too many password reset requests. Please try again after 15 minutes.", code: 429 },
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { trustProxy: false },
+});
+
+module.exports = {
+  loginLimiter,
+  verifyLimiter,
+  generalLimiter,
+  pollingLimiter,
+  submissionLimiter,
+  passwordResetLimiter,
+  HIGH_FREQ_ROUTES
+};

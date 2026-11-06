@@ -73,6 +73,12 @@ exports.markAttendance = async (req, res) => {
 
     // ── BULK CLOCK OUT LOGIC ───────────────────────────────────────────────
     if (user_Id === "all" && forcedStatus === 2) {
+      const callerRoleId = req.user ? parseInt(req.user.user_RoleId, 10) : null;
+      const isManager = callerRoleId === 1 || req.user?.user_Role === "Admin Manager";
+      if (!isManager) {
+        return res.status(403).json({ error: "Bulk clock-out is strictly restricted to Admin Manager." });
+      }
+
       const activeReports = await sequelize.query(
         `SELECT r."user_id" FROM "employee_Logging_report" r WHERE r."log_Date" = :todayStr AND r."logged_StatusId" IN (1, 3, 5, 10)`,
         { replacements: { todayStr }, type: QueryTypes.SELECT }
@@ -127,6 +133,19 @@ exports.markAttendance = async (req, res) => {
     if (!user) return res.status(404).json({ error: "User not found or no specific employee selected." });
 
     const target_user_Id = user.user_Id;
+
+    // Zero-Trust Boundary & Anti-Buddy Punching Check
+    // If not invoked by hardware (MFRC522 / ESP32 validated via espValidator),
+    // caller must either be the user themselves or management staff (Admin Manager, Supervisor, Admin Accountant).
+    const isHardware = !!req.headers["x-esp32-key"];
+    if (!isHardware) {
+      const callerId = req.user ? parseInt(req.user.user_Id, 10) : null;
+      const callerRoleId = req.user ? parseInt(req.user.user_RoleId, 10) : null;
+      const isStaff = [1, 2, 4].includes(callerRoleId) || ["Admin Manager", "Supervisor", "Admin Accountant", "Admin"].includes(req.user?.user_Role);
+      if (!isStaff && callerId !== target_user_Id) {
+        return res.status(403).json({ error: "Forbidden: You are not authorized to mark attendance for another employee." });
+      }
+    }
     const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
     const todayEnd = new Date(now); todayEnd.setHours(23, 59, 59, 999);
 

@@ -7,28 +7,48 @@ const { verifyAuditLogChain } = require("../utils/encryption");
 const fs = require('fs');
 const path = require('path');
 
+const FORBIDDEN_SYSTEM_PATHS = [
+  "/etc", "/proc", "/sys", "/dev", "/boot", "/root", "/bin", "/sbin", "/lib", "/lib64", "/usr/bin", "/usr/sbin",
+  "C:\\Windows", "C:\\Program Files", "C:\\ProgramData"
+];
+
+function isForbiddenSystemPath(p) {
+  if (!p) return true;
+  const resolved = path.resolve(p);
+  return FORBIDDEN_SYSTEM_PATHS.some(forbidden => {
+    const fResolved = path.resolve(forbidden);
+    return resolved === fResolved || resolved.startsWith(fResolved + path.sep);
+  });
+}
+
 exports.browseDirectories = async (req, res) => {
   const { currentPath } = req.query;
-  // Default to root or a sensible starting point if currentPath is empty
-  let targetPath = currentPath || (process.platform === 'win32' ? 'C:\\' : '/');
+  // Default to project uploads or home directory rather than raw host root '/'
+  const defaultBase = path.resolve(__dirname, "../../uploads");
+  let targetPath = currentPath ? path.resolve(currentPath) : defaultBase;
 
   try {
+    // Filesystem Traversal Guard: Block traversal into operating system sensitive trees
+    if (isForbiddenSystemPath(targetPath)) {
+      return res.status(403).json({ error: "Access Denied: Browsing sensitive operating system directories is prohibited." });
+    }
+
     if (!fs.existsSync(targetPath)) {
-      // Fallback if the path is invalid
-      targetPath = (process.platform === 'win32' ? 'C:\\' : '/');
+      targetPath = defaultBase;
     }
 
     const files = fs.readdirSync(targetPath, { withFileTypes: true });
     const directories = files
-      .filter(dirent => dirent.isDirectory())
+      .filter(dirent => dirent.isDirectory() && !dirent.name.startsWith("."))
       .map(dirent => dirent.name)
       .sort();
 
     const parentPath = path.dirname(targetPath);
+    const isParentForbidden = isForbiddenSystemPath(parentPath);
 
     res.status(200).json({
       currentPath: path.resolve(targetPath),
-      parentPath: parentPath === targetPath ? null : parentPath,
+      parentPath: (parentPath === targetPath || isParentForbidden) ? null : parentPath,
       directories,
       separator: path.sep
     });
@@ -41,8 +61,18 @@ exports.createDirectory = async (req, res) => {
   const { parentPath, folderName } = req.body;
   if (!parentPath || !folderName) return res.status(400).json({ error: "Path and Name required" });
 
+  // Path traversal guard on folder name
+  if (folderName.includes("..") || folderName.includes("/") || folderName.includes("\\") || folderName.startsWith(".")) {
+    return res.status(400).json({ error: "Invalid folder name: Path traversal sequences and hidden folders are prohibited." });
+  }
+
+  const resolvedParent = path.resolve(parentPath);
+  if (isForbiddenSystemPath(resolvedParent)) {
+    return res.status(403).json({ error: "Access Denied: Creating folders in sensitive system directories is prohibited." });
+  }
+
   try {
-    const newPath = path.join(parentPath, folderName);
+    const newPath = path.join(resolvedParent, folderName);
     if (!fs.existsSync(newPath)) {
       fs.mkdirSync(newPath, { recursive: true });
       res.status(201).json({ success: true, path: newPath });
@@ -1014,6 +1044,8 @@ exports.clearRegistrationSession = async (req, res) => {
 exports.batchCalendar = async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
+  const { parseCSVLine, sanitizeField } = require("../utils/sanitizer");
+
   try {
     const rawContent = fs.readFileSync(req.file.path, 'utf8');
     // Remove BOM if present
@@ -1025,30 +1057,30 @@ exports.batchCalendar = async (req, res) => {
       return res.status(400).json({ error: 'CSV file is empty or missing data rows.' });
     }
 
-    const headers = lines[0].split(',').map(h => h.trim());
+    const headers = parseCSVLine(lines[0]).map(h => h.trim().toLowerCase());
     console.log("[BATCH] Headers found:", headers);
     
     let successCount = 0;
     let errors = [];
 
     // Find indices for Field Work
-    const idxUserId = headers.findIndex(h => h.toLowerCase() === 'user_id' || h.toLowerCase() === 'empno');
-    const idxDate = headers.findIndex(h => h.toLowerCase() === 'date');
-    const idxLocation = headers.findIndex(h => h.toLowerCase() === 'location');
-    const idxHours = headers.findIndex(h => h.toLowerCase() === 'hours');
-    const idxPurpose = headers.findIndex(h => h.toLowerCase() === 'purpose');
+    const idxUserId = headers.findIndex(h => h === 'user_id' || h === 'empno');
+    const idxDate = headers.findIndex(h => h === 'date');
+    const idxLocation = headers.findIndex(h => h === 'location');
+    const idxHours = headers.findIndex(h => h === 'hours');
+    const idxPurpose = headers.findIndex(h => h === 'purpose');
 
     if (idxUserId !== -1 && idxLocation !== -1) {
       console.log("[BATCH] Processing Field Work...");
       for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(',').map(v => v.trim());
+        const values = parseCSVLine(lines[i]);
         if (values.length < 2) continue;
         
         const empNo = values[idxUserId];
         const date = values[idxDate];
-        const location = values[idxLocation];
+        const location = sanitizeField(values[idxLocation]);
         const hours = values[idxHours] || 8;
-        const purpose = values[idxPurpose] || "Batch Field Work";
+        const purpose = sanitizeField(values[idxPurpose] || "Batch Field Work");
 
         if(!empNo || !date || !location) {
           errors.push(`Row ${i+1}: Missing required fields (User_id, date, or location)`);
@@ -1098,12 +1130,12 @@ exports.batchCalendar = async (req, res) => {
       console.log("[BATCH] Processing Holidays/Due Dates...");
       // Holiday or Due Date batch upload
       for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(',');
+        const values = parseCSVLine(lines[i]);
         if (values.length < 3) continue;
-        const type = values[0]?.trim();
-        const name = values[1]?.trim();
+        const type = sanitizeField(values[0]);
+        const name = sanitizeField(values[1]);
         const date = values[2]?.trim();
-        const details = values[3]?.trim();
+        const details = sanitizeField(values[3] || "");
 
         if(!type || !name || !date) {
           errors.push(`Row ${i+1}: Missing required fields (type, name, or date)`);
@@ -1132,20 +1164,21 @@ exports.batchCalendar = async (req, res) => {
        return res.status(400).json({ error: "Invalid CSV format. Please use the provided template." });
     }
     
-    // cleanup
-    if (fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
-    
     console.log(`[BATCH] Completed. Success: ${successCount}, Errors: ${errors.length}`);
     res.status(200).json({ success: true, count: successCount, errors });
 
   } catch (error) {
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
     console.error("Batch upload error:", error);
     res.status(500).json({ error: "Failed to process batch upload: " + error.message });
+  } finally {
+    // Guaranteed cleanup on all execution paths
+    if (req.file?.path && fs.existsSync(req.file.path)) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (err) {
+        console.error("[BATCH CALENDAR CLEANUP ERROR]:", err.message);
+      }
+    }
   }
 };
 
@@ -1355,18 +1388,19 @@ exports.uploadReferenceTable = async (req, res) => {
       });
     });
 
-    // Cleanup CSV from disk
-    if (fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
-
     res.status(200).json({ success: true, count: parsedRows.length, message: `${dbTableName} uploaded successfully. ${parsedRows.length} rows inserted. Effective from ${effectiveDate}.` });
   } catch (error) {
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
     console.error("Reference table upload error:", error);
     res.status(500).json({ error: "Failed to process upload: " + error.message });
+  } finally {
+    // Guaranteed cleanup on all paths
+    if (req.file?.path && fs.existsSync(req.file.path)) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (err) {
+        console.error("[REF TABLE CLEANUP ERROR]:", err.message);
+      }
+    }
   }
 };
 

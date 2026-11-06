@@ -25,6 +25,18 @@ exports.notifySupervisor = async (req, res) => {
     );
 
     if (!request) return res.status(404).json({ error: "Request not found." });
+
+    // Zero-Trust BOLA / IDOR Protection: Caller must own the request or be staff
+    const currentUserId = req.user ? parseInt(req.user.user_Id, 10) : null;
+    const currentUserRoleId = req.user ? parseInt(req.user.user_RoleId, 10) : null;
+    const isStaffOrAdmin = [1, 2, 4].includes(currentUserRoleId) || 
+      ["Admin Manager", "Supervisor", "Admin Accountant", "Admin"].includes(req.user?.user_Role);
+    const isOwner = currentUserId === parseInt(request.user_Id, 10);
+
+    if (!isOwner && !isStaffOrAdmin) {
+      return res.status(403).json({ error: "Forbidden: You are not authorized to escalate this request." });
+    }
+
     if (request.emp_reqStatusId !== 1) return res.status(400).json({ error: "Only pending requests can be escalated." });
 
     const now = await getSystemTime();
@@ -282,7 +294,26 @@ exports.UpdateUserRequest = async (req, res) => {
       return res.status(404).json({ error: "Request not found." });
     }
 
-    if ([2, 3].includes(request.emp_reqStatusId) && req.user?.user_RoleId !== 1) {
+    const currentUserId = req.user ? parseInt(req.user.user_Id, 10) : null;
+    const currentUserRoleId = req.user ? parseInt(req.user.user_RoleId, 10) : null;
+    const currentUserRoleName = req.user?.user_Role;
+    const isStaffOrAdmin = [1, 2, 4].includes(currentUserRoleId) || 
+      ["Admin Manager", "Supervisor", "Admin Accountant", "Admin"].includes(currentUserRoleName);
+    const isOwner = currentUserId === parseInt(request.user_Id, 10);
+
+    // Enforce ownership / staff authorization
+    if (!isOwner && !isStaffOrAdmin) {
+      await t.rollback();
+      return res.status(403).json({ error: "Forbidden: You are not authorized to edit this request." });
+    }
+
+    // Employees can only edit their own Pending (1) or Resubmit (5) requests
+    if (!isStaffOrAdmin && ![1, 5].includes(parseInt(request.emp_reqStatusId, 10))) {
+      await t.rollback();
+      return res.status(400).json({ error: "Cannot modify a request that has already been approved or processed." });
+    }
+
+    if ([2, 3].includes(parseInt(request.emp_reqStatusId, 10)) && currentUserRoleId !== 1) {
       await t.rollback();
       return res.status(403).json({ error: "Finalized requests (Approved/Rejected) can only be edited by Admins." });
     }
@@ -1063,6 +1094,32 @@ exports.UserCreateRequest = async (req, res) => {
       }
     }
 
+    // Financial Integrity Guard (VULN-14): Reject negative or non-numeric loan figures before creating request
+    if ([13, 14].includes(finalReqTypeId) || req.body.agency || req.body.loanType) {
+      const { amountRequested, monthlyAmortization, totalOutstandingBalance } = req.body;
+      if (amountRequested !== undefined && amountRequested !== null && amountRequested !== "") {
+        const parsedAmount = parseFloat(amountRequested);
+        if (isNaN(parsedAmount) || parsedAmount <= 0) {
+          await t.rollback();
+          return res.status(400).json({ error: "Loan amount requested must be a positive number greater than zero." });
+        }
+      }
+      if (monthlyAmortization !== undefined && monthlyAmortization !== null && monthlyAmortization !== "") {
+        const parsedAmort = parseFloat(monthlyAmortization);
+        if (isNaN(parsedAmort) || parsedAmort <= 0) {
+          await t.rollback();
+          return res.status(400).json({ error: "Monthly amortization must be a positive number greater than zero." });
+        }
+      }
+      if (totalOutstandingBalance !== undefined && totalOutstandingBalance !== null && totalOutstandingBalance !== "") {
+        const parsedBalance = parseFloat(totalOutstandingBalance);
+        if (isNaN(parsedBalance) || parsedBalance < 0) {
+          await t.rollback();
+          return res.status(400).json({ error: "Total outstanding balance cannot be negative." });
+        }
+      }
+    }
+
     // Check Leave Balances if applicable before creating parent request
     if ([3, 4, 6, 7, 10].includes(finalReqTypeId)) {
       const checkDays = [7, 10].includes(finalReqTypeId) ? 0.5 : (finalReqTypeId === 6 ? 1 : finalNoDays);
@@ -1072,7 +1129,7 @@ exports.UserCreateRequest = async (req, res) => {
       }
 
       let balanceResult = await sequelize.query(
-        `SELECT * FROM "Leave_Balance" WHERE "user_Id" = :userId and "year" = :year`,
+        `SELECT * FROM "Leave_Balance" WHERE "user_Id" = :userId and "year" = :year FOR UPDATE`,
         {
           replacements: { userId: finalUserId, year: currentYear },
           type: QueryTypes.SELECT,
@@ -1619,6 +1676,29 @@ exports.UserCreateRequest = async (req, res) => {
           return res.status(400).json({ 
             error: `Active Loan Conflict: You already have an active ${agency} ${loanType} on file (Balance: ₱${parseFloat(existingActiveLoan[0].remainingBalance).toLocaleString('en-PH', {minimumFractionDigits: 2})}). Existing balances must be settled or consolidated before new enrollment.` 
           });
+        }
+      }
+
+      // Financial Integrity Guard (VULN-14): Reject negative or non-numeric loan figures
+      if (amountRequested !== undefined && amountRequested !== null && amountRequested !== "") {
+        const parsedAmount = parseFloat(amountRequested);
+        if (isNaN(parsedAmount) || parsedAmount <= 0) {
+          await t.rollback();
+          return res.status(400).json({ error: "Loan amount requested must be a positive number greater than zero." });
+        }
+      }
+      if (monthlyAmortization !== undefined && monthlyAmortization !== null && monthlyAmortization !== "") {
+        const parsedAmort = parseFloat(monthlyAmortization);
+        if (isNaN(parsedAmort) || parsedAmort <= 0) {
+          await t.rollback();
+          return res.status(400).json({ error: "Monthly amortization must be a positive number greater than zero." });
+        }
+      }
+      if (totalOutstandingBalance !== undefined && totalOutstandingBalance !== null && totalOutstandingBalance !== "") {
+        const parsedBalance = parseFloat(totalOutstandingBalance);
+        if (isNaN(parsedBalance) || parsedBalance < 0) {
+          await t.rollback();
+          return res.status(400).json({ error: "Total outstanding balance cannot be negative." });
         }
       }
 
@@ -2374,7 +2454,7 @@ exports.UpdateStatusRequest = async (req, res) => {
         } else if (typeId === 6) {
           // EL: Deduct from SL first, then VL
           const balRes = await sequelize.query(
-            `SELECT "SL_balance", "VL_balance" FROM "Leave_Balance" WHERE "user_Id" = :userId AND "year" = :year`,
+            `SELECT "SL_balance", "VL_balance" FROM "Leave_Balance" WHERE "user_Id" = :userId AND "year" = :year FOR UPDATE`,
             { replacements: { userId, year: currentYear }, type: QueryTypes.SELECT, transaction }
           );
           if (balRes.length > 0) {

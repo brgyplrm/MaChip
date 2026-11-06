@@ -1,5 +1,6 @@
 const os = require("os");
 const dgram = require("dgram");
+const { isPrivateIp } = require("../middleware/networkBoundary");
 
 let udpSocket = null;
 let beaconTimer = null;
@@ -95,6 +96,12 @@ function startUdpDiscovery(port = 4001) {
     udpSocket.on("message", (msg, rinfo) => {
       const text = msg.toString().trim();
       if (text.includes("MACHIP_DISCOVER")) {
+        // Zero-Trust LAN Boundary: Drop packet if requester is not on internal private LAN
+        if (!isPrivateIp(rinfo.address)) {
+          console.warn(`[UDP-DISCOVERY] Ignored discovery probe from non-private WAN IP: ${rinfo.address}`);
+          return;
+        }
+
         lastDiscoveredEspIp = rinfo.address;
         const payload = buildDiscoveryPayload(rinfo.address);
         const serverIp = getBestLanIp(rinfo.address);
@@ -107,13 +114,6 @@ function startUdpDiscovery(port = 4001) {
             console.log(
               `[UDP-DISCOVERY] Discovery request from ${rinfo.address}:${rinfo.port} -> Resolved to http://${serverIp}:${httpPort}`
             );
-            console.log("\n==========================================================");
-            console.log(" [*] ESP32 SECURED WEB SERIAL CONSOLE ACCESS INFO");
-            console.log(` └─ Direct URL:  http://${rinfo.address}/console`);
-            console.log(" └─ mDNS URL:    http://machip-esp32.local/console");
-            console.log(" └─ Admin User:  admin");
-            console.log(" └─ Admin Pass:  machip2026");
-            console.log("==========================================================\n");
 
             try {
               const { getIO } = require("../config/socket");

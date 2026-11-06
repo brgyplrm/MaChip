@@ -5,12 +5,13 @@ const rfidController = require("../controllers/rfid.controller.js");
 const authController = require("../controllers/auth.controller.js");
 const upload = require("../middleware/upload.js");
 const { requireAdmin, requireStaff, requireRole, requireSelfOrStaff } = require("../middleware/roleCheck.js");
+const { passwordResetLimiter } = require("../middleware/rateLimiter.js");
 
 // URL will be: http://localhost:4000/api/users/registerUser
-router.post("/registerUser", requireAdmin, upload.single("user_ProfilePic"), userController.registerUser);
+router.post("/registerUser", requireAdmin, upload.single("user_ProfilePic"), upload.validateUploadedFiles, userController.registerUser);
 
 // Batch Register Users from CSV
-router.post("/batch-register", requireAdmin, upload.single("csvFile"), userController.batchRegisterUsers);
+router.post("/batch-register", requireAdmin, upload.single("csvFile"), upload.validateUploadedFiles, userController.batchRegisterUsers);
 
 // Get the next auto-incremented user ID
 router.get("/nextId", requireAdmin, userController.getNextUserId);
@@ -42,8 +43,8 @@ router.get("/employees/masterlist", requireAdmin, userController.getMasterlist);
 router.get("/logs/audit", requireAdmin, userController.getAuditLogs);
 router.get("/logs/transaction", requireAdmin, userController.getTransactionLogs);
 
-// Password Reset Request
-router.post("/request-password-reset", userController.requestPasswordReset);
+// Password Reset Request (Protected by strict rate limiting)
+router.post("/request-password-reset", passwordResetLimiter, userController.requestPasswordReset);
 
 // Bulk Update Maxicare Deductions
 router.patch("/bulk-maxicare", requireAdmin, userController.bulkUpdateMaxicare);
@@ -76,7 +77,7 @@ router.patch("/restoreUser/:user_Id", requireAdmin, userController.restoreUser);
 router.delete("/forceDelete/:user_Id", requireAdmin, userController.forceDeleteUser);
 
 // UPDATE user by user_Id
-router.put("/updateUser/:user_Id", requireRole(1, 2, 3, 4), upload.single("user_ProfilePic"), userController.updateUser);
+router.put("/updateUser/:user_Id", requireRole(1, 2, 3, 4), upload.single("user_ProfilePic"), upload.validateUploadedFiles, userController.updateUser);
 
 // PATCH employee daily rate
 router.patch("/employees/:user_Id/daily-rate", requireAdmin, userController.updateDailyRate);

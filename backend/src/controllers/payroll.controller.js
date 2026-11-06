@@ -2843,6 +2843,15 @@ exports.updatePayroll = async (req, res) => {
   const { payrollId } = req.params;
   const { status, netPay, totalEarnings, totalDeductions } = req.body;
   try {
+    const [existing] = await sequelize.query(
+      `SELECT "status" FROM "Payroll" WHERE "payrollId" = :payrollId`,
+      { replacements: { payrollId }, type: QueryTypes.SELECT }
+    );
+    if (!existing) return res.status(404).json({ error: "Payroll record not found." });
+    if (parseInt(existing.status, 10) === 5) {
+      return res.status(400).json({ error: "Released payroll records are immutable historical snapshots and cannot be modified." });
+    }
+
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
 
@@ -3379,6 +3388,10 @@ exports.updatePayrollFull = async (req, res) => {
 
     const oldPayroll = await sequelize.query(`SELECT p.*, pe.*, pd.* FROM "Payroll" p LEFT JOIN "Payroll_Earnings" pe ON pe."payrollId" = p."payrollId" LEFT JOIN "Payroll_Deductions" pd ON pd."payrollId" = p."payrollId" WHERE p."payrollId" = :payrollId LIMIT 1`, { replacements: { payrollId }, type: QueryTypes.SELECT });
     if (oldPayroll.length === 0) return res.status(404).json({ error: "Not found." });
+
+    if (parseInt(oldPayroll[0].status, 10) === 5) {
+      return res.status(400).json({ error: "Released payroll records are immutable historical snapshots and cannot be modified." });
+    }
 
     const govtTotal  = addMoney(SSS_Ded, Philhealth_Ded, HDMF_Ded);
     const taxTotal   = roundMoney(Tax_Ded || 0);

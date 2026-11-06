@@ -18,6 +18,7 @@ const {
 } = require("../controllers/userRequest.controlller");
 const { requireOps, requireStaff, requireRole, requireSelfOrStaff } = require("../middleware/roleCheck.js");
 const authMiddleware = require("../middleware/auth.js");
+const { submissionLimiter } = require("../middleware/rateLimiter");
 const multer = require("multer");
 const upload = require("../middleware/upload");
 
@@ -42,13 +43,14 @@ const uploadFields = (req, res, next) => {
       }
       return res.status(400).json({ error: err.message });
     }
-    next();
+    upload.validateUploadedFiles(req, res, next);
   });
 };
 
-router.post("/", uploadFields, UserCreateRequest);
+router.post("/", submissionLimiter, uploadFields, UserCreateRequest);
 router.post(
   "/UserCreateRequest",
+  submissionLimiter,
   uploadFields,
   UserCreateRequest,
 );

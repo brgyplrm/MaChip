@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/auth.controller.js');
-const { loginLimiter, verifyLimiter } = require('../middleware/rateLimiter');
+const { loginLimiter, verifyLimiter, passwordResetLimiter } = require('../middleware/rateLimiter');
 
 const authMiddleware = require('../middleware/auth');
 
@@ -20,9 +20,9 @@ router.post('/verify-password', authMiddleware, verifyLimiter, authController.ve
 // First login password setup
 router.post('/set-initial-password', authMiddleware, verifyLimiter, authController.setInitialPassword);
 
-// Self-service password reset routes (public)
-router.post('/forgot-password', authController.forgotPassword);
-router.get('/verify-reset-token/:token', authController.verifyResetToken);
-router.post('/reset-password', authController.resetPassword);
+// Self-service password reset routes (public with dedicated rate limiting)
+router.post('/forgot-password', passwordResetLimiter, authController.forgotPassword);
+router.get('/verify-reset-token/:token', passwordResetLimiter, authController.verifyResetToken);
+router.post('/reset-password', passwordResetLimiter, authController.resetPassword);
 
 module.exports = router;

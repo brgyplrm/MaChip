@@ -5,6 +5,7 @@ const systemController = require("../controllers/system.controller.js");
 const { requireAdmin, requireMaster, requireRole, requireStaff } = require("../middleware/roleCheck.js");
 const authMiddleware = require("../middleware/auth.js");
 const upload = require("../middleware/upload.js");
+const { submissionLimiter } = require("../middleware/rateLimiter.js");
 
 router.get("/settings", requireStaff, systemController.getSystemSettings);
 router.put("/settings", requireRole(1, 4, "Admin Manager", "Admin Accountant"), systemController.updateSystemSettings);
@@ -19,17 +20,17 @@ router.post("/sync-holidays", requireRole(1, 4, "Admin Manager", "Admin Accounta
 router.post("/due-dates", requireRole(1, 4, "Admin Manager", "Admin Accountant"), systemController.createDueDate);
 router.delete("/due-dates/:dueDateId", requireRole(1, 4, "Admin Manager", "Admin Accountant"), systemController.deleteDueDate);
 
-router.post("/batch-calendar", requireRole(1, 4, "Admin Manager", "Admin Accountant"), upload.single("csvFile"), systemController.batchCalendar);
+router.post("/batch-calendar", requireRole(1, 4, "Admin Manager", "Admin Accountant"), upload.single("csvFile"), upload.validateUploadedFiles, systemController.batchCalendar);
 
 // Reference Tables Routes
 router.get("/reference-data/:tableType", requireRole(1, 4, "Admin Manager", "Admin Accountant"), systemController.getReferenceTableData);
-router.post("/reference-data/upload/:tableType", requireRole(1, 4, "Admin Manager", "Admin Accountant"), upload.single("csvFile"), systemController.uploadReferenceTable);
+router.post("/reference-data/upload/:tableType", requireRole(1, 4, "Admin Manager", "Admin Accountant"), upload.single("csvFile"), upload.validateUploadedFiles, systemController.uploadReferenceTable);
 router.put("/reference-data/toggle/:tableType", requireRole(1, 4, "Admin Manager", "Admin Accountant"), systemController.toggleReferenceTableVersion);
 
 router.get("/browse", requireAdmin, systemController.browseDirectories);
 router.post("/create-folder", requireAdmin, systemController.createDirectory);
 
-router.get("/payroll-periods", systemController.getPayrollPeriods);
+router.get("/payroll-periods", authMiddleware, systemController.getPayrollPeriods);
 router.post("/payroll-periods", requireAdmin, systemController.createPayrollPeriod);
 
 router.get("/audit-logs", requireMaster, systemController.getAuditLogs);
@@ -41,7 +42,7 @@ router.get("/my-transparency-logs", authMiddleware, systemController.getMyTransp
 router.post("/reg-session", requireAdmin, systemController.setRegistrationSession);
 router.delete("/reg-session", requireAdmin, systemController.clearRegistrationSession);
 
-// Contact Support Inquiry Route (Dispatches to machipcaps67@gmail.com)
-router.post("/contact-support", authMiddleware, upload.single("image"), systemController.contactSupport);
+// Contact Support Inquiry Route (Dispatches to machipcaps67@gmail.com with submission rate limiting)
+router.post("/contact-support", authMiddleware, submissionLimiter, upload.single("image"), upload.validateUploadedFiles, systemController.contactSupport);
 
 module.exports = router;

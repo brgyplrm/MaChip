@@ -21,6 +21,16 @@ const formatMonthFolder = (monthIndex) => {
     return `${String(monthIndex + 1).padStart(2, '0')}_${getMonthName(monthIndex)}`;
 };
 
+function escapeHtml(str) {
+    if (str === null || str === undefined) return "";
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
 /**
  * Builds HTML for Audit Logs
  */
@@ -39,7 +49,7 @@ const buildAuditLogHTML = (logs, monthName, year) => {
     </head>
     <body>
         <h1>Audit Log Report</h1>
-        <div class="meta">Archive for ${monthName} ${year}</div>
+        <div class="meta">Archive for ${escapeHtml(monthName)} ${escapeHtml(year)}</div>
         <table>
             <thead>
                 <tr>
@@ -56,14 +66,14 @@ const buildAuditLogHTML = (logs, monthName, year) => {
             <tbody>
                 ${logs.map(log => `
                     <tr>
-                        <td>${log.auditId}</td>
-                        <td>${log.user_FirstName} ${log.user_LastName}</td>
-                        <td>${log.module}</td>
-                        <td>${log.action}</td>
-                        <td>${log.target_Table}</td>
-                        <td>${log.target_Id}</td>
-                        <td>${new Date(log.createdAt).toLocaleString()}</td>
-                        <td>${log.ip_Address}</td>
+                        <td>${escapeHtml(log.auditId)}</td>
+                        <td>${escapeHtml(log.user_FirstName)} ${escapeHtml(log.user_LastName)}</td>
+                        <td>${escapeHtml(log.module)}</td>
+                        <td>${escapeHtml(log.action)}</td>
+                        <td>${escapeHtml(log.target_Table)}</td>
+                        <td>${escapeHtml(log.target_Id)}</td>
+                        <td>${escapeHtml(new Date(log.createdAt).toLocaleString())}</td>
+                        <td>${escapeHtml(log.ip_Address)}</td>
                     </tr>
                 `).join('')}
             </tbody>
@@ -90,7 +100,7 @@ const buildTransactionLogHTML = (logs, monthName, year) => {
     </head>
     <body>
         <h1>Transaction Log Report</h1>
-        <div class="meta">Archive for ${monthName} ${year}</div>
+        <div class="meta">Archive for ${escapeHtml(monthName)} ${escapeHtml(year)}</div>
         <table>
             <thead>
                 <tr>
@@ -106,13 +116,13 @@ const buildTransactionLogHTML = (logs, monthName, year) => {
             <tbody>
                 ${logs.map(log => `
                     <tr>
-                        <td>${log.transId}</td>
-                        <td>${log.emp_FirstName ? log.emp_FirstName + ' ' + log.emp_LastName : 'N/A'}</td>
-                        <td>${log.admin_FirstName ? log.admin_FirstName + ' ' + log.admin_LastName : 'System'}</td>
-                        <td>${log.event_Type}</td>
-                        <td>${log.description}</td>
-                        <td>${new Date(log.createdAt).toLocaleString()}</td>
-                        <td>${log.ip_Address}</td>
+                        <td>${escapeHtml(log.transId)}</td>
+                        <td>${log.emp_FirstName ? escapeHtml(log.emp_FirstName + ' ' + log.emp_LastName) : 'N/A'}</td>
+                        <td>${log.admin_FirstName ? escapeHtml(log.admin_FirstName + ' ' + log.admin_LastName) : 'System'}</td>
+                        <td>${escapeHtml(log.event_Type)}</td>
+                        <td>${escapeHtml(log.description)}</td>
+                        <td>${escapeHtml(new Date(log.createdAt).toLocaleString())}</td>
+                        <td>${escapeHtml(log.ip_Address)}</td>
                     </tr>
                 `).join('')}
             </tbody>
@@ -128,6 +138,15 @@ const generatePDF = async (html) => {
     });
     try {
         const page = await browser.newPage();
+        // SSRF Guard: Block outbound network and file requests triggered by rendered HTML
+        await page.setRequestInterception(true);
+        page.on("request", (req) => {
+            if (["image", "stylesheet", "font", "script", "xhr", "fetch", "websocket"].includes(req.resourceType())) {
+                req.abort();
+            } else {
+                req.continue();
+            }
+        });
         await page.setContent(html, { waitUntil: "networkidle0" });
         return await page.pdf({ format: "A4", margin: { top: "10mm", bottom: "10mm", left: "10mm", right: "10mm" } });
     } finally {
