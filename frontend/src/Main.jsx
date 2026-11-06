@@ -4,6 +4,7 @@ import App from "./App";
 import { BrowserRouter } from "react-router-dom"; // Import this here
 import { SystemTimeProvider } from "./context/SystemTimeContext";
 import { RealTimeProvider } from "./context/RealTimeContext";
+import { DataCacheProvider } from "./context/DataCacheContext";
 import { SidebarProvider } from "./components/ui/sidebar";
 import './tailwind.css'
 import './index.css'
@@ -15,16 +16,18 @@ const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
   <React.StrictMode>
     <RealTimeProvider>
-      <SystemTimeProvider>
-        <BrowserRouter 
-          future={{ 
-            v7_startTransition: true, 
-            v7_relativeSplatPath: true 
-          }}
-        > 
-          <App />
-        </BrowserRouter>
-      </SystemTimeProvider>
+      <DataCacheProvider>
+        <SystemTimeProvider>
+          <BrowserRouter 
+            future={{ 
+              v7_startTransition: true, 
+              v7_relativeSplatPath: true 
+            }}
+          > 
+            <App />
+          </BrowserRouter>
+        </SystemTimeProvider>
+      </DataCacheProvider>
     </RealTimeProvider>
   </React.StrictMode>
 );

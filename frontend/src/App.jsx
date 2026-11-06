@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import Home from "./pages/admin/Home";
 import EmployeeHome from "./pages/employeeHome/EmployeeHome";
 import UserRequests from "./pages/userRequests/UserRequests"; 
@@ -61,13 +62,39 @@ import RetirementPay from "./pages/admin_Payroll/subtabs/RetirementPay";
 import LaborBenefits from "./pages/admin_Payroll/LaborBenefits";
 import PageTitle from "./components/PageTitle";
 import InactivityHandler from "./components/InactivityHandler";
+import ScrollToTop from "./components/common/ScrollToTop";
+import { getStoredUser, setStoredUser } from "./utils/authStorage";
+import FirstLoginModal from "./components/auth/FirstLoginModal";
 
 function App() {
+  const [currentUser, setCurrentUser] = useState(() => getStoredUser());
+
+  useEffect(() => {
+    const handleUserUpdate = () => {
+      setCurrentUser(getStoredUser());
+    };
+    window.addEventListener("userUpdate", handleUserUpdate);
+    window.addEventListener("storage", handleUserUpdate);
+    return () => {
+      window.removeEventListener("userUpdate", handleUserUpdate);
+      window.removeEventListener("storage", handleUserUpdate);
+    };
+  }, []);
 
   return (
-    <div className="app w-full">
+    <div className="app w-full min-h-screen bg-slate-50 text-slate-900">
       <PageTitle />
       <InactivityHandler />
+      <ScrollToTop />
+      {currentUser?.is_first_login && (
+        <FirstLoginModal
+          currentUser={currentUser}
+          onPasswordChanged={(updated) => {
+            setStoredUser(updated);
+            setCurrentUser(updated);
+          }}
+        />
+      )}
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/reset-password" element={<ResetPassword />} />

@@ -61,6 +61,7 @@ module.exports = (sequelize, DataTypes) => {
       is_time_exempt: { type: DataTypes.BOOLEAN, defaultValue: false },
       resetPasswordToken: { type: DataTypes.STRING(255), allowNull: true, defaultValue: null },
       resetPasswordExpires: { type: DataTypes.DATE, allowNull: true, defaultValue: null },
+      is_first_login: { type: DataTypes.BOOLEAN, defaultValue: false, allowNull: false },
     },
     {
       timestamps: true,

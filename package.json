@@ -18,7 +18,11 @@
     "update:all": "node scripts/safe_update_all.js",
     "test:guardrails": "node scripts/verify_employee_guardrails.js",
     "test:november": "node scripts/verify_november_payroll_suite.js",
-    "test:modules": "node scripts/verify_modules_suite.js"
+    "test:modules": "node scripts/verify_modules_suite.js",
+    "test:payroll": "node scripts/verify_payroll_comprehensive_suite.js",
+    "test:email": "node scripts/verify_email_service.js",
+    "test:settings": "node scripts/verify_settings_suite.js",
+    "test:auth": "node scripts/verify_auth_first_login_suite.js"
   },
   "devDependencies": {
     "autoprefixer": "^10.5.0",

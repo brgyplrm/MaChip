@@ -93,8 +93,20 @@ const Maxicare = () => {
   const setPremium = (val) => setConfig(prev => ({ ...prev, totalGross: val }));
   const setCutoffs = (val) => setConfig(prev => ({ ...prev, monthsToPay: val / 2 }));
 
-  const [employeeList, setEmployeeList] = useState([]);
-  const [data, setData] = useState([]);
+  const [employeeList, setEmployeeList] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("machip_cached_maxicare_employees");
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return [];
+  });
+  const [data, setData] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("machip_cached_maxicare_data");
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return [];
+  });
   const [expectedDates, setExpectedDates] = useState([]);
   const [isEditingTable, setIsEditingTable] = useState(false);
   const [editingCell, setEditingCell] = useState(null); 
@@ -541,6 +553,7 @@ const Maxicare = () => {
         };
       });
       setEmployeeList(activeEmps);
+      try { sessionStorage.setItem("machip_cached_maxicare_employees", JSON.stringify(activeEmps)); } catch {}
 
       const dateMap = {};
       rawHistory.forEach(item => {
@@ -559,6 +572,7 @@ const Maxicare = () => {
         values: dateMap[date]
       }));
       setData(matrix);
+      try { sessionStorage.setItem("machip_cached_maxicare_data", JSON.stringify(matrix)); } catch {}
 
     } catch (err) {
       console.error("[MAXICARE] Fatal fetch error:", err);

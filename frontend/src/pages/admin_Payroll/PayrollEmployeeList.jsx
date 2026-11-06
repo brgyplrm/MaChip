@@ -28,7 +28,13 @@ import EditPayrollModal from "../../components/editPayrollModal/EditPayrollModal
 import { TablePagination } from "@/components/ui/table-pagination";
 
 const PayrollEmployeeList = () => {
-  const [employees, setEmployees] = useState([]);
+  const [employees, setEmployees] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("machip_cached_payroll_employees") || sessionStorage.getItem("machip_cached_users");
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return [];
+  });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
@@ -78,6 +84,7 @@ const PayrollEmployeeList = () => {
       const data = await response.json();
       if (response.ok) {
         setEmployees(data);
+        try { sessionStorage.setItem("machip_cached_payroll_employees", JSON.stringify(data)); } catch {}
       }
     } catch (error) {
       console.error("Error fetching employees:", error);
@@ -287,7 +294,7 @@ const PayrollEmployeeList = () => {
         )}
 
         {/* Dashboard-Style Widgets Row */}
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full animate-in fade-in slide-in-from-bottom-2 duration-200">
           {/* Card 1: Total Employees */}
           <Card className="shadow-sm border-t-5 border-brand-primary bg-white py-0 h-full min-w-0">
             <CardContent className="px-5 py-5 flex justify-between h-full">

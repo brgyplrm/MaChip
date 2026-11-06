@@ -2,6 +2,7 @@ const { sequelize, SystemSettings } = require("../config/sequelize.js");
 const { QueryTypes } = require("sequelize");
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const bcrypt = require("bcryptjs");
 const { getSystemTime, formatForSQL } = require("../utils/systemTime");
 const { validateEmailActive, sendWelcomeEmail, sendPasswordUpdateEmail } = require("../utils/emailService");
@@ -10,6 +11,30 @@ const { encrypt, decrypt, generateBlindIndex, hashRfidBadge, maskSensitiveValue 
 const { computeMonthlyShares } = require("../utils/govtDeductions");
 const { queueSlotDeletion } = require("./rfid.controller");
 const { roundMoney } = require("../utils/financialHelper");
+
+/**
+ * Generates a high-entropy temporary password compliant with MaChip policy:
+ * At least 12 characters, uppercase, lowercase, numeric digit, and special symbol.
+ */
+const generateTemporaryPassword = () => {
+  const charsUpper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const charsLower = "abcdefghjkmnpqrstuvwxyz";
+  const charsNum = "23456789";
+  const charsSpecial = "@#$!";
+  const getRandom = (str) => str.charAt(crypto.randomInt(0, str.length));
+
+  const pwd = [
+    getRandom(charsUpper),
+    getRandom(charsLower),
+    getRandom(charsNum),
+    getRandom(charsSpecial)
+  ];
+  const allChars = charsUpper + charsLower + charsNum + charsSpecial;
+  for (let i = 0; i < 8; i++) {
+    pwd.push(getRandom(allChars));
+  }
+  return pwd.sort(() => crypto.randomInt(-1, 2)).join("");
+};
 
 // ── Get Next User ID ──────────────────────────────────────────────────────────
 exports.getAuditLogs = async (req, res) => {
@@ -124,14 +149,19 @@ exports.registerUser = async (req, res) => {
       bank_AccountName
     } = req.body || {};
 
-    if (!user_FirstName || !user_LastName || !user_Email || !user_Password) {
+    if (!user_FirstName || !user_LastName || !user_Email) {
       return res.status(400).json({
-        error: "Missing required fields (First Name, Last Name, Email, or Password).",
+        error: "Missing required fields (First Name, Last Name, or Email).",
       });
     }
 
+    // Auto-generate strong temporary password if not explicitly supplied
+    const effectivePassword = (user_Password && typeof user_Password === "string" && user_Password.trim())
+      ? user_Password.trim()
+      : generateTemporaryPassword();
+
     const { validatePassword } = require("../utils/passwordValidator");
-    const pwdValidation = validatePassword(user_Password);
+    const pwdValidation = validatePassword(effectivePassword);
     if (!pwdValidation.isValid) {
       return res.status(400).json({ error: pwdValidation.message });
     }
@@ -220,7 +250,7 @@ exports.registerUser = async (req, res) => {
 
     // Hash password
     const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(req.body.user_Password, salt);
+    const hashedPassword = await bcrypt.hash(effectivePassword, salt);
 
     const now = await getSystemTime();
     const nowStr = formatForSQL(now);
@@ -264,14 +294,14 @@ exports.registerUser = async (req, res) => {
           "user_RoleId", "user_EmploymentStatusId", "user_ProfilePic", 
           "department", "position", "position_id", "hireDate", "taxStatus", 
           "user_Phone", "user_Address", "user_DOB", "birth_month", "user_Gender", "user_ShiftId",
-          "dailyRate", "civil_status", "is_solo_parent", "createdAt", "updatedAt"
+          "dailyRate", "civil_status", "is_solo_parent", "is_first_login", "createdAt", "updatedAt"
         ) VALUES (
           :user_Id, :user_FirstName, :user_LastName,
           :user_MiddleName, :user_Email, :user_Password, 
           :user_RoleId, :user_EmploymentStatusId, :user_ProfilePic, 
           :department, :position, :position_id, :hireDate, :taxStatus,
           :user_Phone, :user_Address, :user_DOB, :birth_month, :user_Gender, :user_ShiftId,
-          :dailyRate, :civil_status, :is_solo_parent, :now, :now
+          :dailyRate, :civil_status, :is_solo_parent, :is_first_login, :now, :now
         )`,
         {
           replacements: {
@@ -298,6 +328,7 @@ exports.registerUser = async (req, res) => {
             dailyRate,
             civil_status: req.body.civil_status || "Single",
             is_solo_parent: req.body.is_solo_parent === "true" || req.body.is_solo_parent === true,
+            is_first_login: true,
             now: nowStr,
           },
           type: QueryTypes.INSERT,
@@ -447,7 +478,7 @@ exports.registerUser = async (req, res) => {
     // Send welcome email after successful registration (Non-blocking)
     sendWelcomeEmail({
       email: user_Email,
-      password: req.body.user_Password, // Use raw password
+      password: effectivePassword, // Use effective (provided or auto-generated) password
       name: `${req.body.user_FirstName} ${req.body.user_LastName}`,
       displayId: displayId,
       hireDate: req.body.hireDate || null,

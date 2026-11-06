@@ -31,7 +31,13 @@ const GovLoans = () => {
   const [activeTab, setActiveTab] = useState("summary"); 
   const [activeMainTab, setActiveMainTab] = useState("summary"); 
   const [toast, setToast] = useState({ message: "", type: "success" });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("machip_cached_gov_loans");
+      if (cached && JSON.parse(cached).length > 0) return false;
+    } catch {}
+    return true;
+  });
   const [error, setError] = useState(null);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [file, setFile] = useState(null);
@@ -70,10 +76,28 @@ const GovLoans = () => {
     }));
   };
   
-  const [employeeList, setEmployeeList] = useState([]);
+  const [employeeList, setEmployeeList] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("machip_cached_gov_employees") || sessionStorage.getItem("machip_cached_users");
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return [];
+  });
   const [expectedDates, setExpectedDates] = useState([]);
-  const [allData, setAllData] = useState({}); 
-  const [activeLoans, setActiveLoans] = useState([]);
+  const [allData, setAllData] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("machip_cached_gov_data");
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return {};
+  }); 
+  const [activeLoans, setActiveLoans] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("machip_cached_gov_loans");
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return [];
+  });
   
   const [isEditingTable, setIsEditingTable] = useState(false);
   const [editingCell, setEditingCell] = useState(null);
@@ -102,7 +126,9 @@ const GovLoans = () => {
   };
 
   const fetchData = async () => {
-    setLoading(true);
+    if (!activeLoans.length && employeeList.length === 0) {
+      setLoading(true);
+    }
     setError(null);
     try {
       fetchCutoffDates();
@@ -116,17 +142,32 @@ const GovLoans = () => {
         key: emp.user_Id.toString(),
       }));
       setEmployeeList(activeEmps);
+      try {
+        sessionStorage.setItem("machip_cached_gov_employees", JSON.stringify(activeEmps));
+      } catch {}
 
       const activeLoansRes = await fetchWithAuth("/api/payroll/loans/active");
       if (activeLoansRes.ok) {
-        setActiveLoans(await activeLoansRes.json());
+        const actLoans = await activeLoansRes.json();
+        setActiveLoans(actLoans);
+        try {
+          sessionStorage.setItem("machip_cached_gov_loans", JSON.stringify(actLoans));
+        } catch {}
       }
 
+      const historyPromises = govTypes.map(async (type) => {
+        try {
+          const historyRes = await fetchWithAuth(`/api/payroll/loans/history?type=${type.dbType}`);
+          const history = await historyRes.json();
+          return { typeId: type.id, history };
+        } catch (e) {
+          return { typeId: type.id, history: [] };
+        }
+      });
+
+      const historyResults = await Promise.all(historyPromises);
       const combinedData = {};
-      for (const type of govTypes) {
-        const historyRes = await fetchWithAuth(`/api/payroll/loans/history?type=${type.dbType}`);
-        const history = await historyRes.json();
-        
+      historyResults.forEach(({ typeId, history }) => {
         if (Array.isArray(history)) {
           const dateMap = {};
           history.forEach(item => {
@@ -138,13 +179,16 @@ const GovLoans = () => {
               payrollId: item.payrollId
             };
           });
-          combinedData[type.id] = Object.keys(dateMap).sort().map(date => ({
+          combinedData[typeId] = Object.keys(dateMap).sort().map(date => ({
             date,
             values: dateMap[date]
           }));
         }
-      }
+      });
       setAllData(combinedData);
+      try {
+        sessionStorage.setItem("machip_cached_gov_data", JSON.stringify(combinedData));
+      } catch {}
     } catch (err) {
       console.error("Error fetching governmental loans data", err);
       setError(err.message);
@@ -845,7 +889,7 @@ const GovLoans = () => {
             <CardContent className="px-5 py-5 flex flex-col justify-between h-full">
               <div>
                 <p className="text-xs font-bold text-brand-primary uppercase tracking-wider mb-2">Total Loans</p>
-                <p className="text-4xl font-bold text-brand-primary">{loading ? "..." : activeLoanStats.totalLoans}</p>
+                <p className="text-4xl font-bold text-brand-primary">{loading && !activeLoans.length ? "..." : activeLoanStats.totalLoans}</p>
               </div>
               <p className="text-xs text-brand-primary/70 italic mt-4">Active & completed agreements</p>
             </CardContent>
@@ -857,7 +901,7 @@ const GovLoans = () => {
               <div>
                 <p className="text-xs font-bold text-accent-gold uppercase tracking-wider mb-2">Total Disbursed</p>
                 <p className="text-4xl font-bold text-accent-gold">
-                  {loading ? "₱0.00" : peso(activeLoanStats.totalDisbursed)}
+                  {loading && !activeLoans.length ? "₱0.00" : peso(activeLoanStats.totalDisbursed)}
                 </p>
               </div>
               <p className="text-xs text-accent-gold/70 italic mt-4">Cumulative loan principal</p>
@@ -870,7 +914,7 @@ const GovLoans = () => {
               <div>
                 <p className="text-xs font-bold text-accent-green uppercase tracking-wider mb-2">Total Collected</p>
                 <p className="text-4xl font-bold text-accent-green">
-                  {loading ? "₱0.00" : peso(activeLoanStats.totalCollected)}
+                  {loading && !activeLoans.length ? "₱0.00" : peso(activeLoanStats.totalCollected)}
                 </p>
               </div>
               <p className="text-xs text-accent-green/70 italic mt-4">Total payments received</p>
@@ -883,7 +927,7 @@ const GovLoans = () => {
               <div>
                 <p className="text-xs font-bold text-status-danger uppercase tracking-wider mb-2">Outstanding</p>
                 <p className="text-4xl font-bold text-status-danger">
-                  {loading ? "₱0.00" : peso(activeLoanStats.outstanding)}
+                  {loading && !activeLoans.length ? "₱0.00" : peso(activeLoanStats.outstanding)}
                 </p>
               </div>
               <p className="text-xs text-status-danger/70 italic mt-4">Remaining balance to collect</p>

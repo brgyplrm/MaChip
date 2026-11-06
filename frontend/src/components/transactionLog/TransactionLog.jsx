@@ -51,7 +51,13 @@ const TransactionLog = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  const [serverStats, setServerStats] = useState(null);
+  const [serverStats, setServerStats] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("machip_cached_trans_stats");
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return null;
+  });
   const [uniqueActions, setUniqueActions] = useState(["All Actions"]);
 
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -84,7 +90,10 @@ const TransactionLog = () => {
           setTransactions(result.data);
           setTotalItems(result.pagination?.total || 0);
           setTotalPages(result.pagination?.totalPages || 1);
-          if (result.stats) setServerStats(result.stats);
+          if (result.stats) {
+            setServerStats(result.stats);
+            try { sessionStorage.setItem("machip_cached_trans_stats", JSON.stringify(result.stats)); } catch {}
+          }
           if (result.uniqueActions) setUniqueActions(result.uniqueActions);
         } else if (Array.isArray(result)) {
           setTransactions(result);

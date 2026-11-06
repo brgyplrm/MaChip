@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import Sidebar from "../../components/Sidebar";
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
@@ -52,8 +52,30 @@ const UserRequests = () => {
   const [historySearchQuery, setHistorySearchQuery] = useState("");
   const [historyTypeFilter, setHistoryTypeFilter] = useState("All Types");
   const [toast, setToast] = useState({ message: "", type: "success" });
-  const [historyRequests, setHistoryRequests] = useState([]);
-  const [stats, setStats] = useState({ pending: 0, approved: 0, rejected: 0, returned: 0 });
+  const [historyRequests, setHistoryRequests] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("machip_cached_user_history_requests");
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return [];
+  });
+  const [stats, setStats] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("machip_cached_user_history_requests");
+      if (cached) {
+        const list = JSON.parse(cached);
+        if (Array.isArray(list)) {
+          return {
+            pending: list.filter(r => r.emp_reqStatusId === 1 || r.emp_reqStatusId === 4).length,
+            approved: list.filter(r => r.emp_reqStatusId === 2).length,
+            rejected: list.filter(r => r.emp_reqStatusId === 3).length,
+            returned: list.filter(r => r.emp_reqStatusId === 5).length,
+          };
+        }
+      }
+    } catch {}
+    return { pending: 0, approved: 0, rejected: 0, returned: 0 };
+  });
   const [loading, setLoading] = useState(false);
 
   const isHistoryFiltering = useMemo(() => {
@@ -114,7 +136,14 @@ const UserRequests = () => {
   }, []);
 
   const payroll = useMemo(() => getPayrollDates(systemToday), [systemToday, getPayrollDates]);
-  const [balance, setBalance] = useState(null);
+  const [balance, setBalance] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("machip_user_balance");
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
   const [holidays, setHolidays] = useState([]);
 
   const fetchHolidays = async () => {
@@ -459,25 +488,31 @@ const UserRequests = () => {
       if (response.ok) {
         const data = await response.json();
         setBalance(data);
+        try {
+          sessionStorage.setItem("machip_user_balance", JSON.stringify(data));
+        } catch {}
       }
     } catch (error) {
       console.error("Error fetching balance:", error);
     }
   };
 
-  const fetchHistory = async () => {
+  const fetchHistory = async (isBackground = false) => {
     if (!userData?.user_Id) return;
-    setLoading(true);
+    if (!isBackground) setLoading(true);
     try {
       const response = await fetchWithAuth(`/api/request/${userData.user_Id}`);
       const data = await response.json();
       if (response.ok) {
         setHistoryRequests(data);
+        try {
+          sessionStorage.setItem("machip_cached_user_history_requests", JSON.stringify(data));
+        } catch {}
       }
     } catch (error) {
       console.error("Error fetching history:", error);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   };
 
@@ -497,7 +532,7 @@ const UserRequests = () => {
     fetchHolidays();
     const handleRefresh = () => {
       fetchBalance();
-      fetchHistory();
+      fetchHistory(true);
       fetchHolidays();
     };
     window.addEventListener("dataRefresh", handleRefresh);
@@ -905,44 +940,31 @@ const UserRequests = () => {
       calculatedStartMonth = calculateAmortizationStart(value, formData.agency, formData.loanType);
     }
 
-    // Auto-calculate for SSS Loans (Salary or Calamity)
-    if (formData.agency === "SSS" && (formData.loanType === "Salary Loan" || formData.loanType === "Calamity Loan")) {
-      // Principal could be entered in 'amountRequested' (Calamity/Other) or 'totalOutstandingBalance' (Salary)
-      const isPrincipalField = name === "totalOutstandingBalance" || name === "amountRequested";
-      const isTermField = name === "totalLoanTerm" || name === "monthsToPay";
+    const isLoanCalculationField = ["amountRequested", "totalOutstandingBalance", "monthsToPay", "totalLoanTerm", "loanApprovalDate"].includes(name);
 
-      if (isPrincipalField || isTermField || formData.loanType === "Calamity Loan") {
-        const principal = isPrincipalField ? parseFloat(value) : parseFloat(formData.totalOutstandingBalance || formData.amountRequested || 0);
-        // Calamity is strictly 24 months per SSS guidelines
-        const term = formData.loanType === "Calamity Loan" ? 24 : (isTermField ? parseInt(value) : parseInt(formData.totalLoanTerm || formData.monthsToPay || 0));
+    if (isLoanCalculationField && ["13", "14"].includes(formData.emp_reqTypeId)) {
+      const updatedFields = {
+        [name]: newValue,
+        ...(calculatedStartMonth ? { amortizationStartMonth: calculatedStartMonth } : {})
+      };
+      
+      const currentMerged = { ...formData, ...updatedFields };
+      const principal = parseFloat(currentMerged.amountRequested || currentMerged.totalOutstandingBalance || 0);
+      let term = parseInt(currentMerged.monthsToPay || currentMerged.totalLoanTerm || 0);
+      const approvalDate = currentMerged.loanApprovalDate;
+      const agency = currentMerged.agency;
+      const loanType = currentMerged.loanType;
 
-        if (principal > 0 && term > 0) {
-           // Estimated Amortization with ~10% annual interest
-           const monthlyInterest = (0.10 / 12);
-           const estimatedAmort = (principal * monthlyInterest * Math.pow(1 + monthlyInterest, term)) / (Math.pow(1 + monthlyInterest, term) - 1);
-           
-           setFormData(prev => ({ 
-             ...prev, 
-             [name]: newValue,
-             monthlyAmortization: Math.round(estimatedAmort),
-             ...(calculatedStartMonth ? { amortizationStartMonth: calculatedStartMonth } : {})
-           }));
-           return;
-        }
+      if (agency === 'Company' && (!term || term <= 0)) {
+        term = 1;
       }
-    }
 
-    // --- HIGH ACCURACY FINANCIAL CALCULATIONS ---
-    const isLoanField = ["amountRequested", "monthsToPay", "loanApprovalDate"].includes(name);
-    if (isLoanField && (formData.agency === "SSS" || formData.agency === "Pag-IBIG" || formData.agency === "Company")) {
-      const principal = name === "amountRequested" ? parseFloat(value) : parseFloat(formData.amountRequested || 0);
-      const term = name === "monthsToPay" ? parseInt(value) : parseInt(formData.monthsToPay || 0);
-      const approvalDate = name === "loanApprovalDate" ? value : formData.loanApprovalDate;
-      const agency = formData.agency;
-      const loanType = formData.loanType;
+      let monthlyAmort = 0;
+      let serviceFeeVal = 0;
+      let proRatedVal = 0;
+      let netProceeds = 0;
 
       if (principal > 0 && term > 0) {
-        // 1. Determine Interest Rate
         let annualRate = 0;
         if (agency === 'SSS') {
           annualRate = (loanType === 'Calamity Loan') ? 0.06 : 0.10;
@@ -952,8 +974,6 @@ const UserRequests = () => {
           annualRate = 0;
         }
 
-        // 2. Monthly Amortization Formula (Standard Annuity)
-        let monthlyAmort = 0;
         if (annualRate > 0) {
           const monthlyRate = annualRate / 12;
           const factor = Math.pow(1 + monthlyRate, term);
@@ -962,30 +982,27 @@ const UserRequests = () => {
           monthlyAmort = principal / term;
         }
 
-        // 3. Upfront Fees (SSS Specific)
-        let serviceFeeVal = 0;
-        let proRatedVal = 0;
         if (agency === 'SSS' && approvalDate) {
           serviceFeeVal = principal * 0.01;
           const dObj = new Date(approvalDate);
           const daysInMonth = new Date(dObj.getFullYear(), dObj.getMonth() + 1, 0).getDate();
-          const daysLeft = daysInMonth - dObj.getDate();
+          const daysLeft = Math.max(0, daysInMonth - dObj.getDate());
           proRatedVal = (principal * annualRate * daysLeft) / 365;
         }
 
-        const netProceeds = principal - serviceFeeVal - proRatedVal;
-
-        setFormData(prev => ({
-          ...prev,
-          [name]: newValue,
-          monthlyAmortization: Math.round(monthlyAmort * 100) / 100,
-          serviceFeeAmount: Math.round(serviceFeeVal * 100) / 100,
-          proRatedInterest: Math.round(proRatedVal * 100) / 100,
-          netDisbursement: Math.round(netProceeds * 100) / 100,
-          ...(calculatedStartMonth ? { amortizationStartMonth: calculatedStartMonth } : {})
-        }));
-        return;
+        netProceeds = principal - serviceFeeVal - proRatedVal;
       }
+
+      setFormData(prev => ({
+        ...prev,
+        ...updatedFields,
+        monthlyAmortization: Math.round(monthlyAmort * 100) / 100,
+        serviceFeeAmount: Math.round(serviceFeeVal * 100) / 100,
+        proRatedInterest: Math.round(proRatedVal * 100) / 100,
+        netDisbursement: Math.round(netProceeds * 100) / 100
+      }));
+
+      return;
     }
 
     // Auto-calculate Amortization Start Month if loanApprovalDate changed
@@ -1570,7 +1587,7 @@ const UserRequests = () => {
         </div>
         
         {/* Dashboard-Style Statistics Cards */}
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full animate-in fade-in slide-in-from-bottom-2 duration-200">
           {/* Card 1: Pending */}
           <Card className="shadow-sm border-t-5 border-brand-primary py-0 h-full min-w-0 bg-white">
             <CardContent className="px-5 py-5 flex justify-between h-full text-left">
@@ -2262,55 +2279,109 @@ const UserRequests = () => {
                         </div>
                       </div>
 
-                      {/* NEW: HIGH ACCURACY FINANCIAL SUMMARY CARD */}
-                      {formData.netDisbursement > 0 && (
-                        <div className="bg-brand-primary text-white p-5 rounded-2xl border border-indigo-900/50 space-y-4 my-6 shadow-2xl animate-in fade-in slide-in-from-top-4 duration-300">
-                          <div className="flex justify-between items-center">
-                            <h4 className="text-[10px] font-black text-indigo-300 uppercase tracking-[0.2em]">Matrix Financial Disclosure</h4>
-                            <Badge className="bg-yellow-400 text-blue-900 font-black border-0">SSS/HDMF STANDARDS</Badge>
-                          </div>
-                          
-                          <div className="grid grid-cols-2 gap-6">
-                            <div className="space-y-1">
-                              <p className="text-[10px] text-indigo-300 font-bold uppercase">Requested Principal</p>
-                              <p className="text-2xl font-black tracking-tight">₱{parseFloat(formData.amountRequested || formData.totalOutstandingBalance || 0).toLocaleString('en-PH', {minimumFractionDigits: 2})}</p>
+                      {/* STANDARDIZED FINANCIAL DISCLOSURE & LAYOUT CONTAINER */}
+                      {(() => {
+                        const isCompany = formData.agency === "Company" || formData.loanType === "Cash Advance";
+                        const principal = parseFloat(formData.amountRequested || formData.totalOutstandingBalance || 0);
+                        const monthlyAmort = parseFloat(formData.monthlyAmortization || principal || 0);
+
+                        if (principal > 0) {
+                          return (
+                            <div className="bg-brand-primary text-white p-5 rounded-2xl border border-indigo-900/50 space-y-4 my-6 shadow-2xl animate-in fade-in duration-200">
+                              <div className="flex justify-between items-center">
+                                <h4 className="text-[10px] font-black text-indigo-300 uppercase tracking-[0.2em]">
+                                  {isCompany ? "Company Cash Advance Disclosure" : "Matrix Financial Disclosure"}
+                                </h4>
+                                {isCompany ? (
+                                  <Badge className="bg-emerald-500 text-white font-bold border-0 text-[10px]">COMPANY INTERNAL</Badge>
+                                ) : (
+                                  <Badge className="bg-yellow-400 text-blue-900 font-black border-0 text-[10px]">SSS/HDMF STANDARDS</Badge>
+                                )}
+                              </div>
+                              
+                              <div className="grid grid-cols-2 gap-6">
+                                <div className="space-y-1">
+                                  <p className="text-[10px] text-indigo-300 font-bold uppercase">{isCompany ? "Requested Advance" : "Requested Principal"}</p>
+                                  <p className="text-2xl font-black tracking-tight">₱{principal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</p>
+                                </div>
+                                <div className="text-right space-y-1">
+                                  <p className="text-[10px] text-indigo-300 font-bold uppercase">{isCompany ? "Payroll Deduction" : "Monthly Amortization"}</p>
+                                  <p className="text-2xl font-black text-yellow-400 tracking-tight">₱{monthlyAmort.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</p>
+                                  <p className="text-[8px] text-indigo-200 italic font-medium">
+                                    {formData.deductionFrequency === "monthly"
+                                      ? "Deducted in full on 15th cutoff"
+                                      : `Split across 2 cutoffs (₱${(monthlyAmort / 2).toLocaleString('en-PH', { minimumFractionDigits: 2 })}/ea)`}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="bg-black/20 p-4 rounded-xl space-y-2 border border-white/5">
+                                {isCompany ? (
+                                  <>
+                                    <div className="flex justify-between text-[11px] font-medium">
+                                      <span className="text-indigo-200">Interest Rate (Company Sponsored)</span>
+                                      <span className="font-mono text-emerald-400 font-bold">0.00%</span>
+                                    </div>
+                                    <div className="flex justify-between text-[11px] font-medium">
+                                      <span className="text-indigo-200">Service / Processing Fee</span>
+                                      <span className="font-mono text-emerald-400 font-bold">₱0.00 (Waived)</span>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <div className="flex justify-between text-[11px] font-medium">
+                                      <span className="text-indigo-200">Processing/Service Fee (1%)</span>
+                                      <span className="font-mono">- ₱{parseFloat(formData.serviceFeeAmount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+                                    </div>
+                                    <div className="flex justify-between text-[11px] font-medium">
+                                      <span className="text-indigo-200">Advanced Pro-rated Interest</span>
+                                      <span className="font-mono">- ₱{parseFloat(formData.proRatedInterest || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+                                    </div>
+                                  </>
+                                )}
+                                <div className="pt-3 mt-2 border-t border-white/10 flex justify-between items-end">
+                                  <div className="space-y-0.5">
+                                    <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest block">Net Cash to Receive</span>
+                                    <span className="text-sm text-indigo-200/60 leading-none font-medium italic">
+                                      {isCompany ? "Proceeds via payroll disbursement / direct deposit" : "Estimated proceeds via check/bank"}
+                                    </span>
+                                  </div>
+                                  <span className="text-3xl font-black text-emerald-400 tracking-tighter">
+                                    ₱{parseFloat(isCompany ? principal : (formData.netDisbursement || principal)).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                                  </span>
+                                </div>
+                              </div>
+                              
+                              <p className="text-[9px] text-indigo-300/70 text-center font-medium italic">
+                                {isCompany
+                                  ? "Internal company cash advance with 0% interest. Repayment is deducted directly from payroll cutoffs as scheduled."
+                                  : "Calculated using the Diminishing Principal Balance Method. Final amounts may vary based on exact SSS/HDMF release dates."}
+                              </p>
                             </div>
-                            <div className="text-right space-y-1">
-                              <p className="text-[10px] text-indigo-300 font-bold uppercase">Monthly Amortization</p>
-                              <p className="text-2xl font-black text-yellow-400 tracking-tight">₱{parseFloat(formData.monthlyAmortization || 0).toLocaleString('en-PH', {minimumFractionDigits: 2})}</p>
-                              <p className="text-[8px] text-indigo-200 italic font-medium">
-                                {formData.deductionFrequency === "monthly"
-                                  ? "Deducted once a month on 15th cutoff"
-                                  : `Split across 2 cutoffs (₱${(parseFloat(formData.monthlyAmortization || 0) / 2).toLocaleString('en-PH', {minimumFractionDigits: 2})}/ea)`}
+                          );
+                        }
+
+                        return (
+                          <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl p-5 space-y-3 text-center my-6">
+                            <div className="flex justify-between items-center">
+                              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                                {isCompany ? "Company Cash Advance Disclosure" : "Matrix Financial Disclosure"}
+                              </h4>
+                              <Badge variant="outline" className="text-slate-400 border-slate-300 text-[10px]">
+                                {isCompany ? "COMPANY INTERNAL" : "SSS/HDMF STANDARDS"}
+                              </Badge>
+                            </div>
+                            <div className="py-4 flex flex-col items-center justify-center space-y-1">
+                              <p className="text-xs font-semibold text-slate-600">Awaiting Principal Amount</p>
+                              <p className="text-[10px] text-slate-400">
+                                {isCompany
+                                  ? "Enter requested advance amount to preview payroll deduction breakdown."
+                                  : "Enter loan amount to compute amortization schedule and net cash disbursement."}
                               </p>
                             </div>
                           </div>
-
-                          <div className="bg-black/20 p-4 rounded-xl space-y-2 border border-white/5">
-                            <div className="flex justify-between text-[11px] font-medium">
-                              <span className="text-indigo-200">Processing/Service Fee (1%)</span>
-                              <span className="font-mono">- ₱{parseFloat(formData.serviceFeeAmount || 0).toLocaleString('en-PH', {minimumFractionDigits: 2})}</span>
-                            </div>
-                            <div className="flex justify-between text-[11px] font-medium">
-                              <span className="text-indigo-200">Advanced Pro-rated Interest</span>
-                              <span className="font-mono">- ₱{parseFloat(formData.proRatedInterest || 0).toLocaleString('en-PH', {minimumFractionDigits: 2})}</span>
-                            </div>
-                            <div className="pt-3 mt-2 border-t border-white/10 flex justify-between items-end">
-                              <div className="space-y-0.5">
-                                <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest block">Net Cash to Receive</span>
-                                <span className="text-sm text-indigo-200/60 leading-none font-medium italic">Estimated proceeds via check/bank</span>
-                              </div>
-                              <span className="text-3xl font-black text-emerald-400 tracking-tighter">
-                                ₱{parseFloat(formData.netDisbursement || 0).toLocaleString('en-PH', {minimumFractionDigits: 2})}
-                              </span>
-                            </div>
-                          </div>
-                          
-                          <p className="text-[9px] text-indigo-300/70 text-center font-medium italic">
-                             Calculated using the Diminishing Principal Balance Method. Final amounts may vary based on exact SSS/HDMF release dates.
-                          </p>
-                        </div>
-                      )}
+                        );
+                      })()}
 
                       {formData.emp_reqTypeId === "14" && (
                         <div className="space-y-4">

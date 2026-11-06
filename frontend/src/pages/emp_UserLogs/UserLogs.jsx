@@ -251,9 +251,9 @@ const UserLogs = () => {
     }
   };
 
-  const fetchDTR = async () => {
+  const fetchDTR = async (isBackground = false) => {
     if (!userData?.user_Id) return;
-    setLoading(true);
+    if (!isBackground) setLoading(true);
     try {
       const response = await fetchWithAuth(
         `/api/attendance/report?startDate=${dtrStartDate}&endDate=${dtrEndDate}&user_Id=${userData.user_Id}`
@@ -271,7 +271,7 @@ const UserLogs = () => {
     } catch (error) {
       console.error("Error fetching DTR:", error);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   };
 
@@ -302,7 +302,7 @@ const UserLogs = () => {
   useEffect(() => {
     const handleDataRefresh = () => {
       fetchDailyLogs();
-      fetchDTR();
+      fetchDTR(true);
       fetchRawScans();
     };
     window.addEventListener("dataRefresh", handleDataRefresh);

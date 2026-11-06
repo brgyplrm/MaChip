@@ -168,31 +168,47 @@ const EmployeeHome = () => {
     hour12: true
   });
 
-  const [dashboardStats, setDashboardStats] = useState({
-    todayIn: "--:--",
-    attendance: { absent: 0, onTime: 0, late: 0, halfDay: 0, leave: 0, monthName: "" },
-    leaveBalance: { VL_total: 7, VL_used: 0, VL_balance: 7, SL_total: 7, SL_used: 0, SL_balance: 7 },
-    recentLogs: [],
-    monthlyRequests: []
+  const [dashboardStats, setDashboardStats] = useState(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem("userData"));
+      if (u?.user_Id) {
+        const cached = sessionStorage.getItem(`machip_emp_stats_${u.user_Id}`);
+        if (cached) return JSON.parse(cached);
+      }
+    } catch {}
+    return {
+      todayIn: "--:--",
+      attendance: { absent: 0, onTime: 0, late: 0, halfDay: 0, leave: 0, monthName: "" },
+      leaveBalance: { VL_total: 7, VL_used: 0, VL_balance: 7, SL_total: 7, SL_used: 0, SL_balance: 7 },
+      recentLogs: [],
+      monthlyRequests: []
+    };
   });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem("userData"));
+      return !sessionStorage.getItem(`machip_emp_stats_${u?.user_Id}`);
+    } catch {
+      return true;
+    }
+  });
   const [payrolls, setPayrolls] = useState([]);
   const [allPayrolls, setAllPayrolls] = useState([]);
   const [activeDeckLayer, setActiveDeckLayer] = useState("trajectory");
   const [toast, setToast] = useState({ message: "", type: "success" });
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      const storedUser = JSON.parse(localStorage.getItem("userData"));
-      if (!storedUser?.user_Id) {
-        setLoading(false);
-        return;
-      }
-      
-      setUserData(storedUser);
-      const currentId = storedUser.user_Id;
-      
-      setLoading(true);
+    const storedUser = JSON.parse(localStorage.getItem("userData"));
+    if (!storedUser?.user_Id) {
+      setLoading(false);
+      return;
+    }
+    
+    setUserData(storedUser);
+    const currentId = storedUser.user_Id;
+    
+    const fetchDashboardData = async (isBackground = false) => {
+      if (!isBackground) setLoading(true);
       try {
         const [statsRes, notifRes, payrollRes] = await Promise.all([
           fetchWithAuth(`/api/attendance/employee-dashboard/${currentId}`),
@@ -203,7 +219,10 @@ const EmployeeHome = () => {
         if (statsRes.ok) {
           const data = await statsRes.json();
           setDashboardStats(data);
-        } else {
+          try {
+            sessionStorage.setItem(`machip_emp_stats_${currentId}`, JSON.stringify(data));
+          } catch {}
+        } else if (!isBackground) {
           setToast({ message: "Failed to load dashboard statistics.", type: "error" });
         }
         
@@ -215,7 +234,7 @@ const EmployeeHome = () => {
 
         if (notifRes.ok) {
           const notifData = await notifRes.json();
-          if (notifData.count > 0) {
+          if (notifData.count > 0 && !isBackground) {
             const isSwitchable = [1, 2, 4].includes(Number(storedUser.user_RoleId));
             setToast({ 
               message: isSwitchable 
@@ -228,26 +247,28 @@ const EmployeeHome = () => {
       } catch (error) {
         console.error("Dashboard fetch error:", error);
       } finally {
-        setLoading(false);
+        if (!isBackground) setLoading(false);
       }
     };
 
-    fetchDashboardData();
+    fetchDashboardData(false);
 
     const handleStorageChange = () => {
       const stored = JSON.parse(localStorage.getItem("userData"));
       const storedMode = localStorage.getItem("viewMode") || "employee";
       setUserData(stored);
       setViewMode(storedMode);
-      fetchDashboardData();
+      fetchDashboardData(true);
     };
 
+    const handleBackgroundRefresh = () => fetchDashboardData(true);
+
     window.addEventListener("storage", handleStorageChange);
-    window.addEventListener("dataRefresh", fetchDashboardData);
+    window.addEventListener("dataRefresh", handleBackgroundRefresh);
     
     return () => {
       window.removeEventListener("storage", handleStorageChange);
-      window.removeEventListener("dataRefresh", fetchDashboardData);
+      window.removeEventListener("dataRefresh", handleBackgroundRefresh);
     };
   }, []);
 
@@ -456,7 +477,7 @@ const EmployeeHome = () => {
     <div className="flex flex-col w-full min-h-screen bg-slate-50">
       <Sidebar>
         <TooltipProvider>
-          <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-3 duration-500 ease-out">
+          <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-2 duration-200">
             <Toast 
               message={toast.message} 
               type={toast.type} 

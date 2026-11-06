@@ -158,13 +158,15 @@
 @layer base {
   * {
     @apply border-border outline-ring;
-    }
-  body {
-    @apply bg-background text-foreground;
-    }
+  }
+  html, body, #root, .app {
+    background-color: #f8fafc;
+    color: #0f172a;
+    min-height: 100vh;
+  }
   html {
     @apply font-sans;
-    }
+  }
 }
 
 /* Premium thin scrollbar styles for horizontally scrollable content */

@@ -74,6 +74,7 @@ exports.loginUser = async (req, res) => {
 
     // Strip password before sending back to client
     const { user_Password, ...userData } = user;
+    userData.is_first_login = Boolean(user.is_first_login);
 
     // Log login for ALL users (Admin and Employee)
     await logAudit(req, user.user_Id, "Authentication", "LOGIN", null, null, null, {
@@ -147,7 +148,7 @@ exports.verifySession = async (req, res) => {
       `SELECT u."user_Id", u."user_FirstName", u."user_LastName", u."user_MiddleName", u."user_Email", 
               u."user_RoleId", r."roleName" AS "user_Role", u."position", u."department",
               u."is_time_exempt", u."user_Gender", u."civil_status", u."is_solo_parent", u."hireDate",
-              u."user_ProfilePic"
+              u."user_ProfilePic", u."is_first_login"
        FROM "User" u
        LEFT JOIN "user_Role" r ON u."user_RoleId" = r."roleId"
        WHERE u."user_Id" = :userId AND u."deletedAt" IS NULL`,
@@ -403,6 +404,97 @@ exports.resetPassword = async (req, res) => {
   } catch (err) {
     console.error("[RESET PASSWORD ERROR]:", err);
     return res.status(500).json({ error: "Failed to reset password. Please try again." });
+  }
+};
+
+/**
+ * Sets initial password on first login and clears is_first_login flag.
+ */
+exports.setInitialPassword = async (req, res) => {
+  const userId = req.user ? req.user.user_Id : null;
+  const { currentPassword, newPassword, confirmPassword } = req.body || {};
+
+  if (!userId) {
+    return res.status(401).json({ error: "Unauthorized session." });
+  }
+
+  if (!currentPassword || !newPassword || !confirmPassword) {
+    return res.status(400).json({ error: "Current temporary password, new password, and confirmation are required." });
+  }
+
+  if (newPassword !== confirmPassword) {
+    return res.status(400).json({ error: "New password and confirmation password do not match." });
+  }
+
+  if (currentPassword === newPassword) {
+    return res.status(400).json({ error: "New password must be different from your temporary password." });
+  }
+
+  const { validatePassword } = require("../utils/passwordValidator");
+  const validation = validatePassword(newPassword);
+  if (!validation.isValid) {
+    return res.status(400).json({ error: validation.message });
+  }
+
+  try {
+    const [user] = await sequelize.query(
+      `SELECT "user_Id", "user_Password", "user_Email", "user_FirstName", "user_LastName"
+       FROM "User" 
+       WHERE "user_Id" = :userId AND "deletedAt" IS NULL`,
+      {
+        replacements: { userId },
+        type: QueryTypes.SELECT
+      }
+    );
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.user_Password);
+    if (!isMatch) {
+      return res.status(401).json({ error: "Current temporary password is incorrect." });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    await sequelize.query(
+      `UPDATE "User"
+       SET "user_Password" = :hashedPassword,
+           "is_first_login" = false,
+           "updatedAt" = NOW()
+       WHERE "user_Id" = :userId`,
+      {
+        replacements: { hashedPassword, userId },
+        type: QueryTypes.UPDATE
+      }
+    );
+
+    await logAudit(req, userId, "Authentication", "FIRST_LOGIN_PASSWORD_CHANGE", "User", userId, null, {
+      name: `${user.user_FirstName} ${user.user_LastName}`,
+      method: "First Login Security Enforcement"
+    });
+
+    // Send confirmation security alert email
+    try {
+      await sendPasswordUpdateEmail({
+        email: user.user_Email,
+        newPassword: newPassword,
+        name: `${user.user_FirstName} ${user.user_LastName}`
+      });
+    } catch (emailErr) {
+      console.error("[CONFIRMATION EMAIL ERROR]:", emailErr.message);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Password updated successfully! Welcome to your MaChip portal.",
+      is_first_login: false
+    });
+  } catch (error) {
+    console.error("[SET INITIAL PASSWORD ERROR]:", error);
+    return res.status(500).json({ error: "Failed to update password." });
   }
 };
 

@@ -37,11 +37,26 @@ import {
 
 const RetirementPay = () => {
   const { systemToday } = useSystemTime();
-  const [employees, setEmployees] = useState([]);
+  const [employees, setEmployees] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("machip_cached_users");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        return Array.isArray(parsed) ? parsed : (parsed.users || []);
+      }
+    } catch {}
+    return [];
+  });
   const [selectedUser, setSelectedUser] = useState("");
   const [retirementDate, setRetirementDate] = useState(new Date().toISOString().split('T')[0]);
   const [preview, setPreview] = useState(null);
-  const [history, setHistory] = useState([]);
+  const [history, setHistory] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("machip_cached_retirement_history");
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return [];
+  });
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
   const [confirmReleaseId, setConfirmReleaseId] = useState(null);
@@ -100,7 +115,12 @@ const RetirementPay = () => {
     try {
       const res = await fetchWithAuth("/api/payroll/retirement/history");
       const data = await res.json();
-      if (res.ok) setHistory(data);
+      if (res.ok) {
+        setHistory(data);
+        try {
+          sessionStorage.setItem("machip_cached_retirement_history", JSON.stringify(data));
+        } catch {}
+      }
     } catch (err) {
       console.error("Error fetching history:", err);
     }

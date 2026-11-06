@@ -37,6 +37,16 @@ const Logs = () => {
   const initialView = searchParams.get("view") === "day" ? "day" : (searchParams.get("view") === "visitor" ? "visitor" : "raw");
   const { systemToday } = useSystemTime();
   const [viewMode, setViewMode] = useState(initialView); // "raw", "day", or "visitor"
+
+  // Bi-directional synchronization between URL search parameters and viewMode state
+  useEffect(() => {
+    const v = searchParams.get("view");
+    if (v === "day" && viewMode !== "day") {
+      setViewMode("day");
+    } else if (v === "raw" && viewMode !== "raw") {
+      setViewMode("raw");
+    }
+  }, [searchParams]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
   
@@ -76,8 +86,20 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
     };
   }, []);
 
-  const [logData, setLogData] = useState([]);
-  const [dayLogsData, setDayLogsData] = useState([]);
+  const [logData, setLogData] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("machip_cached_raw_logs");
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return [];
+  });
+  const [dayLogsData, setDayLogsData] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("machip_cached_day_logs");
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return [];
+  });
   const [sortConfig, setSortConfig] = useState({ key: 'log_Date', direction: 'desc' });
   
   const currentUser = JSON.parse(localStorage.getItem("userData") || "null");
@@ -172,6 +194,7 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
             };
         });
         setLogData(mapped);
+        try { sessionStorage.setItem("machip_cached_raw_logs", JSON.stringify(mapped)); } catch {}
       }
     } catch (err) {
       console.error("Error fetching logs:", err);
@@ -196,6 +219,7 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
           log_Date: String(d.log_Date).split('T')[0]
         }));
         setDayLogsData(mapped);
+        try { sessionStorage.setItem("machip_cached_day_logs", JSON.stringify(mapped)); } catch {}
       }
     } catch (error) {
       console.error("Error fetching day logs:", error);
@@ -513,7 +537,7 @@ const toggleMachipVisibility = (rowId) => {
           <div className="h-6"></div>
  
           {/* Statistics Cards */}
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full animate-in fade-in slide-in-from-bottom-2 duration-200">
             {/* Card 1: Total Active Users */}
             <Card className="border-t-5 border-brand-primary bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">

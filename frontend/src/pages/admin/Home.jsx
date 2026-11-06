@@ -136,7 +136,10 @@ const Home = () => {
     return <Navigate to="/employeeHome" replace />;
   }
 
-  const fetchDashboardStats = async () => {
+  const fetchDashboardStats = async (isBackground = false) => {
+    if (!isBackground && !sessionStorage.getItem("machip_dashboard_stats")) {
+      setStatsLoading(true);
+    }
     try {
       const [statsRes, pendingRes] = await Promise.all([
         fetchWithAuth("/api/attendance/stats"),
@@ -293,9 +296,9 @@ const Home = () => {
       fetchOverallStats();
     }, 60000);
 
-    const handleRefresh = () => {
+    const handleRefresh = (isBackground = true) => {
       fetchAdminNotificationUpdates();
-      fetchDashboardStats();
+      fetchDashboardStats(isBackground);
       fetchPayrollPeriods();
       fetchPendingRequests();
       fetchOverallStats();
@@ -306,11 +309,11 @@ const Home = () => {
       const storedMode = localStorage.getItem("viewMode") || "management";
       setUserData(stored);
       setViewMode(storedMode);
-      handleRefresh();
+      handleRefresh(true);
     };
 
     window.addEventListener("storage", handleStorageChange);
-    window.addEventListener("dataRefresh", handleRefresh);
+    window.addEventListener("dataRefresh", () => handleRefresh(true));
     return () => {
       window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener("dataRefresh", handleRefresh);
@@ -393,7 +396,7 @@ const Home = () => {
           </Card>
         </div>
       ) : (
-        <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-3 duration-500 ease-out">
+        <div className="p-2 md:p-4 overflow-x-hidden w-full max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-2 duration-200">
           <div className="h-2"></div>
 
           {/* Greeting Banner */}

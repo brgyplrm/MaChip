@@ -33,7 +33,16 @@ import {
 
 const SeparationPay = () => {
   const { systemToday } = useSystemTime();
-  const [employees, setEmployees] = useState([]);
+  const [employees, setEmployees] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("machip_cached_users");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        return Array.isArray(parsed) ? parsed : (parsed.users || []);
+      }
+    } catch {}
+    return [];
+  });
   const [selectedUser, setSelectedUser] = useState("");
   const [separationDate, setSeparationDate] = useState(() => {
     const d = new Date();
@@ -41,7 +50,13 @@ const SeparationPay = () => {
     return d.toISOString().split('T')[0];
   });
   const [preview, setPreview] = useState(null);
-  const [history, setHistory] = useState([]);
+  const [history, setHistory] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("machip_cached_separation_history");
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return [];
+  });
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
   const [confirmConfig, setConfirmConfig] = useState(null);
@@ -110,7 +125,12 @@ const SeparationPay = () => {
     try {
       const res = await fetchWithAuth("/api/payroll/separation/history");
       const data = await res.json();
-      if (res.ok) setHistory(data);
+      if (res.ok) {
+        setHistory(data);
+        try {
+          sessionStorage.setItem("machip_cached_separation_history", JSON.stringify(data));
+        } catch {}
+      }
     } catch (err) {
       console.error("Error fetching history:", err);
     }

@@ -147,11 +147,35 @@ const AdminReports = () => {
 
   const [toast, setToast] = useState({ message: "", type: "success" });
 
-  const [employees, setEmployees] = useState([]);
-  const [attendanceData, setAttendanceData] = useState([]);
-  const [payrollData, setPayrollData] = useState([]);
+  const [employees, setEmployees] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("machip_cached_users");
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return [];
+  });
+  const [attendanceData, setAttendanceData] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("machip_cached_report_att_data");
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return [];
+  });
+  const [payrollData, setPayrollData] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("machip_cached_report_pay_data");
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return [];
+  });
   const [calendarData, setCalendarData] = useState([]);
-  const [requests, setRequests] = useState([]);
+  const [requests, setRequests] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("machip_cached_admin_requests");
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return [];
+  });
   const [loading, setLoading] = useState(false);
 
   const location = useLocation();
@@ -160,8 +184,20 @@ const AdminReports = () => {
   // Pagination States
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [payrollSummary, setPayrollSummary] = useState(null);
-  const [attendanceSummary, setAttendanceSummary] = useState(null);
+  const [payrollSummary, setPayrollSummary] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("machip_cached_report_pay_summary");
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return null;
+  });
+  const [attendanceSummary, setAttendanceSummary] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("machip_cached_report_att_summary");
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return null;
+  });
   const [payrollPagination, setPayrollPagination] = useState({ total: 0, totalPages: 1 });
   const [attendancePagination, setAttendancePagination] = useState({ total: 0, totalPages: 1 });
 
@@ -188,8 +224,8 @@ const AdminReports = () => {
     return new Date(dateStr).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  const fetchRequestsReport = useCallback(async () => {
-    setLoading(true);
+  const fetchRequestsReport = useCallback(async (isBackground = false) => {
+    if (!isBackground) setLoading(true);
     try {
       const url = requestDate 
         ? `/api/request/all?startDate=${requestDate}&endDate=${requestDate}`
@@ -202,7 +238,7 @@ const AdminReports = () => {
     } catch (error) {
       console.error("Error fetching requests report:", error);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   }, [requestDate]);
 
@@ -218,8 +254,8 @@ const AdminReports = () => {
     }
   }, []);
 
-  const fetchAttendanceReport = useCallback(async () => {
-    setLoading(true);
+  const fetchAttendanceReport = useCallback(async (isBackground = false) => {
+    if (!isBackground) setLoading(true);
     try {
       const params = new URLSearchParams();
       if (startDate) params.append("startDate", startDate);
@@ -236,22 +272,27 @@ const AdminReports = () => {
         const data = await response.json();
         if (data && Array.isArray(data.logs)) {
           setAttendanceData(data.logs);
-          if (data.summary) setAttendanceSummary(data.summary);
+          try { sessionStorage.setItem("machip_cached_report_att_data", JSON.stringify(data.logs)); } catch {}
+          if (data.summary) {
+            setAttendanceSummary(data.summary);
+            try { sessionStorage.setItem("machip_cached_report_att_summary", JSON.stringify(data.summary)); } catch {}
+          }
           if (data.pagination) setAttendancePagination(data.pagination);
         } else if (Array.isArray(data)) {
           setAttendanceData(data);
+          try { sessionStorage.setItem("machip_cached_report_att_data", JSON.stringify(data)); } catch {}
           setAttendancePagination({ total: data.length, totalPages: Math.ceil(data.length / itemsPerPage) || 1 });
         }
       }
     } catch (error) {
       console.error("Error fetching attendance report:", error);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   }, [startDate, endDate, selectedEmployee, currentPage, itemsPerPage]);
 
-  const fetchPayrollReport = useCallback(async () => {
-    setLoading(true);
+  const fetchPayrollReport = useCallback(async (isBackground = false) => {
+    if (!isBackground) setLoading(true);
     try {
       const params = new URLSearchParams();
       if (startDate) params.append("startDate", startDate);
@@ -268,22 +309,27 @@ const AdminReports = () => {
         const data = await response.json();
         if (data && Array.isArray(data.data)) {
           setPayrollData(data.data);
-          if (data.summary) setPayrollSummary(data.summary);
+          try { sessionStorage.setItem("machip_cached_report_pay_data", JSON.stringify(data.data)); } catch {}
+          if (data.summary) {
+            setPayrollSummary(data.summary);
+            try { sessionStorage.setItem("machip_cached_report_pay_summary", JSON.stringify(data.summary)); } catch {}
+          }
           if (data.pagination) setPayrollPagination(data.pagination);
         } else if (Array.isArray(data)) {
           setPayrollData(data);
+          try { sessionStorage.setItem("machip_cached_report_pay_data", JSON.stringify(data)); } catch {}
           setPayrollPagination({ total: data.length, totalPages: Math.ceil(data.length / itemsPerPage) || 1 });
         }
       }
     } catch (error) {
       console.error("Error fetching payroll report:", error);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   }, [startDate, endDate, selectedEmployee, currentPage, itemsPerPage]);
 
-  const fetchCalendarReport = useCallback(async () => {
-    setLoading(true);
+  const fetchCalendarReport = useCallback(async (isBackground = false) => {
+    if (!isBackground) setLoading(true);
     try {
       const params = new URLSearchParams();
       if (calendarStartDate) params.append("startDate", calendarStartDate);
@@ -297,7 +343,7 @@ const AdminReports = () => {
     } catch (error) {
       console.error("Error fetching calendar report:", error);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   }, [calendarStartDate, calendarEndDate]);
 
@@ -315,10 +361,10 @@ const AdminReports = () => {
   // Real-time synchronization when RFID/Biometric scans or approvals occur
   useEffect(() => {
     const handleDataRefresh = () => {
-      if (activeReport === "attendance") fetchAttendanceReport();
-      else if (activeReport === "payroll") fetchPayrollReport();
-      else if (activeReport === "calendar") fetchCalendarReport();
-      else if (activeReport === "requests") fetchRequestsReport();
+      if (activeReport === "attendance") fetchAttendanceReport(true);
+      else if (activeReport === "payroll") fetchPayrollReport(true);
+      else if (activeReport === "calendar") fetchCalendarReport(true);
+      else if (activeReport === "requests") fetchRequestsReport(true);
     };
     window.addEventListener("dataRefresh", handleDataRefresh);
     return () => window.removeEventListener("dataRefresh", handleDataRefresh);

@@ -166,7 +166,14 @@ const Notifications = () => {
   };
 
   const [viewMode, setViewMode] = useState(getInitialViewMode());
-  const [notifications, setNotifications] = useState([]);
+  const [notifications, setNotifications] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("machip_cached_notifs");
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -180,9 +187,9 @@ const Notifications = () => {
 
   const effectiveViewMode = isManagement ? (viewMode || "management") : "employee";
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = async (isBackground = false) => {
     if (!userData?.user_Id) return;
-    setLoading(true);
+    if (!isBackground) setLoading(true);
     try {
       const response = await fetchWithAuth(`/api/notifications/${userData.user_Id}?viewMode=${effectiveViewMode}`);
       if (response.ok) {
@@ -190,16 +197,19 @@ const Notifications = () => {
         const rawList = Array.isArray(data) ? data : (data.data || []);
         const formattedData = rawList.map((n) => ({ ...n, id: n.notifId }));
         setNotifications(formattedData);
+        try {
+          sessionStorage.setItem("machip_cached_notifs", JSON.stringify(formattedData));
+        } catch {}
       }
     } catch (err) {
       console.error("Error fetching notifications:", err);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchNotifications();
+    fetchNotifications(false);
 
     const handleStorageChange = () => {
       const updatedUserData = JSON.parse(localStorage.getItem("userData"));
@@ -208,16 +218,19 @@ const Notifications = () => {
       const updatedViewMode = updatedIsManagement ? (localStorage.getItem("viewMode") || "management") : "employee";
       setUserData(updatedUserData);
       setViewMode(updatedViewMode);
+      fetchNotifications(true);
     };
 
+    const handleBackgroundRefresh = () => fetchNotifications(true);
+
     window.addEventListener("storage", handleStorageChange);
-    window.addEventListener("notificationRefresh", fetchNotifications);
-    window.addEventListener("dataRefresh", fetchNotifications);
+    window.addEventListener("notificationRefresh", handleBackgroundRefresh);
+    window.addEventListener("dataRefresh", handleBackgroundRefresh);
 
     return () => {
       window.removeEventListener("storage", handleStorageChange);
-      window.removeEventListener("notificationRefresh", fetchNotifications);
-      window.removeEventListener("dataRefresh", fetchNotifications);
+      window.removeEventListener("notificationRefresh", handleBackgroundRefresh);
+      window.removeEventListener("dataRefresh", handleBackgroundRefresh);
     };
   }, [userData?.user_Id, effectiveViewMode]);
 
@@ -365,7 +378,7 @@ const Notifications = () => {
           </div>
 
           {/* Statistical Cards Grid (Signature border-t-5 Palette) */}
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full animate-in fade-in slide-in-from-bottom-2 duration-200">
             
             {/* Card 1: Total Alerts (brand-primary) */}
             <Card className="border-t-5 border-brand-primary bg-white py-0 h-full">

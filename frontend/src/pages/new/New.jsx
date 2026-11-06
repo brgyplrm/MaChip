@@ -139,6 +139,34 @@ const New = ({ inputs = [], title }) => {
 
   const dismissToast = useCallback(() => setToast({ message: "", type: "success" }), []);
 
+  const handleGenerateTempPassword = () => {
+    const charsUpper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+    const charsLower = "abcdefghjkmnpqrstuvwxyz";
+    const charsNum = "23456789";
+    const charsSpecial = "@#$!";
+    const getRandom = (str) => str.charAt(Math.floor(Math.random() * str.length));
+
+    const pwd = [
+      getRandom(charsUpper),
+      getRandom(charsLower),
+      getRandom(charsNum),
+      getRandom(charsSpecial)
+    ];
+    const allChars = charsUpper + charsLower + charsNum + charsSpecial;
+    for (let i = 0; i < 8; i++) {
+      pwd.push(getRandom(allChars));
+    }
+    const generated = pwd.sort(() => Math.random() - 0.5).join("");
+    setFormData(prev => ({ ...prev, user_Password: generated }));
+    setShowPassword(true);
+    setErrors(prev => {
+      const copy = { ...prev };
+      delete copy.user_Password;
+      return copy;
+    });
+    setToast({ message: "Temporary password generated! It will be sent via welcome email.", type: "success" });
+  };
+
   const [showFingerprintModal, setShowFingerprintModal] = useState(false);
   const [fingerprintError, setFingerprintError] = useState("");
   const [localFingerprintId, setLocalFingerprintId] = useState("");
@@ -680,26 +708,37 @@ const New = ({ inputs = [], title }) => {
 
     return (
       <div key={input.id} className="space-y-1.5">
-        <div className="flex items-center gap-1.5">
-          <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-            {input.label} {!isHardwareField ? (
-              <span className="text-red-500 ml-0.5">*</span>
-            ) : (
-              <span className="text-slate-400 font-medium normal-case text-[10px] ml-1">(Optional)</span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              {input.label} {!isHardwareField ? (
+                <span className="text-red-500 ml-0.5">*</span>
+              ) : (
+                <span className="text-slate-400 font-medium normal-case text-[10px] ml-1">(Optional)</span>
+              )}
+            </Label>
+            {(input.label === "MaChip ID" || input.label === "Fingerprint ID" || input.id === "user_Role" || input.id === "user_EmploymentStatus") && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                  {input.label === "MaChip ID" && "Optional: Unique RFID serial token read from the physical card. Can also be assigned later in Hardware Management."}
+                  {input.label === "Fingerprint ID" && "Optional: Biometric slot number mapped to the physical scanner node. Can also be enrolled later in Hardware Management."}
+                  {input.id === "user_Role" && "The permissions and access control role assigned in the MAChip system."}
+                  {input.id === "user_EmploymentStatus" && "The employee's official company position/employment classification status."}
+                </TooltipContent>
+              </Tooltip>
             )}
-          </Label>
-          {(input.label === "MaChip ID" || input.label === "Fingerprint ID" || input.id === "user_Role" || input.id === "user_EmploymentStatus") && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
-              </TooltipTrigger>
-              <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
-                {input.label === "MaChip ID" && "Optional: Unique RFID serial token read from the physical card. Can also be assigned later in Hardware Management."}
-                {input.label === "Fingerprint ID" && "Optional: Biometric slot number mapped to the physical scanner node. Can also be enrolled later in Hardware Management."}
-                {input.id === "user_Role" && "The permissions and access control role assigned in the MAChip system."}
-                {input.id === "user_EmploymentStatus" && "The employee's official company position/employment classification status."}
-              </TooltipContent>
-            </Tooltip>
+          </div>
+          {input.id === "user_Password" && (
+            <button
+              type="button"
+              onClick={handleGenerateTempPassword}
+              className="text-[11px] font-bold text-brand-primary hover:text-purple-800 underline transition-colors cursor-pointer"
+            >
+              Generate Temporary Password
+            </button>
           )}
         </div>
         {input.type === "select" ? (
@@ -810,7 +849,12 @@ const New = ({ inputs = [], title }) => {
         {errors[input.id] && <span className="text-[10px] text-red-500 block font-medium">{errors[input.id]}</span>}
         {input.id === "user_Password" && (
           <div className="mt-2 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1">
-            <p className="text-slate-500 font-medium text-[11px] mb-1">Password Requirements:</p>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-slate-500 font-medium text-[11px]">Password Requirements:</p>
+              <span className="text-[10px] text-brand-primary font-semibold bg-brand-primary/10 px-1.5 py-0.5 rounded">
+                First login reset enforced
+              </span>
+            </div>
             <div className="grid grid-cols-2 gap-1 text-[11px]">
               <span className={`flex items-center gap-1 ${formData.user_Password?.length >= 8 ? "text-emerald-600 font-medium" : "text-slate-400"}`}>
                 <span>{formData.user_Password?.length >= 8 ? "✓" : "○"}</span> At least 8 characters

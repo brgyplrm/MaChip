@@ -25,7 +25,13 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { TablePagination } from "@/components/ui/table-pagination";
 
 const Datatable = () => {
-  const [data, setData] = useState([]);
+  const [data, setData] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("machip_cached_users");
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return [];
+  });
   const [toast, setToast] = useState({ message: "", type: "success" });
 
   const [showArchiveModal, setShowArchiveModal] = useState(false);
@@ -84,6 +90,9 @@ const Datatable = () => {
         if (response.ok) {
           const users = await response.json();
           setData(users);
+          try {
+            sessionStorage.setItem("machip_cached_users", JSON.stringify(users));
+          } catch {}
         }
       } catch (err) {
         console.error("Error fetching users:", err);
@@ -296,7 +305,7 @@ const Datatable = () => {
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full animate-in fade-in slide-in-from-bottom-2 duration-200">
         {/* Card 1: Total Active Users */}
         <Card className="border-t-5 border-brand-primary bg-white py-0 h-full">
           <CardContent className="px-5 py-5 flex flex-col justify-between h-full">

@@ -35,6 +35,14 @@ const VisitorLogs = () => {
   const initialTab = searchParams.get("tab") === "history" ? "history" : "live";
   const [activeTab, setActiveTab] = useState(initialTab);
 
+  // Bi-directional synchronization between URL search parameters and activeTab state
+  useEffect(() => {
+    const tabParam = searchParams.get("tab") === "history" ? "history" : "live";
+    if (tabParam !== activeTab) {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
+
   const [loading, setLoading] = useState(false);
   const [logs, setLogs] = useState([]);
   const [toast, setToast] = useState({ message: "", type: "success" });

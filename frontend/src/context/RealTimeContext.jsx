@@ -70,9 +70,11 @@ export const RealTimeProvider = ({ children }) => {
       }
     };
 
-    // Join room when connected and on every reconnect/transport upgrade
+    // Join room and resync when connected or reconnected (e.g., wake from sleep)
     newSocket.on("connect", () => {
       joinPersonalRoom();
+      refreshData();
+      window.dispatchEvent(new Event("notificationRefresh"));
     });
 
     if (newSocket.connected) {
@@ -140,27 +142,6 @@ export const RealTimeProvider = ({ children }) => {
     return () => window.removeEventListener("appToast", handleGlobalToast);
   }, []);
 
-  // Visibility / Focus Listener
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        refreshData();
-        window.dispatchEvent(new Event("notificationRefresh"));
-      }
-    };
-
-    const handleFocus = () => {
-      refreshData();
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("focus", handleFocus);
-
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("focus", handleFocus);
-    };
-  }, [refreshData]);
 
   return (
     <RealTimeContext.Provider value={{ socket, lastUpdate, refreshData }}>

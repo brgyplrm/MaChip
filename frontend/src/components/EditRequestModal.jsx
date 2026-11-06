@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { fetchWithAuth } from "../utils/api";
 import CloseIcon from "@mui/icons-material/Close";
 import StaticTimePickerLandscape from "./StaticTimePickerLandscape";
@@ -91,18 +92,27 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
     const { name, value } = e.target;
     let newFormData = { ...formData, [name]: value };
 
-    // Auto-calculate for Pag-IBIG loans in Edit Modal
-    if (newFormData.agency === "Pag-IBIG" && (newFormData.loanType === "Multi-Purpose Loan (MPL)" || newFormData.loanType === "Calamity Loan")) {
-      if (name === "amountRequested" || name === "monthsToPay") {
-        const principal = name === "amountRequested" ? parseFloat(value) : parseFloat(newFormData.amountRequested || 0);
-        const term = name === "monthsToPay" ? parseInt(value) : parseInt(newFormData.monthsToPay || 0);
-        
-        if (principal > 0 && term > 0) {
-           const annualRate = newFormData.loanType === "Calamity Loan" ? 0.0595 : 0.105;
-           const monthlyRate = annualRate / 12;
-           const factor = Math.pow(1 + monthlyRate, term);
-           const monthlyAmort = (principal * monthlyRate * factor) / (factor - 1);
-           newFormData.monthlyAmortization = Math.round(monthlyAmort);
+    // Auto-calculate amortization for SSS & Pag-IBIG loans instantaneously (0ms delay)
+    if (["amountRequested", "monthsToPay", "loanType", "agency"].includes(name)) {
+      const principal = name === "amountRequested" ? parseFloat(value) : parseFloat(newFormData.amountRequested || 0);
+      const term = name === "monthsToPay" ? parseInt(value) : parseInt(newFormData.monthsToPay || 0);
+      const agency = name === "agency" ? value : newFormData.agency;
+      const loanType = name === "loanType" ? value : newFormData.loanType;
+
+      if (principal > 0 && term > 0) {
+        let annualRate = 0;
+        if (agency === 'SSS') {
+          annualRate = (loanType === 'Calamity Loan') ? 0.06 : 0.10;
+        } else if (agency === 'Pag-IBIG') {
+          annualRate = (loanType === "Calamity Loan") ? 0.0595 : 0.105;
+        }
+
+        if (annualRate > 0) {
+          const monthlyRate = annualRate / 12;
+          const factor = Math.pow(1 + monthlyRate, term);
+          newFormData.monthlyAmortization = Math.round((principal * monthlyRate * factor) / (factor - 1));
+        } else if (agency === 'Company') {
+          newFormData.monthlyAmortization = Math.round(principal / term);
         }
       }
     }
@@ -498,6 +508,48 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
                         )}
                       </>
                     )}
+
+                    {/* Standardized Disclosure Summary */}
+                    {parseFloat(formData.amountRequested || formData.totalOutstandingBalance || 0) > 0 && (() => {
+                      const isCompany = formData.agency === "Company" || formData.loanType === "Cash Advance";
+                      const principal = parseFloat(formData.amountRequested || formData.totalOutstandingBalance || 0);
+                      const monthlyAmort = parseFloat(formData.monthlyAmortization || principal || 0);
+
+                      return (
+                        <div className="sm:col-span-2 bg-brand-primary text-white p-4 rounded-xl border border-indigo-900/50 space-y-3 mt-2 shadow-sm animate-in fade-in duration-200">
+                          <div className="flex justify-between items-center">
+                            <h4 className="text-[10px] font-black text-indigo-300 uppercase tracking-[0.2em]">
+                              {isCompany ? "Company Cash Advance Disclosure" : "Matrix Financial Disclosure"}
+                            </h4>
+                            {isCompany ? (
+                              <Badge className="bg-emerald-500 text-white font-bold border-0 text-[10px]">COMPANY INTERNAL</Badge>
+                            ) : (
+                              <Badge className="bg-yellow-400 text-blue-900 font-black border-0 text-[10px]">SSS/HDMF STANDARDS</Badge>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-[10px] text-indigo-300 font-bold uppercase">{isCompany ? "Requested Advance" : "Requested Principal"}</p>
+                              <p className="text-xl font-black">₱{principal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-[10px] text-indigo-300 font-bold uppercase">{isCompany ? "Payroll Deduction" : "Monthly Amortization"}</p>
+                              <p className="text-xl font-black text-yellow-400">₱{monthlyAmort.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</p>
+                              <p className="text-[9px] text-indigo-200 italic">
+                                {formData.deductionFrequency === "monthly"
+                                  ? "Deducted in full on 15th cutoff"
+                                  : `Split across 2 cutoffs (₱${(monthlyAmort / 2).toLocaleString('en-PH', { minimumFractionDigits: 2 })}/ea)`}
+                              </p>
+                            </div>
+                          </div>
+                          <p className="text-[9px] text-indigo-300/70 text-center font-medium italic">
+                            {isCompany
+                              ? "Internal company cash advance with 0% interest. Repayment is deducted directly from payroll cutoffs as scheduled."
+                              : "Calculated using the Diminishing Principal Balance Method. Final amounts may vary based on exact SSS/HDMF release dates."}
+                          </p>
+                        </div>
+                      );
+                    })()}
                   </>
                 )}
               </>

@@ -45,7 +45,13 @@ const AdminRequests = () => {
   const handledDeepLinkRef = useRef(null);
   const lastHandledSearchRef = useRef("");
   const pageAlignedRef = useRef(null);
-  const [requests, setRequests] = useState([]);
+  const [requests, setRequests] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("machip_cached_admin_requests");
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return [];
+  });
   const [loading, setLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [adminNote, setAdminNote] = useState("");
@@ -91,6 +97,7 @@ const AdminRequests = () => {
       const data = await response.json();
       if (response.ok && Array.isArray(data)) {
         setRequests(data);
+        try { sessionStorage.setItem("machip_cached_admin_requests", JSON.stringify(data)); } catch {}
       } else {
         console.warn("[AdminRequests] Failed to refresh requests:", response.status, data);
       }
@@ -586,7 +593,7 @@ const AdminRequests = () => {
         </div>
 
          {/* Statistics Cards */}
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full animate-in fade-in slide-in-from-bottom-2 duration-200">
             {/* Card 1: Total Active Users */}
             <Card className="border-t-5 border-brand-primary bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
@@ -1216,6 +1223,50 @@ const AdminRequests = () => {
                               <div className="space-y-1">
                                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Declared Calamity Area</label>
                                 <p className="font-semibold text-orange-600">{current.LR_calamityArea}</p>
+                              </div>
+                            )}
+
+                            {/* Matrix Financial Disclosure Breakdown */}
+                            {parseFloat(current.LR_amount || current.LR_balance || 0) > 0 && (
+                              <div className="col-span-1 sm:col-span-2 bg-brand-primary text-white p-4 rounded-xl border border-indigo-900/50 space-y-3 mt-2 shadow-sm animate-in fade-in duration-200">
+                                <div className="flex justify-between items-center">
+                                  <h4 className="text-[10px] font-black text-indigo-300 uppercase tracking-[0.2em]">
+                                    {(current.LR_agency === "Company" || current.LR_loanType === "Cash Advance")
+                                      ? "Company Cash Advance Disclosure"
+                                      : "Matrix Financial Disclosure"}
+                                  </h4>
+                                  {(current.LR_agency === "Company" || current.LR_loanType === "Cash Advance") ? (
+                                    <Badge className="bg-emerald-500 text-white font-bold border-0 text-[10px]">COMPANY INTERNAL</Badge>
+                                  ) : (
+                                    <Badge className="bg-yellow-400 text-blue-900 font-black border-0 text-[10px]">SSS/HDMF STANDARDS</Badge>
+                                  )}
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                    <p className="text-[10px] text-indigo-300 font-bold uppercase">
+                                      {(current.LR_agency === "Company" || current.LR_loanType === "Cash Advance") ? "Requested Advance" : "Requested Principal"}
+                                    </p>
+                                    <p className="text-xl font-black">₱{parseFloat(current.LR_amount || current.LR_balance || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-[10px] text-indigo-300 font-bold uppercase">
+                                      {(current.LR_agency === "Company" || current.LR_loanType === "Cash Advance") ? "Payroll Deduction" : "Monthly Amortization"}
+                                    </p>
+                                    <p className="text-xl font-black text-yellow-400">
+                                      ₱{parseFloat(current.LR_amortization || current.LR_amount || current.LR_balance || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                                    </p>
+                                    <p className="text-[9px] text-indigo-200 italic">
+                                      {current.LR_deductionFrequency === "monthly"
+                                        ? "Deducted in full on 15th cutoff"
+                                        : `Split across 2 cutoffs (₱${(parseFloat(current.LR_amortization || current.LR_amount || current.LR_balance || 0) / 2).toLocaleString('en-PH', { minimumFractionDigits: 2 })}/ea)`}
+                                    </p>
+                                  </div>
+                                </div>
+                                <p className="text-[9px] text-indigo-300/70 text-center font-medium italic">
+                                  {(current.LR_agency === "Company" || current.LR_loanType === "Cash Advance")
+                                    ? "Internal company cash advance with 0% interest. Repayment is deducted directly from payroll cutoffs as scheduled."
+                                    : "Calculated using the Diminishing Principal Balance Method. Final amounts may vary based on exact SSS/HDMF release dates."}
+                                </p>
                               </div>
                             )}
                             </>

@@ -42,8 +42,20 @@ const ThirteenthMonth = () => {
     return systemToday ? new Date(systemToday).getFullYear().toString() : new Date().getFullYear().toString();
   }, [systemToday]);
 
-  const [previewData, setPreviewData] = useState([]);
-  const [historyData, setHistoryData] = useState([]);
+  const [previewData, setPreviewData] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("machip_cached_13th_preview");
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return [];
+  });
+  const [historyData, setHistoryData] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("machip_cached_13th_history");
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return [];
+  });
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
   const [isDiscardConfirmOpen, setIsDiscardConfirmOpen] = useState(false);
@@ -96,6 +108,7 @@ const ThirteenthMonth = () => {
       const data = await response.json();
       if (response.ok) {
         setPreviewData(data);
+        try { sessionStorage.setItem("machip_cached_13th_preview", JSON.stringify(data)); } catch {}
       } else {
         setToast({ message: data.error || "Failed to fetch preview", type: "error" });
       }
@@ -113,6 +126,7 @@ const ThirteenthMonth = () => {
       const data = await response.json();
       if (response.ok) {
         setHistoryData(data);
+        try { sessionStorage.setItem("machip_cached_13th_history", JSON.stringify(data)); } catch {}
       }
     } catch (error) {
       console.error("Error fetching history:", error);

@@ -88,9 +88,21 @@ const LoanBurnDownTooltip = ({ active, payload }) => {
 };
 
 export default function EmployeeLoans() {
-  const [loading, setLoading] = useState(true);
-  const [loans, setLoans] = useState([]);
-  const [summary, setSummary] = useState(null);
+  const [loans, setLoans] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("machip_cached_my_loans");
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return [];
+  });
+  const [summary, setSummary] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("machip_cached_my_loans_summary");
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return null;
+  });
+  const [loading, setLoading] = useState(() => !sessionStorage.getItem("machip_cached_my_loans"));
   const [error, setError] = useState(null);
 
   // Trajectory Chart States
@@ -108,9 +120,9 @@ export default function EmployeeLoans() {
   const [activePhaseIndex, setActivePhaseIndex] = useState(0);
 
   // Fetch employee loans and roadmap summary
-  const fetchLoans = async () => {
+  const fetchLoans = async (isBackground = false) => {
     try {
-      setLoading(true);
+      if (!isBackground) setLoading(true);
       setError(null);
       const res = await fetchWithAuth("/api/payroll/my-loans");
       if (!res.ok) {
@@ -120,16 +132,21 @@ export default function EmployeeLoans() {
       const data = await res.json();
       setLoans(data.loans || []);
       setSummary(data.summary || null);
+      try {
+        if (data.loans) sessionStorage.setItem("machip_cached_my_loans", JSON.stringify(data.loans));
+        if (data.summary) sessionStorage.setItem("machip_cached_my_loans_summary", JSON.stringify(data.summary));
+      } catch {}
     } catch (err) {
       console.error("Error fetching employee loans:", err);
       setError(err.message);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchLoans();
+    const hasCache = Boolean(sessionStorage.getItem("machip_cached_my_loans"));
+    fetchLoans(hasCache);
   }, []);
 
   // Fetch individual loan ledger for the drawer

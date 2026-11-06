@@ -17,6 +17,9 @@ router.get('/verify', authMiddleware, authController.verifySession);
 // URL will be: http://localhost:4000/api/auth/verify-password
 router.post('/verify-password', authMiddleware, verifyLimiter, authController.verifyPassword);
 
+// First login password setup
+router.post('/set-initial-password', authMiddleware, verifyLimiter, authController.setInitialPassword);
+
 // Self-service password reset routes (public)
 router.post('/forgot-password', authController.forgotPassword);
 router.get('/verify-reset-token/:token', authController.verifyResetToken);
