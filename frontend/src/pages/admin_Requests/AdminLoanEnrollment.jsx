@@ -859,35 +859,75 @@ const AdminLoanEnrollment = () => {
                   {(current.LR_proof_File || current.LR_damageProof) && (
                     <div className="space-y-2">
                       <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Attached Verification Documents</label>
-                      <div className="flex flex-col sm:flex-row gap-3">
-                        {current.LR_proof_File && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => {
-                              setViewingFileUrl(current.LR_proof_File);
-                              setViewingFileName(`Loan Document REQ-${current.emp_reqId}`);
-                              setIsFileViewerOpen(true);
-                            }}
-                            className="border-slate-300 text-brand-primary font-semibold text-xs h-10"
-                          >
-                            <AttachmentIcon className="mr-2 h-4 w-4 text-purple-600" /> View Disclosure Statement
-                          </Button>
-                        )}
-                        {current.LR_damageProof && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => {
-                              setViewingFileUrl(current.LR_damageProof);
-                              setViewingFileName(`Damage Proof for REQ-${current.emp_reqId}`);
-                              setIsFileViewerOpen(true);
-                            }}
-                            className="border-amber-300 text-amber-800 font-semibold text-xs h-10"
-                          >
-                            <AttachmentIcon className="mr-2 h-4 w-4 text-amber-600" /> View Property Damage Proof
-                          </Button>
-                        )}
+                      <div className="flex flex-col gap-2">
+                        {(() => {
+                          const loanDocs = (current.LR_proof_File || "").split(",").map((s) => s.trim()).filter(Boolean);
+                          if (loanDocs.length === 0) return null;
+                          return (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => {
+                                  setViewingFileUrl(loanDocs.join(","));
+                                  setViewingFileName(`Loan Document REQ-${current.emp_reqId}`);
+                                  setIsFileViewerOpen(true);
+                                }}
+                                className="border-slate-300 text-brand-primary font-semibold text-xs h-9"
+                              >
+                                <AttachmentIcon className="mr-1.5 h-4 w-4 text-purple-600" /> {loanDocs.length > 1 ? `View All Disclosure Files (${loanDocs.length})` : "View Disclosure Statement"}
+                              </Button>
+                              {loanDocs.length > 1 && loanDocs.map((file, idx) => (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  onClick={() => {
+                                    setViewingFileUrl(file);
+                                    setViewingFileName(`Loan Doc ${idx + 1} for REQ-${current.emp_reqId}`);
+                                    setIsFileViewerOpen(true);
+                                  }}
+                                  className="inline-flex items-center text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded text-xs font-medium cursor-pointer"
+                                >
+                                  Doc {idx + 1}
+                                </button>
+                              ))}
+                            </div>
+                          );
+                        })()}
+                        {(() => {
+                          const damageDocs = (current.LR_damageProof || "").split(",").map((s) => s.trim()).filter(Boolean);
+                          if (damageDocs.length === 0) return null;
+                          return (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => {
+                                  setViewingFileUrl(damageDocs.join(","));
+                                  setViewingFileName(`Damage Proof for REQ-${current.emp_reqId}`);
+                                  setIsFileViewerOpen(true);
+                                }}
+                                className="border-amber-300 text-amber-800 font-semibold text-xs h-9"
+                              >
+                                <AttachmentIcon className="mr-1.5 h-4 w-4 text-amber-600" /> {damageDocs.length > 1 ? `View Property Damage Proof (${damageDocs.length})` : "View Property Damage Proof"}
+                              </Button>
+                              {damageDocs.length > 1 && damageDocs.map((file, idx) => (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  onClick={() => {
+                                    setViewingFileUrl(file);
+                                    setViewingFileName(`Damage Proof ${idx + 1} for REQ-${current.emp_reqId}`);
+                                    setIsFileViewerOpen(true);
+                                  }}
+                                  className="inline-flex items-center text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded text-xs font-medium cursor-pointer"
+                                >
+                                  Damage Doc {idx + 1}
+                                </button>
+                              ))}
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                   )}

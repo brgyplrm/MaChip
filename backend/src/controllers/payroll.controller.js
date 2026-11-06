@@ -119,33 +119,36 @@ const GRACE_END = "08:35:00"; // 5 min grace period
 const WORK_HRS_PER_DAY = 8; // standard hours per day
 
 // ── Internal Helper: Compute Period Stats ─────────────────────────────────────
-async function computePeriodStats(user_Id, period_Start, period_End) {
-  const now = await getSystemTime();
+async function computePeriodStats(user_Id, period_Start, period_End, preloadedContext = null) {
+  const now = preloadedContext?.now || (await getSystemTime());
   const yearNow = now.getFullYear();
   const monthNow = String(now.getMonth() + 1).padStart(2, "0");
   const dayNow = String(now.getDate()).padStart(2, "0");
   const todayStr = `${yearNow}-${monthNow}-${dayNow}`;
 
   // 1. Get all dates in period
-  const allDaysResult = await sequelize.query(
-    `SELECT generate_series(
-       :period_Start::date,
-       :period_End::date,
-       '1 day'::interval
-     )::date::text AS work_date`,
-    { replacements: { period_Start, period_End }, type: QueryTypes.SELECT },
-  );
-  const allDays = allDaysResult.map(d => d.work_date);
+  let allDays = preloadedContext?.allDays;
+  let totalScheduledDays = preloadedContext?.totalScheduledDays;
 
-  // Define totalScheduledDays (exclude Sundays)
-  const totalScheduledDays = allDays.filter(dateStr => {
-    const [y, m, d] = dateStr.split("-").map(Number);
-    const dateObj = new Date(Date.UTC(y, m - 1, d));
-    return dateObj.getUTCDay() !== 0; // 0 = Sunday
-  }).length;
+  if (!allDays) {
+    const dates = [];
+    const [sYear, sMonth, sDay] = period_Start.split("-").map(Number);
+    const [eYear, eMonth, eDay] = period_End.split("-").map(Number);
+    const cur = new Date(Date.UTC(sYear, sMonth - 1, sDay));
+    const end = new Date(Date.UTC(eYear, eMonth - 1, eDay));
+    while (cur <= end) {
+      dates.push(cur.toISOString().split("T")[0]);
+      cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+    allDays = dates;
+    totalScheduledDays = allDays.filter(dateStr => {
+      const [y, m, d] = dateStr.split("-").map(Number);
+      return new Date(Date.UTC(y, m - 1, d)).getUTCDay() !== 0; // 0 = Sunday
+    }).length;
+  }
 
   // 1.05 Standard semi-monthly cutoff attendance window & rollover configuration
-  const settings = await SystemSettings.findOne();
+  const settings = preloadedContext?.settings || (await SystemSettings.findOne());
   const bufferDays = (settings && settings.payrollCutoffBufferDays !== undefined && settings.payrollCutoffBufferDays !== null) 
     ? parseInt(settings.payrollCutoffBufferDays, 10) 
     : 2;
@@ -203,13 +206,16 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
   const graceMinutes = (!isNaN(gh) && !isNaN(gm)) ? (gh * 60 + gm) : (8 * 60 + 35);
 
   // 2. Get holidays in period
-  const holidays = await sequelize.query(
-    `SELECT *, "date"::text FROM "Holiday" WHERE "date" BETWEEN :period_Start AND :period_End`,
-    { replacements: { period_Start, period_End }, type: QueryTypes.SELECT }
-  );
+  let holidays = preloadedContext?.holidays;
+  if (!holidays) {
+    holidays = await sequelize.query(
+      `SELECT *, "date"::text FROM "Holiday" WHERE "date" BETWEEN :period_Start AND :period_End`,
+      { replacements: { period_Start, period_End }, type: QueryTypes.SELECT }
+    );
+  }
   const holidayMap = {};
   holidays.forEach(h => { 
-    const dStr = typeof h.date === 'string' ? h.date : h.date.toISOString().split('T')[0];
+    const dStr = typeof h.date === 'string' ? h.date : (h.date?.toISOString ? h.date.toISOString().split('T')[0] : String(h.date));
     holidayMap[dStr] = h; 
   });
 
@@ -860,8 +866,8 @@ async function computePeriodStats(user_Id, period_Start, period_End) {
 }
 
 // ── Internal Helper: Calculate Full Payroll Stats ─────────────────────────────
-async function calculatePayrollStats(user_Id, period_Start, period_End, customDailyRate = null, customAllowance = 0, customIncentives = 0) {
-  const stats = await computePeriodStats(user_Id, period_Start, period_End);
+async function calculatePayrollStats(user_Id, period_Start, period_End, customDailyRate = null, customAllowance = 0, customIncentives = 0, preloadedContext = null) {
+  const stats = await computePeriodStats(user_Id, period_Start, period_End, preloadedContext);
   
   // Get user's current daily rate and gov't shares if not provided
   let dailyRate = customDailyRate;
@@ -1577,17 +1583,51 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
 
   const employees = await sequelize.query(employeeQuery, { replacements, type: QueryTypes.SELECT });
 
+  // ── Pre-fetch Shared Cutoff Context (Eliminates N+1 Sequential Query Cascade) ─
+  const sharedSettings = await SystemSettings.findOne();
+  const sharedHolidays = await sequelize.query(
+    `SELECT *, "date"::text FROM "Holiday" WHERE "date" BETWEEN :period_Start AND :period_End`,
+    { replacements: { period_Start, period_End }, type: QueryTypes.SELECT }
+  );
+
+  const sharedDates = [];
+  const [sYear, sMonth, sDay] = period_Start.split("-").map(Number);
+  const [eYear, eMonth, eDay] = period_End.split("-").map(Number);
+  const curDate = new Date(Date.UTC(sYear, sMonth - 1, sDay));
+  const endDate = new Date(Date.UTC(eYear, eMonth - 1, eDay));
+  while (curDate <= endDate) {
+    sharedDates.push(curDate.toISOString().split("T")[0]);
+    curDate.setUTCDate(curDate.getUTCDate() + 1);
+  }
+  const sharedScheduledDays = sharedDates.filter(dateStr => {
+    const [y, m, d] = dateStr.split("-").map(Number);
+    return new Date(Date.UTC(y, m - 1, d)).getUTCDay() !== 0;
+  }).length;
+
+  const batchContext = {
+    now,
+    settings: sharedSettings,
+    holidays: sharedHolidays,
+    allDays: sharedDates,
+    totalScheduledDays: sharedScheduledDays
+  };
+
+  // Bulk pre-fetch all existing payroll records for this period (eliminates per-employee SELECT queries)
+  const existingPayrolls = await sequelize.query(
+    `SELECT "payrollId", "user_Id", "status" FROM "Payroll" 
+     WHERE (("period_Start" = :period_Start AND "period_End" = :period_End) OR ("periodId" = :periodId))`,
+    { replacements: { period_Start, period_End, periodId: periodId || -1 }, type: QueryTypes.SELECT }
+  );
+  const existingMap = new Map();
+  existingPayrolls.forEach(p => existingMap.set(p.user_Id, p));
+
   let processedCount = 0;
   let skippedCount = 0;
   const newPayrollsForEmail = [];
 
   for (const emp of employees) {
-    const existing = await sequelize.query(
-      `SELECT "payrollId", "status" FROM "Payroll" 
-       WHERE "user_Id" = :user_Id 
-       AND (("period_Start" = :period_Start AND "period_End" = :period_End) OR ("periodId" = :periodId))`,
-      { replacements: { user_Id: emp.user_Id, period_Start, period_End, periodId: periodId || -1 }, type: QueryTypes.SELECT }
-    );
+    const existingRec = existingMap.get(emp.user_Id);
+    const existing = existingRec ? [existingRec] : [];
 
     let payrollId;
     let fullStats;
@@ -1602,7 +1642,7 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
       const existingPayrollId = existing[0].payrollId;
       payrollId = existingPayrollId;
       const rateToUse = customDailyRate !== null ? customDailyRate : emp.dailyRate;
-      fullStats = await calculatePayrollStats(emp.user_Id, period_Start, period_End, rateToUse);
+      fullStats = await calculatePayrollStats(emp.user_Id, period_Start, period_End, rateToUse, 0, 0, batchContext);
       const targetStatus = shouldRelease ? 5 : 1;
 
       await sequelize.query(
@@ -1692,7 +1732,7 @@ async function generateBatchPayrollInternal(period_Start, period_End, adminId = 
     } else {
       // Use custom rate if provided, else use current employee rate
       const rateToUse = customDailyRate !== null ? customDailyRate : emp.dailyRate;
-      fullStats = await calculatePayrollStats(emp.user_Id, period_Start, period_End, rateToUse);
+      fullStats = await calculatePayrollStats(emp.user_Id, period_Start, period_End, rateToUse, 0, 0, batchContext);
 
       const initialStatus = shouldRelease ? 5 : 1;
       const payrollResult = await sequelize.query(

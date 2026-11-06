@@ -590,32 +590,72 @@ const AdminRequestsOversight = () => {
                         <div className="space-y-2 col-span-1 sm:col-span-2 xl:col-span-3">
                           <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Attachments</label>
                           <div className="flex flex-col gap-2">
-                            {(current.SL_proof_File || current.OW_proof_File || current.LC_proof_File || current.ST_proof_File || current.LR_proof_File) && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setViewingFileUrl(current.SL_proof_File || current.OW_proof_File || current.LC_proof_File || current.ST_proof_File || current.LR_proof_File);
-                                  setViewingFileName(`Attachment for REQ-${current.emp_reqId}`);
-                                  setIsFileViewerOpen(true);
-                                }}
-                                className="inline-flex items-center text-brand-primary font-semibold hover:underline w-fit bg-transparent border-none cursor-pointer"
-                              >
-                                <AttachmentIcon className="mr-1 h-4 w-4" /> View Primary Document (Medical / Proof File)
-                              </button>
-                            )}
-                            {current.LR_damageProof && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setViewingFileUrl(current.LR_damageProof);
-                                  setViewingFileName(`Damage Proof for REQ-${current.emp_reqId}`);
-                                  setIsFileViewerOpen(true);
-                                }}
-                                className="inline-flex items-center text-orange-600 font-semibold hover:underline w-fit bg-transparent border-none cursor-pointer"
-                              >
-                                <AttachmentIcon className="mr-1 h-4 w-4" /> View Property Damage Proof
-                              </button>
-                            )}
+                            {(() => {
+                              const primaryDocs = (current.SL_proof_File || current.OW_proof_File || current.LC_proof_File || current.ST_proof_File || current.LR_proof_File || "").split(",").map((s) => s.trim()).filter(Boolean);
+                              if (primaryDocs.length === 0) return null;
+                              return (
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setViewingFileUrl(primaryDocs.join(","));
+                                      setViewingFileName(`Attachments for REQ-${current.emp_reqId}`);
+                                      setIsFileViewerOpen(true);
+                                    }}
+                                    className="inline-flex items-center text-brand-primary font-semibold hover:underline w-fit bg-transparent border-none cursor-pointer"
+                                  >
+                                    <AttachmentIcon className="mr-1 h-4 w-4" /> {primaryDocs.length > 1 ? `View All Attachments (${primaryDocs.length} Files)` : "View Primary Document (Medical / Proof File)"}
+                                  </button>
+                                  {primaryDocs.length > 1 && primaryDocs.map((file, idx) => (
+                                    <button
+                                      key={idx}
+                                      type="button"
+                                      onClick={() => {
+                                        setViewingFileUrl(file);
+                                        setViewingFileName(`Attachment ${idx + 1} for REQ-${current.emp_reqId}`);
+                                        setIsFileViewerOpen(true);
+                                      }}
+                                      className="inline-flex items-center text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded text-xs font-medium cursor-pointer"
+                                    >
+                                      Doc {idx + 1}
+                                    </button>
+                                  ))}
+                                </div>
+                              );
+                            })()}
+                            {(() => {
+                              const damageDocs = (current.LR_damageProof || "").split(",").map((s) => s.trim()).filter(Boolean);
+                              if (damageDocs.length === 0) return null;
+                              return (
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setViewingFileUrl(damageDocs.join(","));
+                                      setViewingFileName(`Damage Proof for REQ-${current.emp_reqId}`);
+                                      setIsFileViewerOpen(true);
+                                    }}
+                                    className="inline-flex items-center text-orange-600 font-semibold hover:underline w-fit bg-transparent border-none cursor-pointer"
+                                  >
+                                    <AttachmentIcon className="mr-1 h-4 w-4" /> {damageDocs.length > 1 ? `View Property Damage Proof (${damageDocs.length} Files)` : "View Property Damage Proof"}
+                                  </button>
+                                  {damageDocs.length > 1 && damageDocs.map((file, idx) => (
+                                    <button
+                                      key={idx}
+                                      type="button"
+                                      onClick={() => {
+                                        setViewingFileUrl(file);
+                                        setViewingFileName(`Damage Proof ${idx + 1} for REQ-${current.emp_reqId}`);
+                                        setIsFileViewerOpen(true);
+                                      }}
+                                      className="inline-flex items-center text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded text-xs font-medium cursor-pointer"
+                                    >
+                                      Damage Doc {idx + 1}
+                                    </button>
+                                  ))}
+                                </div>
+                              );
+                            })()}
                           </div>
                         </div>
                       )}

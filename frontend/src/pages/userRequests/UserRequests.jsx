@@ -621,7 +621,8 @@ const UserRequests = () => {
         });
       }
 
-      if (reqDays > 2 && !formData.proofFile) {
+      const hasProof = Array.isArray(formData.proofFile) ? formData.proofFile.length > 0 : !!formData.proofFile;
+      if (reqDays > 2 && !hasProof) {
         warnings.push({
           type: "danger",
           title: "Medical Certificate Strictly Required",
@@ -920,19 +921,59 @@ const UserRequests = () => {
     return `${yyyy}-${mm}`;
   };
 
+  const handleRemoveStagedFile = (fieldName, indexToRemove) => {
+    setFormData((prev) => {
+      const current = Array.isArray(prev[fieldName])
+        ? prev[fieldName]
+        : prev[fieldName]
+        ? [prev[fieldName]]
+        : [];
+      const updated = current.filter((_, idx) => idx !== indexToRemove);
+      return {
+        ...prev,
+        [fieldName]: updated.length > 0 ? updated : null,
+      };
+    });
+  };
+
   const handleInputChange = (e) => {
     const { name, value, type, checked, files } = e.target;
-    if (type === "file" && files && files[0]) {
-      const file = files[0];
-      const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "application/pdf"];
-      if (!allowedTypes.includes(file.type)) {
-        setToast({ message: "Invalid file format. Only png, jpg, jpeg, and pdf are allowed!", type: "error" });
+    if (type === "file") {
+      if (files && files.length > 0) {
+        const selectedFiles = Array.from(files);
+        const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "application/pdf"];
+        for (const file of selectedFiles) {
+          if (!allowedTypes.includes(file.type)) {
+            setToast({ message: `Invalid file format for ${file.name}. Only PNG, JPG, JPEG, and PDF are allowed!`, type: "error" });
+            e.target.value = null;
+            return;
+          }
+          if (file.size > 10 * 1024 * 1024) {
+            setToast({ message: `File too large: ${file.name}. Maximum size is 10MB per file.`, type: "error" });
+            e.target.value = null;
+            return;
+          }
+        }
+
+        const existingFiles = Array.isArray(formData[name])
+          ? formData[name]
+          : (formData[name] ? [formData[name]] : []);
+
+        if (existingFiles.length + selectedFiles.length > 5) {
+          setToast({ message: "Maximum 5 attachments allowed. Truncated to first 5 files.", type: "warning" });
+        }
+
+        const combined = [...existingFiles, ...selectedFiles].slice(0, 5);
+        setFormData((prev) => ({
+          ...prev,
+          [name]: combined,
+        }));
         e.target.value = null;
         return;
       }
     }
 
-    const newValue = type === "checkbox" ? checked : type === "file" ? files[0] : value;
+    const newValue = type === "checkbox" ? checked : value;
     
     // Auto-calculate Amortization Start Month if loanApprovalDate is changing
     let calculatedStartMonth = undefined;
@@ -1221,18 +1262,20 @@ const UserRequests = () => {
     const isGovLoan = formData.emp_reqTypeId === "14" && formData.agency !== "Company";
     const isStatutoryWithProof = ["8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId);
 
-    if (isStatutoryWithProof && !formData.proofFile) {
+    const hasProof = Array.isArray(formData.proofFile) ? formData.proofFile.length > 0 : !!formData.proofFile;
+
+    if (isStatutoryWithProof && !hasProof) {
       setToast({ message: "Supporting documentation (Medical Cert/SPIC/Birth Cert/Barangay Cert) is mandatory for this statutory benefit.", type: "error" });
       return;
     }
 
     // Emp-02: Mandatory medical certificate for Sick Leave > 2 days
-    if (formData.emp_reqTypeId === "4" && parseFloat(formData.noDays || 0) > 2 && !formData.proofFile) {
+    if (formData.emp_reqTypeId === "4" && parseFloat(formData.noDays || 0) > 2 && !hasProof) {
       setToast({ message: "A valid Medical Certificate is strictly mandatory for Sick Leave exceeding 2 days.", type: "error" });
       return;
     }
 
-    if (isGovLoan && !formData.proofFile) {
+    if (isGovLoan && !hasProof) {
       setToast({ message: "Voucher or Disclosure Statement is mandatory for government loan enrollment.", type: "error" });
       return;
     }
@@ -1357,7 +1400,11 @@ const UserRequests = () => {
         formDataToSubmit.append("monthlyAmortization", formData.monthlyAmortization);
         formDataToSubmit.append("netPaySufficient", formData.netPaySufficient);
         if (formData.damageProofFile) {
-          formDataToSubmit.append("damageProofFile", formData.damageProofFile);
+          if (Array.isArray(formData.damageProofFile)) {
+            formData.damageProofFile.forEach((f) => formDataToSubmit.append("damageProofFile", f));
+          } else {
+            formDataToSubmit.append("damageProofFile", formData.damageProofFile);
+          }
         }
       } else if (formData.agency === "Pag-IBIG" && formData.loanType === "Multi-Purpose Loan (MPL)" && formData.emp_reqTypeId === "14") {
         formDataToSubmit.append("pagibigTAV", formData.pagibigTAV);
@@ -1371,6 +1418,13 @@ const UserRequests = () => {
         formDataToSubmit.append("loanApprovalDate", formData.loanApprovalDate);
         formDataToSubmit.append("monthlyAmortization", formData.monthlyAmortization);
         formDataToSubmit.append("amortizationStartMonth", formData.amortizationStartMonth);
+        if (formData.damageProofFile) {
+          if (Array.isArray(formData.damageProofFile)) {
+            formData.damageProofFile.forEach((f) => formDataToSubmit.append("damageProofFile", f));
+          } else {
+            formDataToSubmit.append("damageProofFile", formData.damageProofFile);
+          }
+        }
       }
     } else if (["8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId)) {
       formDataToSubmit.append("StartDate", formData.leaveStartDate);
@@ -1383,7 +1437,13 @@ const UserRequests = () => {
       formDataToSubmit.append("NoDays", formData.noDays);
     }
     
-    if (formData.proofFile) formDataToSubmit.append("proofFile", formData.proofFile);
+    if (formData.proofFile) {
+      if (Array.isArray(formData.proofFile)) {
+        formData.proofFile.forEach((f) => formDataToSubmit.append("proofFile", f));
+      } else {
+        formDataToSubmit.append("proofFile", formData.proofFile);
+      }
+    }
 
     try {
       const response = await fetchWithAuth("/api/request", {
@@ -1417,6 +1477,7 @@ const UserRequests = () => {
           hrTo: "",
           totalHrs: 0,
           proofFile: null,
+          damageProofFile: null,
           logCorrDate: "",
           currentIn: "",
           currentOut: "",
@@ -2810,7 +2871,40 @@ const UserRequests = () => {
                                 </div>
                                 <div className="space-y-2">
                                   <label className="text-sm font-bold text-slate-700">Property Damage Proof <span className="text-red-500">*</span></label>
-                                  <Input type="file" name="damageProofFile" onChange={handleInputChange} accept="image/png, image/jpeg, image/jpg, application/pdf" required className="bg-slate-50/50 cursor-pointer" />
+                                  <Input 
+                                    type="file" 
+                                    name="damageProofFile" 
+                                    multiple 
+                                    onChange={handleInputChange} 
+                                    accept="image/png, image/jpeg, image/jpg, application/pdf" 
+                                    required={!formData.damageProofFile || (Array.isArray(formData.damageProofFile) && formData.damageProofFile.length === 0)} 
+                                    className="bg-slate-50/50 cursor-pointer" 
+                                  />
+                                  {Array.isArray(formData.damageProofFile) && formData.damageProofFile.length > 0 && (
+                                    <div className="flex flex-wrap gap-2 pt-1">
+                                      {formData.damageProofFile.map((file, idx) => (
+                                        <div 
+                                          key={idx} 
+                                          className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-orange-50 text-orange-800 border border-orange-200 rounded-lg text-xs font-medium"
+                                        >
+                                          <AttachmentIcon className="h-3.5 w-3.5 text-orange-600" />
+                                          <span className="truncate max-w-[150px]">{file.name}</span>
+                                          <span className="text-[10px] text-slate-500">({(file.size / (1024 * 1024)).toFixed(2)} MB)</span>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleRemoveStagedFile("damageProofFile", idx)}
+                                            className="ml-1 text-slate-400 hover:text-red-600 font-bold leading-none cursor-pointer p-0.5 rounded"
+                                            title="Remove file"
+                                          >
+                                            &times;
+                                          </button>
+                                        </div>
+                                      ))}
+                                      <span className="text-xs text-slate-400 self-center">
+                                        {formData.damageProofFile.length} of 5 files selected
+                                      </span>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                               <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg flex items-start gap-3 mt-2">
@@ -2852,20 +2946,46 @@ const UserRequests = () => {
                     <Input 
                       type="file" 
                       name="proofFile" 
+                      multiple
                       onChange={handleInputChange} 
                       accept="image/png, image/jpeg, image/jpg, application/pdf" 
                       className="bg-slate-50/50 cursor-pointer" 
-                      required={["8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId) || (formData.emp_reqTypeId === "14" && formData.agency !== "Company")} 
+                      required={(["8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId) || (formData.emp_reqTypeId === "14" && formData.agency !== "Company")) && (!formData.proofFile || (Array.isArray(formData.proofFile) && formData.proofFile.length === 0))} 
                     />
+                    {Array.isArray(formData.proofFile) && formData.proofFile.length > 0 && (
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {formData.proofFile.map((file, idx) => (
+                          <div 
+                            key={idx} 
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-brand-primary/10 text-brand-primary border border-brand-primary/20 rounded-lg text-xs font-medium"
+                          >
+                            <AttachmentIcon className="h-3.5 w-3.5 text-brand-primary" />
+                            <span className="truncate max-w-[150px]">{file.name}</span>
+                            <span className="text-[10px] text-slate-500">({(file.size / (1024 * 1024)).toFixed(2)} MB)</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveStagedFile("proofFile", idx)}
+                              className="ml-1 text-slate-400 hover:text-red-600 font-bold leading-none cursor-pointer p-0.5 rounded"
+                              title="Remove file"
+                            >
+                              &times;
+                            </button>
+                          </div>
+                        ))}
+                        <span className="text-xs text-slate-400 self-center">
+                          {formData.proofFile.length} of 5 files selected
+                        </span>
+                      </div>
+                    )}
                     <p className="text-xs text-slate-400">
-                      {formData.agency === "Company" ? "Optional: You may upload a supporting document or voucher if necessary." :
+                      {formData.agency === "Company" ? "Optional: You may upload up to 5 supporting documents or vouchers if necessary." :
                        formData.emp_reqTypeId === "14" && formData.loanType === "Calamity Loan"
-                        ? "Mandatory: Please upload the official Disclosure Statement."
+                        ? "Mandatory: Please upload the official Disclosure Statement (up to 5 files)."
                         : formData.emp_reqTypeId === "14" 
-                        ? "Mandatory: Please upload your Loan Voucher or Billing Statement."
+                        ? "Mandatory: Please upload your Loan Voucher or Billing Statement (up to 5 files)."
                         : ["8", "9", "10", "11", "12"].includes(formData.emp_reqTypeId) 
-                          ? "Mandatory for legal compliance (Medical Cert/SPIC/Birth Cert/Barangay Cert)." 
-                          : "Required for Sick Leaves spanning more than 2 days."}
+                          ? "Mandatory for legal compliance (Medical Cert/SPIC/Birth Cert/Barangay Cert, up to 5 files)." 
+                          : "Required for Sick Leaves spanning more than 2 days (up to 5 files)."}
                     </p>
                   </div>
 
@@ -3164,26 +3284,34 @@ const UserRequests = () => {
                             <div className="space-y-2 col-span-1 sm:col-span-2 xl:col-span-3">
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Attachments</label>
                             <div className="flex flex-col gap-2">
-                            {(currentReq.SL_proof_File || currentReq.OW_proof_File || currentReq.LC_proof_File || currentReq.ST_proof_File || currentReq.LR_proof_File) && (
-                              <a 
-                                href={`/api/uploads/${currentReq.SL_proof_File || currentReq.OW_proof_File || currentReq.LC_proof_File || currentReq.ST_proof_File || currentReq.LR_proof_File}`} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center text-brand-primary font-semibold hover:underline w-fit"
-                              >
-                                <AttachmentIcon className="mr-1 h-4 w-4" /> View Primary Document (Disclosure Statement/Medical Cert)
-                              </a>
-                            )}
-                            {currentReq.LR_damageProof && (
-                              <a 
-                                href={`/api/uploads/${currentReq.LR_damageProof}`} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center text-orange-600 font-semibold hover:underline w-fit"
-                              >
-                                <AttachmentIcon className="mr-1 h-4 w-4" /> View Property Damage Proof
-                              </a>
-                            )}
+                            {(() => {
+                              const primaryDocs = (currentReq.SL_proof_File || currentReq.OW_proof_File || currentReq.LC_proof_File || currentReq.ST_proof_File || currentReq.LR_proof_File || "").split(",").map((s) => s.trim()).filter(Boolean);
+                              return primaryDocs.map((file, idx) => (
+                                <a 
+                                  key={idx}
+                                  href={`/api/uploads/${file}`} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center text-brand-primary font-semibold hover:underline w-fit text-sm"
+                                >
+                                  <AttachmentIcon className="mr-1.5 h-4 w-4" /> {primaryDocs.length > 1 ? `View Attachment ${idx + 1}` : "View Primary Document (Disclosure Statement/Medical Cert)"}
+                                </a>
+                              ));
+                            })()}
+                            {(() => {
+                              const damageDocs = (currentReq.LR_damageProof || "").split(",").map((s) => s.trim()).filter(Boolean);
+                              return damageDocs.map((file, idx) => (
+                                <a 
+                                  key={idx}
+                                  href={`/api/uploads/${file}`} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center text-orange-600 font-semibold hover:underline w-fit text-sm"
+                                >
+                                  <AttachmentIcon className="mr-1.5 h-4 w-4" /> {damageDocs.length > 1 ? `View Property Damage Proof ${idx + 1}` : "View Property Damage Proof"}
+                                </a>
+                              ));
+                            })()}
                             </div>
                             </div>
                             )}

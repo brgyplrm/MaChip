@@ -45,6 +45,20 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    chunkSizeWarningLimit: 800,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "vendor-react": ["react", "react-dom", "react-router-dom"],
+          "vendor-mui": ["@mui/material", "@mui/icons-material", "@mui/x-date-pickers"],
+          "vendor-charts": ["recharts"],
+          "vendor-pdf": ["jspdf", "jspdf-autotable"],
+          "vendor-icons": ["lucide-react"],
+        },
+      },
+    },
+  },
   preview: {
     host: true,
     port: 5173,

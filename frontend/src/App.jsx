@@ -1,70 +1,72 @@
-import { useState, useEffect } from "react";
-import Home from "./pages/admin/Home";
-import EmployeeHome from "./pages/employeeHome/EmployeeHome";
-import UserRequests from "./pages/userRequests/UserRequests"; 
+import { useState, useEffect, lazy, Suspense } from "react";
 import Login from "./pages/login/Login";
 import ResetPassword from "./pages/resetPassword/ResetPassword";
-import List from "./pages/list/List";
-import Single from "./pages/single/Single";
-import New from "./pages/new/New";
-import HardwareManagement from "./pages/new/HardwareManagement";
-import Edit from "./pages/editUser/Edit";
-import EditAttendance from "./pages/editAttendance/EditAttendance";
-import Logs from "./pages/logs-management/Logs";
-import VisitorLogs from "./pages/logs-management/VisitorLogs";
-import AdminRequests from "./pages/admin_Requests/AdminRequests";
-import AdminLoanEnrollment from "./pages/admin_Requests/AdminLoanEnrollment";
-import RequestSummary from "./pages/admin_Requests/RequestSummary";
-import RequestDetails from "./pages/request_Details/RequestDetails";
-import Payroll from "./pages/admin_Payroll/PayrollManagement";
-import PayrollPeriod from "./pages/admin_Payroll/PayrollPeriod";
-import PayrollDetails from "./pages/admin_Payroll/DetailsPayroll";
-import PayrollList from "./pages/admin_Payroll/PayrollEmployeeList";
-import Maxicare from "./pages/admin_Payroll/subtabs/Maxicare";
-import MaxicareHistory from "./pages/admin_Payroll/subtabs/MaxicareHistory";
-import EastwestLoan from "./pages/admin_Payroll/subtabs/EastwestLoan";
-import EastwestLoanHistory from "./pages/admin_Payroll/subtabs/EastwestLoanHistory";
-import GovLoans from "./pages/admin_Payroll/subtabs/GovLoans";
-import GovLoansHistory from "./pages/admin_Payroll/subtabs/GovLoansHistory";
-import Cashadvances from "./pages/admin_Payroll/subtabs/Cashadvances";
-import CashAdvancesHistory from "./pages/admin_Payroll/subtabs/CashAdvanceHistory";
-import LoanModule from "./pages/admin_Payroll/subtabs/LoanModule";
-import LeaveSummary from "./pages/admin_Payroll/subtabs/LeaveSummary";
-import EmployeeCalendar from "./pages/emp_Calendar/EmployeeCalendar"; 
-import EmployeePayslip from "./pages/emp_payroll/EmployeePayslip";
-import EmployeePayrollHistory from "./pages/emp_payroll/EmployeePayrollHistory";
-import ThirteenthMonthDetails from "./pages/emp_payroll/ThirteenthMonthDetails";
-import PayrollComputationDetails from "./pages/emp_payroll/PayrollComputationDetails";
-import EmployeeLoans from "./pages/emp_loans/EmployeeLoans";
-import Notifications from "./pages/notifications/Notifications";
-import Profile from "./pages/profile/Profile";
-import Settings from "./pages/settings/Settings";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { userInputs } from "./utils/formSource";
 import ProtectedRoute from "./components/protectedroute/ProtectedRoute";
 import CalendarRedirect from "./components/calendarredirect/CalendarRedirect";
-import AdminReports from "./pages/admin_reports/AdminReports";
-import Payslip from "./pages/admin_reports/Payslip";
-import UserLogs from "./pages/emp_UserLogs/UserLogs";
-import TransactionLog from "./components/transactionLog/TransactionLog";
-import AuditLog from "./components/auditLog/AuditLog";
-import ArchivedUsers from "./pages/archivedUsers/ArchivedUsers";
-import AdminRequestsOversight from "./pages/AdminRequestsOversight";
-import FAQ from "./components/FAQ";
-import LoanManagement from "./pages/admin_Payroll/subtabs/LoanManagement";
-import TransitionPlayground from "./pages/admin/TransitionPlayground";
-import LoanManagementHub from "./pages/admin_Payroll/subtabs/LoanManagementHub";
-import LoanDetails from "./pages/admin_Payroll/subtabs/LoanDetails";
-import LoanDetailsPage from "./components/LoanDetailsPage";
-import ThirteenthMonth from "./pages/admin_Payroll/subtabs/ThirteenthMonth";
-import SeparationPay from "./pages/admin_Payroll/subtabs/SeparationPay";
-import RetirementPay from "./pages/admin_Payroll/subtabs/RetirementPay";
-import LaborBenefits from "./pages/admin_Payroll/LaborBenefits";
 import PageTitle from "./components/PageTitle";
 import InactivityHandler from "./components/InactivityHandler";
 import ScrollToTop from "./components/common/ScrollToTop";
 import { getStoredUser, setStoredUser } from "./utils/authStorage";
 import FirstLoginModal from "./components/auth/FirstLoginModal";
+
+// Lazy-loaded route chunks to eliminate monolithic bundle lag
+const Home = lazy(() => import("./pages/admin/Home"));
+const EmployeeHome = lazy(() => import("./pages/employeeHome/EmployeeHome"));
+const UserRequests = lazy(() => import("./pages/userRequests/UserRequests")); 
+const List = lazy(() => import("./pages/list/List"));
+const Single = lazy(() => import("./pages/single/Single"));
+const New = lazy(() => import("./pages/new/New"));
+const HardwareManagement = lazy(() => import("./pages/new/HardwareManagement"));
+const Edit = lazy(() => import("./pages/editUser/Edit"));
+const EditAttendance = lazy(() => import("./pages/editAttendance/EditAttendance"));
+const Logs = lazy(() => import("./pages/logs-management/Logs"));
+const VisitorLogs = lazy(() => import("./pages/logs-management/VisitorLogs"));
+const AdminRequests = lazy(() => import("./pages/admin_Requests/AdminRequests"));
+const AdminLoanEnrollment = lazy(() => import("./pages/admin_Requests/AdminLoanEnrollment"));
+const RequestSummary = lazy(() => import("./pages/admin_Requests/RequestSummary"));
+const RequestDetails = lazy(() => import("./pages/request_Details/RequestDetails"));
+const Payroll = lazy(() => import("./pages/admin_Payroll/PayrollManagement"));
+const PayrollPeriod = lazy(() => import("./pages/admin_Payroll/PayrollPeriod"));
+const PayrollDetails = lazy(() => import("./pages/admin_Payroll/DetailsPayroll"));
+const PayrollList = lazy(() => import("./pages/admin_Payroll/PayrollEmployeeList"));
+const Maxicare = lazy(() => import("./pages/admin_Payroll/subtabs/Maxicare"));
+const MaxicareHistory = lazy(() => import("./pages/admin_Payroll/subtabs/MaxicareHistory"));
+const EastwestLoan = lazy(() => import("./pages/admin_Payroll/subtabs/EastwestLoan"));
+const EastwestLoanHistory = lazy(() => import("./pages/admin_Payroll/subtabs/EastwestLoanHistory"));
+const GovLoans = lazy(() => import("./pages/admin_Payroll/subtabs/GovLoans"));
+const GovLoansHistory = lazy(() => import("./pages/admin_Payroll/subtabs/GovLoansHistory"));
+const Cashadvances = lazy(() => import("./pages/admin_Payroll/subtabs/Cashadvances"));
+const CashAdvancesHistory = lazy(() => import("./pages/admin_Payroll/subtabs/CashAdvanceHistory"));
+const LoanModule = lazy(() => import("./pages/admin_Payroll/subtabs/LoanModule"));
+const LeaveSummary = lazy(() => import("./pages/admin_Payroll/subtabs/LeaveSummary"));
+const EmployeeCalendar = lazy(() => import("./pages/emp_Calendar/EmployeeCalendar")); 
+const EmployeePayslip = lazy(() => import("./pages/emp_payroll/EmployeePayslip"));
+const EmployeePayrollHistory = lazy(() => import("./pages/emp_payroll/EmployeePayrollHistory"));
+const ThirteenthMonthDetails = lazy(() => import("./pages/emp_payroll/ThirteenthMonthDetails"));
+const PayrollComputationDetails = lazy(() => import("./pages/emp_payroll/PayrollComputationDetails"));
+const EmployeeLoans = lazy(() => import("./pages/emp_loans/EmployeeLoans"));
+const Notifications = lazy(() => import("./pages/notifications/Notifications"));
+const Profile = lazy(() => import("./pages/profile/Profile"));
+const Settings = lazy(() => import("./pages/settings/Settings"));
+const AdminReports = lazy(() => import("./pages/admin_reports/AdminReports"));
+const Payslip = lazy(() => import("./pages/admin_reports/Payslip"));
+const UserLogs = lazy(() => import("./pages/emp_UserLogs/UserLogs"));
+const TransactionLog = lazy(() => import("./components/transactionLog/TransactionLog"));
+const AuditLog = lazy(() => import("./components/auditLog/AuditLog"));
+const ArchivedUsers = lazy(() => import("./pages/archivedUsers/ArchivedUsers"));
+const AdminRequestsOversight = lazy(() => import("./pages/AdminRequestsOversight"));
+const FAQ = lazy(() => import("./components/FAQ"));
+const LoanManagement = lazy(() => import("./pages/admin_Payroll/subtabs/LoanManagement"));
+const TransitionPlayground = lazy(() => import("./pages/admin/TransitionPlayground"));
+const LoanManagementHub = lazy(() => import("./pages/admin_Payroll/subtabs/LoanManagementHub"));
+const LoanDetails = lazy(() => import("./pages/admin_Payroll/subtabs/LoanDetails"));
+const LoanDetailsPage = lazy(() => import("./components/LoanDetailsPage"));
+const ThirteenthMonth = lazy(() => import("./pages/admin_Payroll/subtabs/ThirteenthMonth"));
+const SeparationPay = lazy(() => import("./pages/admin_Payroll/subtabs/SeparationPay"));
+const RetirementPay = lazy(() => import("./pages/admin_Payroll/subtabs/RetirementPay"));
+const LaborBenefits = lazy(() => import("./pages/admin_Payroll/LaborBenefits"));
 
 function App() {
   const [currentUser, setCurrentUser] = useState(() => getStoredUser());
@@ -95,7 +97,8 @@ function App() {
           }}
         />
       )}
-      <Routes>
+      <Suspense fallback={<div className="w-full min-h-screen bg-slate-50" />}>
+        <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/reset-password" element={<ResetPassword />} />
 
@@ -591,6 +594,7 @@ function App() {
         />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
+      </Suspense>
     </div>
   );
 }

@@ -766,7 +766,7 @@ exports.UserCreateRequest = async (req, res) => {
   const finalNoDays = parseInt(NoDays || 0);
   const finalStatus = parseInt(emp_reqStatusId || 1);
   
-  // Handle both single and multiple file uploads (for backward compatibility and new Calamity fields)
+  // Handle both single and multiple file uploads (backward-compatible, comma-separated for multi-attachments)
   let proof_File = null;
   let damageProof_File = null;
 
@@ -774,10 +774,10 @@ exports.UserCreateRequest = async (req, res) => {
     proof_File = `requestsFiles/${req.file.filename}`;
   } else if (req.files) {
     if (req.files['proofFile'] && req.files['proofFile'].length > 0) {
-      proof_File = `requestsFiles/${req.files['proofFile'][0].filename}`;
+      proof_File = req.files['proofFile'].map(f => `requestsFiles/${f.filename}`).join(',');
     }
     if (req.files['damageProofFile'] && req.files['damageProofFile'].length > 0) {
-      damageProof_File = `requestsFiles/${req.files['damageProofFile'][0].filename}`;
+      damageProof_File = req.files['damageProofFile'].map(f => `requestsFiles/${f.filename}`).join(',');
     }
   }
 

@@ -327,17 +327,38 @@ const RequestDetails = () => {
           {proofFile && (
             <Card className="border-0 shadow-sm bg-white">
               <CardContent className="pt-6">
-                <button 
-                  type="button"
-                  onClick={() => {
-                    setViewingFileUrl(proofFile);
-                    setViewingFileName(`Attachment for REQ-${request.emp_reqId}`);
-                    setIsFileViewerOpen(true);
-                  }}
-                  className="inline-flex items-center text-brand-primary font-semibold hover:underline"
-                >
-                  <AttachmentIcon className="mr-1 h-4 w-4" /> View Supporting Attachment
-                </button>
+                {(() => {
+                  const docs = proofFile.split(",").map((s) => s.trim()).filter(Boolean);
+                  return (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setViewingFileUrl(proofFile);
+                          setViewingFileName(`Attachment for REQ-${request.emp_reqId}`);
+                          setIsFileViewerOpen(true);
+                        }}
+                        className="inline-flex items-center text-brand-primary font-semibold hover:underline cursor-pointer"
+                      >
+                        <AttachmentIcon className="mr-1 h-4 w-4" /> {docs.length > 1 ? `View All Attachments (${docs.length} Files)` : "View Supporting Attachment"}
+                      </button>
+                      {docs.length > 1 && docs.map((doc, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setViewingFileUrl(doc);
+                            setViewingFileName(`Attachment ${idx + 1} for REQ-${request.emp_reqId}`);
+                            setIsFileViewerOpen(true);
+                          }}
+                          className="inline-flex items-center text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded text-xs font-medium cursor-pointer"
+                        >
+                          Doc {idx + 1}
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           )}

@@ -18,12 +18,33 @@ const {
 } = require("../controllers/userRequest.controlller");
 const { requireOps, requireStaff, requireRole, requireSelfOrStaff } = require("../middleware/roleCheck.js");
 const authMiddleware = require("../middleware/auth.js");
+const multer = require("multer");
 const upload = require("../middleware/upload");
 
-const uploadFields = upload.fields([
-  { name: "proofFile", maxCount: 1 },
-  { name: "damageProofFile", maxCount: 1 }
-]);
+const uploadFields = (req, res, next) => {
+  upload.fields([
+    { name: "proofFile", maxCount: 5 },
+    { name: "damageProofFile", maxCount: 5 }
+  ])(req, res, (err) => {
+    if (err) {
+      if (err instanceof multer.MulterError) {
+        if (err.code === "LIMIT_UNEXPECTED_FILE") {
+          return res.status(400).json({
+            error: "Too many files uploaded. Maximum 5 attachments allowed per field."
+          });
+        }
+        if (err.code === "LIMIT_FILE_SIZE") {
+          return res.status(400).json({
+            error: "File size exceeds the 10MB limit."
+          });
+        }
+        return res.status(400).json({ error: err.message });
+      }
+      return res.status(400).json({ error: err.message });
+    }
+    next();
+  });
+};
 
 router.post("/", uploadFields, UserCreateRequest);
 router.post(
