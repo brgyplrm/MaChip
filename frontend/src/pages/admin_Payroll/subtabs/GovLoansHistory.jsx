@@ -79,10 +79,23 @@ const GovLoansHistory = () => {
   // Filtering Logic
   const filteredData = useMemo(() => {
     return history.filter(item => {
-      const query = searchQuery.toLowerCase();
-      const matchesSearch = 
-        item.userName?.toLowerCase().includes(query) || 
-        formatUserId(item.user_Id).toLowerCase().includes(query);
+      const query = searchQuery.trim().toLowerCase();
+      const userName = (item.userName || "").toLowerCase();
+      const formattedId = item.user_Id ? formatUserId(item.user_Id).toLowerCase() : "";
+      const rawId = String(item.user_Id || "");
+      const loanType = (item.type || "").toLowerCase();
+      const dateStr = item.date ? new Date(item.date).toLocaleDateString().toLowerCase() : "";
+      const dateIso = item.date ? String(item.date).split('T')[0] : "";
+      const amountStr = item.amount ? String(item.amount) : "";
+
+      const matchesSearch = !query ||
+        userName.includes(query) || 
+        formattedId.includes(query) ||
+        rawId.includes(query) ||
+        loanType.includes(query) ||
+        dateStr.includes(query) ||
+        dateIso.includes(query) ||
+        amountStr.includes(query);
       
       const matchesType = typeFilter === "All Types" || item.type === typeFilter;
       const itemYear = new Date(item.date).getFullYear().toString();

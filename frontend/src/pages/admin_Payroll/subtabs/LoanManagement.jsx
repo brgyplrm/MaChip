@@ -60,12 +60,20 @@ export default function LoanManagement() {
       const loanTitle = (loan.title || "").toLowerCase();
       const govType = (loan.govtype || "").toLowerCase();
       const empIdStr = loan.employeeId ? `macj-${String(loan.employeeId).padStart(3, '0')}`.toLowerCase() : "";
+      const rawEmpId = String(loan.employeeId || "");
+      const statusStr = (loan.status || "").toLowerCase();
+      const principalStr = loan.principal ? String(loan.principal) : "";
+      const balanceStr = loan.outstanding ? String(loan.outstanding) : "";
 
       const matchesSearch = !query || 
         empName.includes(query) || 
         loanTitle.includes(query) ||
         govType.includes(query) ||
-        empIdStr.includes(query);
+        empIdStr.includes(query) ||
+        rawEmpId.includes(query) ||
+        statusStr.includes(query) ||
+        principalStr.includes(query) ||
+        balanceStr.includes(query);
       
       const matchesStatus = statusFilter === "ALL" || (loan.status || "").toUpperCase() === statusFilter.toUpperCase();
       
@@ -295,7 +303,7 @@ export default function LoanManagement() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
               <Input
                 type="text"
-                placeholder="Search employee or loan title..."
+                placeholder="Search by employee, ID, loan title, or status..."
                 value={searchQuery}
                 onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
                 className="pl-10 border-slate-200 focus-visible:ring-brand-primary w-full"

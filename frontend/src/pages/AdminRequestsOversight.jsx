@@ -173,13 +173,28 @@ const AdminRequestsOversight = () => {
   // Filter Logic
   const filteredRequests = requests.filter((req) => {
     const query = searchQuery.toLowerCase().trim();
+    const reqIdStr = String(req.emp_reqId || "");
+    const prefixedReqId = `req-${reqIdStr}`.toLowerCase();
+    const formattedId = req.user_Id ? formatUserId(req.user_Id).toLowerCase() : "";
+    const rawId = String(req.user_Id || "");
+    const userName = (req.userName || "").toLowerCase();
+    const shortType = getShortType(req.reqTypeName).toLowerCase();
+    const fullType = (req.reqTypeName || "").toLowerCase();
+    const remarks = (req.emp_reqRemarks || "").toLowerCase();
+    const statusText = (Number(req.emp_reqStatusId) === 1 ? "pending" : Number(req.emp_reqStatusId) === 4 ? "returned" : "").toLowerCase();
+
     const matchesSearch = !query || 
-      req.userName?.toLowerCase().includes(query) ||
-      req.emp_reqId?.toString().includes(query) ||
-      req.user_Id?.toString().includes(query);
+      userName.includes(query) ||
+      reqIdStr.includes(query) ||
+      prefixedReqId.includes(query) ||
+      formattedId.includes(query) ||
+      rawId.includes(query) ||
+      shortType.includes(query) ||
+      fullType.includes(query) ||
+      remarks.includes(query) ||
+      statusText.includes(query);
     
-    const shortType = getShortType(req.reqTypeName);
-    const matchesType = typeFilter === "All" || shortType === typeFilter;
+    const matchesType = typeFilter === "All" || shortType === typeFilter.toLowerCase();
     
     let matchesStatus = true;
     if (statusFilter === "1") matchesStatus = Number(req.emp_reqStatusId) === 1;
@@ -328,7 +343,7 @@ const AdminRequestsOversight = () => {
                 <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
                 <Input
                   type="text"
-                  placeholder="Search Employee Name or REQ ID..."
+                  placeholder="Search by Employee, REQ ID, or type..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10 border-slate-200 focus-visible:ring-brand-primary w-full"

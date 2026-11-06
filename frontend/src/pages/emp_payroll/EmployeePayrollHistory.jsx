@@ -367,9 +367,18 @@ const EmployeePayrollHistory = () => {
       const month = date.getMonth().toString();
       const year = date.getFullYear().toString();
 
-      const matchesSearch = dateStr.includes(searchTerm.toLowerCase()) || 
-                           p.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           p.type.toLowerCase().includes(searchTerm.toLowerCase());
+      const q = searchTerm.trim().toLowerCase();
+      const statusStr = (p.status || (p.isDraft ? "draft" : "released")).toLowerCase();
+      const grossStr = p.grossPay ? String(p.grossPay) : "";
+      const netStr = p.netPay ? String(p.netPay) : "";
+
+      const matchesSearch = !q || 
+                           dateStr.includes(q) || 
+                           p.label.toLowerCase().includes(q) ||
+                           p.type.toLowerCase().includes(q) ||
+                           statusStr.includes(q) ||
+                           grossStr.includes(q) ||
+                           netStr.includes(q);
       const matchesMonth = selectedMonth === "all" || month === selectedMonth;
       const matchesYear = selectedYear === "all" || year === selectedYear;
       const matchesType = selectedType === "all" || p.type === selectedType;

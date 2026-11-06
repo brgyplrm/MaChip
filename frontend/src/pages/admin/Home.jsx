@@ -662,18 +662,23 @@ const Home = () => {
                         }
 
                         return (
-                          <div key={req.emp_reqId} className={`flex items-center gap-3 p-2 rounded-lg hover:bg-[#F8FFF2] transition-colors border-l-4 ${borderClass} min-w-0`}>
+                          <Link 
+                            key={req.emp_reqId} 
+                            to={`/adminRequests?requestId=${req.emp_reqId}`}
+                            state={{ selectedReqId: req.emp_reqId }}
+                            className={`group flex items-center gap-3 p-2 rounded-lg hover:bg-[#F8FFF2] transition-colors border-l-4 ${borderClass} min-w-0 cursor-pointer`}
+                            title="Click to view and review this pending request"
+                          >
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-bold text-brand-primary truncate">{req.userName}</p>
+                              <p className="text-sm font-bold text-brand-primary truncate group-hover:underline">{req.userName}</p>
                               <p className="text-[11px] text-gray-500">{req.reqTypeName} • {new Date(req.date_Filed).toLocaleDateString()}</p>
                             </div>
-                            <Link 
-                              to={`/adminRequests`} 
-                              className={`p-1.5 ${iconClass} rounded-md hover:text-white transition-all shrink-0`}
+                            <div 
+                              className={`p-1.5 ${iconClass} rounded-md group-hover:text-white transition-all shrink-0`}
                             >
                               <RateReviewIcon sx={{ fontSize: 16 }} />
-                            </Link>
-                          </div>
+                            </div>
+                          </Link>
                         );
                       })}
                     </div>
@@ -805,11 +810,11 @@ const Home = () => {
                   )}
 
                   {/* shadcn Tabs Switcher */}
-                  <TabsList className="shadow-sm bg-brand-primary p-1 gap-1">
-                    <TabsTrigger value="weekly" className="text-xs px-4 text-white hover:text-brand-secondary hover:bg-brand-primary-light">Weekly</TabsTrigger>
-                    <TabsTrigger value="quarterly" className="text-xs px-4 text-white hover:text-brand-secondary hover:bg-brand-primary-light">Quarterly</TabsTrigger>
-                    <TabsTrigger value="yearly" className="text-xs px-4 text-white hover:text-brand-secondary hover:bg-brand-primary-light">Yearly</TabsTrigger>
-                    <TabsTrigger value="fiscal" className="text-xs px-4 text-white hover:text-brand-secondary hover:bg-brand-primary-light">Fiscal Year</TabsTrigger>
+                  <TabsList className="h-9 bg-slate-200/60 p-0.5 rounded-lg gap-0.5">
+                    <TabsTrigger value="weekly" className="text-xs font-semibold px-3 text-slate-500 rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm">Weekly</TabsTrigger>
+                    <TabsTrigger value="quarterly" className="text-xs font-semibold px-3 text-slate-500 rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm">Quarterly</TabsTrigger>
+                    <TabsTrigger value="yearly" className="text-xs font-semibold px-3 text-slate-500 rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm">Yearly</TabsTrigger>
+                    <TabsTrigger value="fiscal" className="text-xs font-semibold px-3 text-slate-500 rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm">Fiscal Year</TabsTrigger>
                   </TabsList>
                 </div>
               </CardHeader>

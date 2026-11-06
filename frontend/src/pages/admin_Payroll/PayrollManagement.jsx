@@ -195,10 +195,19 @@ const Payroll = () => {
   let filteredPeriods = allPeriods.filter(p => p.status !== 'Draft' || (activePeriod && p.periodId !== activePeriod.id));
 
   // Apply Search
-  if (searchQuery) {
-    filteredPeriods = filteredPeriods.filter(p => 
-      p.label?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+  if (searchQuery.trim()) {
+    const q = searchQuery.toLowerCase().trim();
+    filteredPeriods = filteredPeriods.filter(p => {
+      const label = (p.label || "").toLowerCase();
+      const status = (p.status || "").toLowerCase();
+      const sDate = p.startDate ? new Date(p.startDate).toLocaleDateString().toLowerCase() : "";
+      const eDate = p.endDate ? new Date(p.endDate).toLocaleDateString().toLowerCase() : "";
+      const sDateIso = p.startDate ? String(p.startDate).split('T')[0] : "";
+      const eDateIso = p.endDate ? String(p.endDate).split('T')[0] : "";
+      const idStr = String(p.periodId || "");
+      const countStr = String(p.employeeCount || "");
+      return label.includes(q) || status.includes(q) || sDate.includes(q) || eDate.includes(q) || sDateIso.includes(q) || eDateIso.includes(q) || idStr.includes(q) || countStr.includes(q);
+    });
   }
 
   // Apply Status

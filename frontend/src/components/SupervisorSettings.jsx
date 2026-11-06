@@ -10,7 +10,6 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 
@@ -34,7 +33,6 @@ import {
 
 export default function SupervisorSettings() {
   const currentUser = getStoredUser();
-  const [activeTab, setActiveTab] = useState("team");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -196,31 +194,7 @@ export default function SupervisorSettings() {
         </div>
       </div>
 
-      {/* Tabs Navigation */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid grid-cols-1 sm:grid-cols-3 bg-slate-100 p-1 rounded-xl h-auto border border-slate-200/80 gap-1">
-          <TabsTrigger
-            value="team"
-            className="flex items-center gap-2 py-2.5 text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:text-amber-800 data-[state=active]:shadow-xs"
-          >
-            <Users className="w-4 h-4 text-amber-600" /> Team & Shift Rules
-          </TabsTrigger>
-          <TabsTrigger
-            value="approval"
-            className="flex items-center gap-2 py-2.5 text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:text-amber-800 data-[state=active]:shadow-xs"
-          >
-            <FileCheck className="w-4 h-4 text-amber-600" /> Approval Routing
-          </TabsTrigger>
-          <TabsTrigger
-            value="privacy"
-            className="flex items-center gap-2 py-2.5 text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:text-amber-800 data-[state=active]:shadow-xs"
-          >
-            <ShieldCheck className="w-4 h-4 text-amber-600" /> Privacy & Display
-          </TabsTrigger>
-        </TabsList>
-
-        {/* ── Tab 1: Team & Shift Rules ── */}
-        <TabsContent value="team" className="space-y-4 mt-6">
+      {/* ── Section 1: Team & Shift Rules ── */}
           <Card className="border-slate-200 shadow-xs">
             <CardHeader className="pb-3 border-b border-slate-100">
               <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -316,10 +290,8 @@ export default function SupervisorSettings() {
 
             </CardContent>
           </Card>
-        </TabsContent>
 
-        {/* ── Tab 2: Approval Routing & Alerts ── */}
-        <TabsContent value="approval" className="space-y-4 mt-6">
+      {/* ── Section 2: Approval Routing & Alerts ── */}
           <Card className="border-slate-200 shadow-xs">
             <CardHeader className="pb-3 border-b border-slate-100">
               <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -393,10 +365,8 @@ export default function SupervisorSettings() {
 
             </CardContent>
           </Card>
-        </TabsContent>
 
-        {/* ── Tab 3: Personal Privacy & Display ── */}
-        <TabsContent value="privacy" className="space-y-4 mt-6">
+      {/* ── Section 3: Personal Privacy & Display ── */}
           <Card className="border-slate-200 shadow-xs">
             <CardHeader className="pb-3 border-b border-slate-100">
               <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -446,8 +416,6 @@ export default function SupervisorSettings() {
 
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
     </div>
   );
 }

@@ -316,36 +316,68 @@ const AdminRequests = () => {
     if (name.includes("solo parent")) return "SP";
     if (name.includes("vawc")) return "VAW";
     if (name.includes("special leave") || name.includes("special")) return "SPC";
-    if (name.includes("certification") || name.includes("loan cert")) return "LCERT";
     if (name.includes("enrollment") || name.includes("loan enroll")) return "LENRL";
     return "REQ";
   };
 
-  const { pendingCount, returnedCount } = useMemo(() => {
-    let pending = 0;
-    let returned = 0;
+  // Calendar boundary calculation: Current month and previous month window
+  const { minDate, maxDate } = useMemo(() => {
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const prevMonthFirst = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const curMonthLast = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+    return {
+      minDate: `${prevMonthFirst.getFullYear()}-${pad(prevMonthFirst.getMonth() + 1)}-01`,
+      maxDate: `${curMonthLast.getFullYear()}-${pad(curMonthLast.getMonth() + 1)}-${pad(curMonthLast.getDate())}`,
+    };
+  }, []);
+
+  // ------------------ WORKFLOW KPI CALCULATION ------------------
+  const kpiStats = useMemo(() => {
     const userRole = Number(userData?.user_RoleId);
     const currentUserId = Number(userData?.user_Id);
+
+    let pendingCount = 0;
+    let recommendedCount = 0;
+    let approvedCount = 0;
+    let rejectedCount = 0;
+    let returnedCount = 0;
 
     requests.forEach((req) => {
       const reqStatus = Number(req.emp_reqStatusId);
       const requesterId = Number(req.user_Id);
 
-      if (userRole === 1) {
-        // Admin: pending includes 1 (Pending) and 4 (Supervisor Recommended)
-        if (reqStatus === 1 || reqStatus === 4) pending++;
-        if (reqStatus === 5) returned++;
-      } else if (userRole === 2 || userRole === 4) {
-        // Supervisors and Accountants see requests from others
-        if (requesterId !== currentUserId) {
-          if (reqStatus === 1) pending++;
-          if (reqStatus === 5) returned++;
-        }
-      }
+      // Role segregation: supervisors/accountants do not count self-filed requests
+      if ((userRole === 2 || userRole === 4) && requesterId === currentUserId) return;
+
+      if (reqStatus === 1) pendingCount++;
+      else if (reqStatus === 4) recommendedCount++;
+      else if (reqStatus === 2) approvedCount++;
+      else if (reqStatus === 3) rejectedCount++;
+      else if (reqStatus === 5) returnedCount++;
     });
 
-    return { pendingCount: pending, returnedCount: returned };
+    const actionQueue = userRole === 1 ? (pendingCount + recommendedCount) : pendingCount;
+    const totalDecided = approvedCount + rejectedCount;
+    const approvalRate = totalDecided > 0 ? ((approvedCount / totalDecided) * 100).toFixed(1) : "100.0";
+    const totalDecisionsAndReturns = approvedCount + rejectedCount + returnedCount;
+    const declinedRate = totalDecisionsAndReturns > 0 ? (((rejectedCount + returnedCount) / totalDecisionsAndReturns) * 100).toFixed(1) : "0.0";
+
+    return {
+      pendingCount,
+      recommendedCount,
+      approvedCount,
+      rejectedCount,
+      returnedCount,
+      actionQueue,
+      totalDecided,
+      approvalRate,
+      declinedRate,
+    };
   }, [requests, userData?.user_RoleId, userData?.user_Id]);
+
+  const { pendingCount, returnedCount } = kpiStats;
 
   const filteredRequests = useMemo(() => {
     return requests.filter((req) => {
@@ -401,16 +433,30 @@ const AdminRequests = () => {
         const cutoff = new Date(today.getFullYear(), today.getMonth() - 1, 1);
         if (filedDate < cutoff) return false;
 
-        const query = searchQuery.toLowerCase();
-        
-        // Search Name or ID
-        const matchesSearch = 
-          req.userName?.toLowerCase().includes(query) || 
-          req.emp_reqId?.toString().includes(query) ||
-          (req.user_Id && formatUserId(req.user_Id).toLowerCase().includes(query)) ||
-          req.user_Id?.toString().includes(query);
-        
+        const query = searchQuery.trim().toLowerCase();
         const shortType = getShortType(req.reqTypeName);
+        const reqIdStr = String(req.emp_reqId || "");
+        const prefixedReqId = `req-${reqIdStr}`.toLowerCase();
+        const formattedUserId = req.user_Id ? formatUserId(req.user_Id).toLowerCase() : "";
+        const rawUserId = String(req.user_Id || "");
+        const userName = (req.userName || "").toLowerCase();
+        const fullTypeName = (req.reqTypeName || "").toLowerCase();
+        const remarks = (req.emp_reqRemarks || "").toLowerCase();
+        const sysRemarks = (req.system_remarks || "").toLowerCase();
+        const statusText = (req.status || (req.emp_reqStatusId === 1 ? "pending" : req.emp_reqStatusId === 2 ? "approved" : req.emp_reqStatusId === 3 ? "rejected" : req.emp_reqStatusId === 4 ? "returned" : "")).toLowerCase();
+        
+        const matchesSearch = !query ||
+          userName.includes(query) ||
+          reqIdStr.includes(query) ||
+          prefixedReqId.includes(query) ||
+          formattedUserId.includes(query) ||
+          rawUserId.includes(query) ||
+          fullTypeName.includes(query) ||
+          shortType.toLowerCase().includes(query) ||
+          remarks.includes(query) ||
+          sysRemarks.includes(query) ||
+          statusText.includes(query);
+        
         const matchesType = typeFilter === "All" || shortType === typeFilter;
         
         let matchesStatus = true;
@@ -537,7 +583,6 @@ const AdminRequests = () => {
       case "SL": return "bg-red-100 text-red-800 border-transparent";
       case "OW": return "bg-orange-100 text-orange-800 border-transparent";
       case "OT": return "bg-blue-100 text-blue-800 border-transparent";
-      case "LCERT": return "bg-sky-100 text-sky-800 border-transparent";
       case "LENRL": return "bg-teal-100 text-teal-800 border-transparent";
       default: return "bg-slate-100 text-slate-800 border-transparent";
     }
@@ -573,7 +618,7 @@ const AdminRequests = () => {
             <Button 
             variant="outline" 
             asChild
-            className="w-full md:w-auto border-brand-primary/20 hover:text-brand-primary text-brand-primary/70 font-semibold shadow-sm transition-all"
+            className="w-full md:w-auto bg-brand-primary-light/40 text-brand-primary border border-brand-primary/20 hover:bg-brand-primary hover:text-white hover:border-brand-primary font-semibold shadow-xs transition-all"
           >
             <Link 
               to="/adminReports" 
@@ -587,81 +632,127 @@ const AdminRequests = () => {
 
          {/* Statistics Cards */}
           <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
-            {/* Card 1: Total Active Users */}
+            {/* Card 1: Action Queue / Pending */}
             <Card className="border-t-5 border-brand-primary bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
-                <div className="flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <p className="text-xs font-bold text-brand-primary uppercase tracking-wider">Pending Requests</p>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-brand-primary/60 hover:text-brand-primary cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
-                        Requests waiting for supervisor recommendation or final admin approval.
-                      </TooltipContent>
-                    </Tooltip>
+                <div className="flex flex-col justify-between w-full">
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <p className="text-xs font-bold text-brand-primary uppercase tracking-wider">Pending Action</p>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-brand-primary/60 hover:text-brand-primary cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                          Requests awaiting supervisor recommendation or final admin authorization.
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-4xl font-bold text-brand-primary">{kpiStats.actionQueue}</span>
+                      <span className="text-sm font-semibold text-brand-primary/60">Tickets</span>
+                    </div>
                   </div>
-                  <p className="text-4xl font-bold text-brand-primary">{requests.filter((r) => r.emp_reqStatusId === 1).length}</p>
+                  <p className="text-xs text-brand-primary/70 italic mt-4">
+                    {kpiStats.pendingCount} Pending, {kpiStats.recommendedCount} Recommended
+                  </p>
                 </div>
-                <p className="text-xs text-brand-primary/70 italic mt-4">Awaiting review and approval</p>
-              </div>
-              <div className="bg-brand-primary/10 text-brand-primary p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
-                <HourglassEmptyIcon className="h-6 w-6" />
-              </div>
+                <div className="bg-brand-primary/10 text-brand-primary p-3 rounded-lg flex items-center justify-center shrink-0 self-start ml-2">
+                  <HourglassEmptyIcon className="h-6 w-6" />
+                </div>
               </CardContent>
             </Card>
 
-            {/* Card 2: Employees */}
+            {/* Card 2: Approval Rate */}
             <Card className="border-t-5 border-accent-green bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
-                <div className="flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <p className="text-xs font-bold text-accent-green uppercase tracking-wider">Approved Total</p>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-accent-green/60 hover:text-accent-green cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
-                        Total number of employee requests approved in this system cycle.
-                      </TooltipContent>
-                    </Tooltip>
+                <div className="flex flex-col justify-between w-full">
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <p className="text-xs font-bold text-accent-green uppercase tracking-wider">Approval Rate</p>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-accent-green/60 hover:text-accent-green cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                          Percentage of processed employee requests approved without rejection.
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                    <div className="flex items-baseline gap-0.5">
+                      <span className="text-4xl font-bold text-accent-green">{kpiStats.approvalRate}</span>
+                      <span className="text-xl font-bold text-accent-green/80">%</span>
+                    </div>
                   </div>
-                  <p className="text-4xl font-bold text-accent-green">{requests.filter((r) => r.emp_reqStatusId === 2).length}</p>
+                  <p className="text-xs text-accent-green/70 italic mt-4">
+                    {kpiStats.approvedCount} approved of {kpiStats.totalDecided} decided
+                  </p>
                 </div>
-                <p className="text-xs text-accent-green/70 italic mt-4">Processed and approved requests</p>
-              </div>
-              <div className="bg-accent-green/10 text-accent-green p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
-                <CheckCircleOutlineIcon className="h-6 w-6" />
-              </div>
+                <div className="bg-accent-green/10 text-accent-green p-3 rounded-lg flex items-center justify-center shrink-0 self-start ml-2">
+                  <CheckCircleOutlineIcon className="h-6 w-6" />
+                </div>
               </CardContent>
             </Card>
 
-            {/* Card 3: Admins & Supervisors */}
+            {/* Card 3: Declined & Returned */}
             <Card className="border-t-5 border-accent-gold bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
-                <div className="flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <p className="text-xs font-bold text-accent-gold uppercase tracking-wider">Rejected Total</p>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-accent-gold/60 hover:text-accent-gold cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
-                        Total number of employee requests rejected or declined.
-                      </TooltipContent>
-                    </Tooltip>
+                <div className="flex flex-col justify-between w-full">
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <p className="text-xs font-bold text-accent-gold uppercase tracking-wider">Declined & Returned</p>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-accent-gold/60 hover:text-accent-gold cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                          Rate of requests declined or kicked back for policy, attachment, or balance deficits.
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                    <div className="flex items-baseline gap-0.5">
+                      <span className="text-4xl font-bold text-accent-gold">{kpiStats.declinedRate}</span>
+                      <span className="text-xl font-bold text-accent-gold/80">%</span>
+                    </div>
                   </div>
-                  <p className="text-4xl font-bold text-accent-gold">{requests.filter((r) => r.emp_reqStatusId === 3).length}</p>
+                  <p className="text-xs text-accent-gold/70 italic mt-4">
+                    {kpiStats.rejectedCount} Rejected, {kpiStats.returnedCount} Returned
+                  </p>
                 </div>
-                <p className="text-xs text-accent-gold/70 italic mt-4">Declined and unapproved requests</p>
-              </div>
-              <div className="bg-white/20 text-accent-gold p-3 rounded-lg flex items-center justify-center shrink-0 self-start">
-                <CancelOutlinedIcon className="h-6 w-6" />
-              </div>
+                <div className="bg-accent-gold/10 text-accent-gold p-3 rounded-lg flex items-center justify-center shrink-0 self-start ml-2">
+                  <CancelOutlinedIcon className="h-6 w-6" />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Card 4: Requiring Revision */}
+            <Card className="border-t-5 border-status-danger bg-white py-0 h-full">
+              <CardContent className="px-5 py-5 flex justify-between h-full">
+                <div className="flex flex-col justify-between w-full">
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <p className="text-xs font-bold text-status-danger uppercase tracking-wider">Requiring Revision</p>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-status-danger/60 hover:text-status-danger cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
+                          Tickets returned to employees awaiting revisions, medical certificates, or attachments.
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-4xl font-bold text-status-danger">{kpiStats.returnedCount}</span>
+                      <span className="text-sm font-semibold text-status-danger/70">Flags</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-status-danger/70 italic mt-4">
+                    Awaiting employee resubmission
+                  </p>
+                </div>
+                <div className="bg-status-danger/10 text-status-danger p-3 rounded-lg flex items-center justify-center shrink-0 self-start ml-2">
+                  <ReplyIcon className="h-6 w-6" />
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -697,7 +788,7 @@ const AdminRequests = () => {
                 <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
                 <Input
                   type="text"
-                  placeholder="Search Employee Name or REQ ID..."
+                  placeholder="Search by Employee, REQ ID, type, or status..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10 border-slate-200 focus-visible:ring-brand-primary w-full"
@@ -706,52 +797,93 @@ const AdminRequests = () => {
               
               <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
                 
-                {/* NEW: Date Filed Picker */}
+                {/* Date Filed Picker with boundary restriction and hover tooltip */}
                 <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <Input
-                    type="date"
-                    value={dateFilter}
-                    onChange={(e) => setDateFilter(e.target.value)}
-                    className="w-full sm:w-[150px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors h-10"
-                  />
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div>
+                        <Input
+                          type="date"
+                          value={dateFilter}
+                          min={minDate}
+                          max={maxDate}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (!val) {
+                              setDateFilter("");
+                              return;
+                            }
+                            if (val < minDate || val > maxDate) {
+                              setToast({ message: `Date must be within the current and previous month window (${minDate} to ${maxDate}).`, type: "warning" });
+                              return;
+                            }
+                            setDateFilter(val);
+                          }}
+                          className="w-full sm:w-[155px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors h-10 cursor-pointer text-xs"
+                        />
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case text-xs">
+                      Filter requests by date filed (Allowed: ${minDate} to ${maxDate})
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
 
+                {/* Type Filter Dropdown with direct hover tooltip and without Loan Cert */}
                 <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <Select value={typeFilter} onValueChange={setTypeFilter}>
-                    <SelectTrigger className="w-full sm:w-[140px] border-slate-200 bg-slate-50">
-                      <SelectValue placeholder="Type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="All">All Types</SelectItem>
-                      <SelectItem value="VL">Vacation</SelectItem>
-                      <SelectItem value="SL">Sick</SelectItem>
-                      <SelectItem value="EL">Emergency</SelectItem>
-                      <SelectItem value="HD">Half-Day</SelectItem>
-                      <SelectItem value="OT">Overtime</SelectItem>
-                      <SelectItem value="OW">Field Work</SelectItem>
-                      <SelectItem value="LC">Log Correct</SelectItem>
-                      <SelectItem value="SP">Solo Parent</SelectItem>
-                      <SelectItem value="MAT">Maternity</SelectItem>
-                      <SelectItem value="PAT">Paternity</SelectItem>
-                      <SelectItem value="VAW">VAWC</SelectItem>
-                      <SelectItem value="SPC">Special Leave</SelectItem>
-                      <SelectItem value="LCERT">Loan Cert</SelectItem>
-                      <SelectItem value="LENRL">Loan Enroll</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div>
+                        <Select value={typeFilter} onValueChange={setTypeFilter}>
+                          <SelectTrigger className="w-full sm:w-[145px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors h-10 cursor-pointer">
+                            <SelectValue placeholder="Type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="All" title="All request categories">All Types</SelectItem>
+                            <SelectItem value="VL" title="Vacation Leave">Vacation</SelectItem>
+                            <SelectItem value="SL" title="Sick Leave">Sick</SelectItem>
+                            <SelectItem value="EL" title="Emergency Leave">Emergency</SelectItem>
+                            <SelectItem value="HD" title="Half-Day Leave">Half-Day</SelectItem>
+                            <SelectItem value="OT" title="Overtime Request">Overtime</SelectItem>
+                            <SelectItem value="OW" title="On-Field / Official Work">Field Work</SelectItem>
+                            <SelectItem value="LC" title="Log Correction / Manual Adjustment">Log Correct</SelectItem>
+                            <SelectItem value="SP" title="Solo Parent Leave">Solo Parent</SelectItem>
+                            <SelectItem value="MAT" title="Maternity Leave">Maternity</SelectItem>
+                            <SelectItem value="PAT" title="Paternity Leave">Paternity</SelectItem>
+                            <SelectItem value="VAW" title="VAWC Leave">VAWC</SelectItem>
+                            <SelectItem value="SPC" title="Special Leave for Women">Special Leave</SelectItem>
+                            <SelectItem value="LENRL" title="Government & Bank Loan Enrollment">Loan Enroll</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case text-xs">
+                      Filter requests by category (Leave, Overtime, Field Work, Log Correction, Loan Enrollment)
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
 
+                {/* Status Filter Dropdown with direct hover tooltip */}
                 <div className="flex items-center w-full sm:w-auto">
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-full sm:w-[140px] border-slate-200 bg-slate-50">
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="All">All Statuses</SelectItem>
-                      <SelectItem value="Approved">Approved</SelectItem>
-                      <SelectItem value="Rejected">Rejected</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div>
+                        <Select value={statusFilter} onValueChange={setStatusFilter}>
+                          <SelectTrigger className="w-full sm:w-[140px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors h-10 cursor-pointer">
+                            <SelectValue placeholder="Status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="All" title="All historical outcomes">All Statuses</SelectItem>
+                            <SelectItem value="Approved" title="Requests approved and credited">Approved</SelectItem>
+                            <SelectItem value="Rejected" title="Requests declined or rejected">Rejected</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case text-xs">
+                      Filter historical records by outcome (Approved or Rejected)
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
 
                 {(isFiltering || dateFilter) && (
@@ -819,7 +951,7 @@ const AdminRequests = () => {
                       onClick={() => handleSubTabChange("returned")}
                       className={`flex-1 py-1.5 text-[11px] font-bold uppercase rounded-md transition-all ${
                         pendingSubTab === "returned"
-                          ? "bg-white text-orange-600 shadow-sm"
+                          ? "bg-white text-amber-700 shadow-xs border border-amber-200/60"
                           : "text-slate-500 hover:bg-white/50"
                       }`}
                     >
@@ -951,7 +1083,7 @@ const AdminRequests = () => {
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <span className="flex-1 min-w-[110px]">
-                                      <Button disabled={isProcessing} className="w-full bg-green-600 hover:bg-green-700 text-white" onClick={() => handleApproveClick(current.emp_reqId)}>
+                                      <Button disabled={isProcessing} className="w-full bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-600 hover:text-white hover:border-emerald-600 font-semibold shadow-xs transition-all active:scale-98" onClick={() => handleApproveClick(current.emp_reqId)}>
                                         <CheckCircleOutlineIcon className="mr-2 h-4 w-4" /> {isProcessing ? "Processing..." : "Approve"}
                                       </Button>
                                     </span>
@@ -964,7 +1096,7 @@ const AdminRequests = () => {
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <span className="flex-1 min-w-[110px]">
-                                      <Button disabled={isProcessing} className="w-full bg-red-600 hover:bg-red-700 text-white" onClick={handleRejectClick}>
+                                      <Button disabled={isProcessing} className="w-full bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-600 hover:text-white hover:border-rose-600 font-semibold shadow-xs transition-all active:scale-98" onClick={handleRejectClick}>
                                         <CancelOutlinedIcon className="mr-2 h-4 w-4" /> Reject
                                       </Button>
                                     </span>
@@ -977,7 +1109,7 @@ const AdminRequests = () => {
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <span className="flex-1 min-w-[110px]">
-                                      <Button disabled={isProcessing} className="w-full bg-orange-500 hover:bg-orange-600 text-white" onClick={handleReturnClick}>
+                                      <Button disabled={isProcessing} className="w-full bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-600 hover:text-white hover:border-amber-600 font-semibold shadow-xs transition-all active:scale-98" onClick={handleReturnClick}>
                                         <ReplyIcon className="mr-2 h-4 w-4" /> {current.emp_reqStatusId === 5 ? "Update Return" : "Return"}
                                       </Button>
                                     </span>
@@ -1012,7 +1144,7 @@ const AdminRequests = () => {
                               <Button 
                                 variant="outline" 
                                 size="icon"
-                                className="text-brand-primary/70 border-transparent! hover:text-brand-primary font-bold h-9 w-9 shrink-0"
+                                className="bg-slate-50 text-slate-600 border border-slate-200 hover:bg-brand-primary hover:text-white hover:border-brand-primary font-semibold h-9 w-9 shrink-0 shadow-xs transition-all"
                                 onClick={() => handleEditClick(current)}
                               >
                                 <EditIcon className="h-4 w-4" />
@@ -1248,7 +1380,7 @@ const AdminRequests = () => {
                               setViewingFileName(`Damage Proof for REQ-${current.emp_reqId}`);
                               setIsFileViewerOpen(true);
                             }}
-                            className="inline-flex items-center text-orange-600 font-semibold hover:underline w-fit bg-transparent border-none cursor-pointer"
+                            className="inline-flex items-center text-amber-700 hover:text-amber-800 font-semibold hover:underline w-fit bg-transparent border-none cursor-pointer"
                             >
                             <AttachmentIcon className="mr-1 h-4 w-4" /> View Property Damage Proof
                             </button>
@@ -1382,7 +1514,7 @@ const AdminRequests = () => {
             </AlertDialogCancel>
             <AlertDialogAction 
               onClick={confirmApprovalWithWarning} 
-              className="bg-green-600 hover:bg-green-700 text-white font-semibold"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs"
             >
               Proceed & Approve
             </AlertDialogAction>
@@ -1429,7 +1561,7 @@ const AdminRequests = () => {
             <AlertDialogAction
               onClick={confirmReject}
               disabled={isProcessing}
-              className="bg-red-600 hover:bg-red-700 text-white font-semibold"
+              className="bg-rose-600 hover:bg-rose-700 text-white font-semibold shadow-xs"
             >
               Confirm Rejection
             </AlertDialogAction>
@@ -1483,7 +1615,7 @@ const AdminRequests = () => {
             <AlertDialogAction
               onClick={confirmReturn}
               disabled={isProcessing || modalActionNote.trim().length === 0}
-              className="bg-orange-500 hover:bg-orange-600 text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-amber-600 hover:bg-amber-700 text-white font-semibold shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {current?.emp_reqStatusId === 5 ? "Update & Save" : "Send Back for Revision"}
             </AlertDialogAction>

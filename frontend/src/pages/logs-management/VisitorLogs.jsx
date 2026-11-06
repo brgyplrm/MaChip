@@ -151,6 +151,7 @@ const VisitorLogs = () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password: adminPassword }),
+        skipAuthRedirect: true,
       });
       const verifyData = await verifyRes.json();
 

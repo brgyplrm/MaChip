@@ -102,11 +102,27 @@ const RequestSummary = () => {
 
   // Filter and Search Logic
   const filteredRequests = requests.filter(req => {
-    const query = searchQuery.toLowerCase();
-    const matchesSearch = 
-        req.userName?.toLowerCase().includes(query) || 
-        req.emp_reqId?.toString().includes(query) ||
-        formatUserId(req.user_Id).toLowerCase().includes(query);
+    const query = searchQuery.trim().toLowerCase();
+    const reqIdStr = String(req.emp_reqId || "");
+    const prefixedReqId = `req-${reqIdStr}`.toLowerCase();
+    const formattedUserId = req.user_Id ? formatUserId(req.user_Id).toLowerCase() : "";
+    const rawUserId = String(req.user_Id || "");
+    const userName = (req.userName || "").toLowerCase();
+    const reqType = (req.reqTypeName || "").toLowerCase();
+    const status = (req.status || "").toLowerCase();
+    const approver = (req.processedByName || req.approverName || "").toLowerCase();
+    const dateFiled = (req.date_Filed || "").toLowerCase();
+
+    const matchesSearch = !query ||
+      userName.includes(query) ||
+      reqIdStr.includes(query) ||
+      prefixedReqId.includes(query) ||
+      formattedUserId.includes(query) ||
+      rawUserId.includes(query) ||
+      reqType.includes(query) ||
+      status.includes(query) ||
+      approver.includes(query) ||
+      dateFiled.includes(query);
 
     const matchesType = typeFilter === "All Types" || req.reqTypeName === typeFilter;
     const matchesStatus = statusFilter === "All Statuses" || req.status === statusFilter;

@@ -1429,9 +1429,9 @@ const Maxicare = () => {
           </DialogHeader>
           
           <Tabs defaultValue="form" className="w-full mt-4">
-            <TabsList className="grid w-full grid-cols-2 mb-6">
-              <TabsTrigger value="form">Manual Entry Form</TabsTrigger>
-              <TabsTrigger value="csv">CSV File Upload</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2 h-11 bg-slate-200/60 rounded-lg mb-6 p-0.5">
+              <TabsTrigger value="form" className="data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md">Manual Entry Form</TabsTrigger>
+              <TabsTrigger value="csv" className="data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md">CSV File Upload</TabsTrigger>
             </TabsList>
 
             <TabsContent value="form" className="space-y-6">

@@ -45,10 +45,10 @@ export default function LoanDetailsPage() {
       </div>
 
       <Tabs defaultValue="overview">
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="schedule">Amortization Schedule</TabsTrigger>
-          <TabsTrigger value="history">Payment History</TabsTrigger>
+        <TabsList className="inline-flex h-11 bg-slate-200/60 p-0.5 rounded-lg mb-4">
+          <TabsTrigger value="overview" className="data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md px-4">Overview</TabsTrigger>
+          <TabsTrigger value="schedule" className="data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md px-4">Amortization Schedule</TabsTrigger>
+          <TabsTrigger value="history" className="data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md px-4">Payment History</TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="p-4 bg-white rounded-xl border">
           {/* Timeline and Summary Logic */}

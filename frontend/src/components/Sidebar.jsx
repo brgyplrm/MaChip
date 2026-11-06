@@ -90,6 +90,28 @@ const routeLabels = {
   "transitions": "UI Animations Lab"
 };
 
+// Helper to derive initials from user profile
+const getUserInitials = (user) => {
+  if (!user) return "U";
+  const first = (user.user_FirstName || "").trim();
+  const last = (user.user_LastName || "").trim();
+  if (first && last) {
+    return `${first[0]}${last[0]}`.toUpperCase();
+  }
+  if (first) {
+    return first.slice(0, 2).toUpperCase();
+  }
+  const name = (user.userName || user.name || user.user_Email || "").trim();
+  if (name) {
+    const parts = name.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  }
+  return "U";
+};
+
 const Sidebar = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -1124,7 +1146,7 @@ const Sidebar = ({ children }) => {
                           to="/auditLogs" 
                           className={cn("text-inherit font-medium flex items-center", isAuditLogActive ? "font-bold" : "")}
                         >
-                          <ListAltIcon className="!text-[18px] mr-2" /> Audit
+                          <ListAltIcon className="!text-[18px] mr-2 !text-current" /> Audit
                         </Link>
                       </SidebarMenuSubButton>
                     </SidebarMenuSubItem>
@@ -1137,7 +1159,7 @@ const Sidebar = ({ children }) => {
                           to="/transactionLog" 
                           className={cn("text-inherit font-medium flex items-center", isTransactionLogActive ? "font-bold" : "")}
                         >
-                          <ReceiptLongIcon className="!text-[18px] mr-2" /> Transaction
+                          <ReceiptLongIcon className="!text-[18px] mr-2 !text-current" /> Transaction
                         </Link>
                       </SidebarMenuSubButton>
                     </SidebarMenuSubItem>
@@ -1149,7 +1171,7 @@ const Sidebar = ({ children }) => {
                         to="/settings" 
                         className={cn("text-inherit font-medium flex items-center", isConfigActive ? "font-bold" : "")}
                       >
-                        <TuneIcon className="!text-[18px] mr-2" />
+                        <TuneIcon className="!text-[18px] mr-2 !text-current" />
                         {isManagement ? "Configuration" : isSupervisor ? "Operations & Settings" : "Preferences & Settings"}
                       </Link>
                     </SidebarMenuSubButton>
@@ -1161,7 +1183,7 @@ const Sidebar = ({ children }) => {
                         to="/faq" 
                         className={cn("text-inherit font-medium flex items-center", isFaqActive ? "font-bold" : "")}
                       >
-                        <HelpOutlinedIcon className="!text-[18px] mr-2" /> Help & Support
+                        <HelpOutlinedIcon className="!text-[18px] mr-2 !text-current" /> Help & Support
                       </Link>
                     </SidebarMenuSubButton>
                   </SidebarMenuSubItem>
@@ -1307,14 +1329,31 @@ const Sidebar = ({ children }) => {
                     "flex text-sm rounded-full transition-all duration-300 active:scale-95 relative",
                     location.pathname === "/profile"
                       ? "p-[2.5px] bg-gradient-to-r from-brand-primary via-brand-primary-light to-brand-primary shadow-[0_0_15px_rgba(122,82,181,0.75)] animate-pulse"
-                      : "bg-gray-800 focus:ring-2 focus:ring-gray-300"
+                      : "focus:ring-2 focus:ring-brand-primary/40"
                   )}
+                  aria-label="User Profile Menu"
                 >
-                  <img 
-                    className="w-8 h-8 rounded-full object-cover border border-white" 
-                    src={userData?.user_ProfilePic ? `/api/uploads/${userData.user_ProfilePic}` : "/avatar.webp"} 
-                    alt="user" 
-                  />
+                  {userData?.user_ProfilePic ? (
+                    <img 
+                      className="w-8 h-8 rounded-full object-cover border border-white" 
+                      src={`/api/uploads/${userData.user_ProfilePic}`} 
+                      alt={userData?.user_FirstName || "User"} 
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                        if (e.currentTarget.nextElementSibling) {
+                          e.currentTarget.nextElementSibling.style.display = "flex";
+                        }
+                      }}
+                    />
+                  ) : null}
+                  <div 
+                    className={cn(
+                      "w-8 h-8 rounded-full bg-brand-primary text-white border border-white flex items-center justify-center font-bold text-xs select-none tracking-wider shadow-xs",
+                      userData?.user_ProfilePic ? "hidden" : "flex"
+                    )}
+                  >
+                    {getUserInitials(userData)}
+                  </div>
                 </button>
 
                 {showProfileMenu && (

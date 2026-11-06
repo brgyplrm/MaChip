@@ -321,7 +321,9 @@ const Notifications = () => {
         const matchTitle = (notif.title || "").toLowerCase().includes(query);
         const matchMsg = (notif.message || "").toLowerCase().includes(query);
         const matchId = String(notif.notifId).includes(query) || (notif.targetId && String(notif.targetId).includes(query));
-        if (!matchTitle && !matchMsg && !matchId) return false;
+        const matchCategory = category.toLowerCase().includes(query);
+        const matchDate = notif.createdAt ? new Date(notif.createdAt).toLocaleDateString().toLowerCase().includes(query) : false;
+        if (!matchTitle && !matchMsg && !matchId && !matchCategory && !matchDate) return false;
       }
 
       return true;
