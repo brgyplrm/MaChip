@@ -59,8 +59,8 @@ const LaborBenefits = () => {
 
           {/* Unified Tab Structure */}
           <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-            <TabsList className="mb-4 grid w-full grid-cols-3 md:w-auto md:inline-flex bg-slate-100 p-1 rounded-lg border border-slate-200/50">
-              <TabsTrigger value="13th-month" className="font-bold text-xs uppercase px-6">
+            <TabsList className="mb-6 grid w-full grid-cols-3 md:w-auto md:inline-flex bg-slate-200/60 p-0.5 rounded-lg h-11">
+              <TabsTrigger value="13th-month" className="font-semibold text-xs uppercase px-6 rounded-md data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm text-slate-500 transition-all">
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="w-full h-full block">13th Month Pay</span>
@@ -71,7 +71,7 @@ const LaborBenefits = () => {
                 </Tooltip>
               </TabsTrigger>
 
-              <TabsTrigger value="separation" className="font-bold text-xs uppercase px-6">
+              <TabsTrigger value="separation" className="font-semibold text-xs uppercase px-6 rounded-md data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm text-slate-500 transition-all">
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="w-full h-full block">Separation Pay</span>
@@ -82,7 +82,7 @@ const LaborBenefits = () => {
                 </Tooltip>
               </TabsTrigger>
 
-              <TabsTrigger value="retirement" className="font-bold text-xs uppercase px-6">
+              <TabsTrigger value="retirement" className="font-semibold text-xs uppercase px-6 rounded-md data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm text-slate-500 transition-all">
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="w-full h-full block">Retirement Pay</span>

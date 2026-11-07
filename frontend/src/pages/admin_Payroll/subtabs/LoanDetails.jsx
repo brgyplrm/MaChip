@@ -389,10 +389,10 @@ export default function LoanDetailsPage() {
                     {/* Tabulated Data */}
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
-                            <TabsList className="bg-slate-200/50 p-1 rounded-xl">
-                                <TabsTrigger value="overview" className="rounded-lg font-bold text-xs uppercase px-6">Overview</TabsTrigger>
+                            <TabsList className="bg-slate-200/60 p-0.5 rounded-lg h-11">
+                                <TabsTrigger value="overview" className="rounded-md font-semibold text-xs uppercase px-6 data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm text-slate-500 transition-all">Overview</TabsTrigger>
                                 {/* <TabsTrigger value="amortization" className="rounded-lg font-bold text-xs uppercase px-6">Full Ledger</TabsTrigger> */}
-                                <TabsTrigger value="history" className="rounded-lg font-bold text-xs uppercase px-6">Paid History</TabsTrigger>
+                                <TabsTrigger value="history" className="rounded-md font-semibold text-xs uppercase px-6 data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm text-slate-500 transition-all">Paid History</TabsTrigger>
                             </TabsList>
 
                             {/* Year / Quarter Selection Tabs on the far right */}

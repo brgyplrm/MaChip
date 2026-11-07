@@ -517,9 +517,9 @@ const LoanManagementHub = () => {
           </div>
 
           <Tabs defaultValue="form" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-6">
-              <TabsTrigger value="form" className="font-bold">Manual Distribution Entry</TabsTrigger>
-              <TabsTrigger value="csv" className="font-bold">CSV Document Stream</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2 h-11 bg-slate-200/60 rounded-lg mb-6 p-0.5">
+              <TabsTrigger value="form" className="data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md">Manual Distribution Entry</TabsTrigger>
+              <TabsTrigger value="csv" className="data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md">CSV Document Stream</TabsTrigger>
             </TabsList>
             
             <TabsContent value="form" className="space-y-6 text-left">

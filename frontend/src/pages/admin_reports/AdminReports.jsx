@@ -39,6 +39,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import ShieldIcon from '@mui/icons-material/Shield';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
+import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
+import FlightTakeoffIcon from "@mui/icons-material/FlightTakeoff";
+import CelebrationIcon from "@mui/icons-material/Celebration";
+import MoreTimeIcon from "@mui/icons-material/MoreTime";
+import GroupIcon from "@mui/icons-material/Group";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { TablePagination } from "@/components/ui/table-pagination";
 
@@ -61,6 +66,46 @@ const PERIOD_OPTIONS = [
   { value: "1", label: "1st Period (1st – 15th)" },
   { value: "2", label: "2nd Period (16th – End)" }
 ];
+
+// Helper to determine the ongoing/current payroll period (benchmarking Attendance)
+const getCurrentCutoff = (refDate) => {
+  const d = new Date(refDate || new Date());
+  return {
+    year: d.getFullYear().toString(),
+    month: (d.getMonth() + 1).toString(),
+    period: d.getDate() <= 15 ? "1" : "2"
+  };
+};
+
+// Helper to determine the completed/previous payroll period (benchmarking Payroll reports)
+const getPreviousCutoff = (refDate) => {
+  const d = new Date(refDate || new Date());
+  const year = d.getFullYear();
+  const month = d.getMonth() + 1; // 1-12
+  const day = d.getDate();
+
+  if (day <= 15) {
+    if (month === 1) {
+      return {
+        year: (year - 1).toString(),
+        month: "12",
+        period: "2"
+      };
+    } else {
+      return {
+        year: year.toString(),
+        month: (month - 1).toString(),
+        period: "2"
+      };
+    }
+  } else {
+    return {
+      year: year.toString(),
+      month: month.toString(),
+      period: "1"
+    };
+  }
+};
 
 const computeCutoffDates = (yearStr, monthStr, periodStr) => {
   const isYearValid = yearStr && yearStr !== "all";
@@ -110,6 +155,8 @@ const computeCutoffDates = (yearStr, monthStr, periodStr) => {
 
 const AdminReports = () => {
   const { systemToday } = useSystemTime();
+  const location = useLocation();
+  const [activeReport, setActiveReport] = useState(() => location.state?.activeTab || "attendance");
   const currentSysDate = useMemo(() => systemToday || new Date(), [systemToday]);
 
   // Available years: current year + 1 down to 5 years past (7 years)
@@ -118,21 +165,42 @@ const AdminReports = () => {
     return Array.from({ length: 7 }, (_, i) => (currentY + 1 - i).toString());
   }, [currentSysDate]);
 
-  // Default to current year, month, and cutoff period on component mount
-  const [defaultYear] = useState(() => (systemToday || new Date()).getFullYear().toString());
-  const [defaultMonth] = useState(() => ((systemToday || new Date()).getMonth() + 1).toString());
-  const [defaultPeriod] = useState(() => ((systemToday || new Date()).getDate() <= 15 ? "1" : "2"));
+  // Dynamic Cutoff Benchmarks
+  const currentCutoff = useMemo(() => getCurrentCutoff(systemToday), [systemToday]);
+  const previousCutoff = useMemo(() => getPreviousCutoff(systemToday), [systemToday]);
 
-  // --- Attendance & Payroll Filters (Year, Month, Period, Employee) ---
-  const [selectedYear, setSelectedYear] = useState(defaultYear);
-  const [selectedMonth, setSelectedMonth] = useState(defaultMonth);
-  const [selectedPeriod, setSelectedPeriod] = useState(defaultPeriod);
-  const [selectedEmployee, setSelectedEmployee] = useState("All Employees");
+  // Tab-Isolated Filter States (Default Clear State: All Years, All Months, All Periods, All Employees)
+  const [attFilters, setAttFilters] = useState({
+    year: "all",
+    month: "all",
+    period: "all",
+    employee: "All Employees"
+  });
 
-  // Derive active attendance & payroll cutoff dates
-  const { startDate, endDate } = useMemo(() => {
-    return computeCutoffDates(selectedYear, selectedMonth, selectedPeriod);
-  }, [selectedYear, selectedMonth, selectedPeriod]);
+  const [payFilters, setPayFilters] = useState({
+    year: "all",
+    month: "all",
+    period: "all",
+    employee: "All Employees"
+  });
+
+  // Active filter accessors based on activeReport
+  const activeFilters = activeReport === "payroll" ? payFilters : attFilters;
+  const setActiveFilters = activeReport === "payroll" ? setPayFilters : setAttFilters;
+
+  const defaultCutoffLabel = activeReport === "payroll" ? "Previous Cutoff" : "Current Cutoff";
+
+  // Derive active cutoff dates per tab
+  const attDates = useMemo(() => {
+    return computeCutoffDates(attFilters.year, attFilters.month, attFilters.period);
+  }, [attFilters.year, attFilters.month, attFilters.period]);
+
+  const payDates = useMemo(() => {
+    return computeCutoffDates(payFilters.year, payFilters.month, payFilters.period);
+  }, [payFilters.year, payFilters.month, payFilters.period]);
+
+  const { startDate, endDate } = activeReport === "payroll" ? payDates : attDates;
+  const selectedEmployee = activeFilters.employee;
   
   // --- Calendar/Events Specific Filters ---
   const [calendarStartDate, setCalendarStartDate] = useState("");
@@ -178,8 +246,7 @@ const AdminReports = () => {
   });
   const [loading, setLoading] = useState(false);
 
-  const location = useLocation();
-  const [activeReport, setActiveReport] = useState("attendance");
+
 
   // Pagination States
   const [currentPage, setCurrentPage] = useState(1);
@@ -258,10 +325,10 @@ const AdminReports = () => {
     if (!isBackground) setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (startDate) params.append("startDate", startDate);
-      if (endDate) params.append("endDate", endDate);
-      if (selectedEmployee && selectedEmployee !== "All Employees" && selectedEmployee !== "all") {
-        params.append("user_Id", selectedEmployee);
+      if (attDates.startDate) params.append("startDate", attDates.startDate);
+      if (attDates.endDate) params.append("endDate", attDates.endDate);
+      if (attFilters.employee && attFilters.employee !== "All Employees" && attFilters.employee !== "all") {
+        params.append("user_Id", attFilters.employee);
       } else {
         params.append("user_Id", "All Employees");
       }
@@ -289,16 +356,16 @@ const AdminReports = () => {
     } finally {
       if (!isBackground) setLoading(false);
     }
-  }, [startDate, endDate, selectedEmployee, currentPage, itemsPerPage]);
+  }, [attDates.startDate, attDates.endDate, attFilters.employee, currentPage, itemsPerPage]);
 
   const fetchPayrollReport = useCallback(async (isBackground = false) => {
     if (!isBackground) setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (startDate) params.append("startDate", startDate);
-      if (endDate) params.append("endDate", endDate);
-      if (selectedEmployee && selectedEmployee !== "All Employees" && selectedEmployee !== "all") {
-        params.append("user_Id", selectedEmployee);
+      if (payDates.startDate) params.append("startDate", payDates.startDate);
+      if (payDates.endDate) params.append("endDate", payDates.endDate);
+      if (payFilters.employee && payFilters.employee !== "All Employees" && payFilters.employee !== "all") {
+        params.append("user_Id", payFilters.employee);
       } else {
         params.append("user_Id", "All Employees");
       }
@@ -326,7 +393,7 @@ const AdminReports = () => {
     } finally {
       if (!isBackground) setLoading(false);
     }
-  }, [startDate, endDate, selectedEmployee, currentPage, itemsPerPage]);
+  }, [payDates.startDate, payDates.endDate, payFilters.employee, currentPage, itemsPerPage]);
 
   const fetchCalendarReport = useCallback(async (isBackground = false) => {
     if (!isBackground) setLoading(true);
@@ -378,14 +445,51 @@ const AdminReports = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeReport, startDate, endDate, selectedEmployee, calendarStartDate, calendarEndDate, eventTypeFilter, requestDate, searchQuery, typeFilter, statusFilter, itemsPerPage]);
+  }, [
+    activeReport,
+    attDates.startDate,
+    attDates.endDate,
+    attFilters.employee,
+    payDates.startDate,
+    payDates.endDate,
+    payFilters.employee,
+    calendarStartDate,
+    calendarEndDate,
+    eventTypeFilter,
+    requestDate,
+    searchQuery,
+    typeFilter,
+    statusFilter,
+    itemsPerPage
+  ]);
+
+  const handleResetToDefaultCutoff = () => {
+    if (activeReport === "payroll") {
+      setPayFilters({
+        year: previousCutoff.year,
+        month: previousCutoff.month,
+        period: previousCutoff.period,
+        employee: "All Employees"
+      });
+    } else {
+      setAttFilters({
+        year: currentCutoff.year,
+        month: currentCutoff.month,
+        period: currentCutoff.period,
+        employee: "All Employees"
+      });
+    }
+    setCurrentPage(1);
+  };
 
   const handleClearFilters = () => {
     if (activeReport === "attendance" || activeReport === "payroll") {
-      setSelectedYear("all");
-      setSelectedMonth("all");
-      setSelectedPeriod("all");
-      setSelectedEmployee("All Employees");
+      setActiveFilters({
+        year: "all",
+        month: "all",
+        period: "all",
+        employee: "All Employees"
+      });
     } else if (activeReport === "calendar") {
       setCalendarStartDate("");
       setCalendarEndDate("");
@@ -402,10 +506,10 @@ const AdminReports = () => {
   const isFiltering = useMemo(() => {
     if (activeReport === "attendance" || activeReport === "payroll") {
       return Boolean(
-        selectedYear !== defaultYear ||
-        selectedMonth !== defaultMonth ||
-        selectedPeriod !== defaultPeriod ||
-        (selectedEmployee && selectedEmployee !== "All Employees" && selectedEmployee !== "all")
+        activeFilters.year !== "all" ||
+        activeFilters.month !== "all" ||
+        activeFilters.period !== "all" ||
+        (activeFilters.employee && activeFilters.employee !== "All Employees" && activeFilters.employee !== "all")
       );
     }
     if (activeReport === "calendar") {
@@ -426,10 +530,9 @@ const AdminReports = () => {
     return false;
   }, [
     activeReport,
-    selectedYear,
-    selectedMonth,
-    selectedPeriod,
-    selectedEmployee,
+    activeFilters,
+    previousCutoff,
+    currentCutoff,
     calendarStartDate,
     calendarEndDate,
     eventTypeFilter,
@@ -548,50 +651,189 @@ const AdminReports = () => {
     setShowBatchZipModal(true);
   };
 
-  // --- Reducer Operational Loops ---
-  const attStats = attendanceSummary ? {
-    present: attendanceSummary.presentCount || 0,
-    absent: attendanceSummary.absentCount || 0,
-    late: attendanceSummary.lateCount || 0,
-    totalHours: parseFloat(attendanceSummary.totalHours || 0)
-  } : attendanceData.reduce((acc, curr) => {
-    const s = (curr.status || "").toLowerCase().replace(/[^a-z]/g, "");
-    if (s === "ontime" || s === "present" || s === "exempt") acc.present++;
-    else if (s === "late") { acc.present++; acc.late++; }
-    else if (s === "absent") acc.absent++;
-    acc.totalHours += parseFloat(curr.hoursWorked) || 0;
-    return acc;
-  }, { present: 0, absent: 0, late: 0, totalHours: 0 });
+  // --- WORKFORCE & FINANCIAL KPI CALCULATIONS ---
+  const attKpi = useMemo(() => {
+    const totalShifts = attendanceData.length;
+    let onTimeCount = 0;
+    let lateCount = 0;
+    let absentCount = 0;
+    let undertimeCount = 0;
+    let totalHours = 0;
+    let totalOtHours = 0;
+    let otShiftsCount = 0;
 
-  const payStats = payrollSummary ? {
-    net: parseFloat(payrollSummary.totalNet) || 0,
-    earn: parseFloat(payrollSummary.totalGross) || 0,
-    ded: parseFloat(payrollSummary.totalDeductions) || 0
-  } : payrollData.reduce((acc, curr) => {
-    acc.net += parseFloat(curr.netPay) || 0;
-    acc.earn += parseFloat(curr.totalEarnings) || 0;
-    acc.ded += parseFloat(curr.totalDeductions) || 0;
-    return acc;
-  }, { net: 0, earn: 0, ded: 0 });
+    attendanceData.forEach(curr => {
+      const s = (curr.status || "").toLowerCase();
+      if (s.includes("on time") || s.includes("ontime") || s.includes("on-field") || s.includes("present") || s.includes("exempt")) {
+        onTimeCount++;
+      } else if (s.includes("late")) {
+        lateCount++;
+      } else if (s.includes("absent")) {
+        absentCount++;
+      } else if (s.includes("undertime") || s.includes("half day")) {
+        undertimeCount++;
+      }
+
+      const hrs = parseFloat(curr.hoursWorked) || 0;
+      totalHours += hrs;
+
+      const otHrs = parseFloat(curr.ot_hrs) || 0;
+      if (otHrs > 0) {
+        totalOtHours += otHrs;
+        otShiftsCount++;
+      }
+    });
+
+    const presentShifts = onTimeCount + lateCount + undertimeCount;
+    const onTimeRate = totalShifts > 0 ? ((onTimeCount / totalShifts) * 100).toFixed(1) : "0.0";
+    const avgHoursPerShift = presentShifts > 0 ? (totalHours / presentShifts).toFixed(1) : (totalShifts > 0 ? (totalHours / totalShifts).toFixed(1) : "0.0");
+    const infractions = lateCount + absentCount + undertimeCount;
+    const infractionRate = totalShifts > 0 ? ((infractions / totalShifts) * 100).toFixed(1) : "0.0";
+
+    return {
+      totalShifts,
+      onTimeCount,
+      onTimeRate,
+      presentShifts,
+      totalHours,
+      avgHoursPerShift,
+      lateCount,
+      absentCount,
+      undertimeCount,
+      infractionRate,
+      totalOtHours: totalOtHours.toFixed(1),
+      otShiftsCount
+    };
+  }, [attendanceData]);
+
+  const payKpi = useMemo(() => {
+    let totalNet = 0;
+    let totalGross = 0;
+    let totalDeductions = 0;
+    let totalBasic = 0;
+    const employeeIds = new Set();
+
+    payrollData.forEach(curr => {
+      totalNet += parseFloat(curr.netPay) || 0;
+      totalGross += parseFloat(curr.grossEarnings || curr.totalEarnings) || 0;
+      totalDeductions += parseFloat(curr.totalDeductions) || 0;
+      totalBasic += parseFloat(curr.potentialBasicPay || curr.basicPay) || 0;
+      if (curr.user_Id) employeeIds.add(curr.user_Id);
+    });
+
+    const headcount = employeeIds.size || payrollData.length || 0;
+    const deductionRatio = totalGross > 0 ? ((totalDeductions / totalGross) * 100).toFixed(1) : "0.0";
+    const avgNet = headcount > 0 ? totalNet / headcount : 0;
+
+    return {
+      net: totalNet,
+      gross: totalGross,
+      ded: totalDeductions,
+      basic: totalBasic,
+      headcount,
+      deductionRatio,
+      avgNet
+    };
+  }, [payrollData]);
 
   const filteredCalendarData = useMemo(() => {
     return calendarData.filter(item => eventTypeFilter === "All Types" || item.type === eventTypeFilter);
   }, [calendarData, eventTypeFilter]);
 
+  const calKpi = useMemo(() => {
+    let holidays = 0;
+    let leaves = 0;
+    let onField = 0;
+    let otherEvents = 0;
+
+    filteredCalendarData.forEach(item => {
+      const type = (item.type || "").toLowerCase();
+      const details = (item.details || "").toLowerCase();
+      const name = (item.name || "").toLowerCase();
+
+      if (type.includes("holiday") || name.includes("holiday")) {
+        holidays++;
+      } else if (type.includes("leave") || details.includes("leave")) {
+        leaves++;
+      } else if (type.includes("field") || name.includes("field") || details.includes("field")) {
+        onField++;
+      } else {
+        otherEvents++;
+      }
+    });
+
+    return {
+      total: filteredCalendarData.length,
+      holidays,
+      leaves,
+      onField,
+      otherEvents
+    };
+  }, [filteredCalendarData]);
+
   const filteredRequests = requests.filter(req => {
-    const query = searchQuery.toLowerCase();
-    const matchesSearch = req.userName?.toLowerCase().includes(query) || req.emp_reqId?.toString().includes(query) || formatUserId(req.user_Id).toLowerCase().includes(query);
+    const query = searchQuery.trim().toLowerCase();
+    const reqIdStr = String(req.emp_reqId || "");
+    const prefixedReqId = `req-${reqIdStr}`.toLowerCase();
+    const formattedId = req.user_Id ? formatUserId(req.user_Id).toLowerCase() : "";
+    const rawId = String(req.user_Id || "");
+    const userName = (req.userName || "").toLowerCase();
+    const typeName = (req.reqTypeName || "").toLowerCase();
+    const status = (req.status || "").toLowerCase();
+    const approver = (req.processedByName || req.approverName || "").toLowerCase();
+    const remarks = (req.emp_reqRemarks || req.remarks || "").toLowerCase();
+    const dateFiled = (req.date_Filed || "").toLowerCase();
+
+    const matchesSearch = !query ||
+      userName.includes(query) ||
+      reqIdStr.includes(query) ||
+      prefixedReqId.includes(query) ||
+      formattedId.includes(query) ||
+      rawId.includes(query) ||
+      typeName.includes(query) ||
+      status.includes(query) ||
+      approver.includes(query) ||
+      remarks.includes(query) ||
+      dateFiled.includes(query);
+
     const matchesType = typeFilter === "All Types" || req.reqTypeName === typeFilter;
     const matchesStatus = statusFilter === "All Statuses" || req.status === statusFilter;
     return matchesSearch && matchesType && matchesStatus;
   });
 
-  const requestStats = {
-    total: requests.length,
-    pending: requests.filter(r => r.emp_reqStatusId === 1 || r.emp_reqStatusId === 4).length,
-    approved: requests.filter(r => r.emp_reqStatusId === 2).length,
-    rejected: requests.filter(r => r.emp_reqStatusId === 3).length,
-  };
+  const reqKpi = useMemo(() => {
+    let pending = 0;
+    let approved = 0;
+    let rejected = 0;
+    let returned = 0;
+
+    requests.forEach(r => {
+      if (r.emp_reqStatusId === 1 || r.emp_reqStatusId === 4) pending++;
+      else if (r.emp_reqStatusId === 2) approved++;
+      else if (r.emp_reqStatusId === 3) rejected++;
+      else if (r.emp_reqStatusId === 5) returned++;
+    });
+
+    const total = requests.length;
+    const decided = approved + rejected;
+    const approvalRate = decided > 0 ? ((approved / decided) * 100).toFixed(1) : "100.0";
+    const totalProcessed = approved + rejected + returned;
+    const declinedRate = totalProcessed > 0 ? (((rejected + returned) / totalProcessed) * 100).toFixed(1) : "0.0";
+    const throughputRate = total > 0 ? (((approved + rejected) / total) * 100).toFixed(1) : "0.0";
+
+    return {
+      total,
+      pending,
+      approved,
+      rejected,
+      returned,
+      decided,
+      approvalRate,
+      declinedRate,
+      throughputRate,
+      totalResolved: approved + rejected
+    };
+  }, [requests]);
 
   const peso = (val) => `₱${parseFloat(val || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -666,14 +908,14 @@ const AdminReports = () => {
           {/* Navigation Tabs */}
           <Tabs value={activeReport} onValueChange={(val) => setActiveReport(val)} className="w-full mb-6">
           {/* TabsList container matches your layout switcher backgrounds perfectly */}
-          <TabsList className="grid grid-cols-1 sm:grid-cols-4 h-auto sm:h-10 bg-slate-100 rounded-lg border border-slate-200 gap-1 sm:gap-0 shrink-0">
+          <TabsList className="grid grid-cols-1 sm:grid-cols-4 h-auto sm:h-11 bg-slate-200/60 rounded-lg p-0.5 gap-1 sm:gap-0 shrink-0">
             
             {/* Attendance Report Tab */}
             <TabsTrigger 
               value="attendance" 
-              className="text-xs font-bold text-slate-500 transition-all rounded-md
-                data-[state=active]:bg-brand-primary data-[state=active]:text-white data-[state=active]:shadow-sm 
-                hover:text-brand-primary"
+              className="text-xs font-semibold text-slate-500 transition-all rounded-md
+                data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm 
+                hover:text-slate-700"
             >
               <AssessmentIcon className="mr-2 h-4 w-4 shrink-0" /> 
               <span>Attendance Report</span>
@@ -682,9 +924,9 @@ const AdminReports = () => {
             {/* Payroll Report Tab */}
             <TabsTrigger 
               value="payroll" 
-              className="text-xs font-bold text-slate-500 transition-all rounded-md
-                data-[state=active]:bg-brand-primary data-[state=active]:text-white data-[state=active]:shadow-sm 
-                hover:text-brand-primary"
+              className="text-xs font-semibold text-slate-500 transition-all rounded-md
+                data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm 
+                hover:text-slate-700"
             >
               <PaymentsIcon className="mr-2 h-4 w-4 shrink-0" /> 
               <span>Payroll Report</span>
@@ -693,9 +935,9 @@ const AdminReports = () => {
             {/* Calendar / Events Tab */}
             <TabsTrigger 
               value="calendar" 
-              className="text-xs font-bold text-slate-500 transition-all rounded-md
-                data-[state=active]:bg-brand-primary data-[state=active]:text-white data-[state=active]:shadow-sm 
-                hover:text-brand-primary"
+              className="text-xs font-semibold text-slate-500 transition-all rounded-md
+                data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm 
+                hover:text-slate-700"
             >
               <CalendarMonthIcon className="mr-2 h-4 w-4 shrink-0" /> 
               <span>Calendar / Events</span>
@@ -704,9 +946,9 @@ const AdminReports = () => {
             {/* Requests Tab */}
             <TabsTrigger 
               value="requests" 
-              className="text-xs font-bold text-slate-500 transition-all rounded-md
-                data-[state=active]:bg-brand-primary data-[state=active]:text-white data-[state=active]:shadow-sm 
-                hover:text-brand-primary"
+              className="text-xs font-semibold text-slate-500 transition-all rounded-md
+                data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm 
+                hover:text-slate-700"
             >
               <FileInput className="mr-2 h-4 w-4 shrink-0" /> 
               <span>Requests</span>
@@ -717,281 +959,508 @@ const AdminReports = () => {
 
           {/* Statistics Display Grid Area */}
           <div className="w-full animate-in fade-in zoom-in-95 duration-200">
+            {/* ATTENDANCE REPORT KPIS */}
             {activeReport === "attendance" && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6 w-full">
-                {/* Card 1: Total Present */}
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
+                {/* Card 1: On-Time Compliance */}
                 <Card className="border-t-5 border-brand-primary bg-white py-0 h-full">
                   <CardContent className="px-5 py-5 flex justify-between h-full">
-                    <div className="flex flex-col justify-between">
+                    <div className="flex flex-col justify-between w-full">
                       <div>
                         <div className="flex items-center gap-1.5 mb-2">
-                          <p className="text-[13px] font-bold text-brand-primary uppercase tracking-wider">Total Present</p>
+                          <p className="text-xs font-bold text-brand-primary uppercase tracking-wider">On-Time Compliance</p>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-brand-primary/60 hover:text-brand-primary cursor-help" />
                             </TooltipTrigger>
                             <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
-                              Total count of attendance records marked as On-Time or Late.
+                              Percentage of recorded employee shifts completed on time without tardiness.
                             </TooltipContent>
                           </Tooltip>
                         </div>
-                        <p className="text-4xl font-bold text-brand-primary">{attStats.present}</p>
+                        <div className="flex items-baseline gap-0.5">
+                          <span className="text-4xl font-bold text-brand-primary">{attKpi.onTimeRate}</span>
+                          <span className="text-xl font-bold text-brand-primary/80">%</span>
+                        </div>
                       </div>
-                      <p className="text-xs text-brand-primary/70 italic mt-4">Total present records</p>
+                      <p className="text-xs text-brand-primary/70 italic mt-4">
+                        {attKpi.onTimeCount} on-time of {attKpi.totalShifts} shifts
+                      </p>
                     </div>
-                    <div className="bg-brand-primary/10 text-brand-primary p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><CheckCircleOutlineIcon /></div>
+                    <div className="bg-brand-primary/10 text-brand-primary p-3 rounded-lg flex items-center justify-center shrink-0 self-start ml-2">
+                      <CheckCircleOutlineIcon className="h-6 w-6" />
+                    </div>
                   </CardContent>
                 </Card>
 
-                {/* Card 2: Total Hours */}
+                {/* Card 2: Avg Hours / Shift */}
                 <Card className="border-t-5 border-accent-green bg-white py-0 h-full">
                   <CardContent className="px-5 py-5 flex justify-between h-full">
-                    <div className="flex flex-col justify-between">
+                    <div className="flex flex-col justify-between w-full">
                       <div>
                         <div className="flex items-center gap-1.5 mb-2">
-                          <p className="text-[13px] font-bold text-accent-green uppercase tracking-wider">Total Hours</p>
+                          <p className="text-xs font-bold text-accent-green uppercase tracking-wider">Avg Hours / Shift</p>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-accent-green/60 hover:text-accent-green cursor-help" />
                             </TooltipTrigger>
                             <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
-                              Sum of all working hours recorded within the selected period.
+                              Average daily hours rendered per present employee (standard benchmark: 8.0 hrs/day).
                             </TooltipContent>
                           </Tooltip>
                         </div>
-                        <p className="text-4xl font-bold text-accent-green">{attStats.totalHours.toFixed(1)}<span className="text-lg opacity-80 ml-1">hrs</span></p>
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-4xl font-bold text-accent-green">{attKpi.avgHoursPerShift}</span>
+                          <span className="text-lg opacity-80 font-bold text-accent-green">hrs</span>
+                        </div>
                       </div>
-                      <p className="text-xs text-accent-green/70 italic mt-4">Total working hours</p>
+                      <p className="text-xs text-accent-green/70 italic mt-4">
+                        Total rendered: {attKpi.totalHours.toFixed(1)} hrs
+                      </p>
                     </div>
-                    <div className="bg-accent-green/10 text-accent-green p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><AccessTimeIcon /></div>
+                    <div className="bg-accent-green/10 text-accent-green p-3 rounded-lg flex items-center justify-center shrink-0 self-start ml-2">
+                      <AccessTimeIcon className="h-6 w-6" />
+                    </div>
                   </CardContent>
                 </Card>
 
-                {/* Card 3: Lates / Absences */}
+                {/* Card 3: Infraction Rate */}
                 <Card className="border-t-5 border-accent-gold bg-white py-0 h-full">
                   <CardContent className="px-5 py-5 flex justify-between h-full">
-                    <div className="flex flex-col justify-between">
+                    <div className="flex flex-col justify-between w-full">
                       <div>
                         <div className="flex items-center gap-1.5 mb-2">
-                          <p className="text-[13px] font-bold text-accent-gold uppercase tracking-wider">Lates / Absences</p>
+                          <p className="text-xs font-bold text-accent-gold uppercase tracking-wider">Infraction Rate</p>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-accent-gold/60 hover:text-accent-gold cursor-help" />
                             </TooltipTrigger>
                             <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
-                              Total number of recorded schedule infractions (Late arrivals and Absent records).
+                              Percentage of work records containing Late, Absent, or Undertime infractions.
                             </TooltipContent>
                           </Tooltip>
                         </div>
-                        <p className="text-4xl font-bold text-accent-gold">{attStats.late + attStats.absent}</p>
+                        <div className="flex items-baseline gap-0.5">
+                          <span className="text-4xl font-bold text-accent-gold">{attKpi.infractionRate}</span>
+                          <span className="text-xl font-bold text-accent-gold/80">%</span>
+                        </div>
                       </div>
-                      <p className="text-xs text-accent-gold/70 italic mt-4">Recorded schedule infractions</p>
+                      <p className="text-xs text-accent-gold/70 italic mt-4">
+                        {attKpi.lateCount} Late, {attKpi.absentCount} Absent
+                      </p>
                     </div>
-                    <div className="bg-accent-gold/20 text-accent-gold p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><AssignmentLateIcon /></div>
+                    <div className="bg-accent-gold/20 text-accent-gold p-3 rounded-lg flex items-center justify-center shrink-0 self-start ml-2">
+                      <AssignmentLateIcon className="h-6 w-6" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Card 4: Overtime Volume */}
+                <Card className="border-t-5 border-status-danger bg-white py-0 h-full">
+                  <CardContent className="px-5 py-5 flex justify-between h-full">
+                    <div className="flex flex-col justify-between w-full">
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <p className="text-xs font-bold text-status-danger uppercase tracking-wider">Overtime Volume</p>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-status-danger/60 hover:text-status-danger cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              Total approved overtime hours rendered across the workforce in this period.
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-4xl font-bold text-status-danger">{attKpi.totalOtHours}</span>
+                          <span className="text-lg opacity-80 font-bold text-status-danger">hrs</span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-status-danger/70 italic mt-4">
+                        {attKpi.otShiftsCount} shifts with approved OT
+                      </p>
+                    </div>
+                    <div className="bg-status-danger/10 text-status-danger p-3 rounded-lg flex items-center justify-center shrink-0 self-start ml-2">
+                      <MoreTimeIcon className="h-6 w-6" />
+                    </div>
                   </CardContent>
                 </Card>
               </div>
             )}
 
+            {/* PAYROLL REPORT KPIS */}
             {activeReport === "payroll" && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6 w-full">
-                {/* Card 1: Total Net Pay */}
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
+                {/* Card 1: Total Net Disbursement */}
                 <Card className="border-t-5 border-brand-primary bg-white py-0 h-full">
                   <CardContent className="px-5 py-5 flex justify-between h-full">
-                    <div className="flex flex-col justify-between">
+                    <div className="flex flex-col justify-between w-full">
                       <div>
                         <div className="flex items-center gap-1.5 mb-2">
-                          <p className="text-[13px] font-bold text-brand-primary uppercase tracking-wider">Total Net Pay</p>
+                          <p className="text-xs font-bold text-brand-primary uppercase tracking-wider">Net Disbursement</p>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-brand-primary/60 hover:text-brand-primary cursor-help" />
                             </TooltipTrigger>
                             <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
-                              Sum of all employees' net take-home pay after deductions.
+                              Sum of take-home pay distributed to employees after all deductions.
                             </TooltipContent>
                           </Tooltip>
                         </div>
-                        <p className="text-4xl font-bold text-brand-primary">{peso(payStats.net)}</p>
+                        <p className="text-3xl font-bold text-brand-primary">{peso(payKpi.net)}</p>
                       </div>
-                      <p className="text-xs text-brand-primary/70 italic mt-4">Distribution payload volume</p>
+                      <p className="text-xs text-brand-primary/70 italic mt-4">
+                        {payKpi.headcount} employees paid in payload
+                      </p>
                     </div>
-                    <div className="bg-brand-primary/10 text-brand-primary p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><PaymentsIcon /></div>
+                    <div className="bg-brand-primary/10 text-brand-primary p-3 rounded-lg flex items-center justify-center shrink-0 self-start ml-2">
+                      <PaymentsIcon className="h-6 w-6" />
+                    </div>
                   </CardContent>
                 </Card>
 
-                {/* Card 2: Total Earnings */}
+                {/* Card 2: Gross Labor Cost */}
                 <Card className="border-t-5 border-accent-green bg-white py-0 h-full">
                   <CardContent className="px-5 py-5 flex justify-between h-full">
-                    <div className="flex flex-col justify-between">
+                    <div className="flex flex-col justify-between w-full">
                       <div>
                         <div className="flex items-center gap-1.5 mb-2">
-                          <p className="text-[13px] font-bold text-accent-green uppercase tracking-wider">Total Earnings</p>
+                          <p className="text-xs font-bold text-accent-green uppercase tracking-wider">Gross Labor Cost</p>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-accent-green/60 hover:text-accent-green cursor-help" />
                             </TooltipTrigger>
                             <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
-                              Sum of gross wages (including Basic, OT, Night Differential, and Holiday pay) before deductions.
+                              Sum of gross wages (including Basic, OT, Night Diff, and Holiday pay) before deductions.
                             </TooltipContent>
                           </Tooltip>
                         </div>
-                        <p className="text-4xl font-bold text-accent-green">{peso(payStats.earn)}</p>
+                        <p className="text-3xl font-bold text-accent-green">{peso(payKpi.gross)}</p>
                       </div>
-                      <p className="text-xs text-accent-green/70 italic mt-4">Gross operational pay index</p>
+                      <p className="text-xs text-accent-green/70 italic mt-4">
+                        Base pay: {peso(payKpi.basic)}
+                      </p>
                     </div>
-                    <div className="bg-accent-green/10 text-accent-green p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><KeyboardDoubleArrowUpIcon /></div>
+                    <div className="bg-accent-green/10 text-accent-green p-3 rounded-lg flex items-center justify-center shrink-0 self-start ml-2">
+                      <KeyboardDoubleArrowUpIcon className="h-6 w-6" />
+                    </div>
                   </CardContent>
                 </Card>
 
-                {/* Card 3: Total Deductions */}
+                {/* Card 3: Deduction Burden */}
                 <Card className="border-t-5 border-accent-gold bg-white py-0 h-full">
                   <CardContent className="px-5 py-5 flex justify-between h-full">
-                    <div className="flex flex-col justify-between">
+                    <div className="flex flex-col justify-between w-full">
                       <div>
                         <div className="flex items-center gap-1.5 mb-2">
-                          <p className="text-[13px] font-bold text-accent-gold uppercase tracking-wider">Total Deductions</p>
+                          <p className="text-xs font-bold text-accent-gold uppercase tracking-wider">Deduction Burden</p>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-accent-gold/60 hover:text-accent-gold cursor-help" />
                             </TooltipTrigger>
                             <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
-                              Sum of all employee deductions, excluding standard government-mandated taxes.
+                              Percentage of gross earnings withheld for taxes, statutory contributions, and loans.
                             </TooltipContent>
                           </Tooltip>
                         </div>
-                        <p className="text-4xl font-bold text-accent-gold">{peso(payStats.ded)}</p>
+                        <div className="flex items-baseline gap-0.5">
+                          <span className="text-4xl font-bold text-accent-gold">{payKpi.deductionRatio}</span>
+                          <span className="text-xl font-bold text-accent-gold/80">%</span>
+                        </div>
                       </div>
-                      <p className="text-xs text-accent-gold/70 italic mt-4">Withholdings ledger volume</p>
+                      <p className="text-xs text-accent-gold/70 italic mt-4">
+                        {peso(payKpi.ded)} total withholdings
+                      </p>
                     </div>
-                    <div className="bg-accent-gold/20 text-accent-gold p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><KeyboardDoubleArrowDownIcon /></div>
+                    <div className="bg-accent-gold/20 text-accent-gold p-3 rounded-lg flex items-center justify-center shrink-0 self-start ml-2">
+                      <KeyboardDoubleArrowDownIcon className="h-6 w-6" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Card 4: Avg Take-Home Pay */}
+                <Card className="border-t-5 border-status-danger bg-white py-0 h-full">
+                  <CardContent className="px-5 py-5 flex justify-between h-full">
+                    <div className="flex flex-col justify-between w-full">
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <p className="text-xs font-bold text-status-danger uppercase tracking-wider">Avg Take-Home Pay</p>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-status-danger/60 hover:text-status-danger cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              Average net take-home compensation per employee across this period.
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <p className="text-3xl font-bold text-status-danger">{peso(payKpi.avgNet)}</p>
+                      </div>
+                      <p className="text-xs text-status-danger/70 italic mt-4">
+                        Per-employee net salary average
+                      </p>
+                    </div>
+                    <div className="bg-status-danger/10 text-status-danger p-3 rounded-lg flex items-center justify-center shrink-0 self-start ml-2">
+                      <GroupIcon className="h-6 w-6" />
+                    </div>
                   </CardContent>
                 </Card>
               </div> 
             )}
 
+            {/* CALENDAR & SHIFTS REPORT KPIS */}
             {activeReport === "calendar" && (
-              <div className="grid grid-cols-1 mb-6 w-full">
-                {/* Card 1: Total Logged Events */}
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
+                {/* Card 1: Active Schedule Entries */}
                 <Card className="border-t-5 border-brand-primary bg-white py-0 h-full">
                   <CardContent className="px-5 py-5 flex justify-between h-full">
-                    <div className="flex flex-col justify-between">
+                    <div className="flex flex-col justify-between w-full">
                       <div>
                         <div className="flex items-center gap-1.5 mb-2">
-                          <p className="text-[13px] font-bold text-brand-primary uppercase tracking-wider">Total Logged Events</p>
+                          <p className="text-xs font-bold text-brand-primary uppercase tracking-wider">Schedule Entries</p>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-brand-primary/60 hover:text-brand-primary cursor-help" />
                             </TooltipTrigger>
                             <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
-                              Count of holidays and employee leave records active in the current date range.
+                              Total corporate events, holidays, and employee leave entries active in this window.
                             </TooltipContent>
                           </Tooltip>
                         </div>
-                        <p className="text-4xl font-bold text-brand-primary">{filteredCalendarData.length}</p>
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="text-4xl font-bold text-brand-primary">{calKpi.total}</span>
+                          <span className="text-sm font-semibold text-brand-primary/60">Events</span>
+                        </div>
                       </div>
-                      <p className="text-xs text-brand-primary/70 italic mt-4">Holidays and leave logs active in window</p>
+                      <p className="text-xs text-brand-primary/70 italic mt-4">
+                        Active entries in selected date window
+                      </p>
                     </div>
-                    <div className="bg-brand-primary/10 text-brand-primary p-3 rounded-lg flex items-center justify-center shrink-0 self-start"><EventNoteIcon /></div>
+                    <div className="bg-brand-primary/10 text-brand-primary p-3 rounded-lg flex items-center justify-center shrink-0 self-start ml-2">
+                      <EventNoteIcon className="h-6 w-6" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Card 2: Holidays in Window */}
+                <Card className="border-t-5 border-accent-green bg-white py-0 h-full">
+                  <CardContent className="px-5 py-5 flex justify-between h-full">
+                    <div className="flex flex-col justify-between w-full">
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <p className="text-xs font-bold text-accent-green uppercase tracking-wider">Holidays in Window</p>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-accent-green/60 hover:text-accent-green cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              Official Philippine regular and special non-working public holidays in window.
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="text-4xl font-bold text-accent-green">{calKpi.holidays}</span>
+                          <span className="text-sm font-semibold text-accent-green/60">Days</span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-accent-green/70 italic mt-4">
+                        Philippine recognized public holidays
+                      </p>
+                    </div>
+                    <div className="bg-accent-green/10 text-accent-green p-3 rounded-lg flex items-center justify-center shrink-0 self-start ml-2">
+                      <CelebrationIcon className="h-6 w-6" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Card 3: Employee Leaves */}
+                <Card className="border-t-5 border-accent-gold bg-white py-0 h-full">
+                  <CardContent className="px-5 py-5 flex justify-between h-full">
+                    <div className="flex flex-col justify-between w-full">
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <p className="text-xs font-bold text-accent-gold uppercase tracking-wider">Employee Leaves</p>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-accent-gold/60 hover:text-accent-gold cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              Total scheduled employee leaves (Vacation, Sick, Emergency, Statutory) active in this range.
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="text-4xl font-bold text-accent-gold">{calKpi.leaves}</span>
+                          <span className="text-sm font-semibold text-accent-gold/60">Filings</span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-accent-gold/70 italic mt-4">
+                        Approved scheduled employee absences
+                      </p>
+                    </div>
+                    <div className="bg-accent-gold/20 text-accent-gold p-3 rounded-lg flex items-center justify-center shrink-0 self-start ml-2">
+                      <CalendarMonthIcon className="h-6 w-6" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Card 4: Field Deployments */}
+                <Card className="border-t-5 border-status-danger bg-white py-0 h-full">
+                  <CardContent className="px-5 py-5 flex justify-between h-full">
+                    <div className="flex flex-col justify-between w-full">
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <p className="text-xs font-bold text-status-danger uppercase tracking-wider">Field Deployments</p>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-status-danger/60 hover:text-status-danger cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
+                              Approved on-field operations and off-site client assignments active in this window.
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="text-4xl font-bold text-status-danger">{calKpi.onField}</span>
+                          <span className="text-sm font-semibold text-status-danger/60">Missions</span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-status-danger/70 italic mt-4">
+                        Official off-site work assignments
+                      </p>
+                    </div>
+                    <div className="bg-status-danger/10 text-status-danger p-3 rounded-lg flex items-center justify-center shrink-0 self-start ml-2">
+                      <FlightTakeoffIcon className="h-6 w-6" />
+                    </div>
                   </CardContent>
                 </Card>
               </div>
             )}
 
+            {/* REQUESTS & LEAVES REPORT KPIS */}
             {activeReport === "requests" && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6 w-full">
-                {/* Card 1: Queue Total */}
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
+                {/* Card 1: Pending Review */}
                 <Card className="border-t-5 border-brand-primary bg-white py-0 h-full">
-                  <CardContent className="px-5 py-5 flex justify-between h-full items-center">
-                    <div className="flex flex-col justify-between">
+                  <CardContent className="px-5 py-5 flex justify-between h-full">
+                    <div className="flex flex-col justify-between w-full">
                       <div>
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <p className="text-[13px] font-bold text-brand-primary uppercase tracking-wider">Queue Total</p>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <p className="text-xs font-bold text-brand-primary uppercase tracking-wider">Pending Review</p>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-brand-primary/60 hover:text-brand-primary cursor-help" />
                             </TooltipTrigger>
                             <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
-                              Total number of requests currently pending or recommended for approval.
+                              Total number of requests currently pending recommendation or authorization.
                             </TooltipContent>
                           </Tooltip>
                         </div>
-                        <p className="text-4xl font-extrabold text-brand-primary">{requestStats.pending}</p>
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="text-4xl font-bold text-brand-primary">{reqKpi.pending}</span>
+                          <span className="text-sm font-semibold text-brand-primary/60">Tickets</span>
+                        </div>
                       </div>
-                      <p className="text-xs text-brand-primary/70 font-medium italic mt-2">Pending review entries</p>
+                      <p className="text-xs text-brand-primary/70 italic mt-4">
+                        Awaiting supervisory/admin review
+                      </p>
                     </div>
-                    <div className="bg-brand-primary/10 text-brand-primary p-3 rounded-lg flex items-center justify-center shrink-0"><AccessTimeIcon /></div>
+                    <div className="bg-brand-primary/10 text-brand-primary p-3 rounded-lg flex items-center justify-center shrink-0 self-start ml-2">
+                      <AccessTimeIcon className="h-6 w-6" />
+                    </div>
                   </CardContent>
                 </Card>
 
-                {/* Card 2: Approved History */}
+                {/* Card 2: Approval Compliance */}
                 <Card className="border-t-5 border-accent-green bg-white py-0 h-full">
-                  <CardContent className="px-5 py-5 flex justify-between h-full items-center">
-                    <div className="flex flex-col justify-between">
+                  <CardContent className="px-5 py-5 flex justify-between h-full">
+                    <div className="flex flex-col justify-between w-full">
                       <div>
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <p className="text-[13px] font-bold text-accent-green uppercase tracking-wider">Approved History</p>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <p className="text-xs font-bold text-accent-green uppercase tracking-wider">Approval Rate</p>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-accent-green/60 hover:text-accent-green cursor-help" />
                             </TooltipTrigger>
                             <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
-                              Total number of approved employee requests.
+                              Processing compliance percentage of evaluated requests approved without rejection.
                             </TooltipContent>
                           </Tooltip>
                         </div>
-                        <p className="text-4xl font-extrabold text-accent-green">{requestStats.approved}</p>
+                        <div className="flex items-baseline gap-0.5">
+                          <span className="text-4xl font-bold text-accent-green">{reqKpi.approvalRate}</span>
+                          <span className="text-xl font-bold text-accent-green/80">%</span>
+                        </div>
                       </div>
-                      <p className="text-xs text-accent-green/70 font-medium italic mt-2">Accepted historical logs</p>
+                      <p className="text-xs text-accent-green/70 italic mt-4">
+                        {reqKpi.approved} approved of {reqKpi.decided} decided
+                      </p>
                     </div>
-                    <div className="bg-accent-green/10 text-accent-green p-3 rounded-lg flex items-center justify-center shrink-0"><CheckCircleOutlineIcon /></div>
+                    <div className="bg-accent-green/10 text-accent-green p-3 rounded-lg flex items-center justify-center shrink-0 self-start ml-2">
+                      <CheckCircleOutlineIcon className="h-6 w-6" />
+                    </div>
                   </CardContent>
                 </Card>
 
-                {/* Card 3: Rejected Records */}
+                {/* Card 3: Declined & Returned */}
                 <Card className="border-t-5 border-accent-gold bg-white py-0 h-full">
-                  <CardContent className="px-5 py-5 flex justify-between h-full items-center">
-                    <div className="flex flex-col justify-between">
+                  <CardContent className="px-5 py-5 flex justify-between h-full">
+                    <div className="flex flex-col justify-between w-full">
                       <div>
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <p className="text-[13px] font-bold text-accent-gold uppercase tracking-wider">Rejected Records</p>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <p className="text-xs font-bold text-accent-gold uppercase tracking-wider">Declined & Returned</p>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-accent-gold/60 hover:text-accent-gold cursor-help" />
                             </TooltipTrigger>
                             <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
-                              Total number of rejected or declined employee requests.
+                              Rate of requests declined or returned for policy, attachment, or balance deficits.
                             </TooltipContent>
                           </Tooltip>
                         </div>
-                        <p className="text-4xl font-extrabold text-accent-gold">{requestStats.rejected}</p>
+                        <div className="flex items-baseline gap-0.5">
+                          <span className="text-4xl font-bold text-accent-gold">{reqKpi.declinedRate}</span>
+                          <span className="text-xl font-bold text-accent-gold/80">%</span>
+                        </div>
                       </div>
-                      <p className="text-xs text-accent-gold/70 font-medium italic mt-2">Declined system entries</p>
+                      <p className="text-xs text-accent-gold/70 italic mt-4">
+                        {reqKpi.rejected} Rejected, {reqKpi.returned} Returned
+                      </p>
                     </div>
-                    <div className="bg-accent-gold/20 text-accent-gold p-3 rounded-lg flex items-center justify-center shrink-0"><AssignmentLateIcon /></div>
+                    <div className="bg-accent-gold/20 text-accent-gold p-3 rounded-lg flex items-center justify-center shrink-0 self-start ml-2">
+                      <CancelOutlinedIcon className="h-6 w-6" />
+                    </div>
                   </CardContent>
                 </Card>
 
-                {/* Card 4: Gross Logs Filed */}
-                <Card className="border-t-5 border-slate-500 bg-white py-0 h-full">
-                  <CardContent className="px-5 py-5 flex justify-between h-full items-center">
-                    <div className="flex flex-col justify-between">
+                {/* Card 4: Resolution Throughput */}
+                <Card className="border-t-5 border-status-danger bg-white py-0 h-full">
+                  <CardContent className="px-5 py-5 flex justify-between h-full">
+                    <div className="flex flex-col justify-between w-full">
                       <div>
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <p className="text-[13px] font-bold text-slate-500 uppercase tracking-wider">Gross Logs Filed</p>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <p className="text-xs font-bold text-status-danger uppercase tracking-wider">Resolution Rate</p>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-slate-400 hover:text-slate-600 cursor-help" />
+                              <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-status-danger/60 hover:text-status-danger cursor-help" />
                             </TooltipTrigger>
                             <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
-                              Sum total of all requests filed in the system (pending, approved, and rejected).
+                              Percentage of total filed requests that have been evaluated and closed.
                             </TooltipContent>
                           </Tooltip>
                         </div>
-                        <p className="text-4xl font-extrabold text-slate-700">{requestStats.total}</p>
+                        <div className="flex items-baseline gap-0.5">
+                          <span className="text-4xl font-bold text-status-danger">{reqKpi.throughputRate}</span>
+                          <span className="text-xl font-bold text-status-danger/80">%</span>
+                        </div>
                       </div>
-                      <p className="text-xs text-slate-400 font-medium italic mt-2">Operational ledger history volume</p>
+                      <p className="text-xs text-status-danger/70 italic mt-4">
+                        {reqKpi.totalResolved} of {reqKpi.total} tickets resolved
+                      </p>
                     </div>
-                    <div className="bg-slate-100 text-slate-600 p-3 rounded-lg flex items-center justify-center shrink-0"><AssessmentIcon /></div>
+                    <div className="bg-status-danger/10 text-status-danger p-3 rounded-lg flex items-center justify-center shrink-0 self-start ml-2">
+                      <AssessmentIcon className="h-6 w-6" />
+                    </div>
                   </CardContent>
                 </Card>
               </div>
@@ -1013,8 +1482,8 @@ const AdminReports = () => {
                   <div className="w-full sm:w-[130px]">
                     <SearchableSelect
                       searchable={false}
-                      value={selectedYear}
-                      onChange={setSelectedYear}
+                      value={activeFilters.year}
+                      onChange={(val) => setActiveFilters(prev => ({ ...prev, year: val }))}
                       options={[
                         { value: "all", label: "All Years" },
                         ...availableYears.map(year => ({
@@ -1030,8 +1499,8 @@ const AdminReports = () => {
                   <div className="w-full sm:w-[140px]">
                     <SearchableSelect
                       searchable={false}
-                      value={selectedMonth}
-                      onChange={setSelectedMonth}
+                      value={activeFilters.month}
+                      onChange={(val) => setActiveFilters(prev => ({ ...prev, month: val }))}
                       options={[
                         { value: "all", label: "All Months" },
                         ...MONTHS.map(m => ({
@@ -1047,8 +1516,8 @@ const AdminReports = () => {
                   <div className="w-full sm:w-[180px]">
                     <SearchableSelect
                       searchable={false}
-                      value={selectedPeriod}
-                      onChange={setSelectedPeriod}
+                      value={activeFilters.period}
+                      onChange={(val) => setActiveFilters(prev => ({ ...prev, period: val }))}
                       options={[
                         { value: "all", label: "All Periods" },
                         ...PERIOD_OPTIONS.map(p => ({
@@ -1071,34 +1540,33 @@ const AdminReports = () => {
                           sublabel: formatUserId(emp.user_Id)
                         }))
                       ]}
-                      value={selectedEmployee}
-                      onChange={setSelectedEmployee}
+                      value={activeFilters.employee}
+                      onChange={(val) => setActiveFilters(prev => ({ ...prev, employee: val }))}
                       placeholder="All Employees"
                       searchPlaceholder="Filter employee..."
                     />
                   </div>
 
-                  {isFiltering && (
-                    <Button variant="ghost" size="sm" onClick={handleClearFilters} className="text-slate-500 hover:text-red-600 font-semibold h-9 gap-1 transition-colors">
-                      <CloseIcon className="h-4 w-4" /> Clear Filters
-                    </Button>
-                  )}
-
-                  {(selectedYear !== defaultYear || selectedMonth !== defaultMonth || selectedPeriod !== defaultPeriod) && (
+                  <div className="flex items-center gap-2">
+                    {isFiltering && (
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={handleClearFilters} 
+                        className="text-slate-500 hover:text-red-600 font-semibold h-9 gap-1 transition-colors"
+                      >
+                        <CloseIcon className="h-4 w-4" /> Clear Filters
+                      </Button>
+                    )}
                     <Button 
                       variant="outline" 
                       size="sm" 
-                      onClick={() => {
-                        setSelectedYear(defaultYear);
-                        setSelectedMonth(defaultMonth);
-                        setSelectedPeriod(defaultPeriod);
-                        setSelectedEmployee("All Employees");
-                      }}
+                      onClick={handleResetToDefaultCutoff}
                       className="border-brand-primary/30 text-brand-primary hover:bg-brand-primary/10 font-semibold h-9 gap-1 transition-colors text-xs"
                     >
-                      Current Cutoff
+                      {defaultCutoffLabel}
                     </Button>
-                  )}
+                  </div>
                 </div>
               )}
 
@@ -1135,7 +1603,7 @@ const AdminReports = () => {
                     <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                     <Input
                       type="text"
-                      placeholder="Search key criteria..."
+                      placeholder="Search by Employee, REQ ID, type, or status..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="pl-9 h-9 border-slate-200 focus-visible:ring-brand-primary w-full bg-slate-50"

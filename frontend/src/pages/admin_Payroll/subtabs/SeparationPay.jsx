@@ -301,9 +301,9 @@ const SeparationPay = () => {
           )}
 
           <Tabs defaultValue="calculator" className="w-full">
-            <TabsList className="mb-6">
-              <TabsTrigger value="calculator">Compute Benefits</TabsTrigger>
-              <TabsTrigger value="history">Payout History</TabsTrigger>
+            <TabsList className="mb-6 inline-flex h-11 bg-slate-200/60 p-0.5 rounded-lg">
+              <TabsTrigger value="calculator" className="data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md px-4">Compute Benefits</TabsTrigger>
+              <TabsTrigger value="history" className="data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md px-4">Payout History</TabsTrigger>
             </TabsList>
 
             <TabsContent value="calculator">

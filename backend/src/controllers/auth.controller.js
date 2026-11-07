@@ -200,7 +200,7 @@ exports.verifyPassword = async (req, res) => {
 
     const isMatch = await bcrypt.compare(password, result[0].user_Password);
     if (!isMatch) {
-      return res.status(401).json({ error: "Incorrect password. Verification failed." });
+      return res.status(400).json({ error: "Incorrect password. Verification failed." });
     }
 
     return res.status(200).json({ success: true, message: "Password verified successfully." });

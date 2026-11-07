@@ -133,7 +133,10 @@ const Datatable = () => {
       lastName.includes(searchLow) ||
       email.includes(searchLow) ||
       idStr.includes(searchLow) ||
-      formattedId.includes(searchLow)
+      formattedId.includes(searchLow) ||
+      (user.user_Role && user.user_Role.toLowerCase().includes(searchLow)) ||
+      (user.user_EmploymentStatus && user.user_EmploymentStatus.toLowerCase().includes(searchLow)) ||
+      (user.user_MachipId && user.user_MachipId.toLowerCase().includes(searchLow))
     );
 
     const matchesRole = roleFilter === "All Roles" || 
@@ -214,6 +217,7 @@ const Datatable = () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password: adminPassword }),
+        skipAuthRedirect: true,
       });
 
       const result = await res.json();
@@ -378,7 +382,7 @@ const Datatable = () => {
           <div className="relative w-full xl:max-w-md">
             <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 h-5 w-5" />
             <Input 
-              placeholder="Search by ID, Name, or Email..." 
+              placeholder="Search by ID, Name, Role, or Email..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 border-slate-200 focus-visible:ring-brand-primary w-full"

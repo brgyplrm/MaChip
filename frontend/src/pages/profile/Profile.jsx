@@ -458,17 +458,17 @@ const Profile = () => {
                 <Tabs value={activeProfileTab} onValueChange={handleTabChange} className="w-full sm:w-auto">
                   <TabsList className="bg-slate-200/80 p-1 w-full sm:w-auto grid grid-cols-2">
                     <TabsTrigger value="attendance" className="text-xs font-bold gap-2 py-2 px-4 data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-xs">
-                      <Calendar className="w-4 h-4 text-brand-primary" /> Attendance & Time Tracking
+                      <Calendar className="w-4 h-4 text-slate-500" /> Attendance & Time Tracking
                     </TabsTrigger>
                     <TabsTrigger value="transparency" className="text-xs font-bold gap-2 py-2 px-4 data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-xs">
-                      <Shield className="w-4 h-4 text-emerald-600" /> Data Transparency & Logs
+                      <Shield className="w-4 h-4 text-slate-500" /> Data Transparency & Logs
                     </TabsTrigger>
                   </TabsList>
                 </Tabs>
 
                 {activeProfileTab === "transparency" && (
                   <Badge variant="outline" className="bg-emerald-50 text-emerald-800 border-emerald-200 text-xs py-1 px-3 self-start sm:self-auto font-medium">
-                    <Shield className="w-3.5 h-3.5 mr-1 text-emerald-600 inline" /> RA 10173 DPA Protected
+                    <Shield className="w-3.5 h-3.5 mr-1 text-slate-500 inline" /> RA 10173 DPA Protected
                   </Badge>
                 )}
               </div>

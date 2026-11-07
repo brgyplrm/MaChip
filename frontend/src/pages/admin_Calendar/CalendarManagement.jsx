@@ -2,7 +2,7 @@ import Sidebar from "../../components/Sidebar";
 import Toast from "../../components/toast/Toast";
 import { useSystemTime } from "../../context/SystemTimeContext";
 import { fetchWithAuth } from "../../utils/api";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { formatUserId } from "../../utils/formatUserId";
 import EmptyState from "@/components/EmptyState";
@@ -21,6 +21,11 @@ import AssignmentIcon from '@mui/icons-material/Assignment';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownload';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import SearchIcon from '@mui/icons-material/Search';
+import CloseIcon from '@mui/icons-material/Close';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import FilterListIcon from '@mui/icons-material/FilterList';
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -83,6 +88,7 @@ const CalendarManagement = () => {
 
   const handleResetToToday = () => {
     setCurrentDate(new Date(systemToday.getFullYear(), systemToday.getMonth(), 1));
+    setSelectedDayFilter(null);
     setIsDatePickerOpen(false);
   };
 
@@ -93,6 +99,39 @@ const CalendarManagement = () => {
   const monthName = currentDate.toLocaleString('default', { month: 'long' });
   const monthIndex = currentDate.getMonth();
   const year = currentDate.getFullYear();
+
+  // --- Detailed Event Modal State ---
+  const [detailedEvent, setDetailedEvent] = useState(null);
+  const [detailedEventData, setDetailedEventData] = useState(null);
+  const [detailedEventLoading, setDetailedEventLoading] = useState(false);
+
+  const handleOpenEventDetails = async (event) => {
+    if (!event) return;
+    setDetailedEvent(event);
+    setDetailedEventData(null);
+
+    if (event.id && ["Leave", "Overtime", "Field Work"].includes(event.type)) {
+      setDetailedEventLoading(true);
+      try {
+        const res = await fetchWithAuth(`/api/request/details/${event.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          setDetailedEventData(data);
+        }
+      } catch (err) {
+        console.error("Error fetching detailed event request:", err);
+      } finally {
+        setDetailedEventLoading(false);
+      }
+    }
+  };
+
+  // --- Unified Schedule Ledger State ---
+  const [ledgerCategory, setLedgerCategory] = useState("ALL");
+  const [ledgerSearch, setLedgerSearch] = useState("");
+  const [ledgerTimeline, setLedgerTimeline] = useState("all"); // 'all' | 'upcoming' | 'this-week' | 'today'
+  const [ledgerSort, setLedgerSort] = useState("date-asc"); // 'date-asc' | 'date-desc'
+  const [selectedDayFilter, setSelectedDayFilter] = useState(null); // 'YYYY-MM-DD' or null
 
   const [batchLoading, setBatchLoading] = useState(false);
   const [selectedDueDateDetails, setSelectedDueDateDetails] = useState(null);
@@ -243,6 +282,8 @@ const CalendarManagement = () => {
   };
 
   const handleDayClick = (day) => {
+    const targetDateStr = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    setSelectedDayFilter(targetDateStr);
     const dayEvents = getEventsForDay(day);
     const dateObj = new Date(year, monthIndex, day);
     const formattedDate = dateObj.toLocaleDateString(undefined, { 
@@ -491,6 +532,7 @@ const CalendarManagement = () => {
   // --- Helper Functions ---
   const changeMonth = (offset) => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + offset, 1));
+    setSelectedDayFilter(null);
   };
 
   const getUpcomingHolidays = () => {
@@ -498,6 +540,97 @@ const CalendarManagement = () => {
       .filter(h => h.type === "Holiday")
       .sort((a, b) => a.date.localeCompare(b.date));
   };
+
+  // --- Unified Ledger Computed Data ---
+  const currentMonthPrefix = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
+
+  const monthEvents = useMemo(() => {
+    return events.filter(e => {
+      if (!e.date) return false;
+      const sDate = e.date.split('T')[0];
+      if (e.endDate) {
+        const eDate = e.endDate.split('T')[0];
+        const monthStart = `${currentMonthPrefix}-01`;
+        const lastDay = new Date(year, monthIndex + 1, 0).getDate();
+        const monthEnd = `${currentMonthPrefix}-${String(lastDay).padStart(2, '0')}`;
+        return sDate <= monthEnd && eDate >= monthStart;
+      }
+      return sDate.startsWith(currentMonthPrefix);
+    });
+  }, [events, year, monthIndex, currentMonthPrefix]);
+
+  const categoryCounts = useMemo(() => {
+    const counts = { ALL: monthEvents.length, Holiday: 0, Leave: 0, Overtime: 0, "Field Work": 0, "Due Date": 0 };
+    monthEvents.forEach(e => {
+      if (counts[e.type] !== undefined) {
+        counts[e.type]++;
+      }
+    });
+    return counts;
+  }, [monthEvents]);
+
+  const todayStr = useMemo(() => {
+    return `${systemToday.getFullYear()}-${String(systemToday.getMonth() + 1).padStart(2, '0')}-${String(systemToday.getDate()).padStart(2, '0')}`;
+  }, [systemToday]);
+
+  const weekRange = useMemo(() => {
+    const cur = new Date(systemToday);
+    const dayOfWeek = cur.getDay(); // 0 is Sunday
+    const diffToMon = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const mon = new Date(cur);
+    mon.setDate(cur.getDate() + diffToMon);
+    const sun = new Date(mon);
+    sun.setDate(mon.getDate() + 6);
+    const toYMD = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return { start: toYMD(mon), end: toYMD(sun) };
+  }, [systemToday]);
+
+  const filteredLedgerEvents = useMemo(() => {
+    let list = monthEvents.filter(item => {
+      if (ledgerCategory !== "ALL" && item.type !== ledgerCategory) {
+        return false;
+      }
+
+      const itemDate = item.date ? item.date.split('T')[0] : "";
+      const itemEndDate = item.endDate ? item.endDate.split('T')[0] : itemDate;
+
+      if (selectedDayFilter) {
+        if (!(itemEndDate >= selectedDayFilter && itemDate <= selectedDayFilter)) {
+          return false;
+        }
+      }
+
+      if (ledgerTimeline === "today") {
+        if (!(itemEndDate >= todayStr && itemDate <= todayStr)) return false;
+      } else if (ledgerTimeline === "upcoming") {
+        if (itemEndDate < todayStr) return false;
+      } else if (ledgerTimeline === "this-week") {
+        if (itemEndDate < weekRange.start || itemDate > weekRange.end) return false;
+      }
+
+      if (ledgerSearch.trim()) {
+        const q = ledgerSearch.toLowerCase();
+        const matchesName = (item.name || "").toLowerCase().includes(q);
+        const matchesDetails = (item.details || "").toLowerCase().includes(q);
+        const matchesType = (item.type || "").toLowerCase().includes(q);
+        const matchesUserId = item.userId ? String(item.userId).toLowerCase().includes(q) : false;
+        if (!matchesName && !matchesDetails && !matchesType && !matchesUserId) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    list.sort((a, b) => {
+      const dateA = a.date ? a.date.split('T')[0] : "";
+      const dateB = b.date ? b.date.split('T')[0] : "";
+      if (ledgerSort === "date-asc") return dateA.localeCompare(dateB);
+      return dateB.localeCompare(dateA);
+    });
+
+    return list;
+  }, [monthEvents, ledgerCategory, selectedDayFilter, ledgerTimeline, ledgerSearch, ledgerSort, todayStr, weekRange]);
 
   const daysInMonth = new Date(year, currentDate.getMonth() + 1, 0).getDate();
   const firstDayOfMonth = new Date(year, currentDate.getMonth(), 1).getDay();
@@ -713,227 +846,729 @@ const CalendarManagement = () => {
           </div>
           <div className="h-6" />
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            
-            <Card className="shadow-sm border-0 h-[500px] border-t-4 border-brand-primary py-0 overflow-hidden">
-              <CardHeader className="pb-0 pt-5">
-                <CardTitle className="text-lg text-brand-primary flex items-center gap-1.5">
-                  Holidays
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-gray-400 hover:text-gray-600 cursor-help" />
-                    </TooltipTrigger>
-                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
-                      List of national and company holidays.
-                    </TooltipContent>
-                  </Tooltip>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="px-4 pb-4 h-[440px] overflow-y-auto custom-scrollbar">
-                {getUpcomingHolidays().length > 0 ? (
-                  <div className="space-y-2 mt-2">
-                    {getUpcomingHolidays().map((holiday, idx) => {
-                      const isSpecial = holiday.type?.toLowerCase().includes("special") || holiday.details?.toLowerCase().includes("special");
-                      
-                      return (
-                        <div 
-                          className="group relative cursor-pointer transition-all flex items-center justify-between p-3 bg-white rounded-lg border border-slate-100 hover:bg-slate-50" 
-                          key={idx} 
-                          onClick={() => handleHolidayClick(holiday)}
-                        >
-                          <div className="flex flex-col min-w-0 pr-12">
-                            <p className="font-bold text-sm text-slate-800 truncate">{holiday.name}</p>
-                            <span className="text-[10px] text-slate-400 font-medium">
-                              {new Date(holiday.date).toLocaleDateString('en-US', { 
-                                month: 'long', day: 'numeric', year: 'numeric' 
-                              })}
-                            </span>
+          {/* UNIFIED MONTHLY SCHEDULE & EVENT LEDGER */}
+          <Card className="shadow-xs border border-slate-200/80 bg-white rounded-2xl overflow-hidden py-0">
+            <CardHeader className="p-5 border-b border-slate-100 bg-white">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-lg font-bold text-slate-900">
+                      Monthly Schedule & Event Ledger
+                    </CardTitle>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Consolidated record of holidays, leaves, overtime hours, field work assignments, and compliance due dates for {monthName} {year}.
+                  </p>
+                </div>
+
+                {/* Scope & Sort Controls */}
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  {selectedDayFilter && (
+                    <div className="flex items-center gap-1.5 bg-brand-primary-light text-brand-primary px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-brand-primary/20">
+                      <span>Filtering Day: <strong>{new Date(selectedDayFilter + "T00:00:00").toLocaleDateString(undefined, { month: 'short', day: 'numeric', weekday: 'short' })}</strong></span>
+                      <button 
+                        onClick={() => setSelectedDayFilter(null)} 
+                        className="hover:opacity-75 cursor-pointer ml-1 p-0.5 hover:bg-orange-200/60 rounded"
+                        title="Clear Day Filter"
+                      >
+                        <CloseIcon sx={{ fontSize: 13 }} />
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={ledgerTimeline}
+                      onChange={(e) => setLedgerTimeline(e.target.value)}
+                      className="text-xs font-medium bg-slate-50 border border-slate-200 text-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-primary cursor-pointer"
+                    >
+                      <option value="all">Timeline: Entire Month</option>
+                      <option value="upcoming">Timeline: Today & Upcoming</option>
+                      <option value="this-week">Timeline: This Week</option>
+                      <option value="today">Timeline: Today Only</option>
+                    </select>
+
+                    <select
+                      value={ledgerSort}
+                      onChange={(e) => setLedgerSort(e.target.value)}
+                      className="text-xs font-medium bg-slate-50 border border-slate-200 text-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-primary cursor-pointer"
+                    >
+                      <option value="date-asc">Sort: Earliest First</option>
+                      <option value="date-desc">Sort: Latest First</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Search & Category Pills */}
+              <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 pt-3">
+                {/* Search Bar */}
+                <div className="relative flex-1 max-w-md">
+                  <SearchIcon sx={{ fontSize: 18 }} className="text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Input
+                    type="text"
+                    value={ledgerSearch}
+                    onChange={(e) => setLedgerSearch(e.target.value)}
+                    placeholder="Search employee, destination, event..."
+                    className="h-9 text-xs pl-9 pr-8 bg-slate-50 border-slate-200 rounded-xl focus-visible:ring-brand-primary"
+                  />
+                  {ledgerSearch && (
+                    <button
+                      onClick={() => setLedgerSearch("")}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      <CloseIcon sx={{ fontSize: 14 }} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Category Pills */}
+                <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+                  <button
+                    onClick={() => setLedgerCategory("ALL")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      ledgerCategory === "ALL"
+                        ? "bg-slate-900 text-white shadow-xs"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    All <span className="ml-1 opacity-80 font-normal">({categoryCounts.ALL})</span>
+                  </button>
+
+                  <button
+                    onClick={() => setLedgerCategory("Holiday")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      ledgerCategory === "Holiday"
+                        ? "bg-slate-900 text-white shadow-xs"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    <span className="inline-block w-2 h-2 rounded-full bg-red-400 mr-1.5"></span>
+                    Holidays <span className="ml-1 opacity-70 font-normal">({categoryCounts.Holiday})</span>
+                  </button>
+
+                  <button
+                    onClick={() => setLedgerCategory("Leave")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      ledgerCategory === "Leave"
+                        ? "bg-slate-900 text-white shadow-xs"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1.5"></span>
+                    Leaves <span className="ml-1 opacity-70 font-normal">({categoryCounts.Leave})</span>
+                  </button>
+
+                  <button
+                    onClick={() => setLedgerCategory("Overtime")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      ledgerCategory === "Overtime"
+                        ? "bg-slate-900 text-white shadow-xs"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    <span className="inline-block w-2 h-2 rounded-full bg-blue-500 mr-1.5"></span>
+                    Overtime <span className="ml-1 opacity-70 font-normal">({categoryCounts.Overtime})</span>
+                  </button>
+
+                  <button
+                    onClick={() => setLedgerCategory("Field Work")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      ledgerCategory === "Field Work"
+                        ? "bg-slate-900 text-white shadow-xs"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    <span className="inline-block w-2 h-2 rounded-full bg-orange-500 mr-1.5"></span>
+                    Field Work <span className="ml-1 opacity-70 font-normal">({categoryCounts["Field Work"]})</span>
+                  </button>
+
+                  <button
+                    onClick={() => setLedgerCategory("Due Date")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      ledgerCategory === "Due Date"
+                        ? "bg-slate-900 text-white shadow-xs"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    <span className="inline-block w-2 h-2 rounded-full bg-teal-500 mr-1.5"></span>
+                    Due Dates <span className="ml-1 opacity-70 font-normal">({categoryCounts["Due Date"]})</span>
+                  </button>
+                </div>
+              </div>
+            </CardHeader>
+
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50/75 border-b border-slate-200/70 text-slate-500 font-semibold uppercase tracking-wider text-[11px]">
+                    <tr>
+                      <th className="py-3 px-4 w-44">Scheduled Date</th>
+                      <th className="py-3 px-4 w-32">Type</th>
+                      <th className="py-3 px-4">Subject / Personnel</th>
+                      <th className="py-3 px-4">Details & Notes</th>
+                      <th className="py-3 px-4 text-right w-36">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredLedgerEvents.length > 0 ? (
+                      filteredLedgerEvents.map((item, idx) => {
+                        const isHoliday = item.type === "Holiday";
+                        const isLeave = item.type === "Leave";
+                        const isOvertime = item.type === "Overtime";
+                        const isFieldWork = item.type === "Field Work";
+                        const isDueDate = item.type === "Due Date";
+
+                        const isSpecialHoliday = isHoliday && (item.type?.toLowerCase().includes("special") || item.details?.toLowerCase().includes("special"));
+                        
+                        let badgeClass = "bg-slate-100 text-slate-700 border-slate-200";
+                        let badgeLabel = item.type;
+
+                        if (isHoliday) {
+                          badgeClass = isSpecialHoliday ? "bg-purple-50 text-purple-700 border-purple-200" : "bg-red-50 text-red-700 border-red-200";
+                          badgeLabel = isSpecialHoliday ? "SPECIAL HOLIDAY" : "REGULAR HOLIDAY";
+                        } else if (isLeave) {
+                          badgeClass = "bg-green-50 text-green-700 border-green-200";
+                          badgeLabel = "LEAVE";
+                        } else if (isOvertime) {
+                          badgeClass = "bg-blue-50 text-blue-700 border-blue-200";
+                          badgeLabel = "OVERTIME";
+                        } else if (isFieldWork) {
+                          badgeClass = "bg-orange-50 text-orange-700 border-orange-200";
+                          badgeLabel = "FIELD WORK";
+                        } else if (isDueDate) {
+                          badgeClass = "bg-teal-50 text-teal-700 border-teal-200";
+                          badgeLabel = "DUE DATE";
+                        }
+
+                        const dateObj = new Date(item.date);
+                        const formattedDate = !isNaN(dateObj.getTime())
+                          ? dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric", weekday: "short" })
+                          : item.date;
+                        
+                        const itemDateStr = item.date ? item.date.split('T')[0] : "";
+                        const isToday = itemDateStr === todayStr;
+                        const isActionableReq = Boolean(item.id && (isLeave || isOvertime || isFieldWork));
+
+                        return (
+                          <tr 
+                            key={item.id ? `${item.type}-${item.id}-${idx}` : `event-${idx}`}
+                            onClick={(e) => {
+                              if (e.target.closest('button')) return;
+                              handleOpenEventDetails(item);
+                            }}
+                            className="hover:bg-slate-50/80 transition-colors group cursor-pointer"
+                            title="Click row to view full event details"
+                          >
+                            <td className="py-3 px-4 whitespace-nowrap">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-slate-800 text-xs">{formattedDate}</span>
+                                {isToday && (
+                                  <span className="bg-accent-green text-white text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+                                    TODAY
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                {itemDateStr}
+                                {item.endDate && item.endDate !== item.date ? ` → ${item.endDate.split('T')[0]}` : ""}
+                              </span>
+                            </td>
+
+                            <td className="py-3 px-4 whitespace-nowrap">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold border ${badgeClass}`}>
+                                {badgeLabel}
+                              </span>
+                            </td>
+
+                            <td className="py-3 px-4">
+                              <div className="flex flex-col min-w-0">
+                                <span className="font-bold text-slate-800 text-xs flex items-center gap-1.5 truncate">
+                                  {item.name || item.details}
+                                  {isActionableReq && (
+                                    <span className="text-[10px] text-brand-primary bg-brand-primary-light px-1.5 py-0.2 rounded font-mono font-medium">
+                                      REQ-{item.id}
+                                    </span>
+                                  )}
+                                </span>
+                                <span className="text-[11px] text-slate-400 font-medium truncate">
+                                  {item.userId ? `Employee ID: ${formatUserId(item.userId)}` : (isHoliday ? "Company Holiday" : "Calendar Task")}
+                                </span>
+                              </div>
+                            </td>
+
+                            <td className="py-3 px-4">
+                              <div className="flex flex-col max-w-md">
+                                <p className="text-xs text-slate-600 truncate" title={item.details || "No additional notes."}>
+                                  {item.details || "—"}
+                                </p>
+                                {item.hours && (
+                                  <span className="text-[10px] text-slate-400 italic font-medium">
+                                    Auto-credited: {item.hours} hrs
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+
+                            <td className="py-3 px-4 text-right whitespace-nowrap">
+                              <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleOpenEventDetails(item)}
+                                  className="h-7 px-2.5 text-[11px] font-semibold text-slate-700 hover:text-brand-primary hover:border-brand-primary gap-1 shadow-2xs"
+                                  title="View Full Event Details & Information"
+                                >
+                                  <VisibilityIcon sx={{ fontSize: 14 }} className="text-slate-500" />
+                                  <span>Details</span>
+                                </Button>
+
+                                {isActionableReq && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => navigate(`/adminRequests?requestId=${item.id}`, { state: { selectedReqId: item.id } })}
+                                    className="h-7 px-2 text-[11px] font-semibold text-brand-primary border-brand-primary/30 hover:bg-brand-primary-light gap-1 shadow-2xs"
+                                    title={`Directly inspect REQ-${item.id} in Requests Management`}
+                                  >
+                                    <OpenInNewIcon sx={{ fontSize: 13 }} />
+                                    <span>Inspect</span>
+                                  </Button>
+                                )}
+
+                                {isHoliday && isAdmin && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleOpenEditHoliday(item)}
+                                    className="h-7 w-7 text-slate-400 hover:text-brand-primary hover:bg-slate-100"
+                                    title="Edit Holiday"
+                                  >
+                                    <EditIcon sx={{ fontSize: 15 }} />
+                                  </Button>
+                                )}
+
+                                {isAdmin && (isHoliday || isFieldWork || isDueDate) && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => initiateDelete(item.id, item.type)}
+                                    className="h-7 w-7 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                                    title="Delete Event"
+                                  >
+                                    <DeleteIcon sx={{ fontSize: 15 }} />
+                                  </Button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={5} className="py-12 text-center">
+                          <div className="flex flex-col items-center justify-center space-y-2">
+                            <EventAvailableIcon sx={{ fontSize: 36 }} className="text-slate-300" />
+                            <p className="text-sm font-semibold text-slate-700">No events found matching your filter criteria</p>
+                            <p className="text-xs text-slate-400">
+                              Try clearing your keyword search, resetting the day filter, or switching the category tab.
+                            </p>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setLedgerCategory("ALL");
+                                setLedgerSearch("");
+                                setLedgerTimeline("all");
+                                setSelectedDayFilter(null);
+                              }}
+                              className="mt-2 text-xs font-semibold text-brand-primary border-brand-primary/30 hover:bg-brand-primary-light"
+                            >
+                              Reset Filters
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Table Footer */}
+              <div className="p-3 bg-slate-50/50 border-t border-slate-100 text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-2">
+                <span>
+                  Showing {filteredLedgerEvents.length} of {monthEvents.length} events for {monthName} {year}
+                </span>
+                <span className="text-[11px] text-slate-400">
+                  Click <strong className="text-slate-600">Inspect</strong> to view the originating filing in Requests Management.
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* COMPREHENSIVE DETAILED EVENT INFORMATION MODAL */}
+        <Dialog open={!!detailedEvent} onOpenChange={(open) => {
+          if (!open) {
+            setDetailedEvent(null);
+            setDetailedEventData(null);
+          }
+        }}>
+          <DialogContent className="sm:max-w-[540px] max-h-[90vh] flex flex-col p-0 overflow-hidden">
+            {detailedEvent && (() => {
+              const isHoliday = detailedEvent.type === "Holiday";
+              const isLeave = detailedEvent.type === "Leave";
+              const isOvertime = detailedEvent.type === "Overtime";
+              const isFieldWork = detailedEvent.type === "Field Work";
+              const isDueDate = detailedEvent.type === "Due Date";
+              const isSpecialHoliday = isHoliday && (detailedEvent.type?.toLowerCase().includes("special") || detailedEvent.details?.toLowerCase().includes("special"));
+
+              let badgeBg = "bg-slate-100 text-slate-700 border-slate-200";
+              let badgeLabel = detailedEvent.type;
+              let headerBorderColor = "border-slate-300";
+
+              if (isHoliday) {
+                badgeBg = isSpecialHoliday ? "bg-purple-100 text-purple-700 border-purple-200" : "bg-red-100 text-red-700 border-red-200";
+                badgeLabel = isSpecialHoliday ? "SPECIAL NON-WORKING HOLIDAY" : "REGULAR HOLIDAY";
+                headerBorderColor = isSpecialHoliday ? "border-purple-500" : "border-red-500";
+              } else if (isLeave) {
+                badgeBg = "bg-green-100 text-green-700 border-green-200";
+                badgeLabel = detailedEventData?.reqTypeName || detailedEvent.details || "LEAVE";
+                headerBorderColor = "border-green-500";
+              } else if (isOvertime) {
+                badgeBg = "bg-blue-100 text-blue-700 border-blue-200";
+                badgeLabel = "OVERTIME";
+                headerBorderColor = "border-blue-500";
+              } else if (isFieldWork) {
+                badgeBg = "bg-orange-100 text-orange-700 border-orange-200";
+                badgeLabel = "FIELD WORK";
+                headerBorderColor = "border-orange-500";
+              } else if (isDueDate) {
+                badgeBg = "bg-teal-100 text-teal-700 border-teal-200";
+                badgeLabel = "COMPLIANCE DUE DATE";
+                headerBorderColor = "border-teal-500";
+              }
+
+              const dateObj = new Date(detailedEvent.date);
+              const formattedDate = !isNaN(dateObj.getTime())
+                ? dateObj.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })
+                : detailedEvent.date;
+
+              const isActionableReq = Boolean(detailedEvent.id && (isLeave || isOvertime || isFieldWork));
+
+              // Matching field work on this date for holiday
+              const matchingHolidayWork = isHoliday 
+                ? events.filter(e => e.type === "Field Work" && e.date && e.date.split('T')[0] === detailedEvent.date.split('T')[0])
+                : [];
+
+              return (
+                <div className="flex flex-col h-full max-h-[90vh]">
+                  {/* Header */}
+                  <DialogHeader className={`p-5 bg-slate-50/80 border-b border-slate-100 border-l-4 ${headerBorderColor}`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold border ${badgeBg}`}>
+                        {badgeLabel}
+                      </span>
+                      {isActionableReq && (
+                        <span className="text-xs font-mono font-bold bg-white px-2 py-0.5 rounded border border-slate-200 text-slate-700">
+                          REQ-{detailedEvent.id}
+                        </span>
+                      )}
+                    </div>
+                    <DialogTitle className="text-lg font-bold text-slate-900 mt-2 text-left">
+                      {detailedEvent.name || detailedEvent.details}
+                    </DialogTitle>
+                    <DialogDescription className="text-xs text-slate-500 text-left">
+                      Scheduled Date: <strong className="text-slate-700">{formattedDate}</strong>
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  {/* Body Content */}
+                  <div className="p-5 overflow-y-auto custom-scrollbar space-y-4 text-xs">
+                    {detailedEventLoading && (
+                      <div className="flex items-center justify-center p-3 text-slate-400 gap-2 bg-slate-50 rounded-lg">
+                        <SyncIcon className="animate-spin h-4 w-4" />
+                        <span>Loading complete filing details...</span>
+                      </div>
+                    )}
+
+                    {/* PERSONNEL ACTIONS (Leave / OT / Field Work) */}
+                    {isActionableReq && (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Employee Name</span>
+                            <span className="text-sm font-bold text-slate-800">{detailedEvent.name || detailedEventData?.userName || "—"}</span>
+                            {detailedEvent.userId && (
+                              <span className="text-[11px] text-slate-500 font-mono block">ID: {formatUserId(detailedEvent.userId)}</span>
+                            )}
                           </div>
 
-                          <div className="flex items-center gap-2 shrink-0">
-                            <Badge variant="secondary" className={`text-[9px] ${isSpecial ? "bg-purple-100 text-purple-700" : "bg-red-100 text-red-700"}`}>
-                              {isSpecial ? "SPECIAL" : "REGULAR"}
-                            </Badge>
-                            
-                            {isAdmin && (
-                              <div className="absolute right-3 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 backdrop-blur-sm p-1 rounded-md shadow-sm border border-slate-100 flex gap-1 z-10">
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon" 
-                                  className="h-6 w-6 text-slate-500 hover:text-brand-primary" 
-                                  onClick={(e) => { e.stopPropagation(); handleOpenEditHoliday(holiday); }}
-                                >
-                                  <EditIcon className="h-3 w-3" />
-                                </Button>
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon" 
-                                  className="h-6 w-6 text-slate-500 hover:text-red-500" 
-                                  onClick={(e) => { e.stopPropagation(); initiateDelete(holiday.id, 'Holiday'); }}
-                                >
-                                  <DeleteIcon className="h-3 w-3" />
-                                </Button>
-                              </div>
+                          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Filing Status</span>
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-green-100 text-green-700">
+                              {detailedEventData?.status || "Approved"}
+                            </span>
+                            {detailedEventData?.date_Filed && (
+                              <span className="text-[11px] text-slate-400 block mt-1">
+                                Filed: {new Date(detailedEventData.date_Filed).toLocaleDateString()}
+                              </span>
                             )}
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <EmptyState 
-                    className="min-h-0 h-full w-full border-0 bg-transparent shadow-none p-0"
-                    icon={<EventAvailableIcon sx={{ fontSize: 32 }} className="text-slate-300" />}
-                    title="No Holidays"
-                    description="None registered for this period."
-                  />
-                )}
-              </CardContent>
-            </Card>
 
-            <Card className="shadow-sm border-0 h-[500px] border-t-4 border-accent-green py-0 overflow-hidden">
-              <CardHeader className="pb-0 pt-5">
-                <CardTitle className="text-lg text-accent-green flex items-center gap-1.5">
-                  Personnel Actions
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-accent-green hover:text-accent-green/80 cursor-help" />
-                    </TooltipTrigger>
-                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
-                      Approved employee leaves and overtime (OT) hours registered on the calendar.
-                    </TooltipContent>
-                  </Tooltip>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="h-[440px] pt-0 px-0">
-                <Tabs defaultValue="leave" className="w-full h-full flex flex-col">
-                  <TabsList className="grid w-[90%] mx-auto grid-cols-2 mb-4">
-                    <TabsTrigger value="leave">Leaves</TabsTrigger>
-                    <TabsTrigger value="ot">Overtime</TabsTrigger>
-                  </TabsList>
-                  
-                  <div className="flex-1 overflow-y-auto custom-scrollbar px-4">
-                    <TabsContent value="leave" className="mt-0 space-y-2">
-                      {events.filter(e => e.type === "Leave").map((item, i) => (
-                        <div 
-                        key={i} 
-                        className="flex items-center justify-between p-3 rounded-lg border border-slate-100 bg-white hover:bg-green-50/50 transition-colors cursor-pointer group"
-                        onClick={() => handlePersonnelActionClick(item)} >
-                          <div className="flex flex-col">
-                            <span className="text-sm font-bold text-slate-800">{item.name}</span>
-                            <span className="text-[10px] text-slate-400 font-medium">
-                              {new Date(item.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                            </span>
-                          </div>
-                          <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-700 hover:bg-green-100">LEAVE</Badge>
+                        {/* Duration & Details */}
+                        <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100 space-y-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Schedule & Duration</span>
+                          
+                          {isLeave && (
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div>
+                                <span className="text-slate-500">Date Range:</span>
+                                <p className="font-semibold text-slate-800">
+                                  {detailedEventData?.VL_StartDate || detailedEventData?.SL_StartDate || detailedEvent.date?.split('T')[0]} 
+                                  {(detailedEvent.endDate || detailedEventData?.VL_EndDate || detailedEventData?.SL_EndDate) 
+                                    ? ` → ${(detailedEvent.endDate || detailedEventData?.VL_EndDate || detailedEventData?.SL_EndDate).split('T')[0]}` 
+                                    : ""}
+                                </p>
+                              </div>
+                              <div>
+                                <span className="text-slate-500">Total Duration:</span>
+                                <p className="font-bold text-green-700">
+                                  {detailedEvent.hours || detailedEventData?.VL_NoDays || detailedEventData?.SL_NoDays || 1} Day(s)
+                                </p>
+                              </div>
+                              <div>
+                                <span className="text-slate-500">Pay Status:</span>
+                                <p className="font-semibold text-slate-800">
+                                  {detailedEventData?.VL_withPayName || detailedEventData?.SL_withPayName || detailedEventData?.EL_withPayName || "With Pay"}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+
+                          {isOvertime && (
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div>
+                                <span className="text-slate-500">OT Duration:</span>
+                                <p className="font-bold text-blue-700">
+                                  {detailedEvent.hours || detailedEventData?.Total_Hrs || "—"} Hours
+                                </p>
+                              </div>
+                              <div>
+                                <span className="text-slate-500">Scheduled Hours:</span>
+                                <p className="font-semibold text-slate-800">
+                                  {detailedEventData?.HrFrom && detailedEventData?.HrTo 
+                                    ? `${detailedEventData.HrFrom} - ${detailedEventData.HrTo}` 
+                                    : (detailedEvent.details || "Standard Overtime")}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+
+                          {isFieldWork && (
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div>
+                                <span className="text-slate-500">Field Credit:</span>
+                                <p className="font-bold text-orange-700">
+                                  {detailedEvent.hours || detailedEventData?.OW_NoHrs || 8} Hours (100% Paid)
+                                </p>
+                              </div>
+                              <div>
+                                <span className="text-slate-500">Destination:</span>
+                                <p className="font-semibold text-slate-800">
+                                  {detailedEventData?.destination || detailedEvent.details || "Client Site"}
+                                </p>
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      ))}
-                    </TabsContent>
-                    
-                    <TabsContent value="ot" className="mt-0 space-y-2">
-                      {events.filter(e => e.type === "Overtime").map((item, i) => (
-                        <div 
-                          key={i} 
-                          className="flex items-center justify-between p-3 rounded-lg border border-slate-100 bg-white hover:bg-blue-50/50 transition-colors cursor-pointer group"
-                          onClick={() => handlePersonnelActionClick(item)}>
-                          <div className="flex flex-col">
-                            <span className="text-sm font-bold text-slate-800">{item.name}</span>
-                            <span className="text-[10px] text-slate-400 font-medium">
-                              {new Date(item.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+
+                        {/* Remarks & Notes */}
+                        {(detailedEventData?.remarks || detailedEvent.details) && (
+                          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                              Reason & Purpose
                             </span>
+                            <p className="text-slate-700 leading-relaxed">
+                              {detailedEventData?.remarks || detailedEvent.details}
+                            </p>
                           </div>
-                          <Badge variant="secondary" className="text-[10px] bg-blue-100 text-blue-700 hover:bg-blue-100">OT</Badge>
+                        )}
+
+                        {/* Audit & Approver */}
+                        {detailedEventData?.approverName && (
+                          <div className="flex justify-between items-center px-1 text-[11px] text-slate-500 border-t border-slate-100 pt-2">
+                            <span>Approved by: <strong className="text-slate-700">{detailedEventData.approverName}</strong></span>
+                            {detailedEventData.date_Processed && (
+                              <span>Processed: {new Date(detailedEventData.date_Processed).toLocaleDateString()}</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* HOLIDAY DETAILS */}
+                    {isHoliday && (
+                      <div className="space-y-4">
+                        <div className={`p-4 rounded-xl border ${isSpecialHoliday ? "bg-purple-50/60 border-purple-200" : "bg-red-50/60 border-red-200"} space-y-2`}>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-bold text-slate-900">{detailedEvent.name}</span>
+                          </div>
+                          <p className="text-xs text-slate-600 leading-relaxed">
+                            {detailedEvent.details || (isSpecialHoliday ? "Special Non-Working Day" : "Regular Philippine Holiday")}
+                          </p>
                         </div>
-                      ))}
-                    </TabsContent>
-                    <div className="h-6" />
-                  </div>
-                </Tabs>
-              </CardContent>
-            </Card>
 
-            <Card className="shadow-sm border-0 h-[500px] border-t-4 border-accent-gold py-0 overflow-hidden">
-              <CardHeader className="pb-0 pt-5">
-                <CardTitle className="text-lg text-accent-gold flex items-center gap-1.5">
-                  Operational Tasks
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-accent-gold hover:text-accent-gold/80 cursor-help" />
-                    </TooltipTrigger>
-                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
-                      Assigned out-of-office field work assignments and compliance due dates.
-                    </TooltipContent>
-                  </Tooltip>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="h-[440px] pt-0 px-0">
-                <Tabs defaultValue="field" className="w-full h-full flex flex-col">
-                  <TabsList className="grid w-[90%] mx-auto grid-cols-2 mb-2">
-                    <TabsTrigger value="field">Field Work</TabsTrigger>
-                    <TabsTrigger value="due">Due Dates</TabsTrigger>
-                  </TabsList>
-                  
-                  <div className="flex-1 overflow-y-auto custom-scrollbar px-4">
-                    <TabsContent value="field" className="mt-0 space-y-2">
-                      {events.filter(e => e.type === "Field Work").length > 0 ? (
-                        events.filter(e => e.type === "Field Work").map((item, idx) => (
-                          <div 
-                            key={idx} 
-                            className="flex items-center justify-between p-3 rounded-lg border border-slate-100 bg-white hover:bg-orange-50/50 transition-colors cursor-pointer group"
-                            onClick={() => handleFieldWorkClick(item)}
-                          >
-                            <div className="flex flex-col min-w-0">
-                              <span className="text-sm font-bold text-slate-800 truncate">{item.name || item.details}</span>
-                              <span className="text-[10px] text-slate-400 font-medium">
-                                {new Date(item.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                              </span>
+                        {/* Statutory Wage Multipliers Notice */}
+                        <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                            Statutory Wage & Payroll Rule (DOLE Mandate)
+                          </span>
+                          <div className="grid grid-cols-2 gap-3 text-xs">
+                            <div className="p-2 bg-white rounded-lg border border-slate-100">
+                              <span className="text-slate-400 block text-[10px] uppercase">If Worked</span>
+                              <strong className={`text-sm ${isSpecialHoliday ? "text-purple-700" : "text-red-700"}`}>
+                                {isSpecialHoliday ? "130% Daily Rate" : "200% Daily Rate"}
+                              </strong>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="secondary" className="text-[10px] bg-orange-100 text-orange-700">FIELD</Badge>
-                              <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => { e.stopPropagation(); initiateDelete(item.id, 'Field Work'); }}>
-                                <DeleteIcon className="h-3 w-3 text-red-500" />
-                              </Button>
+                            <div className="p-2 bg-white rounded-lg border border-slate-100">
+                              <span className="text-slate-400 block text-[10px] uppercase">If Unworked</span>
+                              <strong className="text-sm text-slate-700">
+                                {isSpecialHoliday ? "0% (No Pay Rule)" : "100% Daily Rate"}
+                              </strong>
                             </div>
                           </div>
-                        ))
-                      ) : (
-                        <EmptyState className="h-20 border-0" title="No Field Work" />
-                      )}
-                    </TabsContent>
+                          <p className="text-[11px] text-slate-400 italic">
+                            CTPAT and DOLE statutory pay multiplier is automatically calculated in batch payroll generation.
+                          </p>
+                        </div>
 
-                    <TabsContent value="due" className="mt-0 space-y-2">
-                      {events.filter(e => e.type === "Due Date").length > 0 ? (
-                        events.filter(e => e.type === "Due Date").map((item, idx) => (
-                          <div 
-                            key={idx} 
-                            className="flex items-center justify-between p-3 rounded-lg border border-slate-100 bg-white hover:bg-teal-50/50 transition-colors cursor-pointer group"
-                            onClick={() => handleDueDateClick(item)}
-                          >
-                            <div className="flex flex-col min-w-0">
-                              <span className="text-sm font-bold text-slate-800 truncate">{item.name}</span>
-                              <span className="text-[10px] text-slate-400 font-medium">
-                                {new Date(item.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="secondary" className="text-[10px] bg-teal-100 text-teal-700">DUE</Badge>
-                              <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => { e.stopPropagation(); initiateDelete(item.id, 'Due Date'); }}>
-                                <DeleteIcon className="h-3 w-3 text-red-500" />
-                              </Button>
+                        {/* Matching Field Work Assignments */}
+                        {matchingHolidayWork.length > 0 && (
+                          <div className="space-y-2">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                              Personnel Assigned on this Holiday ({matchingHolidayWork.length})
+                            </span>
+                            <div className="space-y-1.5 max-h-36 overflow-y-auto custom-scrollbar">
+                              {matchingHolidayWork.map((fw, idx) => (
+                                <div key={idx} className="flex items-center justify-between p-2.5 bg-orange-50/60 border border-orange-100 rounded-lg text-xs">
+                                  <div>
+                                    <p className="font-bold text-slate-800">{fw.name}</p>
+                                    <p className="text-[11px] text-slate-500">{fw.details}</p>
+                                  </div>
+                                  <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-200 text-[10px]">
+                                    Field Work ({fw.hours || 8}h)
+                                  </Badge>
+                                </div>
+                              ))}
                             </div>
                           </div>
-                        ))
-                      ) : (
-                        <EmptyState className="h-20 border-0" title="No Due Dates" />
-                      )}
-                    </TabsContent>
-                  </div>
-                </Tabs>
-              </CardContent>
-            </Card>
+                        )}
+                      </div>
+                    )}
 
-          </div>
-        </div>
+                    {/* DUE DATE DETAILS */}
+                    {isDueDate && (
+                      <div className="space-y-3">
+                        <div className="p-4 bg-teal-50/60 border border-teal-200 rounded-xl space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-bold text-slate-900">{detailedEvent.name}</span>
+                            <Badge variant="outline" className="bg-teal-100 text-teal-800 border-teal-200 font-bold text-[10px]">
+                              {detailedEvent.priority || "Medium Priority"}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-teal-700 font-semibold">
+                            Deadline: {formattedDate}
+                          </p>
+                        </div>
+
+                        <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100 space-y-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                            Task Description & Directives
+                          </span>
+                          <p className="text-slate-700 leading-relaxed">
+                            {detailedEvent.details || "No additional checklist instructions provided for this due date."}
+                          </p>
+                        </div>
+
+                        <div className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs">
+                          <span className="text-slate-500">Reminder Timing:</span>
+                          <span className="font-bold text-slate-800">{detailedEvent.reminder || "1 day before cutoff"}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Footer Actions */}
+                  <DialogFooter className="p-4 bg-slate-50 border-t border-slate-100 flex flex-row items-center justify-between gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => {
+                        setDetailedEvent(null);
+                        setDetailedEventData(null);
+                      }}
+                      className="text-xs"
+                    >
+                      Close
+                    </Button>
+
+                    <div className="flex items-center gap-2">
+                      {isHoliday && isAdmin && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const h = detailedEvent;
+                            setDetailedEvent(null);
+                            handleOpenEditHoliday(h);
+                          }}
+                          className="text-xs text-slate-700 hover:text-brand-primary gap-1"
+                        >
+                          <EditIcon sx={{ fontSize: 14 }} />
+                          <span>Edit Holiday</span>
+                        </Button>
+                      )}
+
+                      {isAdmin && (isHoliday || isFieldWork || isDueDate) && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            const ev = detailedEvent;
+                            setDetailedEvent(null);
+                            initiateDelete(ev.id, ev.type);
+                          }}
+                          className="text-xs text-red-600 hover:bg-red-50 gap-1"
+                        >
+                          <DeleteIcon sx={{ fontSize: 14 }} />
+                          <span>Delete</span>
+                        </Button>
+                      )}
+
+                      {isActionableReq && (
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            const reqId = detailedEvent.id;
+                            setDetailedEvent(null);
+                            setSelectedDayDetails(null);
+                            navigate(`/adminRequests?requestId=${reqId}`, { state: { selectedReqId: reqId } });
+                          }}
+                          className="text-xs bg-brand-primary hover:bg-brand-primary-hover text-white gap-1 font-semibold"
+                        >
+                          <OpenInNewIcon sx={{ fontSize: 14 }} />
+                          <span>Open in Requests</span>
+                        </Button>
+                      )}
+                    </div>
+                  </DialogFooter>
+                </div>
+              );
+            })()}
+          </DialogContent>
+        </Dialog>
 
         {/* DATE PICKER DIALOG */}
         <Dialog open={isDatePickerOpen} onOpenChange={(open) => {
@@ -1007,10 +1642,10 @@ const CalendarManagement = () => {
 
           {isAdmin && (
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-3 h-11 bg-slate-200/60 p-1 rounded-lg mb-6">
-                <TabsTrigger value="fieldWork" className="font-bold data-[state=active]:text-orange-600">Field Work</TabsTrigger>
-                <TabsTrigger value="holiday" className="font-bold data-[state=active]:text-red-600">Holiday</TabsTrigger>
-                <TabsTrigger value="dueDate" className="font-bold data-[state=active]:text-teal-600">Due Date</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-3 h-11 bg-slate-200/60 p-0.5 rounded-lg mb-6">
+                <TabsTrigger value="fieldWork" className="font-semibold text-slate-500 rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-orange-600 data-[state=active]:shadow-sm">Field Work</TabsTrigger>
+                <TabsTrigger value="holiday" className="font-semibold text-slate-500 rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-red-600 data-[state=active]:shadow-sm">Holiday</TabsTrigger>
+                <TabsTrigger value="dueDate" className="font-semibold text-slate-500 rounded-md transition-all data-[state=active]:bg-white data-[state=active]:text-teal-600 data-[state=active]:shadow-sm">Due Date</TabsTrigger>
               </TabsList>
 
               <TabsContent value="fieldWork" className="mt-0">
@@ -1277,24 +1912,22 @@ const CalendarManagement = () => {
                           </div>
                           <div className={`grid ${isSingleCategory ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"} gap-3`}>
                             {events.map((event, idx) => {
-                              const isActionable = event.id && ["Leave", "Field Work", "Overtime"].includes(event.type);
                               return (
                                 <div 
                                   key={idx} 
-                                  onClick={() => {
-                                    if (isActionable) {
-                                      setSelectedDayDetails(null);
-                                      navigate(`/adminRequests?requestId=${event.id}`);
-                                    }
-                                  }}
-                                  className={`p-3 rounded-lg border ${config.bg} ${config.border} transition-all ${
-                                    isActionable ? "cursor-pointer hover:shadow-sm hover:scale-[1.01]" : ""
-                                  }`}
-                                  title={isActionable ? `Click to inspect REQ-${event.id} in Requests Management` : ""}
+                                  onClick={() => handleOpenEventDetails(event)}
+                                  className={`p-3 rounded-lg border ${config.bg} ${config.border} transition-all cursor-pointer hover:shadow-md hover:scale-[1.01] group/item`}
+                                  title="Click to view complete details about this event"
                                 >
-                                  <p className={`font-semibold text-sm ${config.text}`}>{event.name || event.details}</p>
+                                  <div className="flex items-center justify-between">
+                                    <p className={`font-semibold text-sm ${config.text} group-hover/item:underline`}>{event.name || event.details}</p>
+                                    <VisibilityIcon sx={{ fontSize: 16 }} className="text-slate-400 group-hover/item:text-brand-primary opacity-60 group-hover/item:opacity-100 transition-opacity" />
+                                  </div>
                                   {event.type === "Field Work" && (
                                     <p className="text-[10px] opacity-70 font-medium italic mt-1">Auto-credited: {event.hours || 8}hrs</p>
+                                  )}
+                                  {event.type === "Overtime" && (
+                                    <p className="text-[10px] opacity-70 font-medium italic mt-1">{event.details}</p>
                                   )}
                                 </div>
                               );

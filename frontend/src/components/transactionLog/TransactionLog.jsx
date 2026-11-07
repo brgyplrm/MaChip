@@ -302,10 +302,11 @@ const TransactionLog = () => {
     const friendly = getFriendlyEvent(t);
     
     const searchLower = searchTerm.toLowerCase();
-    const matchesSearch = (t.emp_FirstName + " " + t.emp_LastName).toLowerCase().includes(searchLower) || 
+    const matchesSearch = !searchLower ||
+                          (t.emp_FirstName + " " + t.emp_LastName).toLowerCase().includes(searchLower) || 
                           (t.admin_FirstName + " " + t.admin_LastName).toLowerCase().includes(searchLower) ||
-                          t.event_Type.toLowerCase().includes(searchLower) ||
-                          t.description.toLowerCase().includes(searchLower) ||
+                          (t.event_Type || "").toLowerCase().includes(searchLower) ||
+                          (t.description || "").toLowerCase().includes(searchLower) ||
                           friendly.headline.toLowerCase().includes(searchLower) ||
                           friendly.badge.toLowerCase().includes(searchLower) ||
                           friendly.target.toLowerCase().includes(searchLower) ||
@@ -313,7 +314,8 @@ const TransactionLog = () => {
                           userNumber.toLowerCase().includes(searchLower) ||
                           adminNumber.toLowerCase().includes(searchLower) ||
                           rawUserId.includes(searchLower) ||
-                          ipAddr.includes(searchLower);
+                          ipAddr.includes(searchLower) ||
+                          (t.timestamp && new Date(t.timestamp).toLocaleDateString().toLowerCase().includes(searchLower));
 
     const matchesAction = actionFilter === "All Actions" || t.event_Type === actionFilter;
     return matchesSearch && matchesAction;

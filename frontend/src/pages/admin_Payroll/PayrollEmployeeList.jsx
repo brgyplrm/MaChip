@@ -198,8 +198,23 @@ const PayrollEmployeeList = () => {
 
   // Filtering Logic
   const filtered = employees.filter((e) => {
-    const fullName = `${e.user_FirstName} ${e.user_LastName}`.toLowerCase();
-    const matchesSearch = fullName.includes(search.toLowerCase()) || String(formatUserId(e.user_Id)).includes(search);
+    const q = search.trim().toLowerCase();
+    const fullName = `${e.user_FirstName || ""} ${e.user_LastName || ""}`.toLowerCase();
+    const reverseName = `${e.user_LastName || ""} ${e.user_FirstName || ""}`.toLowerCase();
+    const formattedId = formatUserId(e.user_Id).toLowerCase();
+    const rawId = String(e.user_Id || "");
+    const dept = (e.positionDepartment || e.department || "").toLowerCase();
+    const pos = (e.positionName || e.position || "").toLowerCase();
+    const empStatus = (e.employmentStatus || e.user_EmploymentStatus || "").toLowerCase();
+
+    const matchesSearch = !q ||
+      fullName.includes(q) ||
+      reverseName.includes(q) ||
+      formattedId.includes(q) ||
+      rawId.includes(q) ||
+      dept.includes(q) ||
+      pos.includes(q) ||
+      empStatus.includes(q);
 
     const empDept = (e.positionDepartment || e.department || "").trim();
     const matchesDepartment = filterDepartment === "All Departments" || empDept === filterDepartment;

@@ -76,6 +76,7 @@ const Single = () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password: adminPassword }),
+        skipAuthRedirect: true,
       });
 
       const result = await res.json();

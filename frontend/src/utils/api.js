@@ -5,18 +5,19 @@ import { clearStoredAuth } from "./authStorage";
  * 'credentials: include' ensures the machip_token cookie is sent automatically.
  */
 export const fetchWithAuth = async (url, options = {}) => {
+  const { skipAuthRedirect = false, ...fetchOptions } = options;
   const response = await fetch(url, {
-    ...options,
-    cache: options.cache || "no-store",
+    ...fetchOptions,
+    cache: fetchOptions.cache || "no-store",
     headers: {
       "Cache-Control": "no-cache",
       "Pragma": "no-cache",
-      ...options.headers,
+      ...fetchOptions.headers,
     },
     credentials: "include", // Required for HttpOnly cookies to be sent
   });
 
-  if (response.status === 401) {
+  if (response.status === 401 && !skipAuthRedirect) {
     // Session likely expired or missing cookie
     console.warn("[AUTH] 401 Unauthorized: Session may be expired.");
     

@@ -290,9 +290,9 @@ const ThirteenthMonth = () => {
           )}
 
           <Tabs defaultValue="preview" className="w-full">
-            <TabsList className="mb-4">
-              <TabsTrigger value="preview">Compute & Draft ({currentYear})</TabsTrigger>
-              <TabsTrigger value="history">Release History</TabsTrigger>
+            <TabsList className="mb-4 inline-flex h-11 bg-slate-200/60 p-0.5 rounded-lg">
+              <TabsTrigger value="preview" className="data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md px-4">Compute & Draft ({currentYear})</TabsTrigger>
+              <TabsTrigger value="history" className="data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md px-4">Release History</TabsTrigger>
             </TabsList>
 
             <TabsContent value="preview">

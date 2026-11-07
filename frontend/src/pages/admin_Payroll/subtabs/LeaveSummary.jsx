@@ -102,12 +102,16 @@ const LeaveSummary = () => {
   }, [year]);
 
   // Client-side search matching employee names or IDs (excluding visitor placeholder 999)
-  const filteredData = data.filter(employee =>
-    employee.user_Id !== 999 &&
-    employee.machipId !== "MACJ-999" &&
-    (employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-     employee.user_Id.toString().includes(searchTerm))
-  );
+  const filteredData = data.filter(employee => {
+    if (employee.user_Id === 999 || employee.machipId === "MACJ-999") return false;
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return true;
+    const empName = (employee.name || "").toLowerCase();
+    const rawId = String(employee.user_Id || "");
+    const formattedId = employee.user_Id ? formatUserId(employee.user_Id).toLowerCase() : "";
+    const machipId = (employee.machipId || "").toLowerCase();
+    return empName.includes(q) || rawId.includes(q) || formattedId.includes(q) || machipId.includes(q);
+  });
 
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
   const paginatedData = filteredData.slice(
@@ -131,7 +135,7 @@ const LeaveSummary = () => {
           
           <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto items-center">
             <Input
-              placeholder="Search employee..."
+              placeholder="Search by employee name or ID..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full sm:w-[250px] bg-white text-slate-700 border-slate-200 focus-visible:ring-brand-primary"

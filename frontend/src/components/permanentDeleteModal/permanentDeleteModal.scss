@@ -12,6 +12,7 @@
   .permModalContainer {
     background: white;
     width: 520px;
+    max-width: 92vw;
     border-radius: 16px;
     padding: 32px;
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
@@ -45,15 +46,22 @@
 
       .closeBtn {
         background: none; border: none; color: #9ca3af; cursor: pointer;
+        padding: 4px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: color 0.15s ease;
         &:hover { color: #111827; }
+        &:disabled { opacity: 0.5; cursor: not-allowed; }
       }
     }
 
     .permModalBody {
       .mainPrompt {
-        font-size: 17px;
+        font-size: 16px;
         color: #4b5563;
-        margin-bottom: 20px;
+        margin-bottom: 16px;
         strong { color: #111827; font-weight: 700; }
       }
 
@@ -61,17 +69,17 @@
         background-color: #fff5f5; // Very light red box
         border: 1px solid #fee2e2;
         border-radius: 12px;
-        padding: 20px;
-        margin-bottom: 24px;
+        padding: 16px;
+        margin-bottom: 20px;
 
         .boxHeader {
           display: flex;
           align-items: center;
           gap: 8px;
-          margin-bottom: 12px;
+          margin-bottom: 10px;
 
           .smallWarningIcon { color: #991b1b; font-size: 18px; }
-          h3 { font-size: 15px; color: #991b1b; margin: 0; font-weight: 700; }
+          h3 { font-size: 14px; color: #991b1b; margin: 0; font-weight: 700; }
         }
 
         ul {
@@ -80,12 +88,125 @@
           
           li {
             color: #991b1b; // Crimson list text
-            font-size: 14px;
-            margin-bottom: 6px;
+            font-size: 13px;
+            margin-bottom: 4px;
             line-height: 1.4;
             
             &::marker { color: #dc2626; }
           }
+        }
+      }
+
+      .confirmationField {
+        margin-bottom: 18px;
+
+        .fieldLabel {
+          display: block;
+          font-size: 13px;
+          font-weight: 600;
+          color: #374151;
+          margin-bottom: 6px;
+
+          .highlightPhrase {
+            color: #dc2626;
+            font-family: monospace;
+            background: #fee2e2;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 700;
+          }
+        }
+
+        .inputWrapper {
+          position: relative;
+          display: flex;
+          align-items: center;
+
+          .validBadge {
+            position: absolute;
+            right: 12px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #16a34a;
+            background: #dcfce7;
+            padding: 2px 8px;
+            border-radius: 6px;
+            pointer-events: none;
+          }
+        }
+
+        .passwordInputWrapper {
+          position: relative;
+          display: flex;
+          align-items: center;
+
+          .toggleVisibilityBtn {
+            position: absolute;
+            right: 10px;
+            background: none;
+            border: none;
+            color: #9ca3af;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            padding: 4px;
+            border-radius: 4px;
+            transition: color 0.15s ease;
+
+            &:hover {
+              color: #4b5563;
+            }
+
+            &:disabled {
+              opacity: 0.5;
+              cursor: not-allowed;
+            }
+          }
+        }
+
+        .textInput {
+          width: 100%;
+          height: 42px;
+          padding: 0 14px;
+          border: 1.5px solid #e5e7eb;
+          border-radius: 8px;
+          font-size: 14px;
+          color: #1f2937;
+          background: #f9fafb;
+          transition: all 0.2s ease;
+          outline: none;
+
+          &:focus {
+            background: #ffffff;
+            border-color: #dc2626;
+            box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+          }
+
+          &.validPhrase {
+            border-color: #16a34a;
+            background: #f0fdf4;
+          }
+
+          &.errorInput {
+            border-color: #dc2626;
+            background: #fff5f5;
+          }
+
+          &:disabled {
+            background: #f3f4f6;
+            cursor: not-allowed;
+            opacity: 0.7;
+          }
+        }
+
+        .errorMessage {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          margin-top: 6px;
+          font-size: 12px;
+          color: #dc2626;
+          font-weight: 600;
         }
       }
     }
@@ -94,10 +215,11 @@
       display: flex;
       justify-content: flex-end;
       gap: 12px;
+      margin-top: 8px;
 
       button {
-        padding: 12px 24px;
-        border-radius: 10px;
+        padding: 10px 20px;
+        border-radius: 8px;
         font-weight: 700;
         font-size: 14px;
         cursor: pointer;
@@ -105,16 +227,26 @@
       }
 
       .cancelBtn {
-        background: white; border: 1px solid #e5e7eb; color: #374151;
-        &:hover { background: #f9fafb; border-color: #d1d5db; }
+        background: white; 
+        border: 1px solid #e5e7eb; 
+        color: #374151;
+        &:hover:not(:disabled) { background: #f9fafb; border-color: #d1d5db; }
+        &:disabled { opacity: 0.5; cursor: not-allowed; }
       }
 
       .deleteBtn {
         background: #e11d48; // Solid red button
         border: none;
         color: white;
-        &:hover { background: #be123c; transform: translateY(-1px); }
-        &:active { transform: translateY(0); }
+        &:hover:not(:disabled) { background: #be123c; transform: translateY(-1px); }
+        &:active:not(:disabled) { transform: translateY(0); }
+
+        &:disabled {
+          background: #fda4af;
+          cursor: not-allowed;
+          opacity: 0.65;
+          transform: none;
+        }
       }
     }
   }

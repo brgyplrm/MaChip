@@ -1547,14 +1547,16 @@ const UserRequests = () => {
         if (!typeMatch) return false;
       }
 
-      // 3. Search Query filter (search req ID, type name, remarks, dates)
+      // 3. Search Query filter (search req ID, type name, remarks, dates, status, approver)
       if (historySearchQuery.trim()) {
         const q = historySearchQuery.toLowerCase().trim();
         const reqIdStr = `req-${req.emp_reqId}`.toLowerCase();
         const typeNameStr = (req.reqTypeName || "").toLowerCase();
-        const remarksStr = (req.remarks || "").toLowerCase();
+        const remarksStr = (req.remarks || req.emp_reqRemarks || "").toLowerCase();
         const datesStr = (getDates(req) || "").toLowerCase();
         const adminRemarksStr = (req.adminRemarks || req.rejectionReason || "").toLowerCase();
+        const statusStr = (req.status || (req.emp_reqStatusId === 1 ? "pending" : req.emp_reqStatusId === 2 ? "approved" : req.emp_reqStatusId === 3 ? "rejected" : req.emp_reqStatusId === 4 ? "returned" : "")).toLowerCase();
+        const approverStr = (req.approverName || req.processedByName || "").toLowerCase();
 
         const matchesQuery = 
           reqIdStr.includes(q) ||
@@ -1562,7 +1564,9 @@ const UserRequests = () => {
           typeNameStr.includes(q) ||
           remarksStr.includes(q) ||
           datesStr.includes(q) ||
-          adminRemarksStr.includes(q);
+          adminRemarksStr.includes(q) ||
+          statusStr.includes(q) ||
+          approverStr.includes(q);
 
         if (!matchesQuery) return false;
       }
@@ -1770,7 +1774,7 @@ const UserRequests = () => {
                   <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <Input
                     type="text"
-                    placeholder="Search by ID, remarks, date..."
+                    placeholder="Search by REQ ID, type, remarks, or status..."
                     value={historySearchQuery}
                     onChange={(e) => {
                       setHistorySearchQuery(e.target.value);

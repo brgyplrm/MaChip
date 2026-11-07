@@ -29,6 +29,8 @@ import { TablePagination } from "@/components/ui/table-pagination";
 const ArchivedUsers = () => {
   const [showPermDelete, setShowPermDelete] = useState(false);
   const [targetUser, setTargetUser] = useState(null);
+  const [permDeleteError, setPermDeleteError] = useState("");
+  const [deletingUser, setDeletingUser] = useState(false);
   const [showRestoreModal, setShowRestoreModal] = useState(false);
   const [userToRestore, setUserToRestore] = useState(null);
   const [restoring, setRestoring] = useState(false);
@@ -103,12 +105,29 @@ const ArchivedUsers = () => {
     }
   };
 
-  const handleActualPermanentDelete = async () => {
+  const handleActualPermanentDelete = async ({ password }) => {
     if (!targetUser) return;
 
-    setLoading(true);
+    setDeletingUser(true);
+    setPermDeleteError("");
 
     try {
+      // 1. Verify admin password first (with skipAuthRedirect to prevent hard-logout on error)
+      const verifyRes = await fetchWithAuth("/api/auth/verify-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+        skipAuthRedirect: true,
+      });
+
+      const verifyData = await verifyRes.json();
+      if (!verifyRes.ok || !verifyData.valid) {
+        setPermDeleteError(verifyData.error || "Incorrect admin password. Verification failed.");
+        setDeletingUser(false);
+        return;
+      }
+
+      // 2. Perform permanent force delete
       const response = await fetchWithAuth(
         `/api/users/forceDelete/${targetUser.user_Id}`,
         {
@@ -122,24 +141,24 @@ const ArchivedUsers = () => {
           message: `${targetUser.user_FirstName} ${targetUser.user_LastName} has been permanently removed.`,
           type: "success",
         });
+        setShowPermDelete(false);
+        setTargetUser(null);
+        setPermDeleteError("");
       } else {
         const errorData = await response.json();
-        setToast({
-          message: errorData.error || "Failed to delete user.",
-          type: "error",
-        });
+        setPermDeleteError(errorData.error || "Failed to permanently delete user.");
       }
     } catch (err) {
-      setToast({ message: "Network error.", type: "error" });
+      console.error("Permanent delete error:", err);
+      setPermDeleteError("Network error. Please try again.");
     } finally {
-      setLoading(false);
-      setShowPermDelete(false);
-      setTargetUser(null);
+      setDeletingUser(false);
     }
   };
 
   const initiatePermanentDelete = (user) => {
     setTargetUser(user);
+    setPermDeleteError("");
     setShowPermDelete(true);
   };
 
@@ -154,11 +173,23 @@ const ArchivedUsers = () => {
 
   // Filter and Search Logic
   const filteredUsers = archivedUsers.filter(u => {
-    const fullName = `${u.user_FirstName} ${u.user_LastName}`.toLowerCase();
+    const fullName = `${u.user_FirstName || ""} ${u.user_LastName || ""}`.toLowerCase();
+    const reverseName = `${u.user_LastName || ""} ${u.user_FirstName || ""}`.toLowerCase();
     const email = (u.user_Email || "").toLowerCase();
-    const query = searchQuery.toLowerCase();
+    const query = searchQuery.trim().toLowerCase();
+    const formattedId = formatUserId(u.user_Id).toLowerCase();
+    const idStr = String(u.user_Id || "");
+    const roleStr = (u.user_Role || "").toLowerCase();
+    const dateStr = u.deletedAt ? new Date(u.deletedAt).toLocaleDateString().toLowerCase() : "";
 
-    const matchesSearch = fullName.includes(query) || email.includes(query) || u.user_Id?.toString().includes(query);
+    const matchesSearch = !query ||
+      fullName.includes(query) ||
+      reverseName.includes(query) ||
+      email.includes(query) ||
+      idStr.includes(query) ||
+      formattedId.includes(query) ||
+      roleStr.includes(query) ||
+      dateStr.includes(query);
     const matchesRole = roleFilter === "All Roles" || u.user_Role === roleFilter;
     const matchesStatus = statusFilter === "All Statuses" || u.user_EmploymentStatus === statusFilter;
 
@@ -299,7 +330,7 @@ const ArchivedUsers = () => {
               <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
               <Input
                 type="text"
-                placeholder="Search by ID, Name, or Email..."
+                placeholder="Search by ID, Name, Role, or Email..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10 border-slate-200 focus-visible:ring-brand-primary w-full"
@@ -500,10 +531,18 @@ const ArchivedUsers = () => {
       
       <PermanentDeleteModal
         isOpen={showPermDelete}
-        onClose={() => setShowPermDelete(false)}
+        onClose={() => {
+          if (!deletingUser) {
+            setShowPermDelete(false);
+            setTargetUser(null);
+            setPermDeleteError("");
+          }
+        }}
         onConfirm={handleActualPermanentDelete}
         itemName={targetUser ? `${targetUser.user_FirstName} ${targetUser.user_LastName}` : ""}
-        loading={loading}
+        loading={deletingUser}
+        error={permDeleteError}
+        onClearError={() => setPermDeleteError("")}
       />
 
       <RestoreUserModal

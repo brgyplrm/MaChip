@@ -71,7 +71,6 @@ const PayrollPeriod = () => {
 
   // Filter & Pagination States
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
@@ -372,26 +371,20 @@ const PayrollPeriod = () => {
   // --- Filtering & Pagination Logic ---
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, statusFilter, itemsPerPage]);
+  }, [searchQuery, itemsPerPage]);
 
   const handleClearFilters = () => {
     setSearchQuery("");
-    setStatusFilter("All");
     setCurrentPage(1);
   };
 
-  const isFiltering = searchQuery !== "" || statusFilter !== "All";
+  const isFiltering = searchQuery !== "";
 
   const filteredPayrolls = payrolls.filter(p => {
     const fullName = `${p.user_FirstName || p.userName} ${p.user_LastName || ""}`.toLowerCase();
     const formattedId = formatUserId(p.user_Id).toLowerCase();
     const query = searchQuery.toLowerCase();
-    const matchesSearch = fullName.includes(query) || formattedId.includes(query);
-
-    const status = (p.PaystatusName || p.statusName || "Draft").toLowerCase();
-    const matchesStatus = statusFilter === "All" || status === statusFilter.toLowerCase();
-
-    return matchesSearch && matchesStatus;
+    return fullName.includes(query) || formattedId.includes(query);
   });
 
   const totalItems = filteredPayrolls.length;
@@ -682,22 +675,8 @@ const PayrollPeriod = () => {
               />
             </div>
             
-            <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <FilterListIcon className="text-slate-400 h-5 w-5 hidden sm:block" />
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-full sm:w-[160px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors">
-                    <SelectValue placeholder="Filter by Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="All">All Statuses</SelectItem>
-                    <SelectItem value="Draft">Draft</SelectItem>
-                    <SelectItem value="Released">Released</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {isFiltering && (
+            {isFiltering && (
+              <div className="flex items-center gap-3 w-full xl:w-auto">
                 <Button 
                   variant="ghost" 
                   onClick={handleClearFilters}
@@ -706,8 +685,8 @@ const PayrollPeriod = () => {
                   <CloseIcon className="h-4 w-4 mr-1" />
                   Clear
                 </Button>
-              )}
-            </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -771,7 +750,6 @@ const PayrollPeriod = () => {
                         </Tooltip>
                       </div>
                     </TableHead>
-                    <TableHead className="font-semibold text-white py-4">STATUS</TableHead>
                     <TableHead className="font-semibold text-white py-4 text-right pr-6">ACTIONS</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -793,9 +771,6 @@ const PayrollPeriod = () => {
                       </TableCell>
                       <TableCell className="py-4">
                         <Skeleton className="h-4 w-20 bg-slate-200" />
-                      </TableCell>
-                      <TableCell className="py-4">
-                        <Skeleton className="h-6 w-16 bg-slate-200 rounded" />
                       </TableCell>
                       <TableCell className="py-4 text-right pr-6">
                         <div className="flex justify-end">
@@ -863,19 +838,12 @@ const PayrollPeriod = () => {
                         </Tooltip>
                       </div>
                     </TableHead>
-                    <TableHead className="font-semibold text-white py-4">STATUS</TableHead>
                     <TableHead className="font-semibold text-white py-4 text-right pr-6">ACTIONS</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {currentData.length > 0 ? (
                     currentData.map(p => {
-                      let badgeStyle = "bg-amber-100 text-amber-800 hover:bg-amber-200";
-                      const statusLabel = p.PaystatusName || p.statusName || "Draft";
-                      if (statusLabel.toLowerCase() === "released") {
-                        badgeStyle = "bg-green-100 text-green-800 hover:bg-green-200";
-                      }
-
                       const fixedBasic = p.potentialBasicPay ?? (p.totalScheduledDays && p.dailyRate ? p.totalScheduledDays * p.dailyRate : (p.dailyRate ? p.dailyRate * 13 : p.basicPay));
 
                       return (
@@ -888,11 +856,6 @@ const PayrollPeriod = () => {
                           <TableCell className="py-4 text-green-600 font-semibold">+₱{formatMoney(p.grossEarnings || p.totalEarnings)}</TableCell>
                           <TableCell className="py-4 text-red-500 font-semibold">-₱{formatMoney(p.totalDeductions)}</TableCell>
                           <TableCell className="py-4 font-bold text-slate-900">₱{formatMoney(p.netPay)}</TableCell>
-                          <TableCell className="py-4">
-                            <Badge variant="secondary" className={`font-semibold uppercase tracking-wide ${badgeStyle}`}>
-                              {statusLabel}
-                            </Badge>
-                          </TableCell>
                           <TableCell className="py-4 text-right pr-6">
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -914,7 +877,7 @@ const PayrollPeriod = () => {
                     })
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
+                      <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
                         <div className="flex flex-col items-center justify-center space-y-1">
                           <SearchIcon className="h-8 w-8 text-slate-300 mb-2" />
                           <span className="font-semibold text-slate-600">No payroll records found</span>

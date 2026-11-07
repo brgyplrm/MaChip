@@ -221,13 +221,27 @@ const AdminLoanEnrollment = () => {
 
     // Search Query
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
+      const query = searchQuery.toLowerCase().trim();
+      const reqIdStr = String(req.emp_reqId || "");
+      const prefixedReqId = `req-${reqIdStr}`.toLowerCase();
+      const formattedId = req.user_Id ? formatUserId(req.user_Id).toLowerCase() : "";
+      const rawId = String(req.user_Id || "");
+      const userName = (req.userName || "").toLowerCase();
+      const agency = (req.LR_agency || "").toLowerCase();
+      const loanType = (req.LR_loanType || "").toLowerCase();
+      const statusText = (req.statusName || (req.emp_reqStatusId === 1 ? "pending" : req.emp_reqStatusId === 2 ? "approved" : req.emp_reqStatusId === 3 ? "rejected" : req.emp_reqStatusId === 5 ? "returned" : "")).toLowerCase();
+      const principalStr = req.LR_amount ? String(req.LR_amount) : "";
+
       const matchesSearch =
-        req.userName?.toLowerCase().includes(query) ||
-        req.emp_reqId?.toString().includes(query) ||
-        (req.user_Id && formatUserId(req.user_Id).toLowerCase().includes(query)) ||
-        req.LR_agency?.toLowerCase().includes(query) ||
-        req.LR_loanType?.toLowerCase().includes(query);
+        userName.includes(query) ||
+        reqIdStr.includes(query) ||
+        prefixedReqId.includes(query) ||
+        formattedId.includes(query) ||
+        rawId.includes(query) ||
+        agency.includes(query) ||
+        loanType.includes(query) ||
+        statusText.includes(query) ||
+        principalStr.includes(query);
 
       if (!matchesSearch) return false;
     }

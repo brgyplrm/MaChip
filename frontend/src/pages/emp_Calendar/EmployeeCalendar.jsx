@@ -626,9 +626,9 @@ const EmployeeCalendar = () => {
                     </CardHeader>
                     <CardContent className="h-[440px] pt-0 px-0">
                       <Tabs defaultValue="leave" className="w-full h-full flex flex-col">
-                        <TabsList className="grid w-[90%] mx-auto grid-cols-2 mb-4">
-                          <TabsTrigger value="leave">Leaves</TabsTrigger>
-                          <TabsTrigger value="ot">Overtime</TabsTrigger>
+                        <TabsList className="grid w-[90%] mx-auto grid-cols-2 h-10 bg-slate-200/60 p-0.5 rounded-lg mb-4">
+                          <TabsTrigger value="leave" className="data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md">Leaves</TabsTrigger>
+                          <TabsTrigger value="ot" className="data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md">Overtime</TabsTrigger>
                         </TabsList>
                         
                         <div className="flex-1 overflow-y-auto custom-scrollbar px-4">
@@ -728,9 +728,9 @@ const EmployeeCalendar = () => {
                     </CardHeader>
                     <CardContent className="h-[440px] pt-0 px-0">
                       <Tabs defaultValue="field" className="w-full h-full flex flex-col">
-                        <TabsList className="grid w-[90%] mx-auto grid-cols-2 mb-2">
-                          <TabsTrigger value="field">Field Work</TabsTrigger>
-                          <TabsTrigger value="due">Due Dates</TabsTrigger>
+                        <TabsList className="grid w-[90%] mx-auto grid-cols-2 h-10 bg-slate-200/60 p-0.5 rounded-lg mb-2">
+                          <TabsTrigger value="field" className="data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md">Field Work</TabsTrigger>
+                          <TabsTrigger value="due" className="data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md">Due Dates</TabsTrigger>
                         </TabsList>
                         
                         <div className="flex-1 overflow-y-auto custom-scrollbar px-4">

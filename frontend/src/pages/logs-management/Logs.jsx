@@ -107,10 +107,9 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
 
   const systemDateKey = systemToday?.toDateString() || "";
   const period = useMemo(() => {
-    // If a specific date is filtered, show the period containing that date
-    const baseDate = filterDate ? new Date(filterDate) : systemToday;
-    return getCurrentPeriod(baseDate);
-  }, [systemDateKey, filterDate, getCurrentPeriod]);
+    // Lock period strictly to the current active payroll period based on system time
+    return getCurrentPeriod(systemToday);
+  }, [systemDateKey, systemToday, getCurrentPeriod]);
 
   const [users, setUsers] = useState([]);
 
@@ -334,15 +333,25 @@ const [endTime, setEndTime] = useState("");     // End time (HH:mm)
       }
   }
 
-    const query = searchQuery.toLowerCase();
-    const matchesSearch =
+    const query = searchQuery.toLowerCase().trim();
+    const formattedId = item.user_Id ? formatUserId(item.user_Id).toLowerCase() : "";
+    const rawId = String(item.user_Id || "");
+    const dateStr = item.log_Date ? String(item.log_Date).split('T')[0] : "";
+    const formattedDate = item.log_Date ? new Date(item.log_Date).toLocaleDateString().toLowerCase() : "";
+    const timeStr = (item.time || "").toLowerCase();
+
+    const matchesSearch = !query ||
       item.user_Id_formatted?.toLowerCase().includes(query) ||
-      item.user_Id?.toString().toLowerCase().includes(query) ||
+      formattedId.includes(query) ||
+      rawId.includes(query) ||
       item.fullName?.toLowerCase().includes(query) ||
       item.action?.toLowerCase().includes(query) ||
       item.log_type?.toLowerCase().includes(query) ||
       item.raw_log_type?.toLowerCase().includes(query) ||
-      item.machip_id?.toLowerCase().includes(query);
+      item.machip_id?.toLowerCase().includes(query) ||
+      dateStr.includes(query) ||
+      formattedDate.includes(query) ||
+      timeStr.includes(query);
 
     const matchesUser = selectedUser === "all" || item.user_Id?.toString() === selectedUser;
     
@@ -406,14 +415,32 @@ const sortedAndFilteredDayLogs = useMemo(() => {
     });
   }
   
-  const query = searchQuery.toLowerCase();
+  const query = searchQuery.toLowerCase().trim();
 
   return sortableItems.filter((item) => {
     // Basic Search & Status Filters
-    const matchesSearch = 
-      item.userName?.toLowerCase().includes(query) ||
-      item.user_Id?.toString().toLowerCase().includes(query) ||
-      item.status?.toLowerCase().includes(query);
+    const formattedId = item.user_Id ? formatUserId(item.user_Id).toLowerCase() : "";
+    const rawId = String(item.user_Id || "");
+    const userName = (item.userName || "").toLowerCase();
+    const statusStr = (item.status || "").toLowerCase();
+    const dateStr = item.log_Date ? String(item.log_Date).split('T')[0] : "";
+    const formattedDate = item.log_Date ? new Date(item.log_Date).toLocaleDateString().toLowerCase() : "";
+    const amIn = (item.morningIn || "").toLowerCase();
+    const amOut = (item.morningOut || "").toLowerCase();
+    const pmIn = (item.afternoonIn || "").toLowerCase();
+    const pmOut = (item.afternoonOut || "").toLowerCase();
+
+    const matchesSearch = !query ||
+      userName.includes(query) ||
+      rawId.includes(query) ||
+      formattedId.includes(query) ||
+      statusStr.includes(query) ||
+      dateStr.includes(query) ||
+      formattedDate.includes(query) ||
+      amIn.includes(query) ||
+      amOut.includes(query) ||
+      pmIn.includes(query) ||
+      pmOut.includes(query);
     
     const matchesStatus = statusFilter === "All" || item.status?.toLowerCase().includes(statusFilter.toLowerCase());
 
@@ -465,18 +492,141 @@ const sortedAndFilteredDayLogs = useMemo(() => {
   const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
   const currentData = activeData.slice(startIndex, endIndex);
 
-  // ------------------ STATISTICS CALCULATION ------------------
-  // Stats should reflect the entire period being viewed (Current or Filtered)
-  const stats = {
-    total: viewMode === "raw" ? logData.length : dayLogsData.length,
-    metric1: viewMode === "raw" 
-      ? logData.filter(l => l.log_type?.toLowerCase().includes("in")).length 
-      : dayLogsData.filter(l => l.status === "On Time" || l.status === "On-Field" || l.status === "On-time").length,
-    metric2: viewMode === "raw"
-      ? logData.filter(l => l.log_type?.toLowerCase().includes("out")).length
-      : dayLogsData.filter(l => l.status && !["On Time", "On-Field", "On-time"].includes(l.status)).length,
-    systemGenerated: logData.filter(l => l.log_type === "System Generated").length,
-  };
+  // ------------------ STATISTICS & KPI CALCULATION ------------------
+  const kpiStats = useMemo(() => {
+    if (viewMode === "raw") {
+      let data = logData;
+      if (selectedUser !== "all") {
+        data = data.filter(l => String(l.user_Id) === String(selectedUser));
+      }
+      if (filterDate) {
+        data = data.filter(l => String(l.log_Date).split('T')[0] === filterDate);
+      }
+
+      const totalLogs = data.length;
+      const inLogs = data.filter(l => l.log_type?.toLowerCase().includes("in") || [1, 3, 5, 10].includes(l.logged_StatusId));
+      const distinctUsers = new Set(data.map(l => l.user_Id).filter(Boolean)).size || 1;
+      const distinctDays = new Set(data.map(l => l.log_Date).filter(Boolean)).size || 1;
+
+      // 1. Avg Punches / Employee
+      const avgPunches = totalLogs > 0 
+        ? (selectedUser !== "all" ? (totalLogs / distinctDays).toFixed(1) : (totalLogs / distinctUsers).toFixed(1))
+        : "0.0";
+      const card1Subtitle = totalLogs === 0 
+        ? "No event scans recorded" 
+        : (selectedUser !== "all"
+          ? `Avg scans/day across ${distinctDays} ${distinctDays === 1 ? 'day' : 'days'}`
+          : `${totalLogs} scans across ${distinctUsers} active ${distinctUsers === 1 ? 'employee' : 'employees'}`);
+
+      // 2. Clock-In Compliance Rate
+      const onTimeIn = inLogs.filter(l => l.action === "On Time" || l.action === "On-Field" || l.action === "Present" || l.action === "Exempt").length;
+      const compliancePct = inLogs.length > 0 ? ((onTimeIn / inLogs.length) * 100).toFixed(1) : "0.0";
+      const card2Subtitle = inLogs.length === 0
+        ? "0 clock-in scans in this period"
+        : `${onTimeIn} on-time of ${inLogs.length} clock-in ${inLogs.length === 1 ? 'scan' : 'scans'}`;
+
+      // 3. Tardiness & Incidents Rate
+      const lateIn = inLogs.filter(l => l.action === "Late" || l.action === "Irregular").length;
+      const latePct = inLogs.length > 0 ? ((lateIn / inLogs.length) * 100).toFixed(1) : "0.0";
+      const card3Subtitle = inLogs.length === 0
+        ? "0 infractions recorded"
+        : `${lateIn} late clock-in ${lateIn === 1 ? 'incident' : 'incidents'}`;
+
+      // 4. Attendance Exceptions
+      const sysGenCount = data.filter(l => l.log_type === "System Generated" || l.logged_StatusId === 7).length;
+      const irregularCount = data.filter(l => l.action === "Irregular" || l.attendance_StatusId === 8 || l.log_type?.toLowerCase().includes("irregular")).length;
+      const exceptions = sysGenCount + irregularCount;
+      const card4Subtitle = exceptions === 0
+        ? "Clean records (no flags)"
+        : `${sysGenCount} auto-marks, ${irregularCount} irregular scans`;
+
+      return {
+        avgPunches,
+        compliancePct,
+        latePct,
+        exceptions,
+        card1Subtitle,
+        card2Subtitle,
+        card3Subtitle,
+        card4Subtitle
+      };
+    } else {
+      // Day Summaries View
+      let data = dayLogsData;
+      if (selectedUser !== "all") {
+        data = data.filter(d => String(d.user_Id) === String(selectedUser));
+      }
+      if (filterDate) {
+        data = data.filter(d => String(d.log_Date).split('T')[0] === filterDate);
+      }
+
+      const totalDays = data.length;
+      let totalPunches = 0;
+      let onTimeCount = 0;
+      let lateCount = 0;
+      let absentCount = 0;
+      let undertimeCount = 0;
+      let exceptionCount = 0;
+
+      data.forEach(d => {
+        if (d.morning_In && d.morning_In !== "—") totalPunches++;
+        if (d.morning_Out && d.morning_Out !== "—") totalPunches++;
+        if (d.afternoon_In && d.afternoon_In !== "—") totalPunches++;
+        if (d.afternoon_Out && d.afternoon_Out !== "—") totalPunches++;
+        if (d.ot_In && d.ot_In !== "—") totalPunches++;
+        if (d.ot_Out && d.ot_Out !== "—") totalPunches++;
+
+        const status = (d.status || "").toLowerCase();
+        if (status.includes("on time") || status.includes("on-field") || status.includes("present") || status.includes("exempt")) {
+          onTimeCount++;
+        } else if (status.includes("late")) {
+          lateCount++;
+        } else if (status.includes("absent")) {
+          absentCount++;
+        } else if (status.includes("undertime") || status.includes("half day")) {
+          undertimeCount++;
+        }
+
+        const isUnclosed = d.morning_In && d.morning_In !== "—" && (!d.afternoon_Out || d.afternoon_Out === "—") && (!d.time_Out || d.time_Out === "—");
+        if (d.systemGenerated || status.includes("irregular") || isUnclosed) {
+          exceptionCount++;
+        }
+      });
+
+      const avgPunches = totalDays > 0 ? (totalPunches / totalDays).toFixed(1) : "0.0";
+      const card1Subtitle = totalDays === 0
+        ? "No day records in this period"
+        : (selectedUser !== "all"
+          ? `Avg punches/day across ${totalDays} ${totalDays === 1 ? 'day' : 'days'}`
+          : "Target: 4 punches/day (AM & PM)");
+
+      const compliancePct = totalDays > 0 ? ((onTimeCount / totalDays) * 100).toFixed(1) : "0.0";
+      const card2Subtitle = totalDays === 0
+        ? "0 day records in this period"
+        : `${onTimeCount} on-time of ${totalDays} day ${totalDays === 1 ? 'record' : 'records'}`;
+
+      const totalInfractions = lateCount + absentCount + undertimeCount;
+      const latePct = totalDays > 0 ? ((totalInfractions / totalDays) * 100).toFixed(1) : "0.0";
+      const card3Subtitle = totalDays === 0
+        ? "0 infractions recorded"
+        : `${lateCount} Late, ${absentCount} Absent${undertimeCount > 0 ? `, ${undertimeCount} UT` : ""}`;
+
+      const card4Subtitle = exceptionCount === 0
+        ? "All records regularized"
+        : "Auto-marks & missing tap-outs";
+
+      return {
+        avgPunches,
+        compliancePct,
+        latePct,
+        exceptions: exceptionCount,
+        card1Subtitle,
+        card2Subtitle,
+        card3Subtitle,
+        card4Subtitle
+      };
+    }
+  }, [viewMode, logData, dayLogsData, selectedUser, filterDate]);
 
   // State tracking visibility masking state mapped to log identifiers
 const [revealedMachipRows, setRevealedMachipRows] = useState({});
@@ -538,14 +688,14 @@ const toggleMachipVisibility = (rowId) => {
  
           {/* Statistics Cards */}
           <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full animate-in fade-in slide-in-from-bottom-2 duration-200">
-            {/* Card 1: Total Active Users */}
+            {/* Card 1: Avg Punches / Employee */}
             <Card className="border-t-5 border-brand-primary bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
-                <div className="flex flex-col justify-between">
+                <div className="flex flex-col justify-between w-full">
                   <div>
                     <div className="flex items-center gap-1.5 mb-2">
                       <p className="text-xs font-bold text-brand-primary uppercase tracking-wider">
-                        {viewMode === "raw" ? "Total Log Events" : "Total Day Records"}
+                        {viewMode === "raw" ? "Avg Punches / Employee" : "Avg Daily Punches"}
                       </p>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -553,28 +703,31 @@ const toggleMachipVisibility = (rowId) => {
                         </TooltipTrigger>
                         <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
                           {viewMode === "raw" 
-                            ? "Total clock-in/out logging events registered in this pay period." 
-                            : "Total day summary listings registered in this pay period."}
+                            ? "Average card/biometric punches per active employee in this period (standard policy expects 4.0 punches/day)." 
+                            : "Average punches recorded per employee-day across morning and afternoon shifts (standard policy expects 4 punches: In/Out for AM & PM)."}
                         </TooltipContent>
                       </Tooltip>
                     </div>
-                    <p className="text-4xl font-bold text-brand-primary">{stats.total}</p>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-4xl font-bold text-brand-primary">{kpiStats.avgPunches}</span>
+                      <span className="text-sm font-semibold text-brand-primary/60">/ 4.0</span>
+                    </div>
                   </div>
                   <p className="text-xs text-brand-primary/70 italic mt-4">
-                    {viewMode === "raw" ? "Total events captured in this period" : "All captured records for context"}
+                    {kpiStats.card1Subtitle}
                   </p>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Card 2: Employees */}
+            {/* Card 2: On-Time Attendance Rate */}
             <Card className="border-t-5 border-accent-green bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
-                <div className="flex flex-col justify-between">
+                <div className="flex flex-col justify-between w-full">
                   <div>
                     <div className="flex items-center gap-1.5 mb-2">
                       <p className="text-xs font-bold text-accent-green uppercase tracking-wider">
-                        {viewMode === "raw" ? "Clock In Events" : "On Time Days"}
+                        {viewMode === "raw" ? "Clock-In Compliance" : "On-Time Rate"}
                       </p>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -582,28 +735,31 @@ const toggleMachipVisibility = (rowId) => {
                         </TooltipTrigger>
                         <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
                           {viewMode === "raw" 
-                            ? "Total entry scans recorded in this period." 
-                            : "Total employee days arriving on or before the 8:00 AM shift start."}
+                            ? "Percentage of entry scans recorded on time on or before scheduled shift start." 
+                            : "Percentage of employee workdays completed on time without tardiness infractions."}
                         </TooltipContent>
                       </Tooltip>
                     </div>
-                    <p className="text-4xl font-bold text-accent-green">{stats.metric1}</p>
+                    <div className="flex items-baseline gap-0.5">
+                      <span className="text-4xl font-bold text-accent-green">{kpiStats.compliancePct}</span>
+                      <span className="text-xl font-bold text-accent-green/80">%</span>
+                    </div>
                   </div>
                   <p className="text-xs text-accent-green/70 italic mt-4">
-                    {viewMode === "raw" ? "Entry scans recorded in this period" : "Employees arriving on or before 8:00 AM"}
+                    {kpiStats.card2Subtitle}
                   </p>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Card 3: Late & Absent / Clock Out */}
+            {/* Card 3: Tardiness & Infraction Rate */}
             <Card className="border-t-5 border-accent-gold bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
-                <div className="flex flex-col justify-between">
+                <div className="flex flex-col justify-between w-full">
                   <div>
                     <div className="flex items-center gap-1.5 mb-2">
                       <p className="text-xs font-bold text-accent-gold uppercase tracking-wider">
-                        {viewMode === "raw" ? "Clock Out Events" : "Late & Absent"}
+                        {viewMode === "raw" ? "Tardiness & Incidents" : "Infraction Rate"}
                       </p>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -611,42 +767,52 @@ const toggleMachipVisibility = (rowId) => {
                         </TooltipTrigger>
                         <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
                           {viewMode === "raw" 
-                            ? "Total exit scans recorded in this period." 
-                            : "Total day records containing a Late or Absent infraction."}
+                            ? "Percentage of entry scans recorded late against scheduled shift start." 
+                            : "Percentage of day records containing late arrivals, absences, or undertime infractions."}
                         </TooltipContent>
                       </Tooltip>
                     </div>
-                    <p className="text-4xl font-bold text-accent-gold">{stats.metric2}</p>
+                    <div className="flex items-baseline gap-0.5">
+                      <span className="text-4xl font-bold text-accent-gold">{kpiStats.latePct}</span>
+                      <span className="text-xl font-bold text-accent-gold/80">%</span>
+                    </div>
                   </div>
                   <p className="text-xs text-accent-gold/70 italic mt-4">
-                    {viewMode === "raw" ? "Exit scans recorded in this period" : "Days recorded with infractions"}
+                    {kpiStats.card3Subtitle}
                   </p>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Card 4: System Generated Logs */}
+            {/* Card 4: Attendance Exceptions / Regularization */}
             <Card className="border-t-5 border-status-danger bg-white py-0 h-full">
               <CardContent className="px-5 py-5 flex justify-between h-full">
-                <div className="flex flex-col justify-between">
+                <div className="flex flex-col justify-between w-full">
                   <div>
                     <div className="flex items-center gap-1.5 mb-2">
                       <p className="text-xs font-bold text-status-danger uppercase tracking-wider">
-                        System Generated
+                        {viewMode === "raw" ? "Attendance Exceptions" : "Regularization Needed"}
                       </p>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-status-danger/60 hover:text-status-danger cursor-help" />
                         </TooltipTrigger>
                         <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
-                          Logs created automatically by the MAChip system (such as automated absence flags).
+                          {viewMode === "raw"
+                            ? "System-generated fallback scans and irregular punches requiring administrative review."
+                            : "Day records with automated system markers, irregular punches, or missing tap-outs requiring HR review."}
                         </TooltipContent>
                       </Tooltip>
                     </div>
-                    <p className="text-4xl font-bold text-status-danger">{stats.systemGenerated}</p>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-4xl font-bold text-status-danger">{kpiStats.exceptions}</span>
+                      <span className="text-sm font-semibold text-status-danger/70">
+                        {viewMode === "raw" ? "Flags" : "Records"}
+                      </span>
+                    </div>
                   </div>
                   <p className="text-xs text-status-danger/70 italic mt-4">
-                    System markers in this period
+                    {kpiStats.card4Subtitle}
                   </p>
                 </div>
               </CardContent>
@@ -663,7 +829,7 @@ const toggleMachipVisibility = (rowId) => {
                   <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
                   <Input
                     type="text"
-                    placeholder="Search logs..."
+                    placeholder="Search by ID, name, date, time, or status..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-10 border-slate-200 focus-visible:ring-brand-primary w-full"
@@ -685,71 +851,119 @@ const toggleMachipVisibility = (rowId) => {
                     </SelectContent>
                   </Select> */}
 
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-full sm:w-[150px] border-slate-200 bg-slate-50">
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="All">All {viewMode === "raw" ? "Types" : "Statuses"}</SelectItem>
-                      {viewMode === "raw" ? (
-                        <>
-                          <SelectItem value="Clock In">Clock In</SelectItem>
-                          <SelectItem value="Clock Out">Clock Out</SelectItem>
-                          <SelectItem value="Morning In">Morning In</SelectItem>
-                          <SelectItem value="Morning Out">Morning Out</SelectItem>
-                          <SelectItem value="Afternoon In">Afternoon In</SelectItem>
-                          <SelectItem value="Afternoon Out">Afternoon Out</SelectItem>
-                          <SelectItem value="System Generated">System Generated</SelectItem>
-                          <SelectItem value="Irregular">Irregular</SelectItem>
-                        </>
-                      ) : (
-                        <>
-                          <SelectItem value="On Time">On Time</SelectItem>
-                          <SelectItem value="Late">Late</SelectItem>
-                          <SelectItem value="Absent">Absent</SelectItem>
-                          <SelectItem value="On Leave">On Leave</SelectItem>
-                          <SelectItem value="On-Field">On-Field</SelectItem>
-                          <SelectItem value="Half Day">Half Day</SelectItem>
-                          <SelectItem value="Irregular">Irregular</SelectItem>
-                        </>
-                      )}
-                    </SelectContent>
-                  </Select>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div>
+                        <Select value={statusFilter} onValueChange={setStatusFilter}>
+                          <SelectTrigger className="w-full sm:w-[160px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer">
+                            <SelectValue placeholder="Status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="All" title="Show all event types and records">
+                              All {viewMode === "raw" ? "Types" : "Statuses"}
+                            </SelectItem>
+                            {viewMode === "raw" ? (
+                              <>
+                                <SelectItem value="Clock In" title="Standard morning or shift entry scans">Clock In</SelectItem>
+                                <SelectItem value="Clock Out" title="Standard exit or shift departure scans">Clock Out</SelectItem>
+                                <SelectItem value="Morning In" title="Morning entry punch">Morning In</SelectItem>
+                                <SelectItem value="Morning Out" title="Morning exit / lunch departure punch">Morning Out</SelectItem>
+                                <SelectItem value="Afternoon In" title="Afternoon entry / lunch return punch">Afternoon In</SelectItem>
+                                <SelectItem value="Afternoon Out" title="Afternoon end-of-day departure punch">Afternoon Out</SelectItem>
+                                <SelectItem value="System Generated" title="Automated entries created by MAChip (fallback auto-outs, leave markers)">System Generated</SelectItem>
+                                <SelectItem value="Irregular" title="Scans outside regular shifts, incidental card taps, or unpaired entries">Irregular</SelectItem>
+                              </>
+                            ) : (
+                              <>
+                                <SelectItem value="On Time" title="Shift arrivals recorded on or before scheduled start (8:00 AM)">On Time</SelectItem>
+                                <SelectItem value="Late" title="Arrivals recorded after grace period">Late</SelectItem>
+                                <SelectItem value="Absent" title="Unexcused non-attendance for scheduled workday">Absent</SelectItem>
+                                <SelectItem value="On Leave" title="Approved leave request (Vacation, Sick, Emergency, Statutory)">On Leave</SelectItem>
+                                <SelectItem value="On-Field" title="Approved official off-site work assignment (credits 8.0 hrs)">On-Field</SelectItem>
+                                <SelectItem value="Half Day" title="Approved half-day leave filing (credits 4.0 hrs)">Half Day</SelectItem>
+                                <SelectItem value="Irregular" title="Day records with abnormal punches requiring supervisor review">Irregular</SelectItem>
+                              </>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case text-xs">
+                      {viewMode === "raw" 
+                        ? "Filter logs by scan event type (Clock In, Out, System Generated, Irregular)" 
+                        : "Filter records by attendance status (On Time, Late, Absent, Leave, On-Field)"}
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
               </div>
 
               {/* Second Row: Specific Date & Time Filtering */}
               <div className="flex flex-col lg:flex-row items-center gap-4 pt-2 border-t border-slate-50">
                 <div className="flex flex-col w-full lg:w-auto">
-                  <Label className="text-[10px] uppercase font-bold text-slate-400 mb-1 ml-1">Specific Date</Label>
-                  <Input 
-                    type="date" 
-                    value={filterDate} 
-                    onChange={(e) => setFilterDate(e.target.value)}
-                    className="h-9 border-slate-200 bg-slate-50 w-full lg:w-[160px]"
-                  />
+                  <Label className="text-[10px] uppercase font-bold text-slate-400 mb-1 ml-1">Date (Current Period)</Label>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div>
+                        <Input 
+                          type="date" 
+                          value={filterDate} 
+                          min={period.startDate}
+                          max={period.endDate}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (!val) {
+                              setFilterDate("");
+                              return;
+                            }
+                            if (val < period.startDate || val > period.endDate) {
+                              setToast({ message: `Date must be within the current payroll period (${period.startDate} to ${period.endDate}).`, type: "warning" });
+                              return;
+                            }
+                            setFilterDate(val);
+                          }}
+                          className="h-9 border-slate-200 bg-slate-50 w-full lg:w-[170px]"
+                        />
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case text-xs">
+                      Filtering is restricted to the active payroll cutoff ({period.startDate} to {period.endDate}).
+                    </TooltipContent>
+                  </Tooltip>
+                  <span className="text-[10px] text-slate-400 mt-0.5 ml-1">
+                    Allowed: {period.startDate} to {period.endDate}
+                  </span>
                 </div>
 
-                <div className="flex items-end gap-2 w-full lg:w-auto">
-                  <div className="flex flex-col flex-1 lg:w-[120px]">
-                    <Label className="text-[10px] uppercase font-bold text-slate-400 mb-1 ml-1">Start Time</Label>
-                    <Input 
-                      type="time" 
-                      value={startTime} 
-                      onChange={(e) => setStartTime(e.target.value)}
-                      className="h-9 border-slate-200 bg-slate-50"
-                    />
-                  </div>
-                  <span className="mb-2 text-slate-300">—</span>
-                  <div className="flex flex-col flex-1 lg:w-[120px]">
-                    <Label className="text-[10px] uppercase font-bold text-slate-400 mb-1 ml-1">End Time</Label>
-                    <Input 
-                      type="time" 
-                      value={endTime} 
-                      onChange={(e) => setEndTime(e.target.value)}
-                      className="h-9 border-slate-200 bg-slate-50"
-                    />
-                  </div>
+                <div className="flex flex-col w-full lg:w-auto">
+                  <Label className="text-[10px] uppercase font-bold text-slate-400 mb-1 ml-1">Time Range (From — To)</Label>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-md px-2.5 h-9">
+                          <span className="text-[11px] font-semibold text-slate-500 uppercase">From</span>
+                          <Input 
+                            type="time" 
+                            value={startTime} 
+                            onChange={(e) => setStartTime(e.target.value)}
+                            className="h-7 w-[105px] border-0 bg-transparent p-0 focus-visible:ring-0 text-xs"
+                          />
+                        </div>
+                        <span className="text-xs font-semibold text-slate-400 uppercase">to</span>
+                        <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-md px-2.5 h-9">
+                          <span className="text-[11px] font-semibold text-slate-500 uppercase">To</span>
+                          <Input 
+                            type="time" 
+                            value={endTime} 
+                            onChange={(e) => setEndTime(e.target.value)}
+                            className="h-7 w-[105px] border-0 bg-transparent p-0 focus-visible:ring-0 text-xs"
+                          />
+                        </div>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case text-xs">
+                      Filter logs by clock-in/punch time between From (earliest) and To (latest).
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
 
                 <div className="flex gap-2 w-full lg:w-auto lg:ml-auto items-end h-full">

@@ -10,7 +10,6 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -35,7 +34,6 @@ import {
 
 export default function EmployeeSettings() {
   const currentUser = getStoredUser();
-  const [activeTab, setActiveTab] = useState("privacy");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -225,31 +223,7 @@ export default function EmployeeSettings() {
         </div>
       </div>
 
-      {/* Tabs Navigation */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid grid-cols-1 sm:grid-cols-3 bg-slate-100 p-1 rounded-xl h-auto border border-slate-200/80 gap-1">
-          <TabsTrigger
-            value="privacy"
-            className="flex items-center gap-2 py-2.5 text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-xs"
-          >
-            <ShieldCheck className="w-4 h-4 text-brand-primary" /> Privacy & Security Shield
-          </TabsTrigger>
-          <TabsTrigger
-            value="notifications"
-            className="flex items-center gap-2 py-2.5 text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-xs"
-          >
-            <Bell className="w-4 h-4 text-brand-primary" /> Notifications & Alerts
-          </TabsTrigger>
-          <TabsTrigger
-            value="hardware"
-            className="flex items-center gap-2 py-2.5 text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-xs"
-          >
-            <Cpu className="w-4 h-4 text-brand-primary" /> Hardware & Biometrics
-          </TabsTrigger>
-        </TabsList>
-
-        {/* ── Tab 1: Privacy & Security Shield ── */}
-        <TabsContent value="privacy" className="space-y-4 mt-6">
+      {/* ── Section 1: Privacy & Security Shield ── */}
           <Card className="border-slate-200 shadow-xs">
             <CardHeader className="pb-3 border-b border-slate-100">
               <div className="flex items-center justify-between">
@@ -351,10 +325,8 @@ export default function EmployeeSettings() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
 
-        {/* ── Tab 2: Notifications & Operational Alerts ── */}
-        <TabsContent value="notifications" className="space-y-4 mt-6">
+      {/* ── Section 2: Notifications & Operational Alerts ── */}
           <Card className="border-slate-200 shadow-xs">
             <CardHeader className="pb-3 border-b border-slate-100">
               <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -409,10 +381,8 @@ export default function EmployeeSettings() {
 
             </CardContent>
           </Card>
-        </TabsContent>
 
-        {/* ── Tab 3: Hardware & Biometrics Health Status ── */}
-        <TabsContent value="hardware" className="space-y-4 mt-6">
+      {/* ── Section 3: Hardware & Biometrics Health Status ── */}
           <Card className="border-slate-200 shadow-xs">
             <CardHeader className="pb-3 border-b border-slate-100">
               <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -503,8 +473,6 @@ export default function EmployeeSettings() {
 
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
 
       {/* Lost Card Modal */}
       <Dialog open={showLostCardModal} onOpenChange={setShowLostCardModal}>
