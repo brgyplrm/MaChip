@@ -194,29 +194,34 @@ export default function EmployeeSettings() {
   return (
     <div className="space-y-6">
       {/* Top Header Card */}
-      <div className="bg-gradient-to-r from-brand-primary/10 via-purple-50 to-white p-6 rounded-2xl border border-brand-primary/20 shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <h2 className="text-xl md:text-2xl font-extrabold text-brand-primary">Employee Self-Service & Preferences</h2>
-            <Badge variant="outline" className="bg-purple-100 text-brand-primary border-brand-primary/30 text-[10px] font-bold uppercase tracking-wider">
-              {userRoleBadge}
-            </Badge>
+      <div className="bg-brand-primary text-white rounded-xl p-6 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="flex items-start space-x-4">
+          <div className="p-3 bg-white/10 rounded-lg border border-white/10 shrink-0">
+            <UserCheck className="w-6 h-6 text-purple-200" />
           </div>
-          <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
-            Customize your public screen privacy shields, operational notifications, preferred attendance calendar views, and monitor hardware credential diagnostics.
-          </p>
+          <div>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-xl font-bold tracking-tight text-white">Employee Self-Service & Preferences</h1>
+              <Badge variant="outline" className="bg-white/20 text-white border-white/30 text-[11px] font-semibold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                {userRoleBadge}
+              </Badge>
+            </div>
+            <p className="text-sm text-purple-200/90 mt-1">
+              Customize your public screen privacy shields, operational notifications, preferred attendance calendar views, and monitor hardware credential diagnostics.
+            </p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3 shrink-0">
           {saveSuccess && (
-            <span className="flex items-center gap-1.5 text-xs text-emerald-600 font-bold bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg animate-in fade-in">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Preferences Saved!
+            <span className="flex items-center gap-1.5 text-xs text-emerald-300 font-bold bg-white/10 border border-white/20 px-3 py-1.5 rounded-lg animate-in fade-in">
+              <CheckCircle2 className="w-4 h-4 text-emerald-300" /> Preferences Saved!
             </span>
           )}
           <Button
             onClick={() => handleSavePreferences()}
             disabled={saving}
-            className="bg-brand-primary hover:bg-brand-primary/90 text-white font-bold text-xs h-10 px-5 shadow-xs cursor-pointer"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm h-10 px-5 shadow-sm rounded-lg transition-all cursor-pointer disabled:opacity-50"
           >
             {saving ? "Saving..." : "Save Preferences"}
           </Button>
@@ -224,255 +229,278 @@ export default function EmployeeSettings() {
       </div>
 
       {/* ── Section 1: Privacy & Security Shield ── */}
-          <Card className="border-slate-200 shadow-xs">
-            <CardHeader className="pb-3 border-b border-slate-100">
-              <div className="flex items-center justify-between">
+      <Card className="border border-slate-200/80 shadow-sm bg-white rounded-xl overflow-hidden">
+        <CardHeader className="bg-slate-50/70 border-b border-slate-100 p-5 flex flex-row items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200/60 flex items-center justify-center shrink-0">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <CardTitle className="text-base font-bold text-slate-900">
+                Public Screen Privacy Masking Shield (RA 10173 DPA)
+              </CardTitle>
+              <CardDescription className="text-xs text-slate-500 mt-0.5">
+                Prevents shoulder-surfing when accessing your account in shared office areas or on personal mobile devices.
+              </CardDescription>
+            </div>
+          </div>
+          <Switch
+            checked={privacyShield}
+            onCheckedChange={(val) => {
+              setPrivacyShield(val);
+              handleSavePreferences({ privacyShield: val });
+            }}
+          />
+        </CardHeader>
+        <CardContent className="p-6 space-y-6">
+          <p className="text-xs text-slate-600 leading-relaxed">
+            When enabled, sensitive compensation numbers, gross/net earnings, and bank accounts are automatically masked across all portal views. You can hover or click the reveal icon anytime to peek at values.
+          </p>
+
+          {/* Interactive Preview Box */}
+          <div className="bg-slate-50/80 p-5 rounded-xl border border-slate-200/80 space-y-3">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
+              Live Privacy Masking Simulation:
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-2xs flex justify-between items-center">
                 <div>
-                  <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-                    <ShieldCheck className="w-5 h-5 text-emerald-600" />
-                    Public Screen Privacy Masking Shield (RA 10173 DPA)
-                  </CardTitle>
-                  <CardDescription className="text-xs text-slate-500 mt-1">
-                    Prevents shoulder-surfing when accessing your account in shared office areas or on personal mobile devices.
-                  </CardDescription>
-                </div>
-                <Switch
-                  checked={privacyShield}
-                  onCheckedChange={(val) => {
-                    setPrivacyShield(val);
-                    handleSavePreferences({ privacyShield: val });
-                  }}
-                />
-              </div>
-            </CardHeader>
-            <CardContent className="pt-4 space-y-4 text-xs">
-              <p className="text-slate-600 leading-relaxed">
-                When enabled, sensitive compensation numbers, gross/net earnings, and bank accounts are automatically masked across all portal views. You can hover or click the reveal icon anytime to peek at values.
-              </p>
-
-              {/* Interactive Preview Box */}
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                  Live Privacy Masking Simulation:
-                </span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-2xs flex justify-between items-center">
-                    <div>
-                      <span className="text-[10px] text-slate-400 uppercase font-semibold">{netPayLabel}</span>
-                      <p className="font-bold text-sm text-slate-900">
-                        {displayNetPay}
-                      </p>
-                    </div>
-                    {privacyShield ? <EyeOff className="w-4 h-4 text-slate-400" /> : <Eye className="w-4 h-4 text-emerald-600" />}
-                  </div>
-
-                  <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-2xs flex justify-between items-center">
-                    <div>
-                      <span className="text-[10px] text-slate-400 uppercase font-semibold">Bank Account</span>
-                      <p className="font-mono font-bold text-sm text-slate-900">
-                        {displayAccount}
-                      </p>
-                    </div>
-                    {privacyShield ? <EyeOff className="w-4 h-4 text-slate-400" /> : <Eye className="w-4 h-4 text-emerald-600" />}
-                  </div>
-                </div>
-              </div>
-
-              {/* Data Access Transparency Card */}
-              <div className="p-4 rounded-xl bg-purple-50/60 border border-purple-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                <div className="space-y-0.5">
-                  <h4 className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
-                    <UserCheck className="w-4 h-4 text-brand-primary" />
-                    Data Access Transparency Log (&quot;Who Viewed My Data?&quot;)
-                  </h4>
-                  <p className="text-xs text-slate-500">
-                    Under RA 10173, inspect whenever HR or an administrator unmasks or views your personal data.
+                  <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">{netPayLabel}</span>
+                  <p className="font-mono font-bold text-base text-slate-900 mt-0.5">
+                    {displayNetPay}
                   </p>
                 </div>
+                <div className={privacyShield ? "text-slate-400" : "text-emerald-600"}>
+                  {privacyShield ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </div>
+              </div>
+
+              <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-2xs flex justify-between items-center">
+                <div>
+                  <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Bank Account</span>
+                  <p className="font-mono font-bold text-base text-slate-900 mt-0.5">
+                    {displayAccount}
+                  </p>
+                </div>
+                <div className={privacyShield ? "text-slate-400" : "text-emerald-600"}>
+                  {privacyShield ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Data Access Transparency Card */}
+          <div className="p-4 rounded-xl bg-gradient-to-r from-blue-50/50 to-slate-50/70 border border-blue-200/70 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-lg bg-white border border-blue-200 text-brand-primary flex items-center justify-center shrink-0 shadow-2xs">
+                <UserCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-bold text-slate-900 text-sm">Data Access Transparency Log (&quot;Who Viewed My Data?&quot;)</h4>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Under RA 10173, inspect whenever HR or an administrator unmasks or views your personal data.
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              asChild
+              className="bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-bold text-xs h-9 px-4 rounded-lg shadow-2xs transition-all shrink-0 cursor-pointer"
+            >
+              <Link to="/profile?tab=transparency">
+                <span>Open Transparency Hub</span>
+                <ExternalLink className="w-3.5 h-3.5 ml-1.5" />
+              </Link>
+            </Button>
+          </div>
+
+          {/* Active Session & Device Card */}
+          <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-200/80 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-600 shadow-2xs">
+                <Laptop className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="font-bold text-slate-900 text-xs">Web Portal Session (Current Device)</p>
+                <span className="text-[11px] text-slate-500 block">
+                  Logged in as {currentUser?.user_FirstName} {currentUser?.user_LastName} ({currentUser ? formatUserId(currentUser.user_Id) : "SYS"})
+                </span>
+              </div>
+            </div>
+            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300 text-[10px] font-bold uppercase px-2.5 py-1 rounded-full">
+              Active & Encrypted
+            </Badge>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Section 2: Notifications & Operational Alerts ── */}
+      <Card className="border border-slate-200/80 shadow-sm bg-white rounded-xl overflow-hidden">
+        <CardHeader className="bg-slate-50/70 border-b border-slate-100 p-5 flex flex-row items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-brand-primary-light text-brand-primary flex items-center justify-center shrink-0">
+              <Bell className="w-5 h-5" />
+            </div>
+            <div>
+              <CardTitle className="text-base font-bold text-slate-900">
+                Operational Notification Preferences
+              </CardTitle>
+              <CardDescription className="text-xs text-slate-500 mt-0.5">
+                Choose which instant notifications and alerts you receive while working in the portal.
+              </CardDescription>
+            </div>
+          </div>
+          <Badge variant="outline" className="text-xs font-semibold text-slate-500 bg-slate-100 border-slate-200 px-2.5 py-1 rounded-md">
+            Alerts
+          </Badge>
+        </CardHeader>
+        <CardContent className="p-6 space-y-4">
+          
+          <div className="p-4 bg-white rounded-xl border border-slate-200/80 hover:bg-slate-50/50 transition-colors flex items-center justify-between gap-4">
+            <div>
+              <Label className="font-bold text-slate-900 text-sm">Instant Payslip Release Notification</Label>
+              <p className="text-slate-500 text-xs mt-0.5">
+                Receive an immediate popup alert the moment the accounting cutoff transitions your payslip to Released.
+              </p>
+            </div>
+            <Switch checked={notifyPayslipRelease} onCheckedChange={setNotifyPayslipRelease} />
+          </div>
+
+          <div className="p-4 bg-white rounded-xl border border-slate-200/80 hover:bg-slate-50/50 transition-colors flex items-center justify-between gap-4">
+            <div>
+              <Label className="font-bold text-slate-900 text-sm">Attendance Anomaly & Missing Punch Alert</Label>
+              <p className="text-slate-500 text-xs mt-0.5">
+                Pings you if your daily record shows a missing punch-out, allowing you to file a Time Adjustment immediately.
+              </p>
+            </div>
+            <Switch checked={notifyAttendanceAnomaly} onCheckedChange={setNotifyAttendanceAnomaly} />
+          </div>
+
+          <div className="p-4 bg-white rounded-xl border border-slate-200/80 hover:bg-slate-50/50 transition-colors flex items-center justify-between gap-4">
+            <div>
+              <Label className="font-bold text-slate-900 text-sm">Request Status Lifecycle Updates</Label>
+              <p className="text-slate-500 text-xs mt-0.5">
+                Notifies you when Leave, Overtime, or Cash Advance requests are approved, endorsed, or returned with feedback.
+              </p>
+            </div>
+            <Switch checked={notifyRequestLifecycle} onCheckedChange={setNotifyRequestLifecycle} />
+          </div>
+
+          <div className="p-4 bg-white rounded-xl border border-slate-200/80 hover:bg-slate-50/50 transition-colors flex items-center justify-between gap-4">
+            <div>
+              <Label className="font-bold text-slate-900 text-sm">Pre-Cutoff Deduction Preview Alert</Label>
+              <p className="text-slate-500 text-xs mt-0.5">
+                Sends a 3-day preview of scheduled loan amortizations (SSS, Pag-IBIG, Cash Advances) ahead of payout day.
+              </p>
+            </div>
+            <Switch checked={notifyLoanPreview} onCheckedChange={setNotifyLoanPreview} />
+          </div>
+
+        </CardContent>
+      </Card>
+
+      {/* ── Section 3: Hardware & Biometrics Health Status ── */}
+      <Card className="border border-slate-200/80 shadow-sm bg-white rounded-xl overflow-hidden">
+        <CardHeader className="bg-slate-50/70 border-b border-slate-100 p-5 flex flex-row items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 border border-blue-200/60 flex items-center justify-center shrink-0">
+              <Cpu className="w-5 h-5" />
+            </div>
+            <div>
+              <CardTitle className="text-base font-bold text-slate-900">
+                Physical Hardware & Biometric Health (CTPAT Access Control)
+              </CardTitle>
+              <CardDescription className="text-xs text-slate-500 mt-0.5">
+                Inspect the operational status of your assigned RFID badge card and enrolled biometric fingerprint sensor template.
+              </CardDescription>
+            </div>
+          </div>
+          <Badge variant="outline" className="text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-md">
+            Node 01 Synced
+          </Badge>
+        </CardHeader>
+        <CardContent className="p-6 space-y-4">
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* RFID Card Health Card */}
+            <div className="bg-slate-50/80 p-5 rounded-xl border border-slate-200/80 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-slate-900 text-xs flex items-center gap-2">
+                  <CreditCardIcon className="w-4 h-4 text-brand-primary" /> RFID Turnstile Badge
+                </span>
+                <Badge variant="outline" className={machipUid ? "bg-emerald-50 text-emerald-700 border-emerald-300 text-[10px] font-bold uppercase" : "bg-amber-50 text-amber-800 border-amber-300 text-[10px] font-bold uppercase"}>
+                  {machipUid ? "Active & Enrolled" : "Not Enrolled"}
+                </Badge>
+              </div>
+
+              <div className="space-y-1">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Badge Identifier</span>
+                <p className="font-mono font-bold text-sm text-slate-900">
+                  {displayRfid}
+                </p>
+                <span className="text-[11px] text-slate-500 block">
+                  {machipUid ? "Enrolled on ESP32 / MFRC522 Turnstile Reader" : "Visit HR office to enroll physical RFID card"}
+                </span>
+              </div>
+
+              <div className="pt-3 border-t border-slate-200 flex justify-end">
                 <Button
                   variant="outline"
                   size="sm"
-                  asChild
-                  className="border-brand-primary/30 text-brand-primary hover:bg-brand-primary/10 font-bold text-xs h-9 cursor-pointer shrink-0"
+                  onClick={() => setShowLostCardModal(true)}
+                  disabled={!machipUid}
+                  className="border-rose-200 text-rose-700 hover:bg-rose-50 font-bold text-xs h-8 px-3 rounded-lg cursor-pointer disabled:opacity-50"
                 >
-                  <Link to="/profile?tab=transparency">
-                    Open Transparency Hub <ExternalLink className="w-3.5 h-3.5 ml-1.5" />
-                  </Link>
+                  Report Lost / Stolen Badge
                 </Button>
               </div>
+            </div>
 
-              {/* Active Session & Device Card */}
-              <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-2">
-                <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider text-slate-500">
-                  Current Active Session
-                </h4>
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pt-1">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600 shrink-0">
-                      <Laptop className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="font-bold text-slate-900 text-xs">Web Portal Session (Current Device)</p>
-                      <span className="text-[11px] text-slate-500 block">
-                        Logged in as {currentUser?.user_FirstName} {currentUser?.user_LastName} ({currentUser ? formatUserId(currentUser.user_Id) : "SYS"})
-                      </span>
-                    </div>
-                  </div>
-                  <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 text-[10px] font-bold uppercase">
-                    Active & Encrypted
-                  </Badge>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-      {/* ── Section 2: Notifications & Operational Alerts ── */}
-          <Card className="border-slate-200 shadow-xs">
-            <CardHeader className="pb-3 border-b border-slate-100">
-              <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Bell className="w-5 h-5 text-brand-primary" />
-                Operational Notification Preferences
-              </CardTitle>
-              <CardDescription className="text-xs text-slate-500">
-                Choose which instant notifications and alerts you receive while working in the portal.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-4 divide-y divide-slate-100 text-xs">
-              
-              <div className="py-3.5 flex items-center justify-between gap-4">
-                <div className="space-y-0.5">
-                  <Label className="font-bold text-slate-900 text-xs">Instant Payslip Release Notification</Label>
-                  <p className="text-slate-500 text-[11px]">
-                    Receive an immediate popup alert the moment the accounting cutoff transitions your payslip to Released.
-                  </p>
-                </div>
-                <Switch checked={notifyPayslipRelease} onCheckedChange={setNotifyPayslipRelease} />
+            {/* Biometric Sensor Status Card */}
+            <div className="bg-slate-50/80 p-5 rounded-xl border border-slate-200/80 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-slate-900 text-xs flex items-center gap-2">
+                  <FingerprintIcon className="w-4 h-4 text-emerald-600" /> Optical Fingerprint
+                </span>
+                <Badge variant="outline" className={fpSlot !== null ? "bg-emerald-50 text-emerald-700 border-emerald-300 text-[10px] font-bold uppercase" : "bg-slate-200 text-slate-700 border-slate-300 text-[10px] font-bold uppercase"}>
+                  {fpSlot !== null ? "Sensor Synced" : "Not Enrolled"}
+                </Badge>
               </div>
 
-              <div className="py-3.5 flex items-center justify-between gap-4">
-                <div className="space-y-0.5">
-                  <Label className="font-bold text-slate-900 text-xs">Attendance Anomaly & Missing Punch Alert</Label>
-                  <p className="text-slate-500 text-[11px]">
-                    Pings you if your daily record shows a missing punch-out, allowing you to file a Time Adjustment immediately.
-                  </p>
-                </div>
-                <Switch checked={notifyAttendanceAnomaly} onCheckedChange={setNotifyAttendanceAnomaly} />
+              <div className="space-y-1">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Sensor Template Slot</span>
+                <p className="font-mono font-bold text-sm text-slate-900">
+                  {displayFingerprint}
+                </p>
+                <span className="text-[11px] text-slate-500 block">
+                  {fpSlot !== null ? "Biometric template secured on terminal storage" : "No fingerprint template enrolled in optical sensor"}
+                </span>
               </div>
 
-              <div className="py-3.5 flex items-center justify-between gap-4">
-                <div className="space-y-0.5">
-                  <Label className="font-bold text-slate-900 text-xs">Request Status Lifecycle Updates</Label>
-                  <p className="text-slate-500 text-[11px]">
-                    Notifies you when Leave, Overtime, or Cash Advance requests are approved, endorsed, or returned with feedback.
-                  </p>
-                </div>
-                <Switch checked={notifyRequestLifecycle} onCheckedChange={setNotifyRequestLifecycle} />
+              <div className="pt-3 border-t border-slate-200 flex justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowRescanModal(true)}
+                  className="border-slate-300 text-slate-700 hover:bg-slate-100 font-bold text-xs h-8 px-3 rounded-lg cursor-pointer"
+                >
+                  Request Sensor Re-Scan
+                </Button>
               </div>
+            </div>
+          </div>
 
-              <div className="py-3.5 flex items-center justify-between gap-4">
-                <div className="space-y-0.5">
-                  <Label className="font-bold text-slate-900 text-xs">Pre-Cutoff Deduction Preview Alert</Label>
-                  <p className="text-slate-500 text-[11px]">
-                    Sends a 3-day preview of scheduled loan amortizations (SSS, Pag-IBIG, Cash Advances) ahead of payout day.
-                  </p>
-                </div>
-                <Switch checked={notifyLoanPreview} onCheckedChange={setNotifyLoanPreview} />
-              </div>
+          {ticketSubmitted && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl flex items-center gap-2 text-xs font-semibold animate-in fade-in">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{ticketSubmitted}</span>
+            </div>
+          )}
 
-            </CardContent>
-          </Card>
+        </CardContent>
+      </Card>
 
-      {/* ── Section 3: Hardware & Biometrics Health Status ── */}
-          <Card className="border-slate-200 shadow-xs">
-            <CardHeader className="pb-3 border-b border-slate-100">
-              <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Cpu className="w-5 h-5 text-blue-600" />
-                Physical Hardware & Biometric Health (CTPAT Access Control)
-              </CardTitle>
-              <CardDescription className="text-xs text-slate-500">
-                Inspect the operational status of your assigned RFID badge card and enrolled biometric fingerprint sensor template.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-4 space-y-4 text-xs">
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* RFID Card Health Card */}
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
-                      <CreditCardIcon className="w-4 h-4 text-brand-primary" /> RFID Card Badge
-                    </span>
-                    <Badge className={machipUid ? "bg-emerald-100 text-emerald-800 border-emerald-300 text-[10px] font-bold uppercase" : "bg-amber-100 text-amber-800 border-amber-300 text-[10px] font-bold uppercase"}>
-                      {machipUid ? "Active & Enrolled" : "Not Enrolled"}
-                    </Badge>
-                  </div>
-
-                  <div className="space-y-1">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Badge Identifier</span>
-                    <p className="font-mono font-bold text-sm text-slate-900">
-                      {displayRfid}
-                    </p>
-                    <span className="text-[11px] text-slate-500 block">
-                      {machipUid ? "Enrolled on ESP32 / MFRC522 Turnstile Reader" : "Visit HR office to enroll physical RFID card"}
-                    </span>
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-200 flex justify-end">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowLostCardModal(true)}
-                      disabled={!machipUid}
-                      className="border-rose-300 text-rose-700 hover:bg-rose-50 font-bold text-xs h-8 cursor-pointer disabled:opacity-50"
-                    >
-                      Report Lost / Stolen Badge
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Biometric Sensor Status Card */}
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
-                      <FingerprintIcon className="w-4 h-4 text-emerald-600" /> Optical Fingerprint
-                    </span>
-                    <Badge className={fpSlot !== null ? "bg-emerald-100 text-emerald-800 border-emerald-300 text-[10px] font-bold uppercase" : "bg-slate-200 text-slate-700 border-slate-300 text-[10px] font-bold uppercase"}>
-                      {fpSlot !== null ? "Sensor Synced" : "Not Enrolled"}
-                    </Badge>
-                  </div>
-
-                  <div className="space-y-1">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Sensor Template Slot</span>
-                    <p className="font-mono font-bold text-sm text-slate-900">
-                      {displayFingerprint}
-                    </p>
-                    <span className="text-[11px] text-slate-500 block">
-                      {fpSlot !== null ? "Biometric template secured on sensor hardware" : "No fingerprint template enrolled in optical sensor"}
-                    </span>
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-200 flex justify-end">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowRescanModal(true)}
-                      className="border-slate-300 text-slate-700 hover:bg-slate-100 font-bold text-xs h-8 cursor-pointer"
-                    >
-                      Request Sensor Re-Scan
-                    </Button>
-                  </div>
-                </div>
-              </div>
-
-              {ticketSubmitted && (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl flex items-center gap-2 text-xs font-semibold">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>{ticketSubmitted}</span>
-                </div>
-              )}
-
-            </CardContent>
-          </Card>
 
       {/* Lost Card Modal */}
       <Dialog open={showLostCardModal} onOpenChange={setShowLostCardModal}>

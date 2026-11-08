@@ -707,7 +707,7 @@ const AdminRequests = () => {
                 <div className="flex flex-col justify-between w-full">
                   <div>
                     <div className="flex items-center gap-1.5 mb-2">
-                      <p className="text-xs font-bold text-accent-gold uppercase tracking-wider">Declined & Returned</p>
+                      <p className="text-xs font-bold text-accent-gold uppercase tracking-wider">Disapproved</p>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <HelpOutlineIcon sx={{ fontSize: 14 }} className="text-accent-gold/60 hover:text-accent-gold cursor-help" />

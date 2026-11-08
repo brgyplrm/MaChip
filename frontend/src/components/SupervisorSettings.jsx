@@ -165,29 +165,34 @@ export default function SupervisorSettings() {
   return (
     <div className="space-y-6">
       {/* Top Header Card */}
-      <div className="bg-gradient-to-r from-amber-500/10 via-amber-50 to-white p-6 rounded-2xl border border-amber-500/20 shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <h2 className="text-xl md:text-2xl font-extrabold text-slate-900">Supervisor Operations & Team Settings</h2>
-            <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 text-[10px] font-bold uppercase tracking-wider">
-              {userRoleBadge}
-            </Badge>
+      <div className="bg-brand-primary text-white rounded-xl p-6 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="flex items-start space-x-4">
+          <div className="p-3 bg-white/10 rounded-lg border border-white/10 shrink-0">
+            <Users className="w-6 h-6 text-purple-200" />
           </div>
-          <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
-            Configure departmental staffing coverage thresholds, approval notification routing, and personal privacy controls.
-          </p>
+          <div>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-xl font-bold tracking-tight text-white">Supervisor Operations & Team Settings</h1>
+              <Badge variant="outline" className="bg-white/20 text-white border-white/30 text-[11px] font-semibold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                {userRoleBadge}
+              </Badge>
+            </div>
+            <p className="text-sm text-purple-200/90 mt-1">
+              Configure departmental staffing coverage thresholds, approval notification routing, and personal privacy controls.
+            </p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3 shrink-0">
           {saveSuccess && (
-            <span className="flex items-center gap-1.5 text-xs text-emerald-600 font-bold bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg animate-in fade-in">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Settings Saved!
+            <span className="flex items-center gap-1.5 text-xs text-emerald-300 font-bold bg-white/10 border border-white/20 px-3 py-1.5 rounded-lg animate-in fade-in">
+              <CheckCircle2 className="w-4 h-4 text-emerald-300" /> Settings Saved!
             </span>
           )}
           <Button
             onClick={() => handleSavePreferences()}
             disabled={saving}
-            className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs h-10 px-5 shadow-xs cursor-pointer"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm h-10 px-5 shadow-sm rounded-lg transition-all cursor-pointer disabled:opacity-50"
           >
             {saving ? "Saving..." : "Save Settings"}
           </Button>
@@ -195,227 +200,302 @@ export default function SupervisorSettings() {
       </div>
 
       {/* ── Section 1: Team & Shift Rules ── */}
-          <Card className="border-slate-200 shadow-xs">
-            <CardHeader className="pb-3 border-b border-slate-100">
-              <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Users className="w-5 h-5 text-amber-600" />
-                Team Staffing Coverage & Shift Threshold Safeguards
+      <Card className="border border-slate-200/80 shadow-sm bg-white rounded-xl overflow-hidden">
+        <CardHeader className="bg-slate-50/70 border-b border-slate-100 p-5 flex flex-row items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-brand-primary-light text-brand-primary flex items-center justify-center shrink-0">
+              <Users className="w-5 h-5" />
+            </div>
+            <div>
+              <CardTitle className="text-base font-bold text-slate-900">
+                Team Staffing Coverage & Shift Safeguards
               </CardTitle>
-              <CardDescription className="text-xs text-slate-500">
+              <CardDescription className="text-xs text-slate-500 mt-0.5">
                 Protect warehouse and logistics operations from under-staffing during peak shipping cutoffs.
               </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-4 space-y-4 text-xs">
-              
-              {/* Coverage Alert Slider */}
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+            </div>
+          </div>
+          <Badge variant="outline" className="text-xs font-semibold text-slate-500 bg-slate-100 border-slate-200 px-2.5 py-1 rounded-md">
+            Live Safeguard
+          </Badge>
+        </CardHeader>
+        <CardContent className="p-6 space-y-6">
+          
+          {/* Coverage Alert Slider */}
+          <div className="bg-slate-50/70 p-5 rounded-xl border border-slate-200/80 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="font-bold text-slate-900 text-sm">Workforce Absence Threshold Warning</Label>
+                <p className="text-slate-500 text-xs mt-0.5">
+                  Warns before approving subordinate leaves that leave your department under-staffed.
+                </p>
+              </div>
+              <span className="font-mono font-bold text-sm text-brand-primary bg-brand-primary-light border border-brand-primary/20 px-3 py-1 rounded-lg">
+                {minimumStaffingThreshold}%
+              </span>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <span className="text-xs text-slate-400 font-bold">10%</span>
+              <input
+                type="range"
+                min="10"
+                max="50"
+                step="5"
+                value={minimumStaffingThreshold}
+                onChange={(e) => setMinimumStaffingThreshold(parseInt(e.target.value, 10))}
+                className="w-full accent-[#1058c7] cursor-pointer"
+              />
+              <span className="text-xs text-slate-400 font-bold">50%</span>
+            </div>
+
+            <div className="p-3.5 rounded-lg bg-amber-50/80 border border-amber-200/90 text-amber-900 flex items-start gap-2.5 text-xs leading-relaxed">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <span>
+                When reviewing Leave requests, the system checks current shift schedule density. If scheduled absences exceed <strong>{minimumStaffingThreshold}%</strong>, an approval confirmation modal prompts for staffing coverage justification.
+              </span>
+            </div>
+          </div>
+
+          {/* Irregularities First Toggle */}
+          <div className="p-4 bg-white rounded-xl border border-slate-200/80 hover:bg-slate-50/50 transition-colors flex items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600 shrink-0 mt-0.5">
+                <Users className="w-4 h-4" />
+              </div>
+              <div>
+                <Label className="font-bold text-slate-900 text-sm">Default &quot;Irregularities First&quot; Attendance View</Label>
+                <p className="text-slate-500 text-xs mt-0.5">
+                  Automatically prioritize subordinate rows with missing punches, tardiness, or unscheduled absences to the top of your team attendance roster.
+                </p>
+              </div>
+            </div>
+            <Switch checked={irregularitiesFirst} onCheckedChange={setIrregularitiesFirst} />
+          </div>
+
+          {/* Department Shift Rules (Dynamic Sync) */}
+          <div className="space-y-3 pt-2">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-brand-primary" />
+                Active Departmental Shift Parameters (Governing Subordinates)
+              </h3>
+              <span className="text-[11px] font-medium text-brand-primary bg-brand-primary-light px-2.5 py-0.5 rounded-full">
+                Synced with System Settings
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Morning Shift Card */}
+              <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80 space-y-2">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <Label className="font-bold text-slate-900 text-xs">Minimum Workforce Absence Threshold Warning</Label>
-                    <p className="text-slate-500 text-[11px] mt-0.5">
-                      Warns before approving subordinate leaves that leave your department below this capacity.
-                    </p>
-                  </div>
-                  <span className="font-mono font-bold text-sm text-amber-800 bg-amber-100 border border-amber-200 px-3 py-1 rounded-lg">
-                    {minimumStaffingThreshold}%
-                  </span>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Standard Morning Shift</span>
+                  <Badge variant="outline" className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border-emerald-200">
+                    Active Routine
+                  </Badge>
                 </div>
-
-                <div className="flex items-center gap-3">
-                  <span className="text-[10px] text-slate-400 font-bold">10%</span>
-                  <input
-                    type="range"
-                    min="10"
-                    max="50"
-                    step="5"
-                    value={minimumStaffingThreshold}
-                    onChange={(e) => setMinimumStaffingThreshold(parseInt(e.target.value, 10))}
-                    className="w-full accent-amber-600 cursor-pointer"
-                  />
-                  <span className="text-[10px] text-slate-400 font-bold">50%</span>
-                </div>
-
-                <div className="p-2.5 rounded-lg bg-amber-50/80 border border-amber-200 text-amber-900 flex items-start gap-2 text-[11px]">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  <span>
-                    When reviewing Leave requests, the system will verify current schedule density. If scheduled absences exceed <strong>{minimumStaffingThreshold}%</strong>, an approval confirmation modal will prompt for staffing rationale.
-                  </span>
+                <p className="font-mono font-bold text-slate-900 text-lg">{morningStart} – {morningEnd}</p>
+                <div className="flex items-center gap-1.5 text-xs text-emerald-700 font-medium">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Grace period active until {graceTime} AM</span>
                 </div>
               </div>
 
-              {/* Irregularities First Toggle */}
-              <div className="p-3.5 bg-white rounded-xl border border-slate-200 flex items-center justify-between gap-4">
-                <div className="space-y-0.5">
-                  <Label className="font-bold text-slate-900 text-xs">Default &quot;Irregularities First&quot; Attendance View</Label>
-                  <p className="text-slate-500 text-[11px]">
-                    Automatically prioritize subordinate rows with missing punches, tardiness, or unscheduled absences to the top of the team attendance roster.
-                  </p>
-                </div>
-                <Switch checked={irregularitiesFirst} onCheckedChange={setIrregularitiesFirst} />
-              </div>
-
-              {/* Department Shift Rules (Dynamic Live Preview) */}
-              <div className="space-y-2 pt-2">
+              {/* Night Shift Card */}
+              <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80 space-y-2">
                 <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">
-                    Active Departmental Shift Parameters (Governing Subordinates)
-                  </h4>
-                  <span className="text-[10px] text-slate-400 font-medium">Synced with System Settings</span>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Night Differential Shift</span>
+                  <Badge variant="outline" className={nightEnabled ? "text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-brand-primary-light text-brand-primary border-brand-primary/20" : "text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-slate-200 text-slate-600 border-slate-300"}>
+                    {nightEnabled ? "22:00 – 06:00 Active" : "Disabled"}
+                  </Badge>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
-                    <span className="text-[10px] font-bold uppercase text-slate-400">Morning Shift Schedule</span>
-                    <p className="font-bold text-slate-900 text-sm">{morningStart} – {morningEnd}</p>
-                    <span className="text-[11px] text-emerald-700 block font-medium">
-                      Grace period active until {graceTime} AM
-                    </span>
-                  </div>
-
-                  <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase text-slate-400">Night Shift Schedule</span>
-                      <Badge className={nightEnabled ? "bg-purple-100 text-purple-800 border-purple-200 text-[9px] font-bold uppercase" : "bg-slate-200 text-slate-600 border-slate-300 text-[9px] font-bold uppercase"}>
-                        {nightEnabled ? "Active Shift" : "Disabled"}
-                      </Badge>
-                    </div>
-                    <p className="font-bold text-slate-900 text-sm">
-                      {nightEnabled ? `${eveningStart} – ${eveningEnd}` : "Not Scheduled"}
-                    </p>
-                    <span className="text-[11px] text-purple-700 block font-medium">
-                      {nightDiffPct}% Night Differential active 22:00–06:00
-                    </span>
-                  </div>
+                <p className="font-mono font-bold text-slate-900 text-lg">
+                  {nightEnabled ? `${eveningStart} – ${eveningEnd}` : "Not Scheduled"}
+                </p>
+                <div className="flex items-center gap-1.5 text-xs text-brand-primary font-medium">
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>{nightDiffPct}% Night Differential statutory rate active</span>
                 </div>
               </div>
+            </div>
+          </div>
 
-            </CardContent>
-          </Card>
+        </CardContent>
+      </Card>
 
       {/* ── Section 2: Approval Routing & Alerts ── */}
-          <Card className="border-slate-200 shadow-xs">
-            <CardHeader className="pb-3 border-b border-slate-100">
-              <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <FileCheck className="w-5 h-5 text-amber-600" />
+      <Card className="border border-slate-200/80 shadow-sm bg-white rounded-xl overflow-hidden">
+        <CardHeader className="bg-slate-50/70 border-b border-slate-100 p-5 flex flex-row items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-brand-primary-light text-brand-primary flex items-center justify-center shrink-0">
+              <FileCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <CardTitle className="text-base font-bold text-slate-900">
                 Request Approval Workflow & Notification Routing
               </CardTitle>
-              <CardDescription className="text-xs text-slate-500">
-                Streamline subordinate leave, overtime, and field punch endorsements without getting overwhelmed by alert volume.
+              <CardDescription className="text-xs text-slate-500 mt-0.5">
+                Streamline subordinate leave, overtime, and field punch endorsements without alert overload.
               </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-4 divide-y divide-slate-100 text-xs">
-              
-              <div className="py-3.5 space-y-2">
-                <Label className="font-bold text-slate-900 text-xs">Subordinate Request Notification Delivery Mode</Label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                  <div
-                    onClick={() => setNotificationMode("instant")}
-                    className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
-                      notificationMode === "instant"
-                        ? "bg-amber-50/70 border-amber-300 ring-2 ring-amber-500/20"
-                        : "bg-white border-slate-200 hover:bg-slate-50"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-slate-900 text-xs">Instant Notifications</span>
-                      <Bell className="w-4 h-4 text-amber-600" />
-                    </div>
-                    <p className="text-[11px] text-slate-500 mt-1">
-                      Receive an immediate badge & toast alert whenever any subordinate files a request.
-                    </p>
-                  </div>
-
-                  <div
-                    onClick={() => setNotificationMode("digest")}
-                    className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
-                      notificationMode === "digest"
-                        ? "bg-amber-50/70 border-amber-300 ring-2 ring-amber-500/20"
-                        : "bg-white border-slate-200 hover:bg-slate-50"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-slate-900 text-xs">Morning Daily Digest (08:00 AM)</span>
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    </div>
-                    <p className="text-[11px] text-slate-500 mt-1">
-                      Recommended: Consolidates all pending Leave & OT into a single actionable shift-start overview.
-                    </p>
+            </div>
+          </div>
+          <Badge variant="outline" className="text-xs font-semibold text-slate-500 bg-slate-100 border-slate-200 px-2.5 py-1 rounded-md">
+            Routing
+          </Badge>
+        </CardHeader>
+        <CardContent className="p-6 space-y-5">
+          
+          <div className="space-y-2">
+            <Label className="font-bold text-slate-900 text-sm">Subordinate Request Notification Delivery Mode</Label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+              <div
+                onClick={() => setNotificationMode("instant")}
+                className={`p-4 rounded-xl cursor-pointer transition-all space-y-1.5 ${
+                  notificationMode === "instant"
+                    ? "border-2 border-brand-primary bg-brand-primary-light/30 shadow-xs"
+                    : "border border-slate-200/80 bg-white hover:bg-slate-50/80"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-900 text-sm">Instant Notifications</span>
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center ${notificationMode === "instant" ? "bg-brand-primary text-white" : "border border-slate-300"}`}>
+                    {notificationMode === "instant" && <CheckCircle2 className="w-3.5 h-3.5" />}
                   </div>
                 </div>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Receive an immediate badge & toast alert whenever any subordinate files a Leave, Overtime, or Punch Adjustment.
+                </p>
               </div>
 
-              <div className="py-3.5 flex items-center justify-between gap-4">
-                <div className="space-y-0.5">
-                  <Label className="font-bold text-slate-900 text-xs">48-Hour Auto-Escalation Warning</Label>
-                  <p className="text-slate-500 text-[11px]">
-                    Alerts you if a subordinate request sits idle for 48 hours before the system escalates it to Admin Manager.
-                  </p>
+              <div
+                onClick={() => setNotificationMode("digest")}
+                className={`p-4 rounded-xl cursor-pointer transition-all space-y-1.5 ${
+                  notificationMode === "digest"
+                    ? "border-2 border-brand-primary bg-brand-primary-light/30 shadow-xs"
+                    : "border border-slate-200/80 bg-white hover:bg-slate-50/80"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-brand-primary text-sm flex items-center gap-1.5">
+                    Morning Daily Digest (08:00 AM)
+                    <Badge variant="outline" className="text-[10px] font-bold bg-brand-primary text-white border-transparent px-2 py-0.5 rounded-full">
+                      Recommended
+                    </Badge>
+                  </span>
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center ${notificationMode === "digest" ? "bg-brand-primary text-white" : "border border-slate-300"}`}>
+                    {notificationMode === "digest" && <CheckCircle2 className="w-3.5 h-3.5" />}
+                  </div>
                 </div>
-                <Switch checked={escalationWarning48h} onCheckedChange={setEscalationWarning48h} />
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Consolidates pending Leave & Overtime requests into a single actionable shift-start overview report.
+                </p>
               </div>
+            </div>
+          </div>
 
-              <div className="py-3.5 flex items-center justify-between gap-4">
-                <div className="space-y-0.5">
-                  <Label className="font-bold text-slate-900 text-xs">Safe Quick-Endorsement Preset</Label>
-                  <p className="text-slate-500 text-[11px]">
-                    Enables 1-click batch endorsement for standard scheduled overtime under 2.0 hours.
-                  </p>
-                </div>
-                <Switch checked={safeQuickEndorse} onCheckedChange={setSafeQuickEndorse} />
+          <div className="p-4 bg-white rounded-xl border border-slate-200/80 hover:bg-slate-50/50 transition-colors flex items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600 shrink-0 mt-0.5">
+                <AlertTriangle className="w-4 h-4 text-amber-600" />
               </div>
+              <div>
+                <Label className="font-bold text-slate-900 text-sm">48-Hour Auto-Escalation Warning</Label>
+                <p className="text-slate-500 text-xs mt-0.5">
+                  Alerts you if a subordinate request sits idle for 48 hours before the system escalates it to Admin Manager.
+                </p>
+              </div>
+            </div>
+            <Switch checked={escalationWarning48h} onCheckedChange={setEscalationWarning48h} />
+          </div>
 
-            </CardContent>
-          </Card>
+          <div className="p-4 bg-white rounded-xl border border-slate-200/80 hover:bg-slate-50/50 transition-colors flex items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600 shrink-0 mt-0.5">
+                <FileCheck className="w-4 h-4 text-brand-primary" />
+              </div>
+              <div>
+                <Label className="font-bold text-slate-900 text-sm">Safe Quick-Endorsement Preset</Label>
+                <p className="text-slate-500 text-xs mt-0.5">
+                  Enables 1-click batch endorsement for standard scheduled overtime under 2.0 hours.
+                </p>
+              </div>
+            </div>
+            <Switch checked={safeQuickEndorse} onCheckedChange={setSafeQuickEndorse} />
+          </div>
+
+        </CardContent>
+      </Card>
 
       {/* ── Section 3: Personal Privacy & Display ── */}
-          <Card className="border-slate-200 shadow-xs">
-            <CardHeader className="pb-3 border-b border-slate-100">
-              <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-emerald-600" />
-                Supervisor Personal Privacy Shield & Display
+      <Card className="border border-slate-200/80 shadow-sm bg-white rounded-xl overflow-hidden">
+        <CardHeader className="bg-slate-50/70 border-b border-slate-100 p-5 flex flex-row items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200/60 flex items-center justify-center shrink-0">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <CardTitle className="text-base font-bold text-slate-900">
+                Supervisor Personal Privacy Shield & Transparency
               </CardTitle>
-              <CardDescription className="text-xs text-slate-500">
-                Personal security toggles for your supervisor account.
+              <CardDescription className="text-xs text-slate-500 mt-0.5">
+                Personal security and data protection toggles for your supervisor account.
               </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-4 divide-y divide-slate-100 text-xs">
-              
-              <div className="py-3.5 flex items-center justify-between gap-4">
-                <div className="space-y-0.5">
-                  <Label className="font-bold text-slate-900 text-xs">Public Screen Privacy Masking Shield</Label>
-                  <p className="text-slate-500 text-[11px]">
-                    Auto-blurs your personal net pay, salary, and banking information across dashboard views.
-                  </p>
-                </div>
-                <Switch
-                  checked={privacyShield}
-                  onCheckedChange={(val) => {
-                    setPrivacyShield(val);
-                    handleSavePreferences({ privacyShield: val });
-                  }}
-                />
+            </div>
+          </div>
+          <Badge variant="outline" className="text-xs font-semibold text-emerald-700 bg-emerald-50 border-emerald-200 px-2.5 py-1 rounded-md">
+            DPA Protected
+          </Badge>
+        </CardHeader>
+        <CardContent className="p-6 space-y-5">
+          
+          <div className="p-4 bg-white rounded-xl border border-slate-200/80 hover:bg-slate-50/50 transition-colors flex items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600 shrink-0 mt-0.5">
+                <EyeOff className="w-4 h-4 text-slate-500" />
               </div>
-
-              <div className="pt-3.5 flex items-center justify-between gap-4">
-                <div className="space-y-0.5">
-                  <Label className="font-bold text-slate-900 text-xs">Transparency Trail (&quot;Who Viewed My Data?&quot;)</Label>
-                  <p className="text-slate-500 text-[11px]">
-                    Inspect the audit trail whenever management unmasks your sensitive employee profile data.
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  asChild
-                  className="border-amber-300 text-amber-800 hover:bg-amber-50 font-bold text-xs h-8 cursor-pointer"
-                >
-                  <Link to="/profile?tab=transparency">
-                    Open Transparency Hub <ExternalLink className="w-3.5 h-3.5 ml-1.5" />
-                  </Link>
-                </Button>
+              <div>
+                <Label className="font-bold text-slate-900 text-sm">Public Screen Privacy Masking Shield</Label>
+                <p className="text-slate-500 text-xs mt-0.5">
+                  Auto-blurs your personal net pay, salary, and banking information across dashboard views.
+                </p>
               </div>
+            </div>
+            <Switch
+              checked={privacyShield}
+              onCheckedChange={(val) => {
+                setPrivacyShield(val);
+                handleSavePreferences({ privacyShield: val });
+              }}
+            />
+          </div>
 
-            </CardContent>
-          </Card>
+          <div className="p-4 rounded-xl bg-gradient-to-r from-blue-50/50 to-slate-50/70 border border-blue-200/70 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-lg bg-white border border-blue-200 text-brand-primary flex items-center justify-center shrink-0 shadow-2xs">
+                <FileCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-bold text-slate-900 text-sm">Audit Transparency Trail (&quot;Who Viewed My Data?&quot;)</h4>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Inspect the immutable audit log whenever higher management unmasks your sensitive profile information.
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              asChild
+              className="bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-bold text-xs h-9 px-4 rounded-lg shadow-2xs transition-all shrink-0 cursor-pointer"
+            >
+              <Link to="/profile?tab=transparency">
+                <span>Open Transparency Hub</span>
+                <ExternalLink className="w-3.5 h-3.5 ml-1.5" />
+              </Link>
+            </Button>
+          </div>
+
+        </CardContent>
+      </Card>
     </div>
   );
 }

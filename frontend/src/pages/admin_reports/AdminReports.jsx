@@ -968,7 +968,7 @@ const AdminReports = () => {
                     <div className="flex flex-col justify-between w-full">
                       <div>
                         <div className="flex items-center gap-1.5 mb-2">
-                          <p className="text-xs font-bold text-brand-primary uppercase tracking-wider">On-Time Compliance</p>
+                          <p className="text-xs font-bold text-brand-primary uppercase tracking-wider">Compliance</p>
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <HelpOutlineIcon sx={{ fontSize: 13 }} className="text-brand-primary/60 hover:text-brand-primary cursor-help" />

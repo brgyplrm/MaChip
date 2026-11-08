@@ -1172,7 +1172,7 @@ const Sidebar = ({ children }) => {
                         className={cn("text-inherit font-medium flex items-center", isConfigActive ? "font-bold" : "")}
                       >
                         <TuneIcon className="!text-[18px] mr-2 !text-current" />
-                        {isManagement ? "Configuration" : isSupervisor ? "Operations & Settings" : "Preferences & Settings"}
+                        {isManagement ? "Configuration" : isSupervisor ? "Operations" : "Preferences"}
                       </Link>
                     </SidebarMenuSubButton>
                   </SidebarMenuSubItem>
