@@ -880,8 +880,8 @@ const HardwareManagement = () => {
       />
 
       <Dialog open={showAssignModal} onOpenChange={setShowAssignModal}>
-        <DialogContent className="sm:max-w-[460px] p-0 border-0 overflow-hidden bg-white rounded-2xl shadow-2xl">
-          <DialogHeader className="bg-brand-primary text-white p-6 relative">
+        <DialogContent showCloseButton={false} className="sm:max-w-[460px] p-0 border-0 overflow-visible bg-white rounded-2xl shadow-2xl">
+          <DialogHeader className="bg-brand-primary text-white p-6 relative rounded-t-2xl">
             <DialogTitle className="text-xl font-bold flex items-center gap-2">
               <ScanLine className="h-5 w-5 text-purple-300" /> {activeTab === 'rfid' ? 'Assign Scanned Card' : 'Link Biometric Template'}
             </DialogTitle>
@@ -899,7 +899,7 @@ const HardwareManagement = () => {
               </div>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2 relative z-30">
               <div className="flex justify-between items-end">
                 <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Assign Target Employee Profile {unassignedEmployees.length > 0 && `(${unassignedEmployees.length} Found)`}</Label>
                 <button onClick={fetchUnassignedEmployees} className="text-[10px] text-purple-600 hover:text-purple-800 font-bold uppercase tracking-tight underline" disabled={loadingUnassigned}>
@@ -916,6 +916,7 @@ const HardwareManagement = () => {
                 onChange={handleSelectEmployee}
                 placeholder="Select an unassigned employee..."
                 searchPlaceholder="Search unassigned employee..."
+                placement="auto"
               />
             </div>
 

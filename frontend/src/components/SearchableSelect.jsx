@@ -12,11 +12,14 @@ const SearchableSelect = ({
   className = "",
   disabled = false,
   error = false,
+  placement = "bottom", // "bottom" | "top" | "auto"
+  menuClassName = "",
   id,
   name,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [actualPlacement, setActualPlacement] = useState(placement === "top" ? "top" : "bottom");
   const containerRef = useRef(null);
   const searchInputRef = useRef(null);
   const listRef = useRef(null);
@@ -86,6 +89,26 @@ const SearchableSelect = ({
     };
   }, [isOpen]);
 
+  // Dynamic placement detection (flip to top if space below is insufficient)
+  useEffect(() => {
+    if (isOpen) {
+      if (placement === "auto" && containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const spaceAbove = rect.top;
+        if (spaceBelow < 280 && spaceAbove > spaceBelow) {
+          setActualPlacement("top");
+        } else {
+          setActualPlacement("bottom");
+        }
+      } else if (placement === "top") {
+        setActualPlacement("top");
+      } else {
+        setActualPlacement("bottom");
+      }
+    }
+  }, [isOpen, placement]);
+
   const handleKeyDown = (e) => {
     if (e.key === "Escape") {
       setIsOpen(false);
@@ -105,7 +128,7 @@ const SearchableSelect = ({
   return (
     <div
       ref={containerRef}
-      className={cn("relative w-full text-left", isOpen ? "z-30" : "z-auto", className)}
+      className={cn("relative w-full text-left", isOpen ? "z-50" : "z-auto", className)}
       onKeyDown={handleKeyDown}
     >
       {/* Trigger Button - styled to exactly match shadcn SelectTrigger */}
@@ -139,9 +162,15 @@ const SearchableSelect = ({
         />
       </button>
 
-      {/* Dropdown Menu - styled to match shadcn SelectContent */}
+      {/* Dropdown Menu - styled to match shadcn SelectContent with elevated layering */}
       {isOpen && (
-        <div className="absolute left-0 top-full z-50 mt-1 w-full min-w-[160px] rounded-md border border-slate-200 bg-white p-1 shadow-md duration-100 animate-in fade-in-0 zoom-in-95">
+        <div
+          className={cn(
+            "absolute left-0 z-50 w-full min-w-[160px] rounded-md border border-slate-200 bg-white p-1 shadow-xl ring-1 ring-black/5 duration-100 animate-in fade-in-0 zoom-in-95",
+            actualPlacement === "top" ? "bottom-full mb-1" : "top-full mt-1",
+            menuClassName
+          )}
+        >
           {/* Optional Search Box */}
           {searchable && (
             <div className="relative mb-1 px-1 pt-0.5">
