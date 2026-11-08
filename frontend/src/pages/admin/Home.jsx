@@ -26,6 +26,7 @@ import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 
 // shadcn/ui components
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -106,6 +107,7 @@ const Home = () => {
   });
   const [payrollPeriods, setPayrollPeriods] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
+  const [pendingPayrollApprovals, setPendingPayrollApprovals] = useState([]);
   const [chartData, setChartData] = useState({
     weekly: [],
     quarterly: [],
@@ -185,6 +187,25 @@ const Home = () => {
       }
     } catch (error) {
       console.error("Error fetching pending requests:", error);
+    }
+  };
+
+  const fetchPendingPayrollApprovals = async () => {
+    const storedUser = JSON.parse(localStorage.getItem("userData") || "{}");
+    const roleId = Number(storedUser?.user_RoleId);
+    const pos = (storedUser?.position || "").toUpperCase();
+    const canAuthorize = roleId === 1 || ["PRESIDENT", "ADMIN MANAGER", "SUPERVISOR"].includes(pos);
+
+    if (!canAuthorize) return;
+
+    try {
+      const res = await fetchWithAuth("/api/payroll/pending-approvals");
+      if (res.ok) {
+        const data = await res.json();
+        setPendingPayrollApprovals(Array.isArray(data) ? data : []);
+      }
+    } catch (err) {
+      console.error("Error fetching pending payroll approvals:", err);
     }
   };
 
@@ -288,11 +309,13 @@ const Home = () => {
     fetchDashboardStats();
     fetchPayrollPeriods();
     fetchPendingRequests();
+    fetchPendingPayrollApprovals();
     fetchOverallStats();
 
     const interval = setInterval(() => {
       fetchDashboardStats();
       fetchPendingRequests();
+      fetchPendingPayrollApprovals();
       fetchOverallStats();
     }, 60000);
 
@@ -301,6 +324,7 @@ const Home = () => {
       fetchDashboardStats(isBackground);
       fetchPayrollPeriods();
       fetchPendingRequests();
+      fetchPendingPayrollApprovals();
       fetchOverallStats();
     };
 
@@ -460,6 +484,50 @@ const Home = () => {
               </Tooltip>
             </div>
           </div>
+
+          {/* Priority Executive Alert: Pending Payroll Approvals */}
+          {pendingPayrollApprovals.length > 0 && (
+            <div className="mb-6 space-y-3">
+              {pendingPayrollApprovals.map((period) => (
+                <div 
+                  key={period.periodId}
+                  className="rounded-xl border border-amber-300 bg-gradient-to-r from-amber-50 via-amber-50/80 to-amber-100/50 p-4 sm:p-5 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
+                >
+                  <div className="flex items-start gap-3.5">
+                    <div className="p-2.5 rounded-lg bg-amber-500/10 text-amber-700 border border-amber-400/30 shrink-0 mt-0.5">
+                      <RateReviewIcon className="h-6 w-6 text-amber-700" />
+                    </div>
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-200/70 text-amber-900 border border-amber-300">
+                          Priority Action Required
+                        </span>
+                        <h3 className="text-base sm:text-lg font-bold text-amber-950">
+                          Payroll Authorization Awaiting Sign-Off: {period.label}
+                        </h3>
+                      </div>
+                      <p className="text-xs sm:text-sm text-amber-800 mt-1">
+                        Submitted by <strong>{period.submitterFirstName} {period.submitterLastName}</strong> for <strong>{period.employeeCount || 0} active employees</strong> with a total net payout of <strong className="text-amber-950 font-mono">₱{Number(period.totalNetPayout || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>.
+                      </p>
+                      <p className="text-[11px] text-amber-700/80 mt-0.5">
+                        Maker-Checker Rule: Employee payslips and bank release cannot proceed without executive authorization.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="w-full md:w-auto shrink-0 flex items-center justify-end">
+                    <Button 
+                      asChild 
+                      className="w-full sm:w-auto bg-amber-600 hover:bg-amber-700 text-white font-bold shadow-sm"
+                    >
+                      <Link to={`/payroll/payrollPeriod?periodId=${period.periodId}&openApproval=true`}>
+                        <RateReviewIcon className="mr-1.5 h-4 w-4" /> Review &amp; Authorize
+                      </Link>
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Border Top Widget Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full">

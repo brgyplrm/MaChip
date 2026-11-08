@@ -15,12 +15,18 @@ import SummarizeOutlinedIcon from '@mui/icons-material/SummarizeOutlined';
 import EventRepeatIcon from '@mui/icons-material/EventRepeat';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import RateReviewIcon from '@mui/icons-material/RateReview';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import { EyeIcon, ChevronLeft, Mail } from "lucide-react";  
 import Toast from "../../components/toast/Toast";
 import PayrollAlertBanner from "../../components/PayrollAlertBanner";
 import ReleaseSummaryModal from "../../components/ReleaseSummaryModal";
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { getStoredUser } from "../../utils/authStorage";
+import PayrollChecklistModal from "./modals/PayrollChecklistModal";
+import ManagerApprovalModal from "./modals/ManagerApprovalModal";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -64,10 +70,27 @@ const PayrollPeriod = () => {
   const [editingPayroll, setEditingPayroll] = useState(null);
   const [showSummaryPreview, setShowSummaryPreview] = useState(false);
   const [previewContent, setPreviewContent] = useState("");
+  const [isChecklistModalOpen, setIsChecklistModalOpen] = useState(false);
+  const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
+
+  const currentUser = useMemo(() => getStoredUser(), []);
+  const userRoleId = Number(currentUser?.user_RoleId);
+  const userPosition = (currentUser?.position || "").toUpperCase();
+  const isManager = userRoleId === 1 || ["PRESIDENT", "ADMIN MANAGER", "SUPERVISOR"].includes(userPosition);
+
+  const handleWorkflowSuccess = async () => {
+    await fetchData();
+    setToast({
+      message: "Payroll period approval workflow status updated successfully.",
+      type: "success"
+    });
+  };
   
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const periodIdFromUrl = queryParams.get("periodId");
+  const openApprovalFromUrl = queryParams.get("openApproval") === "true";
+  const hasAutoOpenedModal = useRef(false);
 
   // Filter & Pagination States
   const [searchQuery, setSearchQuery] = useState("");
@@ -76,6 +99,7 @@ const PayrollPeriod = () => {
 
   const [gracePeriodDays, setGracePeriodDays] = useState(7);
   const [deadlineDays, setDeadlineDays] = useState(3);
+  const [bufferDays, setBufferDays] = useState(2);
   const [toast, setToast] = useState({ message: "", type: "success" });
   const [isSendingBatchEmails, setIsSendingBatchEmails] = useState(false);
 
@@ -132,6 +156,19 @@ const PayrollPeriod = () => {
     return todayStr < selectedPeriod.endDate;
   }, [selectedPeriod, todayStr]);
 
+  const submissionOpenDate = useMemo(() => {
+    if (!selectedPeriod?.endDate) return null;
+    const [eY, eM, eD] = selectedPeriod.endDate.split("-").map(Number);
+    const bDays = bufferDays || 2;
+    const evalEndDay = Math.max(1, eD - bDays);
+    return `${eY}-${String(eM).padStart(2, "0")}-${String(evalEndDay).padStart(2, "0")}`;
+  }, [selectedPeriod, bufferDays]);
+
+  const isSubmissionWindowOpen = useMemo(() => {
+    if (!submissionOpenDate || !todayStr) return false;
+    return todayStr >= submissionOpenDate;
+  }, [submissionOpenDate, todayStr]);
+
   const isProcessingWindow = useMemo(() => {
     if (!selectedPeriod?.endDate || !systemToday) return false;
     
@@ -179,6 +216,9 @@ const PayrollPeriod = () => {
         if (sData.payrollWeekendRule) {
           setWeekendRule(sData.payrollWeekendRule);
         }
+        if (sData.payrollCutoffBufferDays !== undefined && sData.payrollCutoffBufferDays !== null) {
+          setBufferDays(parseInt(sData.payrollCutoffBufferDays, 10));
+        }
       }
 
       if (periodsRes.ok && periodsData.length > 0) {
@@ -191,6 +231,11 @@ const PayrollPeriod = () => {
         if (!current) current = periodsData[0]; 
         
         setSelectedPeriod(current);
+
+        if (openApprovalFromUrl && !hasAutoOpenedModal.current && current && isManager) {
+          hasAutoOpenedModal.current = true;
+          setIsApprovalModalOpen(true);
+        }
 
         if (current.status === 'Draft') {
           await fetchLivePreview(current);
@@ -429,9 +474,31 @@ const PayrollPeriod = () => {
 
           {/* Title: Adds left padding when hovered */}
           <div className="transition-all duration-300 ease-in-out group-hover:pl-2">
-            <h1 className="text-2xl md:text-3xl font-bold text-brand-primary leading-tight">
-                {selectedPeriod?.label} {selectedPeriod?.status === 'Draft' ? "Current Period" : "Previous Period"}
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-2xl md:text-3xl font-bold text-brand-primary leading-tight">
+                {selectedPeriod?.label}
               </h1>
+              {selectedPeriod?.status === 'Pending Approval' && (
+                <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1 shadow-xs">
+                  <AccessTimeIcon sx={{ fontSize: 13 }} /> Pending Approval
+                </span>
+              )}
+              {selectedPeriod?.status === 'Approved' && (
+                <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-blue-100 text-blue-800 border border-blue-300 flex items-center gap-1 shadow-xs">
+                  <CheckCircleOutlineIcon sx={{ fontSize: 13 }} /> Approved by Management
+                </span>
+              )}
+              {selectedPeriod?.status === 'Released' && (
+                <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1 shadow-xs">
+                  <CheckCircleOutlineIcon sx={{ fontSize: 13 }} /> Released &amp; Locked
+                </span>
+              )}
+              {(!selectedPeriod?.status || selectedPeriod?.status === 'Draft') && (
+                <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-300 shadow-xs">
+                  Draft
+                </span>
+              )}
+            </div>
             <div className="flex flex-wrap items-center gap-2 mt-1">
               <span className="text-sm text-slate-500">
                 {selectedPeriod?.startDate ? new Date(selectedPeriod.startDate).toLocaleDateString() : "—"} to {selectedPeriod?.endDate ? new Date(selectedPeriod.endDate).toLocaleDateString() : "—"}
@@ -495,49 +562,7 @@ const PayrollPeriod = () => {
               </TooltipContent>
             </Tooltip>
 
-            {/* If Draft and cutoff is still ongoing: Release & Lock is guarded */}
-            {selectedPeriod?.status === 'Draft' && payrolls.length > 0 && isCutoffOngoing && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="inline-block w-full sm:w-auto">
-                    <Button
-                      className="w-full sm:w-auto bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed hover:bg-slate-100"
-                      disabled={true}
-                    >
-                      <LockOutlinedIcon className="mr-2 h-4 w-4 text-slate-400" />
-                      Release &amp; Lock Payroll
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent className="bg-slate-900 text-white border-slate-800 max-w-xs text-center">
-                  Cutoff period is ongoing until {selectedPeriod?.endDate}. Releasing and locking opens on or after cutoff concludes.
-                </TooltipContent>
-              </Tooltip>
-            )}
-
-            {/* If Draft and cutoff has concluded: Release & Lock is active */}
-            {selectedPeriod?.status === 'Draft' && payrolls.length > 0 && !isCutoffOngoing && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm border border-emerald-600"
-                    onClick={() => {
-                      setConfirmMode("release");
-                      setIsConfirmOpen(true);
-                    }}
-                    disabled={loading}
-                  >
-                    <LockOutlinedIcon className="mr-2 h-4 w-4" />
-                    Release &amp; Lock Payroll
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent className="bg-slate-900 text-white border-slate-800">
-                  Permanently lock records, archive PDFs, and send payslip emails.
-                </TooltipContent>
-              </Tooltip>
-            )}
-
-            {/* If Draft and NO records generated yet */}
+            {/* 1. If Draft and NO records calculated yet */}
             {selectedPeriod?.status === 'Draft' && payrolls.length === 0 && (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -579,8 +604,106 @@ const PayrollPeriod = () => {
               </Tooltip>
             )}
 
-            {/* If Already Released */}
-            {selectedPeriod?.status !== 'Draft' && (
+            {/* 2. If Draft / Rejected and records exist: Maker (Accountant) Review & Submit */}
+            {(selectedPeriod?.status === 'Draft' || selectedPeriod?.status === 'Rejected') && payrolls.length > 0 && (
+              isSubmissionWindowOpen ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      className="w-full sm:w-auto bg-brand-primary hover:bg-[#7A52B5] text-white shadow-sm border border-brand-primary"
+                      onClick={() => setIsChecklistModalOpen(true)}
+                      disabled={loading}
+                    >
+                      <RateReviewIcon className="mr-2 h-4 w-4" />
+                      Review &amp; Submit for Approval
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 max-w-xs text-center">
+                    Run automated pre-flight scan and complete the 5-domain audit checklist for Management sign-off.
+                  </TooltipContent>
+                </Tooltip>
+              ) : (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-block w-full sm:w-auto">
+                      <Button
+                        className="w-full sm:w-auto bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed hover:bg-slate-100"
+                        disabled={true}
+                      >
+                        <LockOutlinedIcon className="mr-2 h-4 w-4 text-slate-400" />
+                        Review &amp; Submit for Approval
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 max-w-xs text-center">
+                    Pre-flight review and submission opens 2 days prior to cutoff conclusion (available on or after {submissionOpenDate ? new Date(submissionOpenDate + "T00:00:00").toLocaleDateString() : "the audit day"}).
+                  </TooltipContent>
+                </Tooltip>
+              )
+            )}
+
+            {/* 3. If Pending Approval */}
+            {selectedPeriod?.status === 'Pending Approval' && (
+              isManager ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      className="w-full sm:w-auto bg-amber-600 hover:bg-amber-700 text-white shadow-sm border border-amber-600"
+                      onClick={() => setIsApprovalModalOpen(true)}
+                      disabled={loading}
+                    >
+                      <RateReviewIcon className="mr-2 h-4 w-4" />
+                      Review &amp; Authorize Batch
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 max-w-xs text-center">
+                    Inspect accountant checklist affirmations, total net disbursements, and approve or return batch.
+                  </TooltipContent>
+                </Tooltip>
+              ) : (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-block w-full sm:w-auto">
+                      <Button
+                        className="w-full sm:w-auto bg-amber-50 text-amber-800 border border-amber-300 cursor-not-allowed hover:bg-amber-50"
+                        disabled={true}
+                      >
+                        <LockOutlinedIcon className="mr-2 h-4 w-4 text-amber-700" />
+                        Awaiting Management Authorization
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-slate-900 text-white border-slate-800 max-w-xs text-center">
+                    Submitted for executive sign-off. Release unlocks once approved by Admin Manager or President.
+                  </TooltipContent>
+                </Tooltip>
+              )
+            )}
+
+            {/* 4. If Approved by Management: Release is unlocked */}
+            {selectedPeriod?.status === 'Approved' && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm border border-emerald-600"
+                    onClick={() => {
+                      setConfirmMode("release");
+                      setIsConfirmOpen(true);
+                    }}
+                    disabled={loading}
+                  >
+                    <LockOutlinedIcon className="mr-2 h-4 w-4" />
+                    Release &amp; Lock Payroll
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent className="bg-slate-900 text-white border-slate-800 max-w-xs text-center">
+                  Executive approval verified. Permanently lock records, archive PDFs, and dispatch encrypted payslip emails.
+                </TooltipContent>
+              </Tooltip>
+            )}
+
+            {/* 5. If Already Released */}
+            {selectedPeriod?.status === 'Released' && (
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-300 text-sm font-semibold cursor-default">
                 <CheckCircleOutlineIcon className="h-4 w-4 text-emerald-600" />
                 Released &amp; Locked
@@ -588,7 +711,7 @@ const PayrollPeriod = () => {
             )}
 
             {/* Resend Batch Emails Button */}
-            {selectedPeriod?.status !== 'Draft' && payrolls.length > 0 && (
+            {selectedPeriod?.status === 'Released' && payrolls.length > 0 && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span className="inline-block w-full sm:w-auto">
@@ -610,6 +733,73 @@ const PayrollPeriod = () => {
             )}
         </div>
         </div>
+
+        {/* Rejection / Return to Draft Feedback Banner */}
+        {selectedPeriod?.rejectionReason && (selectedPeriod?.status === 'Draft' || selectedPeriod?.status === 'Rejected') && (
+          <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-900 flex items-start gap-3 shadow-sm">
+            <WarningAmberIcon className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <h4 className="font-bold text-sm text-red-800">Batch Returned to Draft by Management</h4>
+              <p className="text-xs mt-0.5 text-red-700">
+                <strong>Adjustment Feedback:</strong> {selectedPeriod.rejectionReason}
+              </p>
+              <p className="text-xs text-red-600 mt-1">
+                Please make necessary corrections to attendance logs, requests, or deductions, then re-run the verification checklist to submit again.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Pending Approval Notice Banner */}
+        {selectedPeriod?.status === 'Pending Approval' && (
+          <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+            <div className="flex items-start gap-3">
+              <AccessTimeIcon className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+              <div>
+                <h4 className="font-bold text-sm text-amber-900">Awaiting Executive Management Authorization</h4>
+                <p className="text-xs mt-0.5 text-amber-700">
+                  Pre-flight checklist submitted. Batch release is locked pending executive authorization.
+                  {selectedPeriod.submittedAt && ` Submitted on ${new Date(selectedPeriod.submittedAt).toLocaleString()}.`}
+                </p>
+              </div>
+            </div>
+            {isManager && (
+              <Button
+                size="sm"
+                className="bg-amber-600 hover:bg-amber-700 text-white font-semibold shrink-0"
+                onClick={() => setIsApprovalModalOpen(true)}
+              >
+                <RateReviewIcon className="mr-1.5 h-4 w-4" /> Review &amp; Authorize
+              </Button>
+            )}
+          </div>
+        )}
+
+        {/* Approved by Management Notice Banner */}
+        {selectedPeriod?.status === 'Approved' && (
+          <div className="mb-6 p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+            <div className="flex items-start gap-3">
+              <CheckCircleOutlineIcon className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
+              <div>
+                <h4 className="font-bold text-sm text-blue-900">Executive Authorization Granted</h4>
+                <p className="text-xs mt-0.5 text-blue-700">
+                  This payroll batch has been approved. You may now release payments, lock historical records, and email encrypted payslips.
+                  {selectedPeriod.approvedAt && ` Authorized on ${new Date(selectedPeriod.approvedAt).toLocaleString()}.`}
+                </p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shrink-0"
+              onClick={() => {
+                setConfirmMode("release");
+                setIsConfirmOpen(true);
+              }}
+            >
+              <LockOutlinedIcon className="mr-1.5 h-4 w-4" /> Release &amp; Lock Now
+            </Button>
+          </div>
+        )}
 
          {/* Statistics Cards */}
           <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-6 w-full">
@@ -925,6 +1115,22 @@ const PayrollPeriod = () => {
         onDownloadSummary={handleDownloadSummary}
       />
 
+      <PayrollChecklistModal
+        isOpen={isChecklistModalOpen}
+        onClose={() => setIsChecklistModalOpen(false)}
+        period={selectedPeriod}
+        onSubmitSuccess={handleWorkflowSuccess}
+        currentUser={currentUser}
+      />
+
+      <ManagerApprovalModal
+        isOpen={isApprovalModalOpen}
+        onClose={() => setIsApprovalModalOpen(false)}
+        period={selectedPeriod}
+        onDecisionSuccess={handleWorkflowSuccess}
+        currentUser={currentUser}
+      />
+
       {/* Resend Batch Emails Confirmation Dialog */}
       <AlertDialog open={isResendConfirmOpen} onOpenChange={setIsResendConfirmOpen}>
         <AlertDialogContent>
@@ -964,8 +1170,16 @@ const PayrollPeriod = () => {
                   </Button>
                 </div>
               </div>
-              <div className="flex-1 overflow-auto bg-slate-100 p-4 custom-scrollbar">
-                <div className="bg-white shadow-lg mx-auto min-w-[1000px] p-8" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(previewContent) }} />
+              <div className="flex-1 overflow-hidden bg-slate-100 p-2 sm:p-4 flex flex-col">
+                <iframe
+                  title="Payroll Summary Preview"
+                  srcDoc={DOMPurify.sanitize(previewContent, {
+                    WHOLE_DOCUMENT: true,
+                    ADD_TAGS: ["style"],
+                  })}
+                  className="w-full h-full flex-1 border-0 rounded-lg bg-white shadow-inner"
+                  sandbox="allow-same-origin allow-modals allow-popups"
+                />
               </div>
             </CardContent>
           </Card>

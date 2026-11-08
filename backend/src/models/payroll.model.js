@@ -4,7 +4,14 @@ module.exports = (sequelize, DataTypes) => {
     startDate: { type: DataTypes.DATEONLY, allowNull: false },
     endDate: { type: DataTypes.DATEONLY, allowNull: false },
     label: { type: DataTypes.STRING },
-    status: { type: DataTypes.STRING, defaultValue: "Draft" } // Draft, Processing, Released, Closed
+    status: { type: DataTypes.STRING, defaultValue: "Draft" }, // Draft, Pending Approval, Approved, Released, Rejected
+    checklistData: { type: DataTypes.JSONB, defaultValue: {} },
+    submittedBy: { type: DataTypes.INTEGER, allowNull: true },
+    submittedAt: { type: DataTypes.DATE, allowNull: true },
+    approvedBy: { type: DataTypes.INTEGER, allowNull: true },
+    approvedAt: { type: DataTypes.DATE, allowNull: true },
+    rejectionReason: { type: DataTypes.TEXT, allowNull: true },
+    scheduledReleaseAt: { type: DataTypes.DATE, allowNull: true }
   }, { timestamps: true, freezeTableName: true });
 
   const Payroll_status = sequelize.define(

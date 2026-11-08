@@ -27,7 +27,13 @@
     "test:payroll": "node scripts/verify_payroll_comprehensive_suite.js",
     "test:email": "node scripts/verify_email_service.js",
     "test:settings": "node scripts/verify_settings_suite.js",
-    "test:auth": "node scripts/verify_auth_first_login_suite.js"
+    "test:auth": "node scripts/verify_auth_first_login_suite.js",
+    "test:approval": "node scripts/verify_payroll_approval_workflow.js",
+    "testing": "node scripts/test_flight_recorder.js",
+    "testing:stage": "node scripts/stage_hardware_test_period.js",
+    "testing:clean": "node scripts/clean_test_artifacts.js",
+    "testing:audit": "node scripts/test_flight_recorder.js --audit",
+    "payroll:rollback": "node scripts/remove_latest_released_payroll.js"
   },
   "devDependencies": {
     "autoprefixer": "^10.5.0",

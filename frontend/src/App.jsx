@@ -332,6 +332,11 @@ function App() {
         />
 
         <Route
+          path="/payrollPeriod"
+          element={<Navigate to="/payroll/payrollPeriod" replace />}
+        />
+
+        <Route
           path="/payroll/payrollPeriod"
           element={
             <ProtectedRoute allowedRoles={[1, 4]}>

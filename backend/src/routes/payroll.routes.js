@@ -17,6 +17,13 @@ router.get("/batch-zip", requireAdmin, payrollController.downloadBatchZip);
 router.get("/summary-preview", requireAdmin, payrollController.getPayrollSummaryPreview);
 router.get("/status-alerts", requireAdmin, payrollController.getPayrollStatusAlerts);
 
+// Multi-Stage Approval Workflow (Maker-Checker Architecture)
+router.get("/pending-approvals", requireAdmin, payrollController.getPendingApprovalPeriods);
+router.get("/period/:periodId/preflight-check", requireAdmin, payrollController.getPayrollPreflightCheck);
+router.post("/period/:periodId/submit-approval", requireAdmin, payrollController.submitPayrollForApproval);
+router.post("/period/:periodId/approve", requireAdmin, payrollController.approvePayrollPeriod);
+router.post("/period/:periodId/reject", requireAdmin, payrollController.rejectPayrollPeriod);
+
 // Specific Ledgers & History
 router.get("/maxicare/history", requireAdmin, payrollController.getMaxicareHistory);
 router.post("/maxicare/sync", requireAdmin, payrollController.syncMaxicareHistory);

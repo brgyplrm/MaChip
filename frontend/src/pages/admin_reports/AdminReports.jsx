@@ -169,19 +169,25 @@ const AdminReports = () => {
   const currentCutoff = useMemo(() => getCurrentCutoff(systemToday), [systemToday]);
   const previousCutoff = useMemo(() => getPreviousCutoff(systemToday), [systemToday]);
 
-  // Tab-Isolated Filter States (Default Clear State: All Years, All Months, All Periods, All Employees)
-  const [attFilters, setAttFilters] = useState({
-    year: "all",
-    month: "all",
-    period: "all",
-    employee: "All Employees"
+  // Tab-Isolated Filter States (Default: Current Cutoff for Attendance, Previous Cutoff for Payroll)
+  const [attFilters, setAttFilters] = useState(() => {
+    const c = getCurrentCutoff(new Date());
+    return {
+      year: c.year,
+      month: c.month,
+      period: c.period,
+      employee: "All Employees"
+    };
   });
 
-  const [payFilters, setPayFilters] = useState({
-    year: "all",
-    month: "all",
-    period: "all",
-    employee: "All Employees"
+  const [payFilters, setPayFilters] = useState(() => {
+    const p = getPreviousCutoff(new Date());
+    return {
+      year: p.year,
+      month: p.month,
+      period: p.period,
+      employee: "All Employees"
+    };
   });
 
   // Active filter accessors based on activeReport
@@ -202,10 +208,41 @@ const AdminReports = () => {
   const { startDate, endDate } = activeReport === "payroll" ? payDates : attDates;
   const selectedEmployee = activeFilters.employee;
   
-  // --- Calendar/Events Specific Filters ---
-  const [calendarStartDate, setCalendarStartDate] = useState("");
-  const [calendarEndDate, setCalendarEndDate] = useState("");
+  // --- Calendar/Events Specific Filters (Default: Current Cutoff Window) ---
+  const [calendarStartDate, setCalendarStartDate] = useState(() => {
+    const c = getCurrentCutoff(new Date());
+    return computeCutoffDates(c.year, c.month, c.period).startDate;
+  });
+  const [calendarEndDate, setCalendarEndDate] = useState(() => {
+    const c = getCurrentCutoff(new Date());
+    return computeCutoffDates(c.year, c.month, c.period).endDate;
+  });
   const [eventTypeFilter, setEventTypeFilter] = useState("All Types");
+
+  // Synchronize default filters whenever systemToday is resolved or updated
+  const hasSyncedSystemToday = useRef(false);
+  useEffect(() => {
+    if (systemToday && !hasSyncedSystemToday.current) {
+      hasSyncedSystemToday.current = true;
+      const c = getCurrentCutoff(systemToday);
+      const p = getPreviousCutoff(systemToday);
+      setAttFilters(prev => ({
+        ...prev,
+        year: c.year,
+        month: c.month,
+        period: c.period
+      }));
+      setPayFilters(prev => ({
+        ...prev,
+        year: p.year,
+        month: p.month,
+        period: p.period
+      }));
+      const cDates = computeCutoffDates(c.year, c.month, c.period);
+      setCalendarStartDate(cDates.startDate);
+      setCalendarEndDate(cDates.endDate);
+    }
+  }, [systemToday]);
 
   // --- Requests Tab Specific Filters ---
   const [searchQuery, setSearchQuery] = useState("");

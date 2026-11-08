@@ -845,3 +845,130 @@ exports.sendContactSupportEmail = async ({ user, subject, message, file }) => {
   await transporter.sendMail(mailOptions);
   console.log(`[CONTACT SUPPORT EMAIL SENT] Inquiry from ${userFullName} (${userIdentifier}) sent to ${targetEmail}`);
 };
+
+/**
+ * Sends notification to Admin Managers/President when an Accountant submits a payroll batch.
+ */
+exports.sendPayrollApprovalRequestEmail = async ({
+  periodLabel,
+  submitterName,
+  totalEmployees,
+  totalNetPay,
+  accountantNotes,
+  managerEmails
+}) => {
+  const { EMAIL_SERVICE, EMAIL_USER, EMAIL_PASS } = process.env;
+  if (!EMAIL_USER || !EMAIL_PASS || !managerEmails || managerEmails.length === 0) {
+    console.log("[EMAIL NOTICE]: Skipping payroll approval email (missing credentials or recipients).");
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    service: EMAIL_SERVICE || "gmail",
+    auth: { user: EMAIL_USER, pass: EMAIL_PASS },
+  });
+
+  const formattedNet = typeof totalNetPay === 'number' 
+    ? totalNetPay.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : String(totalNetPay);
+
+  const mailOptions = {
+    from: `"MAChip Payroll Notification" <${EMAIL_USER}>`,
+    to: managerEmails.join(", "),
+    subject: `[ACTION REQUIRED] Payroll Pending Approval - ${periodLabel}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden;">
+        <div style="background: #1a3a6e; color: #ffffff; padding: 20px; text-align: center;">
+          <h2 style="margin: 0; font-size: 20px;">MAChip Payroll Approval Request</h2>
+          <p style="margin: 4px 0 0; font-size: 13px; opacity: 0.9;">MAC-J Int'l Forwarding Ltd., Co.</p>
+        </div>
+        <div style="padding: 24px; background: #ffffff;">
+          <p style="font-size: 14px; color: #334155;">Hello Management,</p>
+          <p style="font-size: 14px; color: #334155;">
+            The payroll batch for <strong>${periodLabel}</strong> has completed the Pre-Flight Verification Checklist and is now <strong>Pending Your Approval</strong>.
+          </p>
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 16px; margin: 20px 0;">
+            <p style="margin: 4px 0; font-size: 13px;"><strong>Prepared By:</strong> ${submitterName || "Accounting Staff"}</p>
+            <p style="margin: 4px 0; font-size: 13px;"><strong>Eligible Employees:</strong> ${totalEmployees || "—"}</p>
+            <p style="margin: 4px 0; font-size: 13px;"><strong>Total Net Disbursement:</strong> ₱${formattedNet}</p>
+            ${accountantNotes ? `<p style="margin: 8px 0 0; font-size: 12px; color: #64748b;"><em>Accountant Notes:</em> "${accountantNotes}"</p>` : ""}
+          </div>
+          <p style="font-size: 13px; color: #475569;">
+            Please log in to the MAChip admin portal to review the checklist, verify department summaries, and authorize the release.
+          </p>
+        </div>
+        <div style="background: #f1f5f9; padding: 12px; text-align: center; font-size: 11px; color: #64748b;">
+          This is an automated notification from the MAChip Segregation of Duties Engine.
+        </div>
+      </div>
+    `
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`[PAYROLL APPROVAL EMAIL SENT] Notified managers: ${managerEmails.join(", ")}`);
+  } catch (err) {
+    console.error("[PAYROLL APPROVAL EMAIL ERROR]:", err.message);
+  }
+};
+
+/**
+ * Sends notification back to Accountant when a Manager approves or rejects the payroll batch.
+ */
+exports.sendPayrollDecisionEmail = async ({
+  periodLabel,
+  decision,
+  decisionBy,
+  rejectionReason,
+  accountantEmail,
+  accountantName
+}) => {
+  const { EMAIL_SERVICE, EMAIL_USER, EMAIL_PASS } = process.env;
+  if (!EMAIL_USER || !EMAIL_PASS || !accountantEmail) {
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    service: EMAIL_SERVICE || "gmail",
+    auth: { user: EMAIL_USER, pass: EMAIL_PASS },
+  });
+
+  const isApproved = decision === "Approved";
+  const mailOptions = {
+    from: `"MAChip Payroll Notification" <${EMAIL_USER}>`,
+    to: accountantEmail,
+    subject: `Payroll Batch ${decision} - ${periodLabel}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden;">
+        <div style="background: ${isApproved ? '#059669' : '#dc2626'}; color: #ffffff; padding: 20px; text-align: center;">
+          <h2 style="margin: 0; font-size: 20px;">Payroll Batch ${decision}</h2>
+          <p style="margin: 4px 0 0; font-size: 13px; opacity: 0.9;">MAC-J Int'l Forwarding Ltd., Co.</p>
+        </div>
+        <div style="padding: 24px; background: #ffffff;">
+          <p style="font-size: 14px; color: #334155;">Hello ${accountantName || "Accountant"},</p>
+          <p style="font-size: 14px; color: #334155;">
+            The payroll batch for <strong>${periodLabel}</strong> has been <strong>${decision.toLowerCase()}</strong> by <strong>${decisionBy || "Management"}</strong>.
+          </p>
+          ${!isApproved && rejectionReason ? `
+            <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 16px; margin: 20px 0; color: #991b1b; font-size: 13px;">
+              <strong>Feedback / Adjustment Needed:</strong>
+              <p style="margin: 6px 0 0;">${rejectionReason}</p>
+            </div>
+          ` : `
+            <p style="font-size: 13px; color: #166534;">The batch is now authorized and ready for disbursement / release.</p>
+          `}
+        </div>
+        <div style="background: #f1f5f9; padding: 12px; text-align: center; font-size: 11px; color: #64748b;">
+          This is an automated notification from the MAChip Segregation of Duties Engine.
+        </div>
+      </div>
+    `
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`[PAYROLL DECISION EMAIL SENT] Notified accountant: ${accountantEmail}`);
+  } catch (err) {
+    console.error("[PAYROLL DECISION EMAIL ERROR]:", err.message);
+  }
+};

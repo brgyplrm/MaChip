@@ -84,6 +84,9 @@ backend/tests/
 test-results/
 playwright-report/
 blob-report/
+test_runs/*.log
+test_runs/*.json
+!test_runs/.gitkeep
 
 # --- Temporary HTML Visualizers & Scratchpads ---
 bitmap_previewer.html

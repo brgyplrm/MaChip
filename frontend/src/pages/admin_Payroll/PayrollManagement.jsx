@@ -117,10 +117,10 @@ const Payroll = () => {
       if (response.ok) {
         setAllPeriods(data);
         
-        // Find the "Draft" period which is currently active
-        // Logic: The most recent draft is considered active
-        const draftPeriods = data.filter(p => p.status === 'Draft');
-        const active = draftPeriods[0]; 
+        // Find the active, unreleased period (Draft, Pending Approval, Approved, or Rejected)
+        // A period remains "Active" until it is officially Released and locked.
+        const activeCyclePeriods = data.filter(p => p.status !== 'Released');
+        const active = activeCyclePeriods[0]; 
 
         if (active) {
           const [startY, startM, startD] = active.startDate.split('-').map(Number);
@@ -191,8 +191,8 @@ const Payroll = () => {
   };
 
   const isFiltering = searchQuery !== "" || statusFilter !== "All" || yearFilter !== "All Years" || sortOrder !== "newest";
-  // Filter out the active draft period from the list table
-  let filteredPeriods = allPeriods.filter(p => p.status !== 'Draft' || (activePeriod && p.periodId !== activePeriod.id));
+  // Filter out the active, unreleased period from the previous periods table
+  let filteredPeriods = allPeriods.filter(p => !activePeriod || p.periodId !== activePeriod.id);
 
   // Apply Search
   if (searchQuery.trim()) {
@@ -326,7 +326,18 @@ const Payroll = () => {
                         <CardDescription className="font-medium mt-1">{activePeriod.periodText}</CardDescription>
                       </div>
                     </div>
-                    <Badge variant="secondary" className="bg-slate-100 text-brand-primary shadow-sm uppercase tracking-wider font-bold">
+                    <Badge 
+                      variant="secondary" 
+                      className={`shadow-xs uppercase tracking-wider font-bold border ${
+                        activePeriod.status === "Approved"
+                          ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                          : activePeriod.status === "Pending Approval"
+                            ? "bg-amber-100 text-amber-800 border-amber-300"
+                            : activePeriod.status === "Rejected"
+                              ? "bg-rose-100 text-rose-800 border-rose-300"
+                              : "bg-blue-100 text-blue-800 border-blue-300"
+                      }`}
+                    >
                       {activePeriod.status}
                     </Badge>
                   </div>
@@ -366,15 +377,39 @@ const Payroll = () => {
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span className="inline-block w-full">
-                        <Button asChild className="w-full bg-brand-primary hover:bg-brand-primary-hover py-6 text-sm shadow-sm transition-all hover:-translate-y-0.5">
+                        <Button 
+                          asChild 
+                          className={`w-full py-6 text-sm shadow-sm transition-all hover:-translate-y-0.5 text-white ${
+                            activePeriod.status === 'Approved'
+                              ? 'bg-emerald-600 hover:bg-emerald-700'
+                              : activePeriod.status === 'Pending Approval'
+                                ? 'bg-amber-600 hover:bg-amber-700'
+                                : activePeriod.status === 'Rejected'
+                                  ? 'bg-rose-600 hover:bg-rose-700'
+                                  : 'bg-brand-primary hover:bg-brand-primary-hover'
+                          }`}
+                        >
                           <Link to={`/payroll/payrollPeriod?periodId=${activePeriod.id}`}>
-                            <ReceiptOutlinedIcon className="mr-2 h-4 w-4" /> Process Active Payroll
+                            <ReceiptOutlinedIcon className="mr-2 h-4 w-4" /> 
+                            {activePeriod.status === 'Approved'
+                              ? 'Release & Lock Payroll'
+                              : activePeriod.status === 'Pending Approval'
+                                ? 'Review Authorization'
+                                : activePeriod.status === 'Rejected'
+                                  ? 'Resolve & Re-Submit'
+                                  : 'Process Active Payroll'}
                           </Link>
                         </Button>
                       </span>
                     </TooltipTrigger>
                     <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal">
-                      Recalculate, lock, or release payouts for the current period.
+                      {activePeriod.status === 'Approved'
+                        ? 'Executive authorization verified. Proceed to lock records, archive PDFs, and release payslips.'
+                        : activePeriod.status === 'Pending Approval'
+                          ? 'Submitted for executive sign-off. Awaiting management authorization.'
+                          : activePeriod.status === 'Rejected'
+                            ? 'Batch returned with feedback. Correct records and re-run pre-flight verification.'
+                            : 'Recalculate, lock, or release payouts for the current period.'}
                     </TooltipContent>
                   </Tooltip>
                 </div>
@@ -527,7 +562,10 @@ const Payroll = () => {
                   {currentData.length > 0 ? (
                     currentData.map((p, index) => {
                         let badgeStyle = "bg-slate-100 text-slate-700 hover:bg-slate-200";
-                        if (p.status?.toLowerCase() === "released") badgeStyle = "bg-green-100 text-green-800 hover:bg-green-200";
+                        if (p.status?.toLowerCase() === "released") badgeStyle = "bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-200";
+                        if (p.status?.toLowerCase() === "approved") badgeStyle = "bg-blue-100 text-blue-800 hover:bg-blue-200 border border-blue-200";
+                        if (p.status?.toLowerCase() === "pending approval") badgeStyle = "bg-amber-100 text-amber-800 hover:bg-amber-200 border border-amber-200";
+                        if (p.status?.toLowerCase() === "rejected") badgeStyle = "bg-rose-100 text-rose-800 hover:bg-rose-200 border border-rose-200";
                         if (p.status?.toLowerCase() === "locked") badgeStyle = "bg-amber-100 text-amber-800 hover:bg-amber-200";
                         
                         return (

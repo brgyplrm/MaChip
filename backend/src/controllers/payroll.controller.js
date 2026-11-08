@@ -4,7 +4,9 @@ const { getSystemTime, formatForSQL, formatDateLocal } = require("../utils/syste
 const { 
   sendPayrollEmail, 
   sendTerminationNoticeEmail, 
-  sendTerminationRescissionEmail 
+  sendTerminationRescissionEmail,
+  sendPayrollApprovalRequestEmail,
+  sendPayrollDecisionEmail
 } = require("../utils/emailService");
 const { generatePayslipPDF, generateDetailedPayslipPDF } = require("../utils/pdfGenerator");
 const { generatePayslipPassword } = require("../utils/payslipPassword");
@@ -1545,22 +1547,64 @@ exports.getPayrollPreviewBatch = async (req, res) => {
   }
 };
 
+// ── Helper: Resolve Earliest Allowable Release Date ────────────────────────
+/**
+ * Resolves effective payday considering weekend adjustments (e.g. Sunday 15th -> Friday 13th)
+ * and declared Philippine holidays per company banking policy.
+ */
+async function getEarliestReleaseDate(period_End) {
+  try {
+    const settings = await SystemSettings.findOne();
+    const weekendRule = settings?.payrollWeekendRule || "PRECEDING_FRIDAY";
+    const holidays = await sequelize.query(
+      `SELECT "date"::text as "hDate" FROM "Holiday"`,
+      { type: QueryTypes.SELECT }
+    );
+    const holidayList = (holidays || []).map((h) => h.hDate);
+    const sched = resolvePaydaySchedule(period_End, weekendRule, holidayList);
+    return {
+      earliestReleaseDate: sched.effectivePayday,
+      readablePayday: sched.readablePayday,
+      isAdjusted: sched.isAdjusted,
+      adjustmentNotice: sched.adjustmentNotice,
+      sched
+    };
+  } catch (err) {
+    console.error("[getEarliestReleaseDate] Error resolving payday schedule:", err);
+    return {
+      earliestReleaseDate: period_End,
+      readablePayday: period_End,
+      isAdjusted: false,
+      adjustmentNotice: null,
+      sched: null
+    };
+  }
+}
+
 // ── Generate Batch Payroll (Internal) ───────────────────────────────────────
 async function generateBatchPayrollInternal(period_Start, period_End, adminId = 1, shouldRelease = false, customDailyRate = null, targetUserId = null, awaitReleaseTasks = false, req = null) {
   const now = await getSystemTime();
   const nowStr = formatForSQL(now);
   const todayStr = formatDateLocal(now);
 
-  if (shouldRelease && todayStr < period_End) {
-    throw new Error(`Premature release blocked. The cutoff period is still ongoing until ${period_End}. Payroll can only be released and locked on or after the cutoff end date.`);
+  const { earliestReleaseDate, readablePayday } = await getEarliestReleaseDate(period_End);
+  if (shouldRelease && todayStr < earliestReleaseDate) {
+    throw new Error(
+      `Premature release blocked. The designated payday release date for this cutoff is ${readablePayday} (${earliestReleaseDate}). Payroll can only be released and locked on or after this date.`
+    );
   }
 
   const periodRow = await sequelize.query(
-    `SELECT "periodId" FROM "PayrollPeriod" 
+    `SELECT "periodId", "status" FROM "PayrollPeriod" 
      WHERE "startDate" = :period_Start AND "endDate" = :period_End LIMIT 1`,
     { replacements: { period_Start, period_End }, type: QueryTypes.SELECT }
   );
   const periodId = periodRow.length > 0 ? periodRow[0].periodId : null;
+  const currentPeriodStatus = periodRow.length > 0 ? periodRow[0].status : null;
+
+  if (shouldRelease && currentPeriodStatus && currentPeriodStatus !== 'Approved' && currentPeriodStatus !== 'Released') {
+    throw new Error(`Approval gate required. This payroll period is currently in '${currentPeriodStatus}' status. It must be Approved by Management before it can be officially released.`);
+  }
 
   let employeeQuery = `
     SELECT u."user_Id", u."user_FirstName", u."user_LastName", u."user_Email", u."dailyRate",
@@ -2116,9 +2160,10 @@ exports.generateBatchPayroll = async (req, res) => {
 
   const now = await getSystemTime();
   const todayStr = formatDateLocal(now);
-  if (shouldRelease && todayStr < period_End) {
+  const { earliestReleaseDate, readablePayday } = await getEarliestReleaseDate(period_End);
+  if (shouldRelease && todayStr < earliestReleaseDate) {
     return res.status(400).json({
-      error: `Premature release blocked. The cutoff period is still ongoing until ${period_End}. Payroll can only be released and locked on or after the cutoff end date.`
+      error: `Premature release blocked. The designated payday release date for this cutoff is ${readablePayday} (${earliestReleaseDate}). Payroll can only be released and locked on or after this date.`
     });
   }
 
@@ -2595,9 +2640,10 @@ exports.releasePayroll = async (req, res) => {
     );
     if (!payroll[0]) return res.status(404).json({ error: "Payroll not found." });
 
-    if (todayStr < payroll[0].period_End) {
+    const { earliestReleaseDate, readablePayday } = await getEarliestReleaseDate(payroll[0].period_End);
+    if (todayStr < earliestReleaseDate) {
       return res.status(400).json({
-        error: `Premature release blocked. The cutoff period is still ongoing until ${payroll[0].period_End}. Payroll can only be released and locked on or after the cutoff end date.`
+        error: `Premature release blocked. The designated payday release date for this cutoff is ${readablePayday} (${earliestReleaseDate}). Payroll can only be released and locked on or after this date.`
       });
     }
 
@@ -6319,6 +6365,632 @@ exports.downloadMyLoanPDF = async (req, res) => {
     return exports.downloadIndividualLoanPDF(req, res);
   } catch (error) {
     console.error("[downloadMyLoanPDF Error]:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ── Multi-Stage Approval Workflow Handlers ────────────────────────────────────
+
+/**
+ * 1. Pre-Flight Diagnostics: Runs automated checks across attendance,
+ * requests, rates, and deduction outliers before submission.
+ */
+exports.getPayrollPreflightCheck = async (req, res) => {
+  const { periodId } = req.params;
+  try {
+    const period = await sequelize.query(
+      `SELECT p.*, s."user_FirstName" AS "submitterFirstName", s."user_LastName" AS "submitterLastName",
+              a."user_FirstName" AS "approverFirstName", a."user_LastName" AS "approverLastName"
+       FROM "PayrollPeriod" p
+       LEFT JOIN "User" s ON s."user_Id" = p."submittedBy"
+       LEFT JOIN "User" a ON a."user_Id" = p."approvedBy"
+       WHERE p."periodId" = :periodId LIMIT 1`,
+      { replacements: { periodId }, type: QueryTypes.SELECT }
+    );
+    if (!period[0]) return res.status(404).json({ error: "Payroll period not found." });
+
+    const { startDate, endDate } = period[0];
+
+    // A. Unclosed shifts & irregular logs
+    const unclosedReport = await sequelize.query(
+      `SELECT COUNT(*)::int as count 
+       FROM "employee_Logging_report" 
+       WHERE "log_Date" BETWEEN :startDate AND :endDate 
+         AND "time_Logged_inArr" IS NOT NULL 
+         AND "time_Logged_inArr" != '[]'
+         AND ("time_Logged_outArr" IS NULL OR "time_Logged_outArr" = '[]')`,
+      { replacements: { startDate, endDate }, type: QueryTypes.SELECT }
+    );
+    const irregularLogs = await sequelize.query(
+      `SELECT COUNT(*)::int as count 
+       FROM "user_logging" 
+       WHERE "log_Date" BETWEEN :startDate AND :endDate 
+         AND "attendance_StatusId" = 8`,
+      { replacements: { startDate, endDate }, type: QueryTypes.SELECT }
+    );
+    const unclosedPunchesCount = (unclosedReport[0]?.count || 0) + (irregularLogs[0]?.count || 0);
+
+    // B. Pending requests within cutoff
+    const pendingReqs = await sequelize.query(
+      `SELECT COUNT(DISTINCT er."emp_reqId")::int as count 
+       FROM "emp_Request" er
+       LEFT JOIN "Vacation_Leave" vl ON er."emp_reqId" = vl."emp_reqId"
+       LEFT JOIN "Sick_Leave" sl ON er."emp_reqId" = sl."emp_reqId"
+       LEFT JOIN "Emergency_Leave" el ON er."emp_reqId" = el."emp_reqId"
+       LEFT JOIN "HalfDay_Leave" hdl ON er."emp_reqId" = hdl."emp_reqId"
+       LEFT JOIN "Onfield_Work" ow ON er."emp_reqId" = ow."emp_reqId"
+       LEFT JOIN "LogCorrection_Request" lc ON er."emp_reqId" = lc."emp_reqId"
+       LEFT JOIN "Statutory_Leave" stl ON er."emp_reqId" = stl."emp_reqId"
+       LEFT JOIN "Overtime_Request" ot ON er."emp_reqId" = ot."emp_reqId"
+       WHERE er."emp_reqStatusId" IN (1, 4)
+         AND (
+           er."date_Filed" BETWEEN :startDate AND :endDate
+           OR (vl."StartDate" <= :endDate AND vl."EndDate" >= :startDate)
+           OR (sl."StartDate" <= :endDate AND sl."EndDate" >= :startDate)
+           OR (el."DateOfLeave" BETWEEN :startDate AND :endDate)
+           OR (hdl."DateOfLeave" BETWEEN :startDate AND :endDate)
+           OR (ow."DateonField" BETWEEN :startDate AND :endDate)
+           OR (lc."logDate" BETWEEN :startDate AND :endDate)
+           OR (stl."StartDate" <= :endDate AND stl."EndDate" >= :startDate)
+           OR (ot."OT_DateOf" BETWEEN :startDate AND :endDate)
+         )`,
+      { replacements: { startDate, endDate }, type: QueryTypes.SELECT }
+    );
+    const pendingRequestsCount = pendingReqs[0]?.count || 0;
+
+    // Ensure draft rows exist for diagnostics if period is in Draft or Rejected
+    const countCheck = await sequelize.query(
+      `SELECT COUNT(*)::int as count FROM "Payroll" WHERE "periodId" = :periodId`,
+      { replacements: { periodId }, type: QueryTypes.SELECT }
+    );
+    if ((!countCheck[0]?.count || countCheck[0].count === 0) && (period[0].status === "Draft" || period[0].status === "Rejected")) {
+      try {
+        await generateBatchPayrollInternal(startDate, endDate, req.user?.user_Id || 1, false, null, null, false, req);
+      } catch (genErr) {
+        console.warn("[PREFLIGHT AUTO-DRAFT WARNING]:", genErr.message);
+      }
+    }
+
+    // C. Zero or Negative Net Pay Check
+    const negPay = await sequelize.query(
+      `SELECT COUNT(*)::int as count 
+       FROM "Payroll" 
+       WHERE "periodId" = :periodId AND "netPay" <= 0`,
+      { replacements: { periodId }, type: QueryTypes.SELECT }
+    );
+    const negativeNetPayCount = negPay[0]?.count || 0;
+
+    // D. Daily Rate Updates in Cutoff Window
+    const rateMods = await sequelize.query(
+      `SELECT COUNT(*)::int as count 
+       FROM "User" 
+       WHERE "rateUpdatedAt" BETWEEN :startDate AND :endDate AND "deletedAt" IS NULL`,
+      { replacements: { startDate, endDate }, type: QueryTypes.SELECT }
+    );
+    const rateChangesCount = rateMods[0]?.count || 0;
+
+    // E. Financial Aggregates & Categorical Composition
+    const aggregates = await sequelize.query(
+      `SELECT COUNT(*)::int as "totalEmployees",
+              COALESCE(SUM("basicPay"), 0)::numeric as "totalBasic",
+              COALESCE(SUM("totalEarnings"), 0)::numeric as "totalGross",
+              COALESCE(SUM("totalDeductions"), 0)::numeric as "totalDeductions",
+              COALESCE(SUM("netPay"), 0)::numeric as "totalNet"
+       FROM "Payroll" 
+       WHERE "periodId" = :periodId`,
+      { replacements: { periodId }, type: QueryTypes.SELECT }
+    );
+
+    // E.1 Detailed Diagnostic Item Lists (TICKET-06)
+    const pendingRequestsList = await sequelize.query(
+      `SELECT er."emp_reqId" as "reqId", er."user_Id" as "userId",
+              u."user_FirstName" as "firstName", u."user_LastName" as "lastName",
+              er."emp_reqTypeId" as "typeId",
+              COALESCE(rt."reqTypeName", 'Request') as "typeName",
+              er."emp_reqStatusId" as "statusId",
+              er."date_Filed" as "dateFiled",
+              COALESCE(vl."StartDate"::text, sl."StartDate"::text, el."DateOfLeave"::text, hdl."DateOfLeave"::text, ow."DateonField"::text, lc."logDate"::text, stl."StartDate"::text, ot."OT_DateOf"::text) as "effectiveDate",
+              COALESCE(vl."EndDate"::text, sl."EndDate"::text, stl."EndDate"::text, null) as "endDate"
+       FROM "emp_Request" er
+       JOIN "User" u ON er."user_Id" = u."user_Id"
+       LEFT JOIN "request_Type" rt ON er."emp_reqTypeId" = rt."reqTypeId"
+       LEFT JOIN "Vacation_Leave" vl ON er."emp_reqId" = vl."emp_reqId"
+       LEFT JOIN "Sick_Leave" sl ON er."emp_reqId" = sl."emp_reqId"
+       LEFT JOIN "Emergency_Leave" el ON er."emp_reqId" = el."emp_reqId"
+       LEFT JOIN "HalfDay_Leave" hdl ON er."emp_reqId" = hdl."emp_reqId"
+       LEFT JOIN "Onfield_Work" ow ON er."emp_reqId" = ow."emp_reqId"
+       LEFT JOIN "LogCorrection_Request" lc ON er."emp_reqId" = lc."emp_reqId"
+       LEFT JOIN "Statutory_Leave" stl ON er."emp_reqId" = stl."emp_reqId"
+       LEFT JOIN "Overtime_Request" ot ON er."emp_reqId" = ot."emp_reqId"
+       WHERE er."emp_reqStatusId" IN (1, 4)
+         AND (
+           er."date_Filed" BETWEEN :startDate AND :endDate
+           OR (vl."StartDate" <= :endDate AND vl."EndDate" >= :startDate)
+           OR (sl."StartDate" <= :endDate AND sl."EndDate" >= :startDate)
+           OR (el."DateOfLeave" BETWEEN :startDate AND :endDate)
+           OR (hdl."DateOfLeave" BETWEEN :startDate AND :endDate)
+           OR (ow."DateonField" BETWEEN :startDate AND :endDate)
+           OR (lc."logDate" BETWEEN :startDate AND :endDate)
+           OR (stl."StartDate" <= :endDate AND stl."EndDate" >= :startDate)
+           OR (ot."OT_DateOf" BETWEEN :startDate AND :endDate)
+         )
+       ORDER BY er."date_Filed" DESC LIMIT 20`,
+      { replacements: { startDate, endDate }, type: QueryTypes.SELECT }
+    );
+
+    const unclosedPunchesList = await sequelize.query(
+      `SELECT el."user_id" as "userId", u."user_FirstName" as "firstName", u."user_LastName" as "lastName",
+              el."log_Date"::text as "logDate", el."time_Logged_inArr" as "inArr", el."time_Logged_outArr" as "outArr"
+       FROM "employee_Logging_report" el
+       JOIN "User" u ON el."user_id" = u."user_Id"
+       WHERE el."log_Date" BETWEEN :startDate AND :endDate
+         AND el."time_Logged_inArr" IS NOT NULL AND el."time_Logged_inArr" != '[]'
+         AND (el."time_Logged_outArr" IS NULL OR el."time_Logged_outArr" = '[]')
+       ORDER BY el."log_Date" DESC LIMIT 20`,
+      { replacements: { startDate, endDate }, type: QueryTypes.SELECT }
+    );
+
+    const negativeNetPayList = await sequelize.query(
+      `SELECT p."user_Id" as "userId", u."user_FirstName" as "firstName", u."user_LastName" as "lastName",
+              p."netPay", p."totalEarnings" as "grossPay", p."totalDeductions" as "totalDeductions"
+       FROM "Payroll" p
+       JOIN "User" u ON p."user_Id" = u."user_Id"
+       WHERE p."periodId" = :periodId AND p."netPay" <= 0
+       ORDER BY p."netPay" ASC LIMIT 20`,
+      { replacements: { periodId }, type: QueryTypes.SELECT }
+    );
+
+    // E.2 Categorical Earnings & Deductions Breakdowns (TICKET-07)
+    const earningsAgg = await sequelize.query(
+      `SELECT 
+         COALESCE(SUM(p."basicPay"), 0)::numeric(14,2) as "totalBasic",
+         COALESCE(SUM(e."OT_Amnt"), 0)::numeric(14,2) as "totalOT",
+         COALESCE(SUM(e."legalHol_Amnt"), 0)::numeric(14,2) as "totalLegalHol",
+         COALESCE(SUM(e."specialHol_Amnt" + COALESCE(e."specialHol_Adj", 0)), 0)::numeric(14,2) as "totalSpecialHol",
+         COALESCE(SUM(e."nightDiff_Amnt"), 0)::numeric(14,2) as "totalNightDiff"
+       FROM "Payroll" p
+       LEFT JOIN "Payroll_Earnings" e ON p."payrollId" = e."payrollId"
+       WHERE p."periodId" = :periodId`,
+      { replacements: { periodId }, type: QueryTypes.SELECT }
+    );
+
+    const deductionsAgg = await sequelize.query(
+      `SELECT 
+         COALESCE(SUM(d."SSS_Ded"), 0)::numeric(14,2) as "totalSSS",
+         COALESCE(SUM(d."Philhealth_Ded"), 0)::numeric(14,2) as "totalPhilHealth",
+         COALESCE(SUM(d."HDMF_Ded"), 0)::numeric(14,2) as "totalPagIbig",
+         COALESCE(SUM(d."Tax_Ded"), 0)::numeric(14,2) as "totalWithholdingTax",
+         COALESCE(SUM(d."healthCard_Amnt"), 0)::numeric(14,2) as "totalHMO",
+         COALESCE(SUM(d."SSS_Loan"), 0)::numeric(14,2) as "totalSSSLoan",
+         COALESCE(SUM(d."HDMF_Loan"), 0)::numeric(14,2) as "totalPagIbigLoan",
+         COALESCE(SUM(d."advances_Amnt"), 0)::numeric(14,2) as "totalCashAdvances",
+         COALESCE(SUM(d."tardiness_Amnt"), 0)::numeric(14,2) as "totalTardiness",
+         COALESCE(SUM(d."absence_Amnt"), 0)::numeric(14,2) as "totalAbsences",
+         COALESCE(SUM(d."unpaidLeave_Amnt"), 0)::numeric(14,2) as "totalUnpaidLeave"
+       FROM "Payroll" p
+       LEFT JOIN "Payroll_Deductions" d ON p."payrollId" = d."payrollId"
+       WHERE p."periodId" = :periodId`,
+      { replacements: { periodId }, type: QueryTypes.SELECT }
+    );
+
+    // E.3 Employee Payout Roster (TICKET-07)
+    const employeeRoster = await sequelize.query(
+      `SELECT p."payrollId", p."user_Id" as "userId",
+              u."user_FirstName" as "firstName", u."user_LastName" as "lastName",
+              u."department", u."position",
+              p."basicPay", p."totalEarnings" as "grossPay", p."totalDeductions", p."netPay",
+              p."status"
+       FROM "Payroll" p
+       JOIN "User" u ON p."user_Id" = u."user_Id"
+       WHERE p."periodId" = :periodId
+       ORDER BY u."user_LastName" ASC`,
+      { replacements: { periodId }, type: QueryTypes.SELECT }
+    );
+
+    // Calculate 2-day submission window
+    const settings = await SystemSettings.findOne();
+    const bufferDays = (settings && settings.payrollCutoffBufferDays !== undefined && settings.payrollCutoffBufferDays !== null)
+      ? parseInt(settings.payrollCutoffBufferDays, 10)
+      : 2;
+
+    const [eY, eM, eD] = endDate.split("-").map(Number);
+    const evalEndDay = Math.max(1, eD - bufferDays);
+    const submissionOpenDate = `${eY}-${String(eM).padStart(2, "0")}-${String(evalEndDay).padStart(2, "0")}`;
+
+    const now = await getSystemTime();
+    const todayStr = formatDateLocal(now);
+    const isSubmissionWindowOpen = todayStr >= submissionOpenDate;
+
+    return res.json({
+      period: period[0],
+      diagnostics: {
+        unclosedPunchesCount,
+        pendingRequestsCount,
+        negativeNetPayCount,
+        rateChangesCount,
+        totalEmployees: aggregates[0]?.totalEmployees || 0,
+        totalGross: aggregates[0]?.totalGross || 0,
+        totalDeductions: aggregates[0]?.totalDeductions || 0,
+        totalNet: aggregates[0]?.totalNet || 0,
+        submissionOpenDate,
+        isSubmissionWindowOpen,
+        canSubmit: (period[0].status === "Draft" || period[0].status === "Rejected") && isSubmissionWindowOpen,
+        // Detailed Diagnostic Lists (TICKET-06)
+        pendingRequestsList,
+        unclosedPunchesList,
+        negativeNetPayList,
+        // Financial Composition & Roster (TICKET-07)
+        earningsBreakdown: earningsAgg[0] || {},
+        deductionsBreakdown: deductionsAgg[0] || {},
+        employeeRoster
+      }
+    });
+  } catch (error) {
+    console.error("[PREFLIGHT CHECK ERROR]:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * 2. Submit Payroll for Approval (The Maker - Accountant)
+ */
+exports.submitPayrollForApproval = async (req, res) => {
+  const { periodId } = req.params;
+  const { checklistData, accountantNotes } = req.body;
+  const submitterId = req.user.user_Id;
+
+  try {
+    const period = await sequelize.query(
+      `SELECT * FROM "PayrollPeriod" WHERE "periodId" = :periodId LIMIT 1`,
+      { replacements: { periodId }, type: QueryTypes.SELECT }
+    );
+    if (!period[0]) return res.status(404).json({ error: "Payroll period not found." });
+
+    if (period[0].status === "Released") {
+      return res.status(400).json({ error: "Cannot submit an already Released payroll period." });
+    }
+    if (period[0].status === "Approved") {
+      return res.status(400).json({ error: "Payroll period is already Approved by Management." });
+    }
+
+    // Check if within 2-day submission window
+    const settings = await SystemSettings.findOne();
+    const bufferDays = (settings && settings.payrollCutoffBufferDays !== undefined && settings.payrollCutoffBufferDays !== null)
+      ? parseInt(settings.payrollCutoffBufferDays, 10)
+      : 2;
+
+    const [eY, eM, eD] = period[0].endDate.split("-").map(Number);
+    const evalEndDay = Math.max(1, eD - bufferDays);
+    const submissionOpenDate = `${eY}-${String(eM).padStart(2, "0")}-${String(evalEndDay).padStart(2, "0")}`;
+
+    const now = await getSystemTime();
+    const todayStr = formatDateLocal(now);
+    if (todayStr < submissionOpenDate) {
+      return res.status(400).json({
+        error: `Premature submission blocked. Pre-flight review and approval submission opens 2 days prior to cutoff conclusion (on or after ${submissionOpenDate}).`
+      });
+    }
+
+    // Ensure draft payroll rows exist before submitting for approval
+    const existingCount = await sequelize.query(
+      `SELECT COUNT(*)::int as count FROM "Payroll" WHERE "periodId" = :periodId`,
+      { replacements: { periodId }, type: QueryTypes.SELECT }
+    );
+    if (!existingCount[0]?.count || existingCount[0].count === 0) {
+      await generateBatchPayrollInternal(period[0].startDate, period[0].endDate, submitterId, false, null, null, false, req);
+    }
+
+    const nowStr = formatForSQL(now);
+
+    const mergedChecklist = {
+      ...(checklistData || {}),
+      accountantNotes: accountantNotes || "",
+      submittedAt: nowStr
+    };
+
+    // Update Period
+    await sequelize.query(
+      `UPDATE "PayrollPeriod" 
+       SET "status" = 'Pending Approval',
+           "checklistData" = :checklistJson,
+           "submittedBy" = :submitterId,
+           "submittedAt" = :nowStr,
+           "rejectionReason" = NULL,
+           "updatedAt" = :nowStr
+       WHERE "periodId" = :periodId`,
+      {
+        replacements: {
+          periodId,
+          checklistJson: JSON.stringify(mergedChecklist),
+          submitterId,
+          nowStr
+        },
+        type: QueryTypes.UPDATE
+      }
+    );
+
+    // Update child payroll rows status = 2 (Pending Approval in Payroll_status)
+    await sequelize.query(
+      `UPDATE "Payroll" 
+       SET "status" = 2, "updatedAt" = :nowStr 
+       WHERE "periodId" = :periodId AND "status" != 5`,
+      { replacements: { periodId, nowStr }, type: QueryTypes.UPDATE }
+    );
+
+    // Audit Log
+    await logAudit(
+      req,
+      submitterId,
+      "Payroll",
+      "SUBMIT_PAYROLL_FOR_APPROVAL",
+      "PayrollPeriod",
+      periodId,
+      { status: period[0].status },
+      { status: "Pending Approval", submittedBy: submitterId, checklistData: mergedChecklist }
+    );
+
+    // Trigger async manager notification emails
+    (async () => {
+      try {
+        const managers = await sequelize.query(
+          `SELECT "user_Email", "user_FirstName", "user_LastName" 
+           FROM "User" 
+           WHERE ("position" IN ('PRESIDENT', 'ADMIN MANAGER', 'SUPERVISOR') OR "user_RoleId" = 1)
+             AND "deletedAt" IS NULL AND "user_Email" IS NOT NULL`,
+          { type: QueryTypes.SELECT }
+        );
+        const managerEmails = managers.map(m => m.user_Email).filter(Boolean);
+
+        const totals = await sequelize.query(
+          `SELECT COUNT(*)::int as count, COALESCE(SUM("netPay"), 0) as "net" 
+           FROM "Payroll" WHERE "periodId" = :periodId`,
+          { replacements: { periodId }, type: QueryTypes.SELECT }
+        );
+
+        const submitterName = `${req.user.user_FirstName || ''} ${req.user.user_LastName || ''}`.trim() || 'Accounting Staff';
+
+        await sendPayrollApprovalRequestEmail({
+          periodLabel: period[0].label || `${period[0].startDate} to ${period[0].endDate}`,
+          submitterName,
+          totalEmployees: totals[0]?.count || 0,
+          totalNetPay: parseFloat(totals[0]?.net || 0),
+          accountantNotes,
+          managerEmails
+        });
+      } catch (mailErr) {
+        console.error("[ASYNC PAYROLL NOTIFICATION ERROR]:", mailErr.message);
+      }
+    })();
+
+    res.json({
+      message: "Payroll period successfully submitted for Management Approval.",
+      status: "Pending Approval"
+    });
+  } catch (error) {
+    console.error("[SUBMIT FOR APPROVAL ERROR]:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * 3. Approve Payroll Batch (The Checker - Admin Manager / President)
+ */
+exports.approvePayrollPeriod = async (req, res) => {
+  const { periodId } = req.params;
+  const approver = req.user;
+  const approverId = approver.user_Id;
+
+  // RBAC Guard: Role 1 or specific executive/supervisory position
+  const approverPosition = (approver.position || "").toUpperCase();
+  const approverRoleId = parseInt(approver.user_RoleId || approver.roleId, 10);
+  if (approverRoleId !== 1 && !["PRESIDENT", "ADMIN MANAGER", "SUPERVISOR"].includes(approverPosition)) {
+    return res.status(403).json({ error: "Forbidden: Only an Admin Manager or President can authorize payroll disbursement." });
+  }
+
+  try {
+    const period = await sequelize.query(
+      `SELECT * FROM "PayrollPeriod" WHERE "periodId" = :periodId LIMIT 1`,
+      { replacements: { periodId }, type: QueryTypes.SELECT }
+    );
+    if (!period[0]) return res.status(404).json({ error: "Payroll period not found." });
+
+    if (period[0].status === "Released") {
+      return res.status(400).json({ error: "Payroll period is already Released." });
+    }
+    if (period[0].status !== "Pending Approval") {
+      return res.status(400).json({ error: `Cannot approve payroll in '${period[0].status}' status. It must be 'Pending Approval'.` });
+    }
+
+    const now = await getSystemTime();
+    const nowStr = formatForSQL(now);
+
+    // Update Period
+    await sequelize.query(
+      `UPDATE "PayrollPeriod" 
+       SET "status" = 'Approved',
+           "approvedBy" = :approverId,
+           "approvedAt" = :nowStr,
+           "updatedAt" = :nowStr
+       WHERE "periodId" = :periodId`,
+      { replacements: { periodId, approverId, nowStr }, type: QueryTypes.UPDATE }
+    );
+
+    // Update child payroll rows status = 3 (Approved in Payroll_status)
+    await sequelize.query(
+      `UPDATE "Payroll" 
+       SET "status" = 3, "updatedAt" = :nowStr 
+       WHERE "periodId" = :periodId AND "status" != 5`,
+      { replacements: { periodId, nowStr }, type: QueryTypes.UPDATE }
+    );
+
+    // Audit Log
+    await logAudit(
+      req,
+      approverId,
+      "Payroll",
+      "APPROVE_PAYROLL_PERIOD",
+      "PayrollPeriod",
+      periodId,
+      { status: period[0].status },
+      { status: "Approved", approvedBy: approverId, approvedAt: nowStr }
+    );
+
+    // Notify accountant
+    (async () => {
+      try {
+        if (period[0].submittedBy) {
+          const submitter = await sequelize.query(
+            `SELECT "user_Email", "user_FirstName", "user_LastName" FROM "User" WHERE "user_Id" = :sId LIMIT 1`,
+            { replacements: { sId: period[0].submittedBy }, type: QueryTypes.SELECT }
+          );
+          if (submitter[0]?.user_Email) {
+            await sendPayrollDecisionEmail({
+              periodLabel: period[0].label || `${period[0].startDate} to ${period[0].endDate}`,
+              decision: "Approved",
+              decisionBy: `${approver.user_FirstName || ''} ${approver.user_LastName || ''}`.trim() || 'Admin Manager',
+              rejectionReason: null,
+              accountantEmail: submitter[0].user_Email,
+              accountantName: `${submitter[0].user_FirstName} ${submitter[0].user_LastName}`
+            });
+          }
+        }
+      } catch (err) {
+        console.error("[ASYNC APPROVAL DECISION NOTIFY ERROR]:", err.message);
+      }
+    })();
+
+    res.json({
+      message: "Payroll period approved successfully. It is now authorized for disbursement/release.",
+      status: "Approved"
+    });
+  } catch (error) {
+    console.error("[APPROVE PAYROLL ERROR]:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * 4. Reject / Return Payroll to Draft (The Checker - Admin Manager / President)
+ */
+exports.rejectPayrollPeriod = async (req, res) => {
+  const { periodId } = req.params;
+  const { rejectionReason } = req.body;
+  const approver = req.user;
+  const approverId = approver.user_Id;
+
+  if (!rejectionReason || !rejectionReason.trim()) {
+    return res.status(400).json({ error: "Rejection reason / adjustment feedback is required." });
+  }
+
+  // RBAC Guard
+  const approverPosition = (approver.position || "").toUpperCase();
+  const approverRoleId = parseInt(approver.user_RoleId || approver.roleId, 10);
+  if (approverRoleId !== 1 && !["PRESIDENT", "ADMIN MANAGER", "SUPERVISOR"].includes(approverPosition)) {
+    return res.status(403).json({ error: "Forbidden: Only an Admin Manager or President can reject payroll batches." });
+  }
+
+  try {
+    const period = await sequelize.query(
+      `SELECT * FROM "PayrollPeriod" WHERE "periodId" = :periodId LIMIT 1`,
+      { replacements: { periodId }, type: QueryTypes.SELECT }
+    );
+    if (!period[0]) return res.status(404).json({ error: "Payroll period not found." });
+
+    if (period[0].status === "Released") {
+      return res.status(400).json({ error: "Cannot reject an already Released payroll period." });
+    }
+
+    const now = await getSystemTime();
+    const nowStr = formatForSQL(now);
+
+    // Update Period back to Draft
+    await sequelize.query(
+      `UPDATE "PayrollPeriod" 
+       SET "status" = 'Draft',
+           "rejectionReason" = :reason,
+           "approvedBy" = NULL,
+           "approvedAt" = NULL,
+           "updatedAt" = :nowStr
+       WHERE "periodId" = :periodId`,
+      { replacements: { periodId, reason: rejectionReason.trim(), nowStr }, type: QueryTypes.UPDATE }
+    );
+
+    // Update child payroll rows status = 1 (Draft)
+    await sequelize.query(
+      `UPDATE "Payroll" 
+       SET "status" = 1, "updatedAt" = :nowStr 
+       WHERE "periodId" = :periodId AND "status" != 5`,
+      { replacements: { periodId, nowStr }, type: QueryTypes.UPDATE }
+    );
+
+    // Audit Log
+    await logAudit(
+      req,
+      approverId,
+      "Payroll",
+      "REJECT_PAYROLL_PERIOD",
+      "PayrollPeriod",
+      periodId,
+      { status: period[0].status },
+      { status: "Draft", rejectionReason: rejectionReason.trim(), rejectedBy: approverId }
+    );
+
+    // Notify accountant
+    (async () => {
+      try {
+        if (period[0].submittedBy) {
+          const submitter = await sequelize.query(
+            `SELECT "user_Email", "user_FirstName", "user_LastName" FROM "User" WHERE "user_Id" = :sId LIMIT 1`,
+            { replacements: { sId: period[0].submittedBy }, type: QueryTypes.SELECT }
+          );
+          if (submitter[0]?.user_Email) {
+            await sendPayrollDecisionEmail({
+              periodLabel: period[0].label || `${period[0].startDate} to ${period[0].endDate}`,
+              decision: "Returned to Draft",
+              decisionBy: `${approver.user_FirstName || ''} ${approver.user_LastName || ''}`.trim() || 'Admin Manager',
+              rejectionReason: rejectionReason.trim(),
+              accountantEmail: submitter[0].user_Email,
+              accountantName: `${submitter[0].user_FirstName} ${submitter[0].user_LastName}`
+            });
+          }
+        }
+      } catch (err) {
+        console.error("[ASYNC REJECTION NOTIFY ERROR]:", err.message);
+      }
+    })();
+
+    res.json({
+      message: "Payroll period returned to Draft with feedback.",
+      status: "Draft",
+      rejectionReason: rejectionReason.trim()
+    });
+  } catch (error) {
+    console.error("[REJECT PAYROLL ERROR]:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * 5. Get Pending Approval Periods (Used by Manager Dashboard Login Alert)
+ */
+exports.getPendingApprovalPeriods = async (req, res) => {
+  try {
+    const pendingPeriods = await sequelize.query(
+      `SELECT p.*, 
+              s."user_FirstName" AS "submitterFirstName", s."user_LastName" AS "submitterLastName",
+              COUNT(pr."payrollId")::int AS "employeeCount",
+              COALESCE(SUM(pr."netPay"), 0)::numeric AS "totalNetPayout"
+       FROM "PayrollPeriod" p
+       LEFT JOIN "User" s ON s."user_Id" = p."submittedBy"
+       LEFT JOIN "Payroll" pr ON pr."periodId" = p."periodId"
+       WHERE p."status" = 'Pending Approval'
+       GROUP BY p."periodId", s."user_FirstName", s."user_LastName"
+       ORDER BY p."startDate" DESC`,
+      { type: QueryTypes.SELECT }
+    );
+    res.json(pendingPeriods);
+  } catch (error) {
+    console.error("[GET PENDING APPROVAL ERROR]:", error);
     res.status(500).json({ error: error.message });
   }
 };

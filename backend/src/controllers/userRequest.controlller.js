@@ -2155,10 +2155,20 @@ exports.GetAllRequests = async (req, res) => {
     }
 
     if (status) {
-      const statusId = parseInt(status, 10);
-      if (!isNaN(statusId)) {
-        dateFilter += ' AND er."emp_reqStatusId" = :statusId';
-        replacements.statusId = statusId;
+      if (status === "pending") {
+        dateFilter += ' AND er."emp_reqStatusId" IN (1, 4)';
+      } else {
+        const statusId = parseInt(status, 10);
+        if (!isNaN(statusId)) {
+          dateFilter += ' AND er."emp_reqStatusId" = :statusId';
+          replacements.statusId = statusId;
+        }
+      }
+    } else if (req.query.statusIds) {
+      const parsedStatusIds = req.query.statusIds.split(',').map(n => parseInt(n.trim(), 10)).filter(n => !isNaN(n));
+      if (parsedStatusIds.length > 0) {
+        dateFilter += ' AND er."emp_reqStatusId" IN (:statusIds)';
+        replacements.statusIds = parsedStatusIds;
       }
     }
 

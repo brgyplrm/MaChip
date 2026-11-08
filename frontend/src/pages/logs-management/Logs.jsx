@@ -502,21 +502,54 @@ const sortedAndFilteredDayLogs = useMemo(() => {
       if (filterDate) {
         data = data.filter(l => String(l.log_Date).split('T')[0] === filterDate);
       }
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase().trim();
+        data = data.filter(item => {
+          const formattedId = item.user_Id ? formatUserId(item.user_Id).toLowerCase() : "";
+          const rawId = String(item.user_Id || "");
+          const dateStr = item.log_Date ? String(item.log_Date).split('T')[0] : "";
+          const formattedDate = item.log_Date ? new Date(item.log_Date).toLocaleDateString().toLowerCase() : "";
+          const timeStr = (item.time || "").toLowerCase();
+          return (
+            item.user_Id_formatted?.toLowerCase().includes(query) ||
+            formattedId.includes(query) ||
+            rawId.includes(query) ||
+            item.fullName?.toLowerCase().includes(query) ||
+            item.action?.toLowerCase().includes(query) ||
+            item.log_type?.toLowerCase().includes(query) ||
+            item.raw_log_type?.toLowerCase().includes(query) ||
+            item.machip_id?.toLowerCase().includes(query) ||
+            dateStr.includes(query) ||
+            formattedDate.includes(query) ||
+            timeStr.includes(query)
+          );
+        });
+      }
 
-      const totalLogs = data.length;
-      const inLogs = data.filter(l => l.log_type?.toLowerCase().includes("in") || [1, 3, 5, 10].includes(l.logged_StatusId));
+      // Physical punches made by employees (exclude system-generated auto-marks like absent fallbacks)
+      const punchLogs = data.filter(l => l.log_type !== "System Generated" && l.logged_StatusId !== 7);
+      const totalPunches = punchLogs.length;
+
+      const inLogs = punchLogs.filter(l => l.log_type?.toLowerCase().includes("in") || [1, 3, 5, 10].includes(l.logged_StatusId));
       const distinctUsers = new Set(data.map(l => l.user_Id).filter(Boolean)).size || 1;
-      const distinctDays = new Set(data.map(l => l.log_Date).filter(Boolean)).size || 1;
+      const distinctWorkDays = new Set(data.map(l => String(l.log_Date).split('T')[0]).filter(Boolean)).size || 1;
+      const distinctEmployeePunchDays = new Set(
+        punchLogs.map(l => `${l.user_Id}_${String(l.log_Date).split('T')[0]}`)
+      ).size || 1;
 
-      // 1. Avg Punches / Employee
-      const avgPunches = totalLogs > 0 
-        ? (selectedUser !== "all" ? (totalLogs / distinctDays).toFixed(1) : (totalLogs / distinctUsers).toFixed(1))
+      const isSingleUserScope = selectedUser !== "all" || (searchQuery.trim() !== "" && distinctUsers === 1);
+
+      // 1. Avg Punches / Employee (Physical scans benchmarked against 4.0 punches/day)
+      const avgPunches = totalPunches > 0 
+        ? (isSingleUserScope 
+            ? (totalPunches / distinctWorkDays).toFixed(1) 
+            : (totalPunches / distinctEmployeePunchDays).toFixed(1))
         : "0.0";
-      const card1Subtitle = totalLogs === 0 
-        ? "No event scans recorded" 
-        : (selectedUser !== "all"
-          ? `Avg scans/day across ${distinctDays} ${distinctDays === 1 ? 'day' : 'days'}`
-          : `${totalLogs} scans across ${distinctUsers} active ${distinctUsers === 1 ? 'employee' : 'employees'}`);
+      const card1Subtitle = totalPunches === 0 
+        ? (data.length > 0 ? `0 scans recorded (${data.length} auto-marks)` : "No event scans recorded") 
+        : (isSingleUserScope
+          ? `Avg scans/day across ${distinctWorkDays} ${distinctWorkDays === 1 ? 'workday' : 'workdays'} (${totalPunches} scans)`
+          : `Avg ${avgPunches} scans/day across ${distinctUsers} active ${distinctUsers === 1 ? 'employee' : 'employees'} (${totalPunches} scans)`);
 
       // 2. Clock-In Compliance Rate
       const onTimeIn = inLogs.filter(l => l.action === "On Time" || l.action === "On-Field" || l.action === "Present" || l.action === "Exempt").length;
@@ -559,8 +592,38 @@ const sortedAndFilteredDayLogs = useMemo(() => {
       if (filterDate) {
         data = data.filter(d => String(d.log_Date).split('T')[0] === filterDate);
       }
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase().trim();
+        data = data.filter(item => {
+          const formattedId = item.user_Id ? formatUserId(item.user_Id).toLowerCase() : "";
+          const rawId = String(item.user_Id || "");
+          const userName = (item.userName || "").toLowerCase();
+          const statusStr = (item.status || "").toLowerCase();
+          const dateStr = item.log_Date ? String(item.log_Date).split('T')[0] : "";
+          const formattedDate = item.log_Date ? new Date(item.log_Date).toLocaleDateString().toLowerCase() : "";
+          const amIn = (item.morningIn || "").toLowerCase();
+          const amOut = (item.morningOut || "").toLowerCase();
+          const pmIn = (item.afternoonIn || "").toLowerCase();
+          const pmOut = (item.afternoonOut || "").toLowerCase();
+          return (
+            userName.includes(query) ||
+            rawId.includes(query) ||
+            formattedId.includes(query) ||
+            statusStr.includes(query) ||
+            dateStr.includes(query) ||
+            formattedDate.includes(query) ||
+            amIn.includes(query) ||
+            amOut.includes(query) ||
+            pmIn.includes(query) ||
+            pmOut.includes(query)
+          );
+        });
+      }
 
       const totalDays = data.length;
+      const distinctUsers = new Set(data.map(d => d.user_Id).filter(Boolean)).size || 1;
+      const isSingleUserScope = selectedUser !== "all" || (searchQuery.trim() !== "" && distinctUsers === 1);
+
       let totalPunches = 0;
       let onTimeCount = 0;
       let lateCount = 0;
@@ -596,9 +659,9 @@ const sortedAndFilteredDayLogs = useMemo(() => {
       const avgPunches = totalDays > 0 ? (totalPunches / totalDays).toFixed(1) : "0.0";
       const card1Subtitle = totalDays === 0
         ? "No day records in this period"
-        : (selectedUser !== "all"
-          ? `Avg punches/day across ${totalDays} ${totalDays === 1 ? 'day' : 'days'}`
-          : "Target: 4 punches/day (AM & PM)");
+        : (isSingleUserScope
+          ? `Avg punches/day across ${totalDays} scheduled ${totalDays === 1 ? 'day' : 'days'} (${totalPunches} punches)`
+          : `Avg ${avgPunches} punches/day across ${distinctUsers} active ${distinctUsers === 1 ? 'employee' : 'employees'} (${totalDays} scheduled days)`);
 
       const compliancePct = totalDays > 0 ? ((onTimeCount / totalDays) * 100).toFixed(1) : "0.0";
       const card2Subtitle = totalDays === 0
@@ -626,7 +689,7 @@ const sortedAndFilteredDayLogs = useMemo(() => {
         card4Subtitle
       };
     }
-  }, [viewMode, logData, dayLogsData, selectedUser, filterDate]);
+  }, [viewMode, logData, dayLogsData, selectedUser, filterDate, searchQuery]);
 
   // State tracking visibility masking state mapped to log identifiers
 const [revealedMachipRows, setRevealedMachipRows] = useState({});
@@ -703,8 +766,8 @@ const toggleMachipVisibility = (rowId) => {
                         </TooltipTrigger>
                         <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
                           {viewMode === "raw" 
-                            ? "Average card/biometric punches per active employee in this period (standard policy expects 4.0 punches/day)." 
-                            : "Average punches recorded per employee-day across morning and afternoon shifts (standard policy expects 4 punches: In/Out for AM & PM)."}
+                            ? "Average daily card/biometric punches per active employee across worked days in this period (standard policy expects 4.0 punches/day)." 
+                            : "Average punches per scheduled employee-day across morning and afternoon shifts, including absent days (standard policy expects 4 punches: In/Out for AM & PM)."}
                         </TooltipContent>
                       </Tooltip>
                     </div>

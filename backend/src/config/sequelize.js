@@ -121,6 +121,18 @@ Payroll.belongsTo(User, {
   as: "user",
 });
 
+// User ↔ PayrollPeriod (Approval Workflow)
+PayrollPeriod.belongsTo(User, {
+  foreignKey: "submittedBy",
+  targetKey: "user_Id",
+  as: "submitter",
+});
+PayrollPeriod.belongsTo(User, {
+  foreignKey: "approvedBy",
+  targetKey: "user_Id",
+  as: "approver",
+});
+
 // User ↔ Maxicare
 User.hasMany(Payroll_maxicare, { foreignKey: "user_Id", sourceKey: "user_Id" });
 Payroll_maxicare.belongsTo(User, {

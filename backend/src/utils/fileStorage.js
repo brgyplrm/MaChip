@@ -5,7 +5,15 @@ const { SystemSettings } = require('../config/sequelize');
 /**
  * Centralized File Storage Utility for MAChip.
  * Handles saving generated files (PDFs, reports, etc.) to the PC's drive.
+ * Falls back to local 'backend/uploads' if no custom external storageRootPath is configured.
  */
+
+function getResolvedRootPath(settings) {
+  if (settings && settings.storageRootPath && typeof settings.storageRootPath === 'string' && settings.storageRootPath.trim() !== '') {
+    return settings.storageRootPath.trim();
+  }
+  return path.resolve(__dirname, '../../uploads');
+}
 
 /**
  * Saves a buffer to the configured storage root path with a structured sub-folder system.
@@ -19,15 +27,12 @@ const { SystemSettings } = require('../config/sequelize');
 exports.saveFileToArchive = async (buffer, fileName, options = {}) => {
   try {
     const settings = await SystemSettings.findOne();
-    if (!settings || !settings.storageRootPath) {
-      console.warn('[FILE STORAGE] No storageRootPath configured. Skipping archive.');
-      return null;
-    }
+    const storageRoot = getResolvedRootPath(settings);
 
     const { year, month, subFolder } = options;
     
     // Build path: [Root] / [Year] / [Month] / [SubFolder]
-    let targetDir = settings.storageRootPath;
+    let targetDir = storageRoot;
     
     if (year) targetDir = path.join(targetDir, String(year));
     if (month) targetDir = path.join(targetDir, month); // e.g., "05_May"
@@ -48,6 +53,7 @@ exports.saveFileToArchive = async (buffer, fileName, options = {}) => {
     return null;
   }
 };
+
 /**
  * Ensures the basic directory structure exists for the current year and month.
  * Called at server startup for debug and prep.
@@ -55,10 +61,7 @@ exports.saveFileToArchive = async (buffer, fileName, options = {}) => {
 exports.initializeStorageStructure = async () => {
   try {
     const settings = await SystemSettings.findOne();
-    if (!settings || !settings.storageRootPath) {
-      console.log('[DEBUG][FILE STORAGE] No storage root path configured yet.');
-      return;
-    }
+    const storageRoot = getResolvedRootPath(settings);
 
     const now = new Date();
     const year = now.getFullYear();
@@ -67,14 +70,14 @@ exports.initializeStorageStructure = async () => {
     const monthFolder = `${String(monthIndex + 1).padStart(2, '0')}_${months[monthIndex]}`;
 
     const pathsToEnsure = [
-      settings.storageRootPath,
-      path.join(settings.storageRootPath, String(year)),
-      path.join(settings.storageRootPath, String(year), monthFolder),
-      path.join(settings.storageRootPath, "requestsFiles"),
-      path.join(settings.storageRootPath, "ProfilePictures")
+      storageRoot,
+      path.join(storageRoot, String(year)),
+      path.join(storageRoot, String(year), monthFolder),
+      path.join(storageRoot, "requestsFiles"),
+      path.join(storageRoot, "ProfilePictures")
     ];
 
-    console.log(`[DEBUG][FILE STORAGE] Verifying archival structure at: ${settings.storageRootPath}`);
+    console.log(`[DEBUG][FILE STORAGE] Verifying archival structure at: ${storageRoot}`);
     for (const p of pathsToEnsure) {
       if (!fs.existsSync(p)) {
         fs.mkdirSync(p, { recursive: true });

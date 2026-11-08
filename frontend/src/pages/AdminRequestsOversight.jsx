@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Sidebar from "../components/Sidebar";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
@@ -31,7 +31,15 @@ import { TablePagination } from "@/components/ui/table-pagination";
 const AdminRequestsOversight = () => {
   const navigate = useNavigate();
   const userData = JSON.parse(localStorage.getItem("userData"));
-  const [selectedReqId, setSelectedReqId] = useState(null);
+  const [selectedReqId, setSelectedReqId] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const reqId = params.get("requestId");
+      return reqId ? Number(reqId) : null;
+    } catch {
+      return null;
+    }
+  });
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
@@ -58,14 +66,11 @@ const AdminRequestsOversight = () => {
   const fetchRequests = async (isBackground = false) => {
     if (!isBackground) setLoading(true);
     try {
-      const response = await fetchWithAuth("/api/request/all");
+      const response = await fetchWithAuth("/api/request/all?status=pending");
       const data = await response.json();
       if (response.ok && Array.isArray(data)) {
-        // For oversight, we primarily care about pending items (Status 1 & 4)
-        setRequests(data.filter(r => {
-          const s = Number(r.emp_reqStatusId);
-          return s === 1 || s === 4;
-        }));
+        // Direct pending results from optimized SQL index
+        setRequests(data);
       }
     } catch (error) {
       console.error("Error fetching requests:", error);
@@ -81,11 +86,32 @@ const AdminRequestsOversight = () => {
     return () => window.removeEventListener("dataRefresh", handleBackgroundRefresh);
   }, []);
 
-  // Reset pagination when filters change
+  // Reset pagination when filters change (preserves deep-link selection on initial mount)
+  const isFirstFilterRun = useRef(true);
   useEffect(() => {
+    if (isFirstFilterRun.current) {
+      isFirstFilterRun.current = false;
+      return;
+    }
     setCurrentPage(1);
     setSelectedReqId(null);
   }, [searchQuery, typeFilter, statusFilter, dateFilter]);
+
+  // Align selection & pagination if deep-linked requestId is present in URL
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const reqIdParam = params.get("requestId");
+      if (reqIdParam && requests.length > 0) {
+        const targetId = Number(reqIdParam);
+        const targetIndex = requests.findIndex((r) => r.emp_reqId === targetId);
+        if (targetIndex !== -1) {
+          setSelectedReqId(targetId);
+          setCurrentPage(Math.floor(targetIndex / itemsPerPage) + 1);
+        }
+      }
+    } catch {}
+  }, [requests]);
 
   const formatTime = (time) => {
     if (!time) return "";
