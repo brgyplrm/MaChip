@@ -155,6 +155,25 @@ exports.registerUser = async (req, res) => {
       });
     }
 
+    const { validateNameString } = require("../utils/sanitizer");
+    if (!validateNameString(user_FirstName)) {
+      return res.status(400).json({
+        error: "First Name must be 2-60 letters and may include hyphens (-), apostrophes ('), spaces, and dots. Numbers or special symbols are not allowed."
+      });
+    }
+    if (!validateNameString(user_LastName)) {
+      return res.status(400).json({
+        error: "Last Name must be 2-60 letters and may include hyphens (-), apostrophes ('), spaces, and dots. Numbers or special symbols are not allowed."
+      });
+    }
+    if (req.body.user_MiddleName && req.body.user_MiddleName.trim()) {
+      if (!validateNameString(req.body.user_MiddleName)) {
+        return res.status(400).json({
+          error: "Middle Name must be 2-60 letters and may include hyphens (-), apostrophes ('), spaces, and dots. Numbers or special symbols are not allowed."
+        });
+      }
+    }
+
     // Auto-generate strong temporary password if not explicitly supplied
     const effectivePassword = (user_Password && typeof user_Password === "string" && user_Password.trim())
       ? user_Password.trim()
@@ -1213,6 +1232,29 @@ exports.updateUser = async (req, res) => {
     }
   }
 
+  const { validateNameString: validateUpdateName } = require("../utils/sanitizer");
+  if (user_FirstName !== undefined) {
+    if (!validateUpdateName(user_FirstName)) {
+      return res.status(400).json({
+        error: "First Name must be 2-60 letters and may include hyphens (-), apostrophes ('), spaces, and dots. Numbers or special symbols are not allowed."
+      });
+    }
+  }
+  if (user_LastName !== undefined) {
+    if (!validateUpdateName(user_LastName)) {
+      return res.status(400).json({
+        error: "Last Name must be 2-60 letters and may include hyphens (-), apostrophes ('), spaces, and dots. Numbers or special symbols are not allowed."
+      });
+    }
+  }
+  if (user_MiddleName !== undefined && user_MiddleName && user_MiddleName.trim()) {
+    if (!validateUpdateName(user_MiddleName)) {
+      return res.status(400).json({
+        error: "Middle Name must be 2-60 letters and may include hyphens (-), apostrophes ('), spaces, and dots. Numbers or special symbols are not allowed."
+      });
+    }
+  }
+
   try {
     // Check if new Fingerprint ID is already assigned to another active user
     if (user_FingerprintId) {
@@ -2110,6 +2152,17 @@ exports.batchRegisterUsers = async (req, res) => {
         // Validation
         if (!userData.user_FirstName || !userData.user_LastName || !userData.user_Email || !userData.user_Password) {
           throw new Error("Missing required data in row " + (i + 1));
+        }
+
+        const { validateNameString: validateBatchName } = require("../utils/sanitizer");
+        if (!validateBatchName(userData.user_FirstName)) {
+          throw new Error(`Row ${i + 1} first name invalid: must be 2-60 letters and may include hyphens (-), apostrophes ('), spaces, and dots.`);
+        }
+        if (!validateBatchName(userData.user_LastName)) {
+          throw new Error(`Row ${i + 1} last name invalid: must be 2-60 letters and may include hyphens (-), apostrophes ('), spaces, and dots.`);
+        }
+        if (userData.user_MiddleName && userData.user_MiddleName.trim() && !validateBatchName(userData.user_MiddleName)) {
+          throw new Error(`Row ${i + 1} middle name invalid: must be 2-60 letters and may include hyphens (-), apostrophes ('), spaces, and dots.`);
         }
 
         const { validatePassword } = require("../utils/passwordValidator");

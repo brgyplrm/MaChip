@@ -27,9 +27,7 @@ import { cn } from "@/lib/utils";
 
 // ── Validation helpers ────────────────────────────────────────────────────────
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-// Permits Unicode letters (diacritics/accents), spaces, apostrophes (' and ’), hyphens (-), and periods (.)
-// Must contain at least one letter
-const nameRegex = /^(?=.*\p{L})[\p{L}\s.'’\-]+$/u;
+const nameRegex = /^(?!.*--)(?!.*'')(?=.{2,60}$)\p{Script=Latin}[\p{Script=Latin}\s.'’-]*[\p{Script=Latin}.]$/u;
 
 const PHILIPPINE_BANKS = [
   "BDO Unibank (BDO)",
@@ -52,18 +50,18 @@ const validateForm = (formData) => {
   if (!formData.user_FirstName || !formData.user_FirstName.trim()) {
     errors.user_FirstName = "First name is required.";
   } else if (!nameRegex.test(formData.user_FirstName.trim())) {
-    errors.user_FirstName = "First name contains invalid characters. Only letters, spaces, hyphens, apostrophes, and periods are allowed.";
+    errors.user_FirstName = "First name must be 2-60 letters (hyphens, apostrophes, spaces, and dots allowed).";
   }
 
   if (!formData.user_LastName || !formData.user_LastName.trim()) {
     errors.user_LastName = "Last name is required.";
   } else if (!nameRegex.test(formData.user_LastName.trim())) {
-    errors.user_LastName = "Last name contains invalid characters. Only letters, spaces, hyphens, apostrophes, and periods are allowed.";
+    errors.user_LastName = "Last name must be 2-60 letters (hyphens, apostrophes, spaces, and dots allowed).";
   }
 
   if (formData.user_MiddleName && formData.user_MiddleName.trim()) {
     if (!nameRegex.test(formData.user_MiddleName.trim())) {
-      errors.user_MiddleName = "Middle name contains invalid characters. Only letters, spaces, hyphens, apostrophes, and periods are allowed.";
+      errors.user_MiddleName = "Middle name must be 2-60 letters (hyphens, apostrophes, spaces, and dots allowed).";
     }
   }
 

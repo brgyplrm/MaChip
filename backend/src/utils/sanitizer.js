@@ -32,9 +32,33 @@ function sanitizeHtml(val) {
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
     // Remove style tags and their inner content
     .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
+    // Strip invisible Unicode directional overrides (anti-Bidi Trojan Source) and zero-width spaces
+    .replace(/[\u200E-\u200F\u202A-\u202E\u200B-\u200D\uFEFF]/g, "")
     // Strip remaining HTML/XML tags
     .replace(/<[^>]*>/g, "")
     .trim();
+}
+
+/**
+ * Hardened Name Whitelist Regex (TICKET-13)
+ * Enforces:
+ * 1. Must start with a letter (Latin script, including Ñ/ñ, accents).
+ * 2. Must end with a letter or dot (no trailing hyphens).
+ * 3. Prohibits consecutive hyphens (anti-SQL single-line comment '--').
+ * 4. Prohibits consecutive apostrophes (anti-SQL quote escape "''").
+ * 5. Bounded between 2 and 60 characters (anti-ReDoS and buffer exhaustion).
+ * 6. Permits spaces, single hyphens, apostrophes (' and ’), and dots (for Jr./St.).
+ */
+const HARDENED_NAME_REGEX = /^(?!.*--)(?!.*'')(?=.{2,60}$)\p{Script=Latin}[\p{Script=Latin}\s.'’-]*[\p{Script=Latin}.]$/u;
+
+/**
+ * Validates whether an employee's first name, last name, or middle name matches
+ * the hardened Latin whitelist without injection primitives.
+ */
+function validateNameString(val) {
+  if (!val || typeof val !== "string") return false;
+  const trimmed = val.trim();
+  return HARDENED_NAME_REGEX.test(trimmed);
 }
 
 /**
@@ -82,5 +106,7 @@ module.exports = {
   defuseFormula,
   sanitizeHtml,
   sanitizeField,
-  parseCSVLine
+  parseCSVLine,
+  HARDENED_NAME_REGEX,
+  validateNameString
 };

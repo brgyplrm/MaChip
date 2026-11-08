@@ -29,7 +29,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Switch } from "@/components/ui/switch";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const nameRegex = /^[a-zA-Z\s\-']+$/;
+const nameRegex = /^(?!.*--)(?!.*'')(?=.{2,60}$)\p{Script=Latin}[\p{Script=Latin}\s.'’-]*[\p{Script=Latin}.]$/u;
 const phoneRegex = /^(09|\+639)\d{9}$|^\d{11}$/;
 
 const getMiddleInitial = (middleName) => {
@@ -398,16 +398,16 @@ const New = ({ inputs = [], title }) => {
       if (!formData.user_FirstName?.trim()) {
         newErrors.user_FirstName = "First name is required";
       } else if (!nameRegex.test(formData.user_FirstName.trim())) {
-        newErrors.user_FirstName = "First name cannot contain numbers or special characters";
+        newErrors.user_FirstName = "First name must be 2-60 letters (hyphens, apostrophes, spaces, and dots allowed)";
       }
       if (!formData.user_LastName?.trim()) {
         newErrors.user_LastName = "Last name is required";
       } else if (!nameRegex.test(formData.user_LastName.trim())) {
-        newErrors.user_LastName = "Last name cannot contain numbers or special characters";
+        newErrors.user_LastName = "Last name must be 2-60 letters (hyphens, apostrophes, spaces, and dots allowed)";
       }
       if (formData.user_MiddleName?.trim()) {
         if (!nameRegex.test(formData.user_MiddleName.trim())) {
-          newErrors.user_MiddleName = "Middle name cannot contain numbers or special characters";
+          newErrors.user_MiddleName = "Middle name must be 2-60 letters (hyphens, apostrophes, spaces, and dots allowed)";
         }
       }
       if (!formData.user_Email?.trim()) {
