@@ -63,8 +63,8 @@ $sketchFile = "$sketchDir\MaChip_Test.ino"
 $buildDir = "$sketchDir\build"
 $mergedBin = "$buildDir\MaChip_Test.ino.merged.bin"
 
-# 3. Flashing Mode
-if ($FastFlash -or (Test-Path $mergedBin)) {
+# 3. Flashing Mode (FastFlash uses existing pre-compiled binary if explicitly requested)
+if ($FastFlash -and (Test-Path $mergedBin)) {
     if (Test-Path $esptool) {
         Write-Host "`n[*] Fast-Flashing pre-compiled binary via esptool to $Port at ${Baud} baud..." -ForegroundColor Cyan
         & $esptool --chip esp32 --port $Port --baud $Baud --before default-reset --after hard-reset write-flash -z 0x0 $mergedBin
@@ -83,16 +83,16 @@ if ($FastFlash -or (Test-Path $mergedBin)) {
 # 4. Standard Arduino-CLI Compile & Upload
 if (Test-Path $arduinoCli) {
     Write-Host "`n[*] Compiling sketch and uploading via Arduino CLI..." -ForegroundColor Cyan
-    Write-Host "[*] Board: esp32:esp32:esp32 | Port: $Port" -ForegroundColor Gray
+    Write-Host "[*] Board: esp32:esp32:esp32 (PartitionScheme: min_spiffs - 1.9MB App / OTA) | Port: $Port" -ForegroundColor Gray
     
-    & $arduinoCli compile --fqbn esp32:esp32:esp32 --output-dir $buildDir $sketchFile
+    & $arduinoCli compile --fqbn esp32:esp32:esp32:PartitionScheme=min_spiffs --output-dir $buildDir $sketchFile
     if ($LASTEXITCODE -ne 0) {
         Write-Host "[-] Compilation failed. Check errors above." -ForegroundColor Red
         exit 1
     }
 
     Write-Host "[*] Uploading to ESP32 on $Port..." -ForegroundColor Cyan
-    & $arduinoCli upload -p $Port --fqbn esp32:esp32:esp32 $sketchFile
+    & $arduinoCli upload -p $Port --fqbn esp32:esp32:esp32:PartitionScheme=min_spiffs $sketchFile
     if ($LASTEXITCODE -eq 0) {
         Write-Host "`n==========================================================" -ForegroundColor Green
         Write-Host "[+] SUCCESS: ESP32 FIRMWARE UPDATED & READY!" -ForegroundColor Green

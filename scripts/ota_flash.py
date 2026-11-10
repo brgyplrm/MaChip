@@ -57,6 +57,20 @@ def auto_detect_esp_ip(backend_url="http://127.0.0.1:5000/api/esp/status"):
 
     return None
 
+def is_source_newer(sketch_dir, bin_path):
+    if not os.path.isfile(bin_path):
+        return True
+    bin_mtime = os.path.getmtime(bin_path)
+    for root, _, files in os.walk(sketch_dir):
+        if "build" in root:
+            continue
+        for f in files:
+            if f.endswith((".ino", ".h", ".cpp", ".c")):
+                src_path = os.path.join(root, f)
+                if os.path.getmtime(src_path) > bin_mtime:
+                    return True
+    return False
+
 def compile_firmware(sketch_path=DEFAULT_SKETCH_PATH, build_dir=DEFAULT_BUILD_DIR):
     cli = find_arduino_cli()
     print(f"[OTA-COMPILE] Compiling {os.path.basename(sketch_path)} with {os.path.basename(cli)}...")
@@ -125,8 +139,9 @@ def main():
 
     args = parser.parse_args()
 
-    # Step 1: Optional Compilation
-    if args.compile or not os.path.isfile(args.bin):
+    # Step 1: Automatic Recompilation if source files are newer or --compile is requested
+    sketch_dir = os.path.dirname(DEFAULT_SKETCH_PATH)
+    if args.compile or not os.path.isfile(args.bin) or is_source_newer(sketch_dir, args.bin):
         compile_firmware(DEFAULT_SKETCH_PATH, DEFAULT_BUILD_DIR)
 
     # Step 2: Determine Target IP

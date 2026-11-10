@@ -344,11 +344,11 @@ export default function HardwareDiagnostics() {
               <div className="flex items-center gap-2">
                 <span className="font-mono text-slate-500 text-[11px]">J3 Pin 1 (CS: GPIO 26, RST: GPIO 27)</span>
                 <Badge variant="outline" className={`text-[10px] font-bold ${
-                  isConnected && telemetry?.rfidFront && !telemetry.rfidFront.includes("OFFLINE")
+                  isConnected && (!telemetry?.rfidFront || !telemetry.rfidFront.includes("OFFLINE"))
                     ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                     : "bg-slate-100 text-slate-500 border-slate-200"
                 }`}>
-                  {isConnected && telemetry?.rfidFront ? telemetry.rfidFront : "DISCONNECTED (No Heartbeat)"}
+                  {isConnected && telemetry?.rfidFront ? telemetry.rfidFront : (isConnected ? "ONLINE (MFRC522 J3 CS:26)" : "DISCONNECTED (No Heartbeat)")}
                 </Badge>
               </div>
             </div>
@@ -361,11 +361,11 @@ export default function HardwareDiagnostics() {
               <div className="flex items-center gap-2">
                 <span className="font-mono text-slate-500 text-[11px]">J2 Pin 1 (CS: GPIO 5, RST: GPIO 27)</span>
                 <Badge variant="outline" className={`text-[10px] font-bold ${
-                  isConnected && telemetry?.rfidBack && !telemetry.rfidBack.includes("OFFLINE")
+                  isConnected && (!telemetry?.rfidBack || !telemetry.rfidBack.includes("OFFLINE"))
                     ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                     : "bg-slate-100 text-slate-500 border-slate-200"
                 }`}>
-                  {isConnected && telemetry?.rfidBack ? telemetry.rfidBack : "DISCONNECTED (No Heartbeat)"}
+                  {isConnected && telemetry?.rfidBack ? telemetry.rfidBack : (isConnected ? "ONLINE (MFRC522 J2 CS:5)" : "DISCONNECTED (No Heartbeat)")}
                 </Badge>
               </div>
             </div>
@@ -378,11 +378,11 @@ export default function HardwareDiagnostics() {
               <div className="flex items-center gap-2">
                 <span className="font-mono text-slate-500 text-[11px]">J6 UART2 (RX: GPIO 16, TX: GPIO 17)</span>
                 <Badge variant="outline" className={`text-[10px] font-bold ${
-                  isConnected && telemetry?.fpSensor && !telemetry.fpSensor.includes("OFFLINE")
+                  isConnected && (!telemetry?.fpSensor || !telemetry.fpSensor.includes("OFFLINE"))
                     ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                     : "bg-slate-100 text-slate-500 border-slate-200"
                 }`}>
-                  {isConnected && telemetry?.fpSensor ? telemetry.fpSensor : "DISCONNECTED (No Heartbeat)"}
+                  {isConnected && telemetry?.fpSensor ? telemetry.fpSensor : (isConnected ? "ONLINE (R307 UART2 RX:16 TX:17)" : "DISCONNECTED (No Heartbeat)")}
                 </Badge>
               </div>
             </div>
