@@ -46,38 +46,6 @@ const Home = () => {
     hour12: true
   });
   const [toast, setToast] = useState({ message: "", type: "success" });
-  const [isResettingTft, setIsResettingTft] = useState(false);
-
-  const handleResetTftScreen = async () => {
-    if (isResettingTft) return;
-    setIsResettingTft(true);
-    try {
-      const response = await fetchWithAuth("/api/esp/reset-screen", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" }
-      });
-      const data = await response.json();
-      if (response.ok && data.success) {
-        setToast({
-          message: "TFT screen successfully reset to default state (Scan RFID to Clock In).",
-          type: "success"
-        });
-      } else {
-        setToast({
-          message: data?.message || "Failed to reset TFT screen.",
-          type: "error"
-        });
-      }
-    } catch (error) {
-      console.error("Error resetting TFT screen:", error);
-      setToast({
-        message: "Network error occurred while resetting TFT screen.",
-        type: "error"
-      });
-    } finally {
-      setIsResettingTft(false);
-    }
-  };
   const [stats, setStats] = useState(() => {
     try {
       const cached = sessionStorage.getItem("machip_dashboard_stats");
@@ -453,35 +421,6 @@ const Home = () => {
                   )}
                 </div>
               </div>
-
-              {/* Reset TFT Screen to Default State Button */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  {/* <button
-                    onClick={handleResetTftScreen}
-                    disabled={isResettingTft}
-                    type="button"
-                    className="shadow-sm flex bg-white border border-slate-200 px-4 py-3 rounded-xl flex-col justify-between items-start min-w-[140px] transition-all duration-200 hover:shadow-md hover:border-brand-primary/40 hover:bg-slate-50/80 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed group cursor-pointer text-left"
-                    aria-label="Reset TFT Screen to Default State"
-                  >
-                    <p className="text-[10px] font-bold text-brand-primary/60 uppercase tracking-widest mb-0.5 flex items-center gap-1.5 w-full">
-                      <RestartAltIcon 
-                        sx={{ fontSize: 13 }} 
-                        className={`text-brand-primary transition-transform duration-500 ${isResettingTft ? "animate-spin" : "group-hover:rotate-180"}`} 
-                      />
-                      <span>TFT Screen</span>
-                    </p>
-                    <div className="flex items-center gap-1.5 mt-auto">
-                      <span className="text-xs sm:text-sm font-extrabold tracking-tight text-brand-primary group-hover:text-brand-primary/90 transition-colors">
-                        {isResettingTft ? "Resetting..." : "Reset Screen"}
-                      </span>
-                    </div>
-                  </button> */}
-                </TooltipTrigger>
-                <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
-                  Reset the TFT screen into the default state (Scan RFID to Clock In).
-                </TooltipContent>
-              </Tooltip>
             </div>
           </div>
 

@@ -35,6 +35,32 @@ let fpCaptureSession = {
   type: "FP"
 };
 
+// Cached active biometric count for zero-state self-healing
+let cachedTotalBiometrics = { count: 0, lastCheck: 0 };
+async function getActiveBiometricCount() {
+  const now = Date.now();
+  if (now - cachedTotalBiometrics.lastCheck < 10000) {
+    return cachedTotalBiometrics.count;
+  }
+  try {
+    const res = await sequelize.query(
+      `SELECT COUNT(*) AS count FROM "User_Hardware" uh
+       INNER JOIN "User" u ON uh."user_Id" = u."user_Id"
+       WHERE u."deletedAt" IS NULL 
+         AND (
+           (uh."user_FingerprintId" IS NOT NULL AND TRIM(COALESCE(uh."user_FingerprintTemplate", '')) != '')
+           OR (uh."user_FingerprintId2" IS NOT NULL AND TRIM(COALESCE(uh."user_FingerprintTemplate2", '')) != '')
+         )`,
+      { type: QueryTypes.SELECT }
+    );
+    cachedTotalBiometrics.count = parseInt(res[0]?.count || 0);
+    cachedTotalBiometrics.lastCheck = now;
+  } catch (err) {
+    console.error("[BIOMETRIC COUNT ERROR]:", err.message);
+  }
+  return cachedTotalBiometrics.count;
+}
+
 // Queue slot deletion for cancelled enrollments or separated/deleted employees
 let pendingDeleteSlots = [];
 
@@ -46,6 +72,14 @@ exports.queueSlotDeletion = (slotId) => {
         pendingDeleteSlots.push(parsed);
       }
       console.log(`[HARDWARE] Queued deletion for fingerprint slot ${parsed}. Pending queue: [${pendingDeleteSlots.join(", ")}]`);
+      if (System_State) {
+        System_State.upsert({
+          key: 'PENDING_SLOT_DELETIONS',
+          value: JSON.stringify(pendingDeleteSlots)
+        }).catch(err => {
+          console.warn("[HARDWARE] Failed to persist PENDING_SLOT_DELETIONS to DB:", err.message);
+        });
+      }
     }
   }
 };
@@ -81,22 +115,6 @@ function notifyEsp32Cancel() {
       signal: AbortSignal.timeout(1000)
     }).catch(err => {
       console.log(`[HARDWARE] Direct cancellation push status: ${err.message}`);
-    });
-  }
-}
-
-// Global flag to reset TFT screen on next ESP32 poll
-let pendingScreenReset = false;
-
-function notifyEsp32ResetScreen() {
-  if (lastEsp32Ip && lastEsp32Ip !== "127.0.0.1" && lastEsp32Ip !== "::1" && lastEsp32Ip !== "localhost") {
-    const targetUrl = `http://${lastEsp32Ip}/api/reset-screen`;
-    console.log(`[HARDWARE] Pushing reset-screen signal directly to ESP32: ${targetUrl}`);
-    fetch(targetUrl, {
-      method: "POST",
-      signal: AbortSignal.timeout(1500)
-    }).catch(err => {
-      console.log(`[HARDWARE] Direct screen reset push status: ${err.message}`);
     });
   }
 }
@@ -189,8 +207,8 @@ exports.getHardwareStatus = async (req, res) => {
     ip: effectiveIp,
     directUrl: effectiveIp ? `http://${effectiveIp}/console` : null,
     mdnsUrl: "http://machip-esp32.local/console",
-    adminUser: "admin",
-    adminPass: "machip2026",
+    adminUser: process.env.ESP32_CONSOLE_USER || "admin",
+    adminPass: process.env.ESP32_CONSOLE_PASS ? "••••••••" : "••••••••",
     lastSeen: lastEsp32Heartbeat ? new Date(lastEsp32Heartbeat).toISOString() : null,
     msSinceLastSeen: lastEsp32Heartbeat ? (now - lastEsp32Heartbeat) : null,
     telemetry: lastHardwareTelemetry ? {
@@ -261,48 +279,6 @@ exports.receiveTelemetry = (req, res) => {
   } catch {}
 
   res.status(200).json({ success: true, message: "Telemetry received." });
-};
-
-exports.testBuzzerDirect = async (req, res) => {
-  const targetIp = lastEsp32Ip || getLastDiscoveredEspIp();
-  if (!targetIp) return res.status(400).json({ success: false, message: "No active ESP32 IP discovered." });
-
-  const consoleUser = process.env.ESP32_CONSOLE_USER || "admin";
-  const consolePass = process.env.ESP32_CONSOLE_PASS || "machip2026";
-  const authHeader = "Basic " + Buffer.from(`${consoleUser}:${consolePass}`).toString("base64");
-
-  try {
-    const response = await fetch(`http://${targetIp}/console/test-buzzer`, {
-      method: "POST",
-      headers: { "Authorization": authHeader },
-      signal: AbortSignal.timeout(2000)
-    });
-    const data = await response.json();
-    return res.status(200).json({ success: true, message: "Buzzer tone triggered on hardware.", data });
-  } catch (err) {
-    return res.status(502).json({ success: false, message: `Failed to reach ESP32 at ${targetIp}: ${err.message}` });
-  }
-};
-
-exports.unlockRelayDirect = async (req, res) => {
-  const targetIp = lastEsp32Ip || getLastDiscoveredEspIp();
-  if (!targetIp) return res.status(400).json({ success: false, message: "No active ESP32 IP discovered." });
-
-  const consoleUser = process.env.ESP32_CONSOLE_USER || "admin";
-  const consolePass = process.env.ESP32_CONSOLE_PASS || "machip2026";
-  const authHeader = "Basic " + Buffer.from(`${consoleUser}:${consolePass}`).toString("base64");
-
-  try {
-    const response = await fetch(`http://${targetIp}/console/unlock`, {
-      method: "POST",
-      headers: { "Authorization": authHeader },
-      signal: AbortSignal.timeout(2000)
-    });
-    const data = await response.json();
-    return res.status(200).json({ success: true, message: "Relay unlocked for 3 seconds.", data });
-  } catch (err) {
-    return res.status(502).json({ success: false, message: `Failed to reach ESP32 at ${targetIp}: ${err.message}` });
-  }
 };
 
 exports.clearFingerprintSession = async (req, res) => {
@@ -388,7 +364,6 @@ exports.prepareEnrollmentSession = (type, userId) => {
   fpCaptureSession.hasStoredModel = false;
   fpCaptureSession.expiresAt = Date.now() + 60000;
   fpCaptureSession.type = type;
-  pendingDeleteSlots = [];
 };
 exports.getSessionStatus = async (req, res) => {
   const deviceId = req.headers["x-esp32-id"] || "esp32-01";
@@ -407,8 +382,6 @@ exports.getSessionStatus = async (req, res) => {
 };
 
 exports.scanRFID = async (req, res) => {
-
-  console.log('>>>>>>>>', { res, req})
   let { uid, action, terminalType, cardCounter } = req.body; 
 
   // Update heartbeat and ESP32 IP tracking
@@ -677,61 +650,63 @@ exports.scanRFID = async (req, res) => {
 
     // ── RFID ROLLING CODE ANTI-REPLAY VERIFICATION ───────────────────────────
     // Validated on initial RFID tap; 2FA completion step already passed validation
-    if (!is2FA && cardCounter !== undefined && cardCounter !== null) {
-      const parsedCounter = parseInt(cardCounter);
-      const dbCounter = hardware ? (hardware.card_counter || 0) : 0;
+    if (!is2FA) {
+      if (cardCounter !== undefined && cardCounter !== null) {
+        const parsedCounter = parseInt(cardCounter);
+        const dbCounter = hardware ? (hardware.card_counter || 0) : 0;
 
-      if (!isNaN(parsedCounter) && parsedCounter > 0) {
-        if (dbCounter > 0 && parsedCounter <= dbCounter) {
-          console.error(`[SECURITY ALERT] REPLAY ATTACK DETECTED for user ${user.user_FirstName} (ID: ${user.user_Id}). Received Counter: ${parsedCounter}, Stored Counter: ${dbCounter}`);
-          const masked = maskUid(rfidUid, false);
-          const deviceIp = req.ip || req.socket.remoteAddress || "Unknown ESP32";
+        if (!isNaN(parsedCounter) && parsedCounter > 0) {
+          if (dbCounter > 0 && parsedCounter <= dbCounter) {
+            console.error(`[SECURITY ALERT] REPLAY ATTACK DETECTED for user ${user.user_FirstName} (ID: ${user.user_Id}). Received Counter: ${parsedCounter}, Stored Counter: ${dbCounter}`);
+            const masked = maskUid(rfidUid, false);
+            const deviceIp = req.ip || req.socket.remoteAddress || "Unknown ESP32";
 
-          await logTransaction(user.user_Id, null, "REPLAY_ATTACK_DETECTED", `Replay or clone attack detected on card ${masked}. Counter ${parsedCounter} <= ${dbCounter}`, {
-            uid: masked,
-            receivedCounter: parsedCounter,
-            storedCounter: dbCounter,
-            deviceIp,
-            threatLevel: "CRITICAL"
-          }, req);
+            await logTransaction(user.user_Id, null, "REPLAY_ATTACK_DETECTED", `Replay or clone attack detected on card ${masked}. Counter ${parsedCounter} <= ${dbCounter}`, {
+              uid: masked,
+              receivedCounter: parsedCounter,
+              storedCounter: dbCounter,
+              deviceIp,
+              threatLevel: "CRITICAL"
+            }, req);
 
-          try {
-            const admins = await User.findAll({ where: { user_RoleId: 1, deletedAt: null } });
-            for (const admin of admins) {
-              await Notification.create({
-                user_Id: admin.user_Id,
-                title: "Security Alert: RFID Replay Detected",
-                message: `CRITICAL: Potential RFID clone or replay attack detected for ${user.user_FirstName} ${user.user_LastName} (ID: ${masked}). Received counter: ${parsedCounter}, Expected: > ${dbCounter}. Access denied.`,
-                isRead: false
-              });
+            try {
+              const admins = await User.findAll({ where: { user_RoleId: 1, deletedAt: null } });
+              for (const admin of admins) {
+                await Notification.create({
+                  user_Id: admin.user_Id,
+                  title: "Security Alert: RFID Replay Detected",
+                  message: `CRITICAL: Potential RFID clone or replay attack detected for ${user.user_FirstName} ${user.user_LastName} (ID: ${masked}). Received counter: ${parsedCounter}, Expected: > ${dbCounter}. Access denied.`,
+                  isRead: false
+                });
+              }
+            } catch (notifErr) {
+              console.error("[REPLAY] Failed to notify admins:", notifErr);
             }
-          } catch (notifErr) {
-            console.error("[REPLAY] Failed to notify admins:", notifErr);
+
+            return res.status(200).json({
+              success: false,
+              mode: "REPLAY_ATTACK",
+              message: "Replay Attack Detected",
+              employeeName: user.user_FirstName,
+              name: user.user_FirstName,
+              error: "Security Alert: Counter replay detected."
+            });
           }
 
-          return res.status(200).json({
-            success: false,
-            mode: "REPLAY_ATTACK",
-            message: "Replay Attack Detected",
-            employeeName: user.user_FirstName,
-            name: user.user_FirstName,
-            error: "Security Alert: Counter replay detected."
-          });
+          // Counter is monotonic and valid! Update card_counter using raw SQL per GEMINI.md
+          await sequelize.query(
+            `UPDATE "User_Hardware" SET "card_counter" = :parsedCounter, "updatedAt" = NOW() WHERE "user_Id" = :target_user_Id`,
+            { replacements: { parsedCounter, target_user_Id: user.user_Id }, type: QueryTypes.UPDATE }
+          );
         }
-
-        // Counter is monotonic and valid! Update card_counter using raw SQL per GEMINI.md
-        await sequelize.query(
-          `UPDATE "User_Hardware" SET "card_counter" = :parsedCounter, "updatedAt" = NOW() WHERE "user_Id" = :target_user_Id`,
-          { replacements: { parsedCounter, target_user_Id: user.user_Id }, type: QueryTypes.UPDATE }
-        );
+      } else if (hardware && hardware.card_counter > 0) {
+        console.warn(`[SECURITY] Card ${rfidUid} has rolling code in DB (${hardware.card_counter}), but scan arrived without counter.`);
+        await logTransaction(user.user_Id, null, "SUSPICIOUS_SCAN", `Card scanned without rolling counter token despite having rolling protection active.`, {
+          uid: maskUid(rfidUid, true),
+          expectedMinCounter: hardware.card_counter + 1,
+          deviceIp: req.ip || "Unknown"
+        }, req);
       }
-    } else if (hardware && hardware.card_counter > 0) {
-      console.warn(`[SECURITY] Card ${rfidUid} has rolling code in DB (${hardware.card_counter}), but scan arrived without counter.`);
-      await logTransaction(user.user_Id, null, "SUSPICIOUS_SCAN", `Card scanned without rolling counter token despite having rolling protection active.`, {
-        uid: maskUid(rfidUid, true),
-        expectedMinCounter: hardware.card_counter + 1,
-        deviceIp: req.ip || "Unknown"
-      }, req);
     }
 
     // --- APPLY LWD AFTER FINDING USER ---
@@ -1271,11 +1246,13 @@ exports.scanRFID = async (req, res) => {
     io.emit("NEW_ATTENDANCE_LOG", { userId: target_user_Id, status: isIrregularEvent ? `Irregular ${punchLabel}` : statusLabels[nextStatus] });
     io.to(`user_${target_user_Id}`).emit("NOTIFICATION_UPDATE");
 
+    const solenoidHoldSec = settings?.doorRelayHoldDurationSec || 3;
     return res.status(200).json({
       success: true,
       employeeName: user.user_FirstName,
       name: user.user_FirstName,
-      message: isIrregularEvent ? `Irregular ${punchLabel}` : statusLabels[nextStatus]
+      message: isIrregularEvent ? `Irregular ${punchLabel}` : statusLabels[nextStatus],
+      solenoidDuration: solenoidHoldSec * 1000
     });
 
   } catch (error) {
@@ -1512,8 +1489,26 @@ exports.factoryResetHardware = async (req, res) => {
 
 exports.getFingerprintSession = async (req, res) => {
   // 0. Check for Hardware Slot Deletion command (Rollback cancelled enrollment or separated/deleted employee)
+  if (pendingDeleteSlots.length === 0 && System_State) {
+    try {
+      const stored = await System_State.findOne({ where: { key: 'PENDING_SLOT_DELETIONS' } });
+      if (stored && stored.value) {
+        const parsed = JSON.parse(stored.value);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          pendingDeleteSlots = parsed;
+        }
+      }
+    } catch {}
+  }
+
   if (pendingDeleteSlots.length > 0) {
     const slotToDelete = pendingDeleteSlots.shift();
+    if (System_State) {
+      System_State.upsert({
+        key: 'PENDING_SLOT_DELETIONS',
+        value: JSON.stringify(pendingDeleteSlots)
+      }).catch(() => {});
+    }
     console.log(`[HARDWARE] Sending DELETE_SLOT command for slot ${slotToDelete} to ESP32.`);
     return res.status(200).json({
       active: true,
@@ -1548,28 +1543,26 @@ exports.getFingerprintSession = async (req, res) => {
     };
   }
 
-  // 0. Check TFT Screen Reset command (High Priority)
-  if (pendingScreenReset) {
-    pendingScreenReset = false;
-    console.log("[HARDWARE] Dispatching RESET_SCREEN command to ESP32 via session poll.");
-    return res.status(200).json({
-      active: true,
-      slotId: 0,
-      userId: "RESET_SCREEN",
-      type: "RESET_SCREEN"
-    });
-  }
-
   // 0. Check Visitor Access (High Priority)
   if (visitorAccessSession.isPending && Date.now() < visitorAccessSession.expiresAt) {
     // Consume the trigger immediately so it doesn't loop
     visitorAccessSession.isPending = false;
     
+    let solenoidHoldMs = 3000;
+    try {
+      const { SystemSettings } = require("../config/sequelize.js");
+      const currentSettings = await SystemSettings.findOne();
+      if (currentSettings && currentSettings.doorRelayHoldDurationSec) {
+        solenoidHoldMs = currentSettings.doorRelayHoldDurationSec * 1000;
+      }
+    } catch {}
+
     return res.status(200).json({
       active: true,
       slotId: 0,
       userId: 999,
-      type: "VISITOR_OPEN"
+      type: "VISITOR_OPEN",
+      solenoidDuration: solenoidHoldMs
     });
   }
 
@@ -1658,11 +1651,13 @@ exports.getFingerprintSession = async (req, res) => {
           }
         }
 
+        const totalActive = await getActiveBiometricCount();
         return res.status(200).json({
           active: true,
           slotId: fpCaptureSession.scannedSlot || 1,
           userId: sessionData.userId,
-          type: sessionData.type
+          type: sessionData.type,
+          totalActiveTemplates: totalActive
         });
       }
     } else {
@@ -1683,13 +1678,16 @@ exports.getFingerprintSession = async (req, res) => {
     console.error("[GET FP SESSION ERROR]:", err);
   }
 
+  const totalActive = await getActiveBiometricCount();
+
   // If in-memory FP session is actively capturing and valid, keep ESP32 informed
   if (fpCaptureSession.isCapturing && fpCaptureSession.expiresAt && Date.now() < fpCaptureSession.expiresAt) {
     return res.status(200).json({
       active: true,
       slotId: fpCaptureSession.scannedSlot || 1,
       userId: fpCaptureSession.userId || "temp_registration",
-      type: fpCaptureSession.type || "FP"
+      type: fpCaptureSession.type || "FP",
+      totalActiveTemplates: totalActive
     });
   }
 
@@ -1699,11 +1697,58 @@ exports.getFingerprintSession = async (req, res) => {
       active: true,
       slotId: 1,
       userId: captureSession.userId || "temp_registration",
-      type: "RFID"
+      type: "RFID",
+      totalActiveTemplates: totalActive
     });
   }
 
-  return res.status(200).json({ active: false });
+  return res.status(200).json({ active: false, totalActiveTemplates: totalActive });
+};
+
+exports.getSlotStatus = async (req, res) => {
+  try {
+    const slot = parseInt(req.query.slot);
+    const totalActive = await getActiveBiometricCount();
+
+    if (isNaN(slot) || slot < 1 || slot > 162) {
+      return res.status(400).json({ error: "Invalid slot ID", totalActiveTemplates: totalActive });
+    }
+
+    const matchingUser = await sequelize.query(
+      `SELECT u."user_Id", u."firstName", u."lastName" 
+       FROM "User_Hardware" uh
+       INNER JOIN "User" u ON uh."user_Id" = u."user_Id"
+       WHERE u."deletedAt" IS NULL 
+         AND (
+           (uh."user_FingerprintId" = :slot AND TRIM(COALESCE(uh."user_FingerprintTemplate", '')) != '')
+           OR (uh."user_FingerprintId2" = :slot AND TRIM(COALESCE(uh."user_FingerprintTemplate2", '')) != '')
+         )
+       LIMIT 1`,
+      { replacements: { slot }, type: QueryTypes.SELECT }
+    );
+
+    if (matchingUser && matchingUser.length > 0) {
+      const user = matchingUser[0];
+      const fullName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || `User #${user.user_Id}`;
+      return res.status(200).json({
+        slot,
+        assigned: true,
+        orphan: false,
+        employeeName: fullName,
+        totalActiveTemplates: totalActive
+      });
+    }
+
+    return res.status(200).json({
+      slot,
+      assigned: false,
+      orphan: true,
+      totalActiveTemplates: totalActive
+    });
+  } catch (err) {
+    console.error("[GET SLOT STATUS ERROR]:", err);
+    return res.status(500).json({ error: "Failed to query slot status" });
+  }
 };
 
 exports.confirmFingerprintEnroll = async (req, res) => {
@@ -1777,9 +1822,13 @@ exports.confirmFingerprintEnroll = async (req, res) => {
         if (existingUser) {
           if (targetUserId && existingUser.user_Id === targetUserId) {
             if (existingUser.user_FingerprintId === parseInt(duplicateSlotId)) {
-              fpCaptureSession.errorMessage = `This finger is already registered as your Primary fingerprint (Slot #${duplicateSlotId}). Fallback must be a different finger.`;
+              console.log(`[FP-RE-ENROLL] User ${targetUserId} re-enrolling primary fingerprint. Auto-purging old slot #${duplicateSlotId}...`);
+              exports.queueSlotDeletion(duplicateSlotId);
+              fpCaptureSession.errorMessage = `Prior biometric slot #${duplicateSlotId} marked for overwrite. Please place your finger again to complete enrollment.`;
             } else if (existingUser.user_FingerprintId2 === parseInt(duplicateSlotId)) {
-              fpCaptureSession.errorMessage = `This finger is already registered as your Fallback fingerprint (Slot #${duplicateSlotId}).`;
+              console.log(`[FP-RE-ENROLL] User ${targetUserId} re-enrolling fallback fingerprint. Auto-purging old slot #${duplicateSlotId}...`);
+              exports.queueSlotDeletion(duplicateSlotId);
+              fpCaptureSession.errorMessage = `Prior fallback biometric slot #${duplicateSlotId} marked for overwrite. Please place your finger again to complete enrollment.`;
             } else {
               fpCaptureSession.errorMessage = `This finger is already registered for your account (Slot #${duplicateSlotId}).`;
             }
@@ -1787,7 +1836,9 @@ exports.confirmFingerprintEnroll = async (req, res) => {
             fpCaptureSession.errorMessage = `This finger is already registered to ${existingUser.user_FirstName} ${existingUser.user_LastName} (Slot #${duplicateSlotId}).`;
           }
         } else {
-          fpCaptureSession.errorMessage = `This finger is already registered in the scanner memory (Slot #${duplicateSlotId}).`;
+          console.warn(`[GHOST-SLOT] Detected orphan slot #${duplicateSlotId} in R307 flash with no active DB record. Auto-purging from sensor...`);
+          exports.queueSlotDeletion(duplicateSlotId);
+          fpCaptureSession.errorMessage = `Orphaned biometric slot #${duplicateSlotId} purged from scanner memory. Please place your finger again to complete enrollment.`;
         }
       } catch (err) {
         console.error("[FP-CONFIRM] Error querying duplicate user:", err);
@@ -2044,59 +2095,5 @@ exports.confirmVisitorAccess = async (req, res) => {
     console.error("[VISITOR CONFIRM ERROR]:", error);
     res.status(500).json({ success: false, message: "Internal Server Error" });
   }
-};
-
-exports.resetTftScreen = async (req, res) => {
-  const adminId = req.user?.user_Id || 1;
-  console.log(`[HARDWARE] Reset TFT Screen requested by Admin: ${adminId}`);
-
-  // 1. Flag for next ESP32 poll
-  pendingScreenReset = true;
-
-  // 2. Clear any active enrollment or capture sessions
-  try {
-    await exports.clearFingerprintSession(null, null);
-  } catch (err) {
-    console.warn("[HARDWARE] Notice: clearFingerprintSession error during reset:", err.message);
-  }
-
-  // 3. Push immediate direct signals to ESP32 over LAN
-  notifyEsp32ResetScreen();
-  notifyEsp32Cancel();
-
-  // 4. Broadcast event via Socket.IO
-  try {
-    const io = getIO();
-    if (io) {
-      io.emit("HARDWARE_SCREEN_RESET", {
-        adminId,
-        timestamp: new Date().toISOString(),
-        message: "TFT screen reset to default state"
-      });
-    }
-  } catch (ioErr) {
-    // Socket broadcast is best-effort
-  }
-
-  // 5. Audit Log
-  try {
-    await logAudit(
-      req,
-      adminId,
-      "Hardware Control",
-      "RESET_TFT_SCREEN",
-      "User_Hardware",
-      null,
-      null,
-      { action: "reset_tft_screen", status: "SUCCESS" }
-    );
-  } catch (auditErr) {
-    console.warn("[HARDWARE AUDIT NOTICE]:", auditErr.message);
-  }
-
-  return res.status(200).json({
-    success: true,
-    message: "TFT screen reset command dispatched. Display returning to scan RFID default state."
-  });
 };
 

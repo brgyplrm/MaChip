@@ -96,13 +96,15 @@ const espValidator = (req, res, next) => {
         return res.status(403).json({ success: false, message: "Invalid cryptographic signature." });
     }
 
-    // Check for replay of identical signature within the 120s skew window
-    cleanSeenSignatures(now);
-    if (seenSignatures.has(signature)) {
-        console.error(`[SEC] Replay attack detected for signature: ${signature.slice(0, 8)}...`);
-        return res.status(403).json({ success: false, message: "Replay attack detected: Duplicate request signature." });
+    // Check for replay of identical signature within the 120s skew window for state-changing requests
+    if (req.method !== 'GET') {
+        cleanSeenSignatures(now);
+        if (seenSignatures.has(signature)) {
+            console.error(`[SEC] Replay attack detected for signature: ${signature.slice(0, 8)}...`);
+            return res.status(403).json({ success: false, message: "Replay attack detected: Duplicate request signature." });
+        }
+        seenSignatures.set(signature, now);
     }
-    seenSignatures.set(signature, now);
 
     // 4. AES-128 Payload Decryption
     if (req.body && req.body.encryptedData) {

@@ -220,6 +220,10 @@ exports.updateSystemSettings = async (req, res) => {
       const buf = parseInt(req.body.hardwareBufferWindow, 10);
       if (isNaN(buf) || buf < 0) return res.status(400).json({ error: "hardwareBufferWindow must be a non-negative integer." });
     }
+    if (req.body.doorRelayHoldDurationSec !== undefined && req.body.doorRelayHoldDurationSec !== null) {
+      const dur = parseInt(req.body.doorRelayHoldDurationSec, 10);
+      if (isNaN(dur) || dur < 1 || dur > 15) return res.status(400).json({ error: "doorRelayHoldDurationSec must be an integer between 1 and 15 seconds." });
+    }
     if (req.body.archivedRetentionYears !== undefined && req.body.archivedRetentionYears !== null) {
       const ret = parseInt(req.body.archivedRetentionYears, 10);
       if (isNaN(ret) || ret < 0) return res.status(400).json({ error: "archivedRetentionYears must be a non-negative integer." });
@@ -279,6 +283,9 @@ exports.updateSystemSettings = async (req, res) => {
     }
     if (req.body.hardwareBufferWindow !== undefined && req.body.hardwareBufferWindow !== null) {
       updateData.hardwareBufferWindow = parseInt(req.body.hardwareBufferWindow, 10);
+    }
+    if (req.body.doorRelayHoldDurationSec !== undefined && req.body.doorRelayHoldDurationSec !== null) {
+      updateData.doorRelayHoldDurationSec = parseInt(req.body.doorRelayHoldDurationSec, 10);
     }
     if (req.body.vlRate !== undefined) updateData.vlRate = parseFloat(req.body.vlRate);
     if (req.body.slRate !== undefined) updateData.slRate = parseFloat(req.body.slRate);

@@ -120,6 +120,10 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.INTEGER,
         defaultValue: 5,
       },
+      doorRelayHoldDurationSec: {
+        type: DataTypes.INTEGER,
+        defaultValue: 3,
+      },
       taxEvaluationMode: {
         type: DataTypes.STRING(32),
         defaultValue: 'PROJECTED_MONTHLY',

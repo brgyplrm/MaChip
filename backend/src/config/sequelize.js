@@ -334,10 +334,13 @@ const connectDB = async () => {
       ON CONFLICT ("statusId") DO NOTHING;
     `);
 
-    // Ensure System Generated logged status exists
+    // Ensure System Generated, Clock IN, and Clock OUT logged statuses exist
     await sequelize.query(`
       INSERT INTO "logged_status" ("statusId", "statusName")
-      VALUES (7, 'System Generated')
+      VALUES 
+        (7, 'System Generated'),
+        (10, 'Clock IN'),
+        (11, 'Clock OUT')
       ON CONFLICT ("statusId") DO NOTHING;
     `);
 

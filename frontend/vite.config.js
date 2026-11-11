@@ -25,6 +25,18 @@ export default defineConfig({
         xfwd: true, // Automatically appends X-Forwarded-For header so Express receives real client LAN IPs
         proxyTimeout: 60000,
         timeout: 60000,
+        configure: (proxy) => {
+          proxy.on("error", (err, req, res) => {
+            if (err.code === "ECONNREFUSED") {
+              // Backend is still initializing; return clean 503 rather than throwing terminal stack trace
+              if (res && typeof res.writeHead === "function" && !res.headersSent) {
+                res.writeHead(503, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: "Backend initializing. Please retry in a moment." }));
+              }
+              return;
+            }
+          });
+        },
       },
       "/socket.io": {
         target: "http://127.0.0.1:4000",

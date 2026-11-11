@@ -8,6 +8,9 @@ const { requireRole } = require("../middleware/roleCheck.js");
 // Polled by ESP32 to check if enrollment is active
 router.get("/fingerprint/session", espValidator, rfidController.getFingerprintSession);
 
+// Check biometric slot status for dynamic orphan auto-pruning
+router.get("/fingerprint/slot-status", espValidator, rfidController.getSlotStatus);
+
 // Called by frontend to initialize session
 router.post("/fingerprint/session", authMiddleware, rfidController.getFingerprintSession);
 
@@ -42,14 +45,8 @@ router.get("/fingerprint/download/:uid", espValidator, rfidController.getFingerp
 router.post("/visitor-access", authMiddleware, requireRole(1, 4, "Admin Manager", "Admin Accountant"), rfidController.triggerVisitorAccess);
 router.post("/visitor-access/confirm", espValidator, rfidController.confirmVisitorAccess);
 
-// Reset TFT Screen to default state (Scan RFID to Clock In) - Restricted to Management (Role 1 and 4)
-router.post("/reset-screen", authMiddleware, requireRole(1, 4, "Admin Manager", "Admin Accountant"), rfidController.resetTftScreen);
-router.get("/reset-screen", authMiddleware, requireRole(1, 4, "Admin Manager", "Admin Accountant"), rfidController.resetTftScreen);
-
-// Telemetry & Hardware Testing Endpoints - Restricted to Management (Role 1 and 4)
+// Telemetry Endpoint
 router.post("/telemetry", espValidator, rfidController.receiveTelemetry);
-router.post("/test-buzzer", authMiddleware, requireRole(1, 4, "Admin Manager", "Admin Accountant"), rfidController.testBuzzerDirect);
-router.post("/unlock-relay", authMiddleware, requireRole(1, 4, "Admin Manager", "Admin Accountant"), rfidController.unlockRelayDirect);
 
 module.exports = router;
 

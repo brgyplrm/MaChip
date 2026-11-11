@@ -2,12 +2,43 @@
 #include "Config.h"
 #include "DisplayManager.h"
 
-// ── FEEDBACK ENGINE (RESONANT ACOUSTIC PEAK) ──────────────────────
-inline void beepTone(int duration, int freq = BUZZER_FREQ) {
-  // Drives Passive Buzzer at mechanical diaphragm resonance using hardware LEDC PWM
-  ledcWriteTone(BUZZER, freq);
-  delay(duration);
+// ── FEEDBACK ENGINE (NON-BLOCKING RESONANT ACOUSTIC PEAK) ─────────
+inline void stopBuzzer() {
   ledcWriteTone(BUZZER, 0);
+  buzzerPlaying = false;
+  buzzerStepCount = 0;
+  currentBuzzerStepIndex = 0;
+}
+
+inline void startBuzzerPattern(const BuzzerStep *steps, int count) {
+  if (count <= 0 || count > MAX_BUZZER_STEPS) return;
+  for (int i = 0; i < count; i++) {
+    buzzerQueue[i] = steps[i];
+  }
+  buzzerStepCount = count;
+  currentBuzzerStepIndex = 0;
+  currentBuzzerStepStart = millis();
+  buzzerPlaying = true;
+  ledcWriteTone(BUZZER, buzzerQueue[0].freq);
+}
+
+inline void updateBuzzer() {
+  if (!buzzerPlaying) return;
+  unsigned long elapsed = millis() - currentBuzzerStepStart;
+  if (elapsed >= buzzerQueue[currentBuzzerStepIndex].durationMs) {
+    currentBuzzerStepIndex++;
+    if (currentBuzzerStepIndex < buzzerStepCount) {
+      currentBuzzerStepStart = millis();
+      ledcWriteTone(BUZZER, buzzerQueue[currentBuzzerStepIndex].freq);
+    } else {
+      stopBuzzer();
+    }
+  }
+}
+
+inline void beepTone(int duration, int freq = BUZZER_FREQ) {
+  BuzzerStep steps[] = { { (uint16_t)freq, (uint16_t)duration } };
+  startBuzzerPattern(steps, 1);
 }
 
 inline void beep(int duration) {
@@ -26,32 +57,51 @@ inline void setLED(LedMode gMode, LedMode rMode) {
 
 inline void provideFeedback(FeedbackType type) {
   switch (type) {
-    case SUCCESS_OK:
+    case SUCCESS_OK: {
       setLED(LED_STEADY_GREEN, LED_OFF);
-      beepTone(100, 2730); delay(60);
-      beepTone(120, 4000); // Cheerful two-tone confirmation
+      BuzzerStep steps[] = {
+        { 2730, 80 },
+        { 0, 30 },
+        { 4000, 100 }
+      };
+      startBuzzerPattern(steps, 3);
       break;
+    }
 
-    case ERROR_FAIL:
+    case ERROR_FAIL: {
       setLED(LED_OFF, LED_STEADY_RED);
-      beepTone(600, 1500); // Low warning buzz
+      // Dual-Pip Staccato Reject: Short 2200Hz pip, 30ms silence, 1600Hz confirmation pip (120ms total)
+      BuzzerStep steps[] = {
+        { 2200, 40 },
+        { 0, 30 },
+        { 1600, 50 }
+      };
+      startBuzzerPattern(steps, 3);
       break;
+    }
 
-    case RFID_TAP:
-      beepTone(120, 2730); // Crisp access tap tone
+    case RFID_TAP: {
+      BuzzerStep steps[] = {
+        { 2730, 70 }
+      };
+      startBuzzerPattern(steps, 1);
       break;
+    }
 
     case WAITING_SCAN:
       setLED(LED_FAST_BLINK, LED_OFF);
       break;
 
-    case SYSTEM_READY:
-      // Resonant 3-tone diagnostic startup chime (Sweeps 2048Hz -> 2730Hz -> 4000Hz)
-      // Whichever frequency hits your buzzer's physical resonance will sound at maximum volume!
-      beepTone(120, 2048); delay(60);
-      beepTone(120, 2730); delay(60);
-      beepTone(150, 4000);
+    case SYSTEM_READY: {
+      // Crisp, gentle ascending dual-pip boot chime (170ms total, zero harsh tone)
+      BuzzerStep steps[] = {
+        { 1760, 60 },
+        { 0, 30 },
+        { 2637, 80 }
+      };
+      startBuzzerPattern(steps, 3);
       break;
+    }
   }
 }
 
@@ -71,14 +121,19 @@ inline void updateLEDs() {
 }
 
 // ── SOLENOID CONTROL ──────────────────────────────────────────────
-inline void solenoidUnlock() {
+inline void solenoidUnlock(String sourceTerminal = "FRONT") {
   if (!solenoidActive) {
+    activeUnlockTerminal = sourceTerminal;
     clearSpiBusPins();
-    delay(50); // Ensure all in-flight SPI transmissions to both TFTs are 100% finished before relay draws current
+    delay(20); // Ensure all in-flight SPI transmissions to both TFTs are 100% finished before relay draws current
     digitalWrite(SOLENOID_PIN, HIGH); // Drive HIGH: Q2 NPN turns ON, pulling J8 IN to GND to trigger Relay
     solenoidActive = true;
     solenoidStartTime = millis();
-    sysLog(F("[SOLENOID] UNLOCKED (Relay triggered)"));
+    sysLog("[SOLENOID] UNLOCKED (Relay triggered) via " + sourceTerminal);
+  } else {
+    if (activeUnlockTerminal != sourceTerminal) {
+      activeUnlockTerminal = "ALL";
+    }
   }
 }
 
@@ -92,16 +147,24 @@ inline void solenoidLock() {
 }
 
 inline void updateSolenoid() {
-  if (solenoidActive && (millis() - solenoidStartTime >= SOLENOID_DURATION)) {
+  if (solenoidActive && (millis() - solenoidStartTime >= solenoidHoldDurationMs)) {
     solenoidLock();
     // Allow relay coil kickback & contact bounce to fully quench before driving SPI bus
-    delay(150);
+    delay(40);
     clearSpiBusPins();
 
-    // Re-initialize Back TFT to immediately recover and heal from any inductive solenoid kickback
-    resetBackDisplay();
-
-    updateFrontDisplay("READY", "Scan RFID Card to Login", ST77XX_GREEN);
-    updateBackDisplay("READY", "Scan Card Out");
+    // Cleanly redraw without calling tft.init() / SWRESET to eliminate white flash
+    if (activeUnlockTerminal == "FRONT" || activeUnlockTerminal == "ALL") {
+      frontStatusResetActive = false;
+      isFrontDisplayInReady = false;
+      updateFrontDisplay("READY", "Scan RFID Card to Login", ST77XX_GREEN);
+      setLED(LED_SLOW_BLINK, LED_OFF);
+    }
+    if (activeUnlockTerminal == "BACK" || activeUnlockTerminal == "ALL") {
+      backStatusResetActive = false;
+      isBackDisplayInReady = false;
+      updateBackDisplay("READY", "Scan Card Out");
+    }
+    activeUnlockTerminal = "FRONT";
   }
 }

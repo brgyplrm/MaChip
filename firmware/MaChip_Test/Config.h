@@ -7,14 +7,17 @@
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
 #include <WebServer.h>
+#ifndef HTTPCLIENT_NOSECURE
+#define HTTPCLIENT_NOSECURE
+#endif
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <Adafruit_Fingerprint.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_ST7789.h>
-#include <Adafruit_SSD1306.h>
 #include <time.h>
 #include "mbedtls/md.h"
+#include "driver/gpio.h"
 #include "arduino_secrets.h"
 
 // ── FIRMWARE METADATA & BUILD VERSION ───────────────────────────
@@ -67,6 +70,9 @@ const byte MIFARE_ACCESS_BITS[4] = { 0xFF, 0x07, 0x80, 0x69 }; // Transport defa
 // Display Configuration Flags
 #define ENABLE_DUAL_ST7789 true         // Enabled: J5 drives Back ST7789 TFT
 #define ENABLE_I2C_OLED    false        // Set true only if using legacy I2C OLED on GPIO 21/22
+#if ENABLE_I2C_OLED
+#include <Adafruit_SSD1306.h>
+#endif
 #define ENABLE_ENV_SENSOR  true         // AHT20 + BMP280 I2C Sensor
 #define I2C_SDA_PIN        0            // ESP32 DevKit Pin 33 (GPIO 0)
 #define I2C_SCL_PIN        2            // ESP32 DevKit Pin 34 (GPIO 2)
@@ -82,8 +88,9 @@ const byte MIFARE_ACCESS_BITS[4] = { 0xFF, 0x07, 0x80, 0x69 }; // Transport defa
 #define BUZZER_IS_ACTIVE   false // User confirmed: PASSIVE buzzer (requires PWM oscillation)
 #define BUZZER_FREQ        2730  // Optimal acoustic resonant peak (standard 2.73kHz)
 #define BUZZER_RES         8
-#define SOLENOID_DURATION  3000
-#define TIMEOUT_2FA        15000
+#define DEFAULT_SOLENOID_DURATION  3000
+#define SOLENOID_DURATION          3000
+#define TIMEOUT_2FA                15000
 
 // ── ENUMS & DATA STRUCTURES ──────────────────────────────────────
 enum LedMode { LED_OFF, LED_SLOW_BLINK, LED_FAST_BLINK, LED_STEADY_GREEN, LED_STEADY_RED };
@@ -95,6 +102,12 @@ enum FeedbackType {
   RFID_TAP,
   SYSTEM_READY
 };
+
+struct BuzzerStep {
+  uint16_t freq;
+  uint16_t durationMs;
+};
+#define MAX_BUZZER_STEPS 6
 
 struct NetworkConfig {
   String ssid;
@@ -167,6 +180,16 @@ extern BackendQueue queuedTransaction;
 extern bool webServerStarted;
 extern bool otaInitialized;
 extern bool isFrontDisplayInReady;
+extern bool isBackDisplayInReady;
+extern bool frontStatusResetActive;
+extern bool backStatusResetActive;
+extern String activeUnlockTerminal;
+extern uint16_t solenoidHoldDurationMs;
+extern BuzzerStep buzzerQueue[MAX_BUZZER_STEPS];
+extern int buzzerStepCount;
+extern int currentBuzzerStepIndex;
+extern unsigned long currentBuzzerStepStart;
+extern bool buzzerPlaying;
 
 // ── CRYPTOGRAPHIC REQUEST SIGNER (HMAC-SHA256) ───────────────────
 inline uint32_t getCurrentTimestamp() {

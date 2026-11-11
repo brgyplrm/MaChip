@@ -10,7 +10,6 @@ import {
   ExternalLink, 
   RefreshCw, 
   Volume2, 
-  Key, 
   CheckCircle2, 
   AlertTriangle, 
   Copy, 
@@ -54,48 +53,6 @@ export default function HardwareDiagnostics() {
     navigator.clipboard.writeText(text);
     setCopiedField(field);
     setTimeout(() => setCopiedField(null), 2000);
-  };
-
-  const handleTestBuzzer = async () => {
-    setActionLoading("buzzer");
-    try {
-      const res = await fetchWithAuth("/api/esp/test-buzzer", { method: "POST" });
-      const data = await res.json();
-      setActionMessage({ type: res.ok ? "success" : "error", text: data.message || "Buzzer tested" });
-    } catch (err) {
-      setActionMessage({ type: "error", text: err.message });
-    } finally {
-      setActionLoading(null);
-      setTimeout(() => setActionMessage(null), 3500);
-    }
-  };
-
-  const handleUnlockRelay = async () => {
-    setActionLoading("relay");
-    try {
-      const res = await fetchWithAuth("/api/esp/unlock-relay", { method: "POST" });
-      const data = await res.json();
-      setActionMessage({ type: res.ok ? "success" : "error", text: data.message || "Relay unlocked" });
-    } catch (err) {
-      setActionMessage({ type: "error", text: err.message });
-    } finally {
-      setActionLoading(null);
-      setTimeout(() => setActionMessage(null), 3500);
-    }
-  };
-
-  const handleResetScreen = async () => {
-    setActionLoading("screen");
-    try {
-      const res = await fetchWithAuth("/api/esp/reset-screen", { method: "POST" });
-      const data = await res.json();
-      setActionMessage({ type: res.ok ? "success" : "error", text: data.message || "TFT Screen reset" });
-    } catch (err) {
-      setActionMessage({ type: "error", text: err.message });
-    } finally {
-      setActionLoading(null);
-      setTimeout(() => setActionMessage(null), 3500);
-    }
   };
 
   const handleSimulateTelemetry = async () => {
@@ -522,7 +479,7 @@ export default function HardwareDiagnostics() {
             <div className="p-2.5 bg-white rounded-lg border border-slate-200 flex items-center justify-between">
               <div>
                 <span className="text-[10px] font-bold text-slate-400 uppercase block">Console Password</span>
-                <span className="font-mono text-slate-700 font-semibold">{status?.adminPass || "machip2026"}</span>
+                <span className="font-mono text-slate-700 font-semibold">••••••••</span>
               </div>
               <button 
                 onClick={() => copyToClipboard(status?.adminPass || "machip2026", "pass")}
@@ -532,42 +489,6 @@ export default function HardwareDiagnostics() {
                 {copiedField === "pass" ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
               </button>
             </div>
-          </div>
-
-          {/* Quick Hardware Trigger Buttons */}
-          <div className="pt-2 flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleTestBuzzer}
-              disabled={actionLoading === "buzzer" || !isConnected}
-              className="text-xs h-8 gap-1.5 border-slate-300 hover:bg-slate-100 disabled:opacity-50"
-            >
-              <Volume2 className="w-3.5 h-3.5 text-brand-primary" />
-              <span>{actionLoading === "buzzer" ? "Testing..." : "Test 2730Hz Buzzer"}</span>
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleUnlockRelay}
-              disabled={actionLoading === "relay" || !isConnected}
-              className="text-xs h-8 gap-1.5 border-slate-300 hover:bg-slate-100 disabled:opacity-50"
-            >
-              <Key className="w-3.5 h-3.5 text-emerald-600" />
-              <span>{actionLoading === "relay" ? "Triggering..." : "Trigger Door Relay (3s)"}</span>
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleResetScreen}
-              disabled={actionLoading === "screen" || !isConnected}
-              className="text-xs h-8 gap-1.5 border-slate-300 hover:bg-slate-100 disabled:opacity-50"
-            >
-              <Monitor className="w-3.5 h-3.5 text-blue-600" />
-              <span>{actionLoading === "screen" ? "Resetting..." : "Reset ST7789 Screens"}</span>
-            </Button>
           </div>
         </div>
       </CardContent>

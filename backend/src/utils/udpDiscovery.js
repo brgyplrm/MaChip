@@ -1,5 +1,6 @@
 const os = require("os");
 const dgram = require("dgram");
+const crypto = require("crypto");
 const { isPrivateIp } = require("../middleware/networkBoundary");
 
 let udpSocket = null;
@@ -23,8 +24,12 @@ function getBestLanIp(clientAddress = null) {
   const interfaces = os.networkInterfaces();
   const candidates = [];
 
-  for (const [, addrs] of Object.entries(interfaces)) {
+  for (const [ifaceName, addrs] of Object.entries(interfaces)) {
     if (!addrs) continue;
+    // Skip internal virtual bridges (Docker, VirtualBox, libvirt) that are unreachable by external hardware
+    if (ifaceName.startsWith("docker") || ifaceName.startsWith("virbr") || ifaceName.startsWith("vboxnet") || ifaceName.startsWith("br-")) {
+      continue;
+    }
     for (const net of addrs) {
       if ((net.family === "IPv4" || net.family === 4) && !net.internal) {
         if (!net.address.startsWith("169.254.")) {
@@ -66,10 +71,15 @@ function getBestLanIp(clientAddress = null) {
 function buildDiscoveryPayload(clientAddress = null) {
   const serverIp = getBestLanIp(clientAddress);
   const httpPort = parseInt(process.env.PORT, 10) || 4000;
+  const hmacKey = process.env.SECRET_HMAC_KEY || process.env.ESP32_HMAC_KEY || "machip_secure_payload_hmac_2026";
+  const stringToSign = `machip:${serverIp}:${httpPort}`;
+  const token = crypto.createHmac("sha256", hmacKey).update(stringToSign).digest("hex");
+
   return JSON.stringify({
     service: "machip-backend",
     ip: serverIp,
     port: httpPort,
+    token: token,
     serverUrl: `http://${serverIp}:${httpPort}/api/rfid/scan`,
     fpUrl: `http://${serverIp}:${httpPort}/api/esp/fingerprint`
   });
@@ -95,6 +105,7 @@ function startUdpDiscovery(port = 4001) {
 
     udpSocket.on("message", (msg, rinfo) => {
       const text = msg.toString().trim();
+      console.log(`[UDP-DISCOVERY] Received probe from ${rinfo.address}:${rinfo.port} ("${text.substring(0, 24)}")`);
       if (text.includes("MACHIP_DISCOVER")) {
         // Zero-Trust LAN Boundary: Drop packet if requester is not on internal private LAN
         if (!isPrivateIp(rinfo.address)) {
@@ -141,7 +152,7 @@ function startUdpDiscovery(port = 4001) {
       if (!udpSocket) return;
       try {
         const payload = buildDiscoveryPayload();
-        udpSocket.send(payload, port, "255.255.255.255", () => {});
+        udpSocket.send(payload, 4002, "255.255.255.255", () => {});
       } catch {
         // Ignore broadcast drops
       }

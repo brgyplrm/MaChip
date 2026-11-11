@@ -67,6 +67,7 @@ const Settings = () => {
   const [mandatedMinimumWage, setMandatedMinimumWage] = useState(610.0);
   const [mandatedWageEffectiveDate, setMandatedWageEffectiveDate] = useState("2025-07-18");
   const [hardwareBufferWindow, setHardwareBufferWindow] = useState(5);
+  const [doorRelayHoldDurationSec, setDoorRelayHoldDurationSec] = useState(3);
   const [archivedRetentionYears, setArchivedRetentionYears] = useState(5);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -134,6 +135,7 @@ const Settings = () => {
         setMandatedMinimumWage(data.mandatedMinimumWage ?? 610.0);
         setMandatedWageEffectiveDate(data.mandatedWageEffectiveDate ?? "2025-07-18");
         setHardwareBufferWindow(data.hardwareBufferWindow ?? 5);
+        setDoorRelayHoldDurationSec(data.doorRelayHoldDurationSec ?? 3);
         setArchivedRetentionYears(data.archivedRetentionYears !== undefined && data.archivedRetentionYears !== null ? data.archivedRetentionYears : 5);
 
         // Load Attendance Settings
@@ -240,7 +242,8 @@ const Settings = () => {
       mockTime,
       storageRootPath,
       archivedRetentionYears: sanitizeInt(archivedRetentionYears, 5),
-      hardwareBufferWindow: sanitizeInt(hardwareBufferWindow, 5)
+      hardwareBufferWindow: sanitizeInt(hardwareBufferWindow, 5),
+      doorRelayHoldDurationSec: sanitizeInt(doorRelayHoldDurationSec, 3)
     };
 
     const success = await sendSettingsUpdate(payload, "System variables updated successfully!");
@@ -517,7 +520,7 @@ const Settings = () => {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="p-6 space-y-6">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="space-y-2">
                           <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider block">
                             Biometric Attendance Sync Buffer (Min)
@@ -534,6 +537,27 @@ const Settings = () => {
                             }}
                             onBlur={() => {
                               setHardwareBufferWindow(parseFloat(hardwareBufferWindow) || 0);
+                            }}
+                            disabled={!isAdmin || !isEditingSystem}
+                            className="bg-white border-slate-200 w-full font-mono"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider block">
+                            Door Relay Hold Duration (Sec)
+                          </Label>
+                          <Input 
+                            type="number"
+                            min="1"
+                            max="15"
+                            value={doorRelayHoldDurationSec || ""}
+                            onChange={(e) => setDoorRelayHoldDurationSec(e.target.value)}
+                            onBlur={() => {
+                              const val = parseInt(doorRelayHoldDurationSec, 10);
+                              if (isNaN(val) || val < 1) setDoorRelayHoldDurationSec(1);
+                              else if (val > 15) setDoorRelayHoldDurationSec(15);
+                              else setDoorRelayHoldDurationSec(val);
                             }}
                             disabled={!isAdmin || !isEditingSystem}
                             className="bg-white border-slate-200 w-full font-mono"

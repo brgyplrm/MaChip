@@ -119,7 +119,7 @@ docs/checklists/*_triage*.md
 docs/audit_reports/
 *_findings*.md
 *_triage*.md
-docs
+# docs
 
 scripts/generate_architecture_pdf.js
 scripts/generate_qa_pdf.js

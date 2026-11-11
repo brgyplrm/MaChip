@@ -20,6 +20,7 @@ DEFAULT_BUILD_DIR = os.path.join(PROJECT_ROOT, "firmware", "MaChip_Test", "build
 ESPOTA_SCRIPT = os.path.join(PROJECT_ROOT, "scripts", "espota.py")
 
 ARDUINO_CLI_PATHS = [
+    os.path.expanduser("~/.local/bin/arduino-cli"),
     os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Arduino IDE", "resources", "app", "lib", "backend", "resources", "arduino-cli.exe"),
     "arduino-cli"
 ]
@@ -30,7 +31,10 @@ def find_arduino_cli():
             return p
     return "arduino-cli"
 
-def auto_detect_esp_ip(backend_url="http://127.0.0.1:5000/api/esp/status"):
+def auto_detect_esp_ip(backend_url=None):
+    if not backend_url:
+        port = os.environ.get("PORT", "4000")
+        backend_url = f"http://127.0.0.1:{port}/api/esp/status"
     print("[OTA] Searching for active ESP32 on the network...")
     
     # 1. Query Node.js Backend for last tracked ESP32 IP
@@ -78,6 +82,7 @@ def compile_firmware(sketch_path=DEFAULT_SKETCH_PATH, build_dir=DEFAULT_BUILD_DI
         cli,
         "compile",
         "-b", "esp32:esp32:esp32",
+        "--build-property", "compiler.cpp.extra_flags=-DHTTPCLIENT_NOSECURE -DARDUINOJSON_ENABLE_STD_STREAM=0 -DARDUINOJSON_ENABLE_STD_STRING=0 -DCORE_DEBUG_LEVEL=0 -Os",
         "--build-path", build_dir,
         sketch_path
     ]
@@ -92,14 +97,26 @@ def compile_firmware(sketch_path=DEFAULT_SKETCH_PATH, build_dir=DEFAULT_BUILD_DI
     duration = time.time() - start_time
     print(f"[OTA-COMPILE] Compilation succeeded in {duration:.1f}s.")
 
+def get_local_ip_towards(target_ip):
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect((target_ip, 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "0.0.0.0"
+
 def flash_ota(ip, bin_path, port=3232, timeout=15):
     if not os.path.isfile(bin_path):
         print(f"[OTA-ERROR] Binary file not found: {bin_path}")
         print("Run with --compile to build firmware first, or specify a valid --bin path.")
         sys.exit(1)
 
+    local_ip = get_local_ip_towards(ip)
     bin_size_kb = os.path.getsize(bin_path) / 1024.0
     print(f"[OTA-FLASH] Target IP:       {ip}:{port}")
+    print(f"[OTA-FLASH] Host LAN IP:     {local_ip}")
     print(f"[OTA-FLASH] Firmware Binary: {bin_path} ({bin_size_kb:.1f} KB)")
     print(f"[OTA-FLASH] Connecting to ESP32 over LAN...")
 
@@ -107,6 +124,7 @@ def flash_ota(ip, bin_path, port=3232, timeout=15):
         sys.executable,
         ESPOTA_SCRIPT,
         "-i", ip,
+        "-I", local_ip,
         "-p", str(port),
         "-f", bin_path,
         "-r",
