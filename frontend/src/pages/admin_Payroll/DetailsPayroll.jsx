@@ -484,31 +484,7 @@ const PayrollDetails = () => {
                   </div>
                 </div>
 
-                {/* 2. Mandatory Statutory Contributions Summary (De-duplicated) */}
-                <div>
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                      Government Statutory Share (EE)
-                    </h4>
-                  </div>
-                  <div className="divide-y divide-slate-100 text-sm">
-                    <div className="flex justify-between items-center py-2.5">
-                      <div>
-                        <span className="text-slate-700 font-medium block">
-                          Mandatory Contributions & Tax (EE Total)
-                        </span>
-                        <span className="text-xs text-slate-400">
-                          Detailed EE vs ER breakdown in Remittance Audit table below
-                        </span>
-                      </div>
-                      <span className="font-bold text-blue-700 text-base">
-                        ₱{formatMoney(totalEEShare)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 3. Government & Company Loans (Always Listed with Placeholders) */}
+                {/* 2. Government & Company Loans (Always Listed with Placeholders) */}
                 <div>
                   <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">

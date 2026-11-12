@@ -3490,7 +3490,10 @@ exports.getLeaveSummary = async (req, res) => {
         name: `${user.user_LastName} ${user.user_FirstName.charAt(0)}.`,
         vl: Array(12).fill(0),
         sl: Array(12).fill(0),
-        sp: Array(12).fill(0), // New: Solo Parent
+        sp: Array(12).fill(0), // Solo Parent
+        statutory: Array(12).fill(0), // Decoupled statutory leaves (total)
+        ml: Array(12).fill(0), // Maternity Leave
+        pl: Array(12).fill(0), // Paternity Leave
         ot: Array(12).fill(0),
         lates: Array(12).fill(0),
         absences: Array(12).fill(0),
@@ -3512,10 +3515,21 @@ exports.getLeaveSummary = async (req, res) => {
         else if (l.emp_reqTypeId === 4) resData.sl[month] += (l.sD || 0);
         else if (l.emp_reqTypeId === 6) resData.sl[month] += (l.eD || 0); // EL deducts from SL first
         else if (l.emp_reqTypeId === 7) resData.vl[month] += 0.5;
-        else if (l.emp_reqTypeId === 10) resData.sp[month] += (l.stD || 0); // Solo Parent
-        else if ([8, 9, 11, 12].includes(l.emp_reqTypeId)) {
-          // Other statutory leaves (Maternity, etc.) could be tracked separately or as SL
-          resData.sl[month] += (l.stD || 0); 
+        else if (l.emp_reqTypeId === 10) {
+          resData.sp[month] += (l.stD || 0); // Solo Parent
+          resData.statutory[month] += (l.stD || 0);
+        }
+        else if (l.emp_reqTypeId === 8) {
+          resData.ml[month] += (l.stD || 0); // Maternity Leave
+          resData.statutory[month] += (l.stD || 0);
+        }
+        else if (l.emp_reqTypeId === 9) {
+          resData.pl[month] += (l.stD || 0); // Paternity Leave
+          resData.statutory[month] += (l.stD || 0);
+        }
+        else if ([11, 12].includes(l.emp_reqTypeId)) {
+          // Other statutory leaves (VAWC 11, Special Leave for Women 12)
+          resData.statutory[month] += (l.stD || 0);
         }
       });
 

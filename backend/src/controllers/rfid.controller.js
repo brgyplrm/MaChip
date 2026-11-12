@@ -1252,7 +1252,9 @@ exports.scanRFID = async (req, res) => {
       employeeName: user.user_FirstName,
       name: user.user_FirstName,
       message: isIrregularEvent ? `Irregular ${punchLabel}` : statusLabels[nextStatus],
-      solenoidDuration: solenoidHoldSec * 1000
+      solenoidDuration: solenoidHoldSec * 1000,
+      retriggerAllowed: true,
+      terminalType: terminalType || (action === "clock_out" ? "BACK" : "FRONT")
     });
 
   } catch (error) {
@@ -1458,6 +1460,11 @@ exports.generateFingerprint = async (req, res) => {
 // ESP32 Endpoints
 exports.factoryResetHardware = async (req, res) => {
   try {
+    // Defense-in-depth: Enforce Admin Manager (Role 1) authorization
+    if (req.user && parseInt(req.user.user_RoleId, 10) !== 1) {
+      return res.status(403).json({ error: "Access denied: Admin Manager role required." });
+    }
+
     // Clear orphan/stale fingerprint IDs and templates in User_Hardware
     await sequelize.query(
       `UPDATE "User_Hardware" 

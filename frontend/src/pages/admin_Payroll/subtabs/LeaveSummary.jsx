@@ -196,12 +196,21 @@ const LeaveSummary = () => {
               const monthlyOt = row.ot || [];
               const monthlyLates = row.lates || [];
               const monthlyAbsences = row.absences || [];
+              const monthlyStatutory = row.statutory || [];
+              const monthlyMl = row.ml || [];
+              const monthlyPl = row.pl || [];
+              const monthlySp = row.sp || [];
 
               const totalVl = monthlyVl.reduce((a, b) => a + b, 0);
               const totalSl = monthlySl.reduce((a, b) => a + b, 0);
               const totalOt = monthlyOt.reduce((a, b) => a + b, 0);
               const totalLates = monthlyLates.reduce((a, b) => a + b, 0);
               const totalAbsences = monthlyAbsences.reduce((a, b) => a + b, 0);
+              const totalStatutory = monthlyStatutory.reduce((a, b) => a + b, 0);
+              const totalMl = monthlyMl.reduce((a, b) => a + b, 0);
+              const totalPl = monthlyPl.reduce((a, b) => a + b, 0);
+              const totalSp = monthlySp.reduce((a, b) => a + b, 0);
+              const totalOtherStatutory = totalStatutory - totalMl - totalPl - totalSp;
 
               // Preserved original final calculation states
               const vlFinalAmount = row.vlRemaining * row.dailyRate;
@@ -282,9 +291,13 @@ const LeaveSummary = () => {
                               <span className="font-mono font-bold text-xs bg-rose-100 text-rose-800 px-1.5 py-0.5 rounded">Late (m)</span>
                               <span className="text-slate-600 text-[11px] font-medium">Tardiness (Minutes)</span>
                             </div>
-                            <div className="flex items-center gap-2 bg-white px-2.5 py-1.5 rounded-lg border border-slate-100 shadow-2xs col-span-2 sm:col-span-1">
+                            <div className="flex items-center gap-2 bg-white px-2.5 py-1.5 rounded-lg border border-slate-100 shadow-2xs">
                               <span className="font-mono font-bold text-xs bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">Abs (d)</span>
                               <span className="text-slate-600 text-[11px] font-medium">Absences (Days)</span>
+                            </div>
+                            <div className="flex items-center gap-2 bg-white px-2.5 py-1.5 rounded-lg border border-slate-100 shadow-2xs">
+                              <span className="font-mono font-bold text-xs bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded">Stat (d)</span>
+                              <span className="text-slate-600 text-[11px] font-medium">Statutory Leave (Days)</span>
                             </div>
                           </div>
                         </div>
@@ -347,6 +360,16 @@ const LeaveSummary = () => {
                                       </TooltipContent>
                                     </Tooltip>
                                   </TableHead>
+                                  <TableHead className="font-semibold text-white text-center uppercase text-[10px] tracking-wider py-3">
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="cursor-help underline decoration-dotted underline-offset-2">Stat (d)</span>
+                                      </TooltipTrigger>
+                                      <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs">
+                                        Statutory Leaves: Maternity, Paternity, Solo Parent, VAWC (Days)
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TableHead>
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
@@ -358,6 +381,7 @@ const LeaveSummary = () => {
                                     <td className="text-center text-xs font-semibold text-slate-600">{monthlyOt[idx] > 0 ? monthlyOt[idx].toFixed(1) : "—"}</td>
                                     <td className="text-center text-xs font-semibold text-slate-600">{monthlyLates[idx] > 0 ? monthlyLates[idx] : "—"}</td>
                                     <td className="text-center text-xs font-semibold text-slate-600">{monthlyAbsences[idx] > 0 ? monthlyAbsences[idx] : "—"}</td>
+                                    <td className="text-center text-xs font-semibold text-purple-600">{monthlyStatutory[idx] > 0 ? monthlyStatutory[idx] : "—"}</td>
                                   </TableRow>
                                 ))}
                               </TableBody>
@@ -407,6 +431,48 @@ const LeaveSummary = () => {
                         </div>
                         <Progress value={(totalSl / 7) * 100} className="h-1.5 bg-slate-100" />
                       </div>
+
+                      {/* Statutory Leave Indicators (Maternity, Paternity, Solo Parent, etc.) */}
+                      {totalStatutory > 0 && (
+                        <div className="pt-1.5 space-y-1.5">
+                          {totalMl > 0 && (
+                            <div className="flex justify-between items-center text-xs font-medium bg-purple-50 text-purple-700 px-2.5 py-1.5 rounded-md border border-purple-100">
+                              <span className="flex items-center gap-1.5 truncate mr-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0"></span>
+                                <span className="truncate">Maternity Leave (Statutory)</span>
+                              </span>
+                              <span className="font-bold shrink-0">{totalMl} Days</span>
+                            </div>
+                          )}
+                          {totalPl > 0 && (
+                            <div className="flex justify-between items-center text-xs font-medium bg-blue-50 text-blue-700 px-2.5 py-1.5 rounded-md border border-blue-100">
+                              <span className="flex items-center gap-1.5 truncate mr-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>
+                                <span className="truncate">Paternity Leave (Statutory)</span>
+                              </span>
+                              <span className="font-bold shrink-0">{totalPl} Days</span>
+                            </div>
+                          )}
+                          {totalSp > 0 && (
+                            <div className="flex justify-between items-center text-xs font-medium bg-emerald-50 text-emerald-700 px-2.5 py-1.5 rounded-md border border-emerald-100">
+                              <span className="flex items-center gap-1.5 truncate mr-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                                <span className="truncate">Solo Parent Leave</span>
+                              </span>
+                              <span className="font-bold shrink-0">{totalSp} Days <span className="text-slate-400 font-normal">({row.spRemaining || 0} Left)</span></span>
+                            </div>
+                          )}
+                          {totalOtherStatutory > 0 && (
+                            <div className="flex justify-between items-center text-xs font-medium bg-indigo-50 text-indigo-700 px-2.5 py-1.5 rounded-md border border-indigo-100">
+                              <span className="flex items-center gap-1.5 truncate mr-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0"></span>
+                                <span className="truncate">Other Statutory Leave</span>
+                              </span>
+                              <span className="font-bold shrink-0">{totalOtherStatutory} Days</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Attendance Metric Grids (Matches your original variable conversion formulas) */}

@@ -79,6 +79,9 @@ backend/seed_*.js
 QA_CHECKLIST.txt
 
 # --- Automated Testing Suite & Test Runs ---
+run_all_tests.js
+run_security_tests.bat
+run_security_tests.sh
 tests/
 backend/tests/
 test-results/
@@ -111,6 +114,9 @@ Thumbs.db
 *.zip
 tests.zip
 machip-agent-stack.tar.gz
+docs/MAChip_QA_Verification_Bundle.zip
+docs/qa_extracted/
+docs/qa_bundle_extracted/
 
 # --- Internal Audit Reports & Defect Triage Dumps ---
 docs/checklists/*_AUDIT_REPORT*.md
@@ -127,6 +133,9 @@ scripts/run_all_scenarios.js
 scripts/qa_harness.js
 scripts/generate_architecture_pdf.js
 scripts/generate_architecture_pdf.js
-
+machip_seeds_and_testing
+scripts
+scratch
+docs
 
 sidebar_layout_audit.csv

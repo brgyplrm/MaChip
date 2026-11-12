@@ -44,14 +44,19 @@ export default defineConfig({
         changeOrigin: true,
         configure: (proxy) => {
           proxy.on("error", (err, req, res) => {
-            if (err.code === "ECONNREFUSED") {
-              // Backend is still initializing; suppress transient socket startup noise
+            if (err.code === "ECONNREFUSED" || err.code === "ECONNRESET") {
+              // Backend is still initializing or socket was reset; suppress transient socket startup noise
               if (res && typeof res.writeHead === "function" && !res.headersSent) {
                 res.writeHead(502, { "Content-Type": "application/json" });
                 res.end(JSON.stringify({ error: "Backend initializing" }));
               }
               return;
             }
+          });
+          proxy.on("proxyReqWs", (proxyReq, req, socket) => {
+            socket.on("error", (err) => {
+              if (err.code === "ECONNRESET" || err.code === "ECONNREFUSED") return;
+            });
           });
         },
       },
@@ -89,14 +94,19 @@ export default defineConfig({
         changeOrigin: true,
         configure: (proxy) => {
           proxy.on("error", (err, req, res) => {
-            if (err.code === "ECONNREFUSED") {
-              // Backend is still initializing; suppress transient socket startup noise
+            if (err.code === "ECONNREFUSED" || err.code === "ECONNRESET") {
+              // Backend is still initializing or socket was reset; suppress transient socket startup noise
               if (res && typeof res.writeHead === "function" && !res.headersSent) {
                 res.writeHead(502, { "Content-Type": "application/json" });
                 res.end(JSON.stringify({ error: "Backend initializing" }));
               }
               return;
             }
+          });
+          proxy.on("proxyReqWs", (proxyReq, req, socket) => {
+            socket.on("error", (err) => {
+              if (err.code === "ECONNRESET" || err.code === "ECONNREFUSED") return;
+            });
           });
         },
       },

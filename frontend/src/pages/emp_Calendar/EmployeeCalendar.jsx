@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "../../components/Sidebar";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
@@ -6,6 +6,14 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 import AssignmentIcon from '@mui/icons-material/Assignment';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import SearchIcon from '@mui/icons-material/Search';
+import CloseIcon from '@mui/icons-material/Close';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import LocationOnIcon from '@mui/icons-material/LocationOn';
+import NotesIcon from '@mui/icons-material/Notes';
 import { useSystemTime } from "../../context/SystemTimeContext";
 import { fetchWithAuth } from "../../utils/api";
 import EmptyState from "@/components/EmptyState";
@@ -16,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import SearchableSelect from "../../components/SearchableSelect";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -56,6 +65,39 @@ const EmployeeCalendar = () => {
   const [selectedDueDateDetails, setSelectedDueDateDetails] = useState(null);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const calendarRef = useRef(null);
+
+  // --- Detailed Event Modal State ---
+  const [detailedEvent, setDetailedEvent] = useState(null);
+  const [detailedEventData, setDetailedEventData] = useState(null);
+  const [detailedEventLoading, setDetailedEventLoading] = useState(false);
+
+  const handleOpenEventDetails = async (event) => {
+    if (!event) return;
+    setDetailedEvent(event);
+    setDetailedEventData(null);
+
+    if (event.id && ["Leave", "Overtime", "Field Work"].includes(event.type)) {
+      setDetailedEventLoading(true);
+      try {
+        const res = await fetchWithAuth(`/api/request/details/${event.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          setDetailedEventData(data);
+        }
+      } catch (err) {
+        console.error("Error fetching detailed event request:", err);
+      } finally {
+        setDetailedEventLoading(false);
+      }
+    }
+  };
+
+  // --- Unified Schedule Ledger State ---
+  const [ledgerCategory, setLedgerCategory] = useState("ALL");
+  const [ledgerSearch, setLedgerSearch] = useState("");
+  const [ledgerTimeline, setLedgerTimeline] = useState("all"); // 'all' | 'upcoming' | 'this-week' | 'today'
+  const [ledgerSort, setLedgerSort] = useState("date-asc"); // 'date-asc' | 'date-desc'
+  const [selectedDayFilter, setSelectedDayFilter] = useState(null); // 'YYYY-MM-DD' or null
 
   const isEventSelected = (item) => {
     if (!selectedEvent || !item) return false;
@@ -146,19 +188,102 @@ const EmployeeCalendar = () => {
   const handleDayClick = (day) => {
     const dayEvents = getEventsForDay(day);
     const dateObj = new Date(year, monthIndex, day);
+    const targetDateStr = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     const formattedDate = dateObj.toLocaleDateString(undefined, { 
       weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' 
     });
 
     setSelectedDayDetails({
       date: formattedDate,
+      dateStr: targetDateStr,
       events: dayEvents
     });
+    setSelectedDayFilter(targetDateStr);
 
     if (selectedEvent) {
       setSelectedEvent(null);
     }
   };
+
+  const monthEvents = useMemo(() => {
+    return events.filter(e => {
+      if (!e.date) return false;
+      const start = new Date(e.date);
+      const end = e.endDate ? new Date(e.endDate) : start;
+      const mStart = new Date(year, monthIndex, 1);
+      const mEnd = new Date(year, monthIndex + 1, 0, 23, 59, 59);
+      return (start <= mEnd && end >= mStart);
+    });
+  }, [events, monthIndex, year]);
+
+  const categoryCounts = useMemo(() => {
+    const counts = { ALL: monthEvents.length, Holiday: 0, Leave: 0, Overtime: 0, "Field Work": 0, "Due Date": 0 };
+    monthEvents.forEach(e => {
+      if (counts[e.type] !== undefined) {
+        counts[e.type] += 1;
+      }
+    });
+    return counts;
+  }, [monthEvents]);
+
+  const todayStr = useMemo(() => {
+    return `${systemToday.getFullYear()}-${String(systemToday.getMonth() + 1).padStart(2, '0')}-${String(systemToday.getDate()).padStart(2, '0')}`;
+  }, [systemToday]);
+
+  const weekRange = useMemo(() => {
+    const cur = new Date(systemToday);
+    const dayOfWeek = cur.getDay(); // 0 is Sunday
+    const diffToMon = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const mon = new Date(cur);
+    mon.setDate(cur.getDate() + diffToMon);
+    const sun = new Date(mon);
+    sun.setDate(mon.getDate() + 6);
+    const toYMD = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return { start: toYMD(mon), end: toYMD(sun) };
+  }, [systemToday]);
+
+  const filteredLedgerEvents = useMemo(() => {
+    let list = monthEvents.filter(item => {
+      if (ledgerCategory !== "ALL" && item.type !== ledgerCategory) {
+        return false;
+      }
+
+      const itemDate = item.date ? item.date.split('T')[0] : "";
+      const itemEndDate = item.endDate ? item.endDate.split('T')[0] : itemDate;
+
+      if (selectedDayFilter) {
+        if (!(itemEndDate >= selectedDayFilter && itemDate <= selectedDayFilter)) {
+          return false;
+        }
+      }
+
+      if (ledgerTimeline === "today") {
+        if (!(itemEndDate >= todayStr && itemDate <= todayStr)) return false;
+      } else if (ledgerTimeline === "upcoming") {
+        if (itemEndDate < todayStr) return false;
+      } else if (ledgerTimeline === "this-week") {
+        if (itemEndDate < weekRange.start || itemDate > weekRange.end) return false;
+      }
+
+      if (ledgerSearch.trim() !== "") {
+        const query = ledgerSearch.toLowerCase();
+        const nameMatch = (item.name || "").toLowerCase().includes(query);
+        const detailsMatch = (item.details || "").toLowerCase().includes(query);
+        const typeMatch = (item.type || "").toLowerCase().includes(query);
+        if (!nameMatch && !detailsMatch && !typeMatch) return false;
+      }
+
+      return true;
+    });
+
+    list.sort((a, b) => {
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
+      return ledgerSort === "date-asc" ? dateA - dateB : dateB - dateA;
+    });
+
+    return list;
+  }, [monthEvents, ledgerCategory, selectedDayFilter, ledgerTimeline, ledgerSearch, ledgerSort, todayStr, weekRange]);
 
   const handleHolidayClick = (holiday) => {
     setSelectedHolidayDetails({
@@ -258,35 +383,30 @@ const EmployeeCalendar = () => {
                 </div>
               </Card>
 
-              {/* Bottom Cards Skeletons */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {[1, 2, 3].map((cardIdx) => (
-                  <Card key={cardIdx} className="shadow-sm border-none h-[500px] py-0 overflow-hidden bg-white">
-                    <div className="p-6 pb-4 border-b border-slate-50 flex items-center justify-between">
-                      <Skeleton className="h-6 w-28" />
-                    </div>
-                    {cardIdx > 1 && (
-                      <div className="px-6 py-2">
-                        <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-lg">
-                          <Skeleton className="h-8 w-full rounded-md" />
-                          <Skeleton className="h-8 w-full rounded-md" />
-                        </div>
+              {/* Bottom Ledger Skeleton */}
+              <Card className="shadow-xs border border-slate-200/80 bg-white rounded-2xl overflow-hidden py-0">
+                <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+                  <div className="space-y-2">
+                    <Skeleton className="h-6 w-52" />
+                    <Skeleton className="h-4 w-80" />
+                  </div>
+                  <div className="flex gap-2">
+                    <Skeleton className="h-9 w-32 rounded-lg" />
+                    <Skeleton className="h-9 w-32 rounded-lg" />
+                  </div>
+                </div>
+                <div className="p-5 space-y-3">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <div key={i} className="flex justify-between items-center p-3 border border-slate-100 rounded-lg bg-slate-50/50">
+                      <div className="space-y-2 flex-1 mr-4">
+                        <Skeleton className="h-4 w-48" />
+                        <Skeleton className="h-3 w-72" />
                       </div>
-                    )}
-                    <div className="p-6 space-y-4">
-                      {[1, 2, 3, 4].map((itemIdx) => (
-                        <div key={itemIdx} className="flex justify-between items-center p-3 border border-slate-100 rounded-lg bg-slate-50/50">
-                          <div className="space-y-2 flex-1 mr-4">
-                            <Skeleton className="h-4 w-3/4" />
-                            <Skeleton className="h-3 w-1/2" />
-                          </div>
-                          <Skeleton className="h-5 w-14 rounded" />
-                        </div>
-                      ))}
+                      <Skeleton className="h-7 w-20 rounded" />
                     </div>
-                  </Card>
-                ))}
-              </div>
+                  ))}
+                </div>
+              </Card>
             </div>
           ) : (
             <>
@@ -538,279 +658,336 @@ const EmployeeCalendar = () => {
 
                 <div className="h-6" /> {/* Spacer */}
 
-                {/* Bottom Grid Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  
-                  {/* Holidays List Card */}
-                  <Card className="shadow-sm border-0 h-[500px] border-t-4 border-brand-primary py-0 overflow-hidden">
-                    <CardHeader className="pb-0 pt-5">
-                      <CardTitle className="text-lg text-brand-primary flex items-center gap-1.5">
-                        <span>Holidays</span>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <HelpOutlinedIcon className="text-slate-400 hover:text-brand-primary cursor-pointer !text-[16px] transition-colors" />
-                          </TooltipTrigger>
-                          <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
-                            Upcoming regular and special non-working holidays in the Philippines.
-                          </TooltipContent>
-                        </Tooltip>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="px-4 pb-4 h-[440px] overflow-y-auto custom-scrollbar">
-                      {getUpcomingHolidays().length > 0 ? (
-                        <div className="space-y-2 mt-2">
-                          {getUpcomingHolidays().map((holiday, idx) => {
-                            const isSpecial = holiday.type?.toLowerCase().includes("special") || holiday.details?.toLowerCase().includes("special");
-                            const isSelected = isEventSelected(holiday);
-                            
-                            return (
-                              <div 
-                                className={`group relative cursor-pointer transition-all flex items-center justify-between p-3 rounded-lg border ${
-                                  isSelected 
-                                    ? "border-brand-primary bg-purple-50 ring-2 ring-[#BA90E9] shadow-sm" 
-                                    : "bg-white border-slate-100 hover:bg-slate-50"
-                                }`} 
-                                key={idx} 
-                                onClick={() => handleSelectEvent(holiday)}
-                              >
-                                <div className="flex flex-col min-w-0">
-                                  <div className="flex items-center gap-1.5">
-                                    <p className="font-bold text-sm text-slate-800 truncate">{holiday.name}</p>
-                                    {isSelected && (
-                                      <span className="text-[9px] text-brand-primary font-bold bg-brand-primary/10 px-1.5 py-0.5 rounded">
-                                        Showing
-                                      </span>
-                                    )}
-                                  </div>
-                                  <span className="text-[10px] text-slate-400 font-medium">
-                                    {new Date(holiday.date).toLocaleDateString('en-US', { 
-                                      month: 'long', day: 'numeric', year: 'numeric' 
-                                    })}
-                                  </span>
-                                </div>
-
-                                <div className="flex items-center gap-2 shrink-0">
-                                  <Badge variant="secondary" className={`text-[9px] ${isSpecial ? "bg-purple-100 text-purple-700" : "bg-red-100 text-red-700"}`}>
-                                    {isSpecial ? "SPECIAL" : "REGULAR"}
-                                  </Badge>
-                                </div>
-                              </div>
-                            );
-                          })}
+                {/* UNIFIED MONTHLY SCHEDULE & EVENT LEDGER */}
+                <Card className="shadow-xs border border-slate-200/80 bg-white rounded-2xl overflow-hidden py-0">
+                  <CardHeader className="p-5 border-b border-slate-100 bg-white">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <CardTitle className="text-lg font-bold text-slate-900">
+                            Monthly Schedule & Event Ledger
+                          </CardTitle>
                         </div>
-                      ) : (
-                        <EmptyState 
-                          className="min-h-0 h-full w-full border-0 bg-transparent shadow-none p-0"
-                          icon={<EventAvailableIcon sx={{ fontSize: 32 }} className="text-slate-300" />}
-                          title="No Holidays"
-                          description="None registered for this period."
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Consolidated record of holidays, your approved leaves, overtime logs, field work, and compliance due dates for {monthName} {year}.
+                        </p>
+                      </div>
+
+                      {/* Scope & Sort Controls */}
+                      <div className="flex flex-wrap items-center gap-2 shrink-0">
+                        {selectedDayFilter && (
+                          <div className="flex items-center gap-1.5 bg-brand-primary/10 text-brand-primary px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-brand-primary/20">
+                            <span>Filtering Day: <strong>{new Date(selectedDayFilter + "T00:00:00").toLocaleDateString(undefined, { month: 'short', day: 'numeric', weekday: 'short' })}</strong></span>
+                            <button 
+                              onClick={() => setSelectedDayFilter(null)} 
+                              className="hover:opacity-75 cursor-pointer ml-1 p-0.5 hover:bg-slate-200/60 rounded"
+                              title="Clear Day Filter"
+                            >
+                              <CloseIcon sx={{ fontSize: 13 }} />
+                            </button>
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={ledgerTimeline}
+                            onChange={(e) => setLedgerTimeline(e.target.value)}
+                            className="text-xs font-medium bg-slate-50 border border-slate-200 text-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-primary cursor-pointer"
+                          >
+                            <option value="all">Timeline: Entire Month</option>
+                            <option value="upcoming">Timeline: Today & Upcoming</option>
+                            <option value="this-week">Timeline: This Week</option>
+                            <option value="today">Timeline: Today Only</option>
+                          </select>
+
+                          <select
+                            value={ledgerSort}
+                            onChange={(e) => setLedgerSort(e.target.value)}
+                            className="text-xs font-medium bg-slate-50 border border-slate-200 text-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-primary cursor-pointer"
+                          >
+                            <option value="date-asc">Sort: Earliest First</option>
+                            <option value="date-desc">Sort: Latest First</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Search & Category Pills */}
+                    <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 pt-3">
+                      {/* Search Bar */}
+                      <div className="relative flex-1 max-w-md">
+                        <SearchIcon sx={{ fontSize: 18 }} className="text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <Input
+                          type="text"
+                          value={ledgerSearch}
+                          onChange={(e) => setLedgerSearch(e.target.value)}
+                          placeholder="Search events by name, notes, or details..."
+                          className="h-9 text-xs pl-9 pr-8 bg-slate-50 border-slate-200 rounded-xl focus-visible:ring-brand-primary"
                         />
-                      )}
-                    </CardContent>
-                  </Card>
+                        {ledgerSearch && (
+                          <button
+                            onClick={() => setLedgerSearch("")}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                          >
+                            <CloseIcon sx={{ fontSize: 14 }} />
+                          </button>
+                        )}
+                      </div>
 
-                  {/* Personnel Actions Card (Leaves & Overtime) */}
-                  <Card className="shadow-sm border-0 h-[500px] border-t-4 border-accent-green py-0 overflow-hidden">
-                    <CardHeader className="pb-0 pt-5">
-                      <CardTitle className="text-lg text-accent-green flex items-center gap-1.5">
-                        <span>My Actions</span>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <HelpOutlinedIcon className="text-slate-400 hover:text-accent-green cursor-pointer !text-[16px] transition-colors" />
-                          </TooltipTrigger>
-                          <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
-                            Records of your approved leaves and scheduled overtime logs.
-                          </TooltipContent>
-                        </Tooltip>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="h-[440px] pt-0 px-0">
-                      <Tabs defaultValue="leave" className="w-full h-full flex flex-col">
-                        <TabsList className="grid w-[90%] mx-auto grid-cols-2 h-10 bg-slate-200/60 p-0.5 rounded-lg mb-4">
-                          <TabsTrigger value="leave" className="data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md">Leaves</TabsTrigger>
-                          <TabsTrigger value="ot" className="data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md">Overtime</TabsTrigger>
-                        </TabsList>
-                        
-                        <div className="flex-1 overflow-y-auto custom-scrollbar px-4">
-                          <TabsContent value="leave" className="mt-0 space-y-2">
-                            {events.filter(e => e.type === "Leave").length > 0 ? (
-                              events.filter(e => e.type === "Leave").map((item, i) => {
-                                const isSelected = isEventSelected(item);
-                                return (
-                                  <div 
-                                    key={i} 
-                                    onClick={() => handleSelectEvent(item)}
-                                    className={`flex items-center justify-between p-3 rounded-lg border transition-all cursor-pointer ${
-                                      isSelected 
-                                        ? "border-green-600 bg-green-50 ring-2 ring-green-400 shadow-sm" 
-                                        : "border-slate-100 bg-white hover:bg-green-50/50"
-                                    }`}
-                                  >
-                                    <div className="flex flex-col min-w-0">
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="text-sm font-bold text-slate-800 truncate">{item.name || item.details}</span>
-                                        {isSelected && (
-                                          <span className="text-[9px] text-green-800 font-bold bg-green-100 px-1.5 py-0.5 rounded">
-                                            Showing
-                                          </span>
-                                        )}
-                                      </div>
-                                      <span className="text-[10px] text-slate-400 font-medium">
-                                        {new Date(item.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                                        {item.endDate && item.endDate !== item.date && (
-                                          ` - ${new Date(item.endDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`
-                                        )}
-                                      </span>
-                                    </div>
-                                    <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-700">LEAVE</Badge>
-                                  </div>
-                                );
-                              })
-                            ) : (
-                              <EmptyState className="h-20 border-0" title="No Leaves" />
-                            )}
-                          </TabsContent>
-                          
-                          <TabsContent value="ot" className="mt-0 space-y-2">
-                            {events.filter(e => e.type === "Overtime").length > 0 ? (
-                              events.filter(e => e.type === "Overtime").map((item, i) => {
-                                const isSelected = isEventSelected(item);
-                                return (
-                                  <div 
-                                    key={i} 
-                                    onClick={() => handleSelectEvent(item)}
-                                    className={`flex items-center justify-between p-3 rounded-lg border transition-all cursor-pointer ${
-                                      isSelected 
-                                        ? "border-blue-600 bg-blue-50 ring-2 ring-blue-400 shadow-sm" 
-                                        : "border-slate-100 bg-white hover:bg-blue-50/50"
-                                    }`}
-                                  >
-                                    <div className="flex flex-col min-w-0">
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="text-sm font-bold text-slate-800 truncate">{item.name || item.details}</span>
-                                        {isSelected && (
-                                          <span className="text-[9px] text-blue-800 font-bold bg-blue-100 px-1.5 py-0.5 rounded">
-                                            Showing
-                                          </span>
-                                        )}
-                                      </div>
-                                      <span className="text-[10px] text-slate-400 font-medium">
-                                        {new Date(item.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                                      </span>
-                                    </div>
-                                    <Badge variant="secondary" className="text-[10px] bg-blue-100 text-blue-700">OT</Badge>
-                                  </div>
-                                );
-                              })
-                            ) : (
-                              <EmptyState className="h-20 border-0" title="No Overtime" />
-                            )}
-                          </TabsContent>
-                        </div>
-                      </Tabs>
-                    </CardContent>
-                  </Card>
+                      {/* Category Pills */}
+                      <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
+                        <button
+                          onClick={() => setLedgerCategory("ALL")}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            ledgerCategory === "ALL"
+                              ? "bg-slate-900 text-white shadow-xs"
+                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                          }`}
+                        >
+                          All <span className="ml-1 opacity-80 font-normal">({categoryCounts.ALL})</span>
+                        </button>
 
-                  {/* Operational Tasks Card (Field Work & Due Dates) */}
-                  <Card className="shadow-sm border-0 h-[500px] border-t-4 border-accent-gold py-0 overflow-hidden">
-                    <CardHeader className="pb-0 pt-5">
-                      <CardTitle className="text-lg text-accent-gold flex items-center gap-1.5">
-                        <span>My Tasks</span>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <HelpOutlinedIcon className="text-slate-400 hover:text-accent-gold cursor-pointer !text-[16px] transition-colors" />
-                          </TooltipTrigger>
-                          <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
-                            Operational tasks assigned to you, including field work logs and due dates.
-                          </TooltipContent>
-                        </Tooltip>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="h-[440px] pt-0 px-0">
-                      <Tabs defaultValue="field" className="w-full h-full flex flex-col">
-                        <TabsList className="grid w-[90%] mx-auto grid-cols-2 h-10 bg-slate-200/60 p-0.5 rounded-lg mb-2">
-                          <TabsTrigger value="field" className="data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md">Field Work</TabsTrigger>
-                          <TabsTrigger value="due" className="data-[state=active]:bg-white data-[state=active]:text-brand-primary data-[state=active]:shadow-sm font-semibold text-slate-500 transition-all rounded-md">Due Dates</TabsTrigger>
-                        </TabsList>
-                        
-                        <div className="flex-1 overflow-y-auto custom-scrollbar px-4">
-                          <TabsContent value="field" className="mt-0 space-y-2">
-                            {events.filter(e => e.type === "Field Work").length > 0 ? (
-                              events.filter(e => e.type === "Field Work").map((item, idx) => {
-                                const isSelected = isEventSelected(item);
-                                return (
-                                  <div 
-                                    key={idx} 
-                                    onClick={() => handleSelectEvent(item)}
-                                    className={`flex items-center justify-between p-3 rounded-lg border transition-all cursor-pointer ${
-                                      isSelected 
-                                        ? "border-orange-500 bg-orange-50 ring-2 ring-orange-400 shadow-sm" 
-                                        : "border-slate-100 bg-white hover:bg-orange-50/50"
-                                    }`}
-                                  >
-                                    <div className="flex flex-col min-w-0">
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="text-sm font-bold text-slate-800 truncate">{item.name || item.details}</span>
-                                        {isSelected && (
-                                          <span className="text-[9px] text-orange-800 font-bold bg-orange-100 px-1.5 py-0.5 rounded">
-                                            Showing
-                                          </span>
-                                        )}
-                                      </div>
-                                      <span className="text-[10px] text-slate-400 font-medium">
-                                        {new Date(item.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                                      </span>
-                                    </div>
-                                    <Badge variant="secondary" className="text-[10px] bg-orange-100 text-orange-700">FIELD</Badge>
-                                  </div>
-                                );
-                              })
-                            ) : (
-                              <EmptyState className="h-20 border-0" title="No Field Work" />
-                            )}
-                          </TabsContent>
+                        <button
+                          onClick={() => setLedgerCategory("Holiday")}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                            ledgerCategory === "Holiday"
+                              ? "bg-slate-900 text-white shadow-xs"
+                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                          }`}
+                        >
+                          <span className="inline-block w-2 h-2 rounded-full bg-red-400 mr-1.5"></span>
+                          Holidays <span className="ml-1 opacity-70 font-normal">({categoryCounts.Holiday})</span>
+                        </button>
 
-                          <TabsContent value="due" className="mt-0 space-y-2">
-                            {events.filter(e => e.type === "Due Date").length > 0 ? (
-                              events.filter(e => e.type === "Due Date").map((item, idx) => {
-                                const isSelected = isEventSelected(item);
-                                return (
-                                  <div 
-                                    key={idx} 
-                                    onClick={() => handleSelectEvent(item)}
-                                    className={`flex items-center justify-between p-3 rounded-lg border transition-all cursor-pointer ${
-                                      isSelected 
-                                        ? "border-teal-600 bg-teal-50 ring-2 ring-teal-400 shadow-sm" 
-                                        : "border-slate-100 bg-white hover:bg-teal-50/50"
-                                    }`}
-                                  >
-                                    <div className="flex flex-col min-w-0">
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="text-sm font-bold text-slate-800 truncate">{item.name}</span>
-                                        {isSelected && (
-                                          <span className="text-[9px] text-teal-800 font-bold bg-teal-100 px-1.5 py-0.5 rounded">
-                                            Showing
-                                          </span>
-                                        )}
-                                      </div>
-                                      <span className="text-[10px] text-slate-400 font-medium">
-                                        {new Date(item.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                                      </span>
-                                    </div>
-                                    <Badge variant="secondary" className="text-[10px] bg-teal-100 text-teal-700">DUE</Badge>
-                                  </div>
-                                );
-                              })
-                            ) : (
-                              <EmptyState className="h-20 border-0" title="No Due Dates" />
-                            )}
-                          </TabsContent>
-                        </div>
-                      </Tabs>
-                    </CardContent>
-                  </Card>
+                        <button
+                          onClick={() => setLedgerCategory("Leave")}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                            ledgerCategory === "Leave"
+                              ? "bg-slate-900 text-white shadow-xs"
+                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                          }`}
+                        >
+                          <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1.5"></span>
+                          Leaves <span className="ml-1 opacity-70 font-normal">({categoryCounts.Leave})</span>
+                        </button>
 
-                </div>
+                        <button
+                          onClick={() => setLedgerCategory("Overtime")}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                            ledgerCategory === "Overtime"
+                              ? "bg-slate-900 text-white shadow-xs"
+                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                          }`}
+                        >
+                          <span className="inline-block w-2 h-2 rounded-full bg-blue-500 mr-1.5"></span>
+                          Overtime <span className="ml-1 opacity-70 font-normal">({categoryCounts.Overtime})</span>
+                        </button>
+
+                        <button
+                          onClick={() => setLedgerCategory("Field Work")}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                            ledgerCategory === "Field Work"
+                              ? "bg-slate-900 text-white shadow-xs"
+                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                          }`}
+                        >
+                          <span className="inline-block w-2 h-2 rounded-full bg-orange-500 mr-1.5"></span>
+                          Field Work <span className="ml-1 opacity-70 font-normal">({categoryCounts["Field Work"]})</span>
+                        </button>
+
+                        <button
+                          onClick={() => setLedgerCategory("Due Date")}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                            ledgerCategory === "Due Date"
+                              ? "bg-slate-900 text-white shadow-xs"
+                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                          }`}
+                        >
+                          <span className="inline-block w-2 h-2 rounded-full bg-teal-500 mr-1.5"></span>
+                          Due Dates <span className="ml-1 opacity-70 font-normal">({categoryCounts["Due Date"]})</span>
+                        </button>
+                      </div>
+                    </div>
+                  </CardHeader>
+
+                  <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-50/75 border-b border-slate-200/70 text-slate-500 font-semibold uppercase tracking-wider text-[11px]">
+                          <tr>
+                            <th className="py-3 px-4 w-44">Scheduled Date</th>
+                            <th className="py-3 px-4 w-32">Type</th>
+                            <th className="py-3 px-4">Subject / Purpose</th>
+                            <th className="py-3 px-4">Details & Notes</th>
+                            <th className="py-3 px-4 text-right w-36">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {filteredLedgerEvents.length > 0 ? (
+                            filteredLedgerEvents.map((item, idx) => {
+                              const isHoliday = item.type === "Holiday";
+                              const isLeave = item.type === "Leave";
+                              const isOvertime = item.type === "Overtime";
+                              const isFieldWork = item.type === "Field Work";
+                              const isDueDate = item.type === "Due Date";
+
+                              const isSpecialHoliday = isHoliday && (item.type?.toLowerCase().includes("special") || item.details?.toLowerCase().includes("special"));
+                              
+                              let badgeClass = "bg-slate-100 text-slate-700 border-slate-200";
+                              let badgeLabel = item.type;
+
+                              if (isHoliday) {
+                                badgeClass = isSpecialHoliday ? "bg-purple-50 text-purple-700 border-purple-200" : "bg-red-50 text-red-700 border-red-200";
+                                badgeLabel = isSpecialHoliday ? "SPECIAL HOLIDAY" : "REGULAR HOLIDAY";
+                              } else if (isLeave) {
+                                badgeClass = "bg-green-50 text-green-700 border-green-200";
+                                badgeLabel = "LEAVE";
+                              } else if (isOvertime) {
+                                badgeClass = "bg-blue-50 text-blue-700 border-blue-200";
+                                badgeLabel = "OVERTIME";
+                              } else if (isFieldWork) {
+                                badgeClass = "bg-orange-50 text-orange-700 border-orange-200";
+                                badgeLabel = "FIELD WORK";
+                              } else if (isDueDate) {
+                                badgeClass = "bg-teal-50 text-teal-700 border-teal-200";
+                                badgeLabel = "DUE DATE";
+                              }
+
+                              const dateObj = new Date(item.date);
+                              const formattedDate = !isNaN(dateObj.getTime())
+                                ? dateObj.toLocaleDateString("en-US", { month: "short", day: "numeric", weekday: "short" })
+                                : item.date;
+                              
+                              const itemDateStr = item.date ? item.date.split('T')[0] : "";
+                              const isToday = itemDateStr === todayStr;
+                              const isActionableReq = Boolean(item.id && (isLeave || isOvertime || isFieldWork));
+
+                              return (
+                                <tr 
+                                  key={item.id ? `${item.type}-${item.id}-${idx}` : `event-${idx}`}
+                                  onClick={(e) => {
+                                    if (e.target.closest('button')) return;
+                                    handleOpenEventDetails(item);
+                                  }}
+                                  className="hover:bg-slate-50/80 transition-colors group cursor-pointer"
+                                  title="Click row to view full event details"
+                                >
+                                  <td className="py-3 px-4 whitespace-nowrap">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-bold text-slate-800 text-xs">{formattedDate}</span>
+                                      {isToday && (
+                                        <span className="bg-accent-green text-white text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+                                          TODAY
+                                        </span>
+                                      )}
+                                    </div>
+                                    <span className="text-[10px] text-slate-400 font-mono">
+                                      {itemDateStr}
+                                      {item.endDate && item.endDate !== item.date ? ` → ${item.endDate.split('T')[0]}` : ""}
+                                    </span>
+                                  </td>
+
+                                  <td className="py-3 px-4 whitespace-nowrap">
+                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold border ${badgeClass}`}>
+                                      {badgeLabel}
+                                    </span>
+                                  </td>
+
+                                  <td className="py-3 px-4">
+                                    <div className="flex flex-col max-w-xs">
+                                      <span className="font-bold text-slate-800 text-xs group-hover:text-brand-primary truncate">
+                                        {item.name || item.details}
+                                      </span>
+                                      {item.id && (
+                                        <span className="text-[10px] text-slate-400 font-mono">
+                                          REQ-{item.id}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+
+                                  <td className="py-3 px-4">
+                                    <div className="flex flex-col max-w-md">
+                                      <p className="text-xs text-slate-600 truncate" title={item.details || "No additional notes."}>
+                                        {item.details || "—"}
+                                      </p>
+                                      {item.hours && (
+                                        <span className="text-[10px] text-slate-400 italic font-medium">
+                                          Auto-credited: {item.hours} hrs
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+
+                                  <td className="py-3 px-4 text-right whitespace-nowrap">
+                                    <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleOpenEventDetails(item)}
+                                        className="h-7 px-2.5 text-[11px] font-semibold text-slate-700 hover:text-brand-primary hover:border-brand-primary gap-1 shadow-2xs"
+                                        title="View Full Event Details & Information"
+                                      >
+                                        <VisibilityIcon sx={{ fontSize: 14 }} className="text-slate-500" />
+                                        <span>Details</span>
+                                      </Button>
+
+                                      {isActionableReq && (
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => navigate(`/requests?tab=history&requestId=${item.id}`, { state: { selectedReqId: item.id } })}
+                                          className="h-7 px-2 text-[11px] font-semibold text-brand-primary border-brand-primary/30 hover:bg-brand-primary-light gap-1 shadow-2xs"
+                                          title={`Directly inspect REQ-${item.id} in Requests`}
+                                        >
+                                          <OpenInNewIcon sx={{ fontSize: 13 }} />
+                                          <span>Inspect</span>
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          ) : (
+                            <tr>
+                              <td colSpan={5} className="py-12 text-center text-slate-400">
+                                <div className="flex flex-col items-center justify-center">
+                                  <AssignmentIcon sx={{ fontSize: 36 }} className="text-slate-300 mb-2" />
+                                  <p className="font-semibold text-sm text-slate-600">No scheduled events match your filter</p>
+                                  <p className="text-xs text-slate-400 mt-0.5">Try selecting a different category or clearing search terms.</p>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      setLedgerCategory("ALL");
+                                      setLedgerSearch("");
+                                      setLedgerTimeline("all");
+                                      setSelectedDayFilter(null);
+                                    }}
+                                    className="mt-2 text-xs font-semibold text-brand-primary border-brand-primary/30 hover:bg-brand-primary-light"
+                                  >
+                                    Reset Filters
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Table Footer */}
+                    <div className="p-3 bg-slate-50/50 border-t border-slate-100 text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-2">
+                      <span>
+                        Showing {filteredLedgerEvents.length} of {monthEvents.length} events for {monthName} {year}
+                      </span>
+                      <span className="text-[11px] text-slate-400">
+                        Click <strong className="text-slate-600">Details</strong> to view complete event records.
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             </>
           )}
@@ -913,27 +1090,30 @@ const EmployeeCalendar = () => {
 
                           <div className={`grid ${isSingleCategory ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"} gap-3`}>
                             {events.map((event, idx) => {
-                              const isActionable = event.id && ["Leave", "Field Work", "Overtime"].includes(event.type);
                               return (
                                 <div 
                                   key={idx} 
                                   onClick={() => {
-                                    if (isActionable) {
-                                      setSelectedDayDetails(null);
-                                      navigate(`/requests/${event.id}`);
-                                    }
+                                    setSelectedDayDetails(null);
+                                    handleOpenEventDetails(event);
                                   }}
-                                  className={`p-3 rounded-lg border ${config.bg} ${config.border} transition-all ${
-                                    isActionable ? "cursor-pointer hover:shadow-sm hover:scale-[1.01]" : ""
-                                  }`}
-                                  title={isActionable ? `Click to view details for REQ-${event.id}` : ""}
+                                  className={`p-3 rounded-lg border ${config.bg} ${config.border} transition-all cursor-pointer hover:shadow-md hover:scale-[1.01] group/item`}
+                                  title="Click to view complete details about this event"
                                 >
-                                  <p className={`font-semibold text-sm ${config.text}`}>
-                                    {event.name || event.details}
-                                  </p>
+                                  <div className="flex items-center justify-between">
+                                    <p className={`font-semibold text-sm ${config.text} group-hover/item:underline`}>
+                                      {event.name || event.details}
+                                    </p>
+                                    <VisibilityIcon sx={{ fontSize: 16 }} className="text-slate-400 group-hover/item:text-brand-primary opacity-60 group-hover/item:opacity-100 transition-opacity" />
+                                  </div>
                                   {event.type === "Field Work" && (
                                     <p className="text-[10px] opacity-70 font-medium italic mt-1">
-                                      Automatically credited as 8 hours on-field.
+                                      Auto-credited: {event.hours || 8} hrs on-field.
+                                    </p>
+                                  )}
+                                  {event.type === "Overtime" && (
+                                    <p className="text-[10px] opacity-70 font-medium italic mt-1">
+                                      {event.details}
                                     </p>
                                   )}
                                 </div>
@@ -950,6 +1130,248 @@ const EmployeeCalendar = () => {
               </DialogContent>
             );
           })()}
+        </Dialog>
+
+        {/* COMPREHENSIVE DETAILED EVENT INFORMATION MODAL */}
+        <Dialog open={!!detailedEvent} onOpenChange={(open) => {
+          if (!open) {
+            setDetailedEvent(null);
+            setDetailedEventData(null);
+          }
+        }}>
+          <DialogContent className="sm:max-w-[540px] max-h-[90vh] flex flex-col p-0 overflow-hidden">
+            {detailedEvent && (() => {
+              const isHoliday = detailedEvent.type === "Holiday";
+              const isLeave = detailedEvent.type === "Leave";
+              const isOvertime = detailedEvent.type === "Overtime";
+              const isFieldWork = detailedEvent.type === "Field Work";
+              const isDueDate = detailedEvent.type === "Due Date";
+              const isSpecialHoliday = isHoliday && (detailedEvent.type?.toLowerCase().includes("special") || detailedEvent.details?.toLowerCase().includes("special"));
+              
+              let badgeClass = "bg-slate-100 text-slate-700 border-slate-200";
+              let badgeLabel = detailedEvent.type;
+
+              if (isHoliday) {
+                badgeClass = isSpecialHoliday ? "bg-purple-100 text-purple-700 border-purple-200" : "bg-red-100 text-red-700 border-red-200";
+                badgeLabel = isSpecialHoliday ? "SPECIAL NON-WORKING HOLIDAY" : "REGULAR PHILIPPINE HOLIDAY";
+              } else if (isLeave) {
+                badgeClass = "bg-green-100 text-green-700 border-green-200";
+                badgeLabel = detailedEventData?.reqTypeName || detailedEvent.details || "LEAVE";
+              } else if (isOvertime) {
+                badgeClass = "bg-blue-100 text-blue-700 border-blue-200";
+                badgeLabel = "APPROVED OVERTIME";
+              } else if (isFieldWork) {
+                badgeClass = "bg-orange-100 text-orange-700 border-orange-200";
+                badgeLabel = "OFFICIAL ON-FIELD WORK";
+              } else if (isDueDate) {
+                badgeClass = "bg-teal-100 text-teal-700 border-teal-200";
+                badgeLabel = "OPERATIONAL DEADLINE";
+              }
+
+              const dateObj = new Date(detailedEvent.date);
+              const formattedDate = !isNaN(dateObj.getTime())
+                ? dateObj.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })
+                : detailedEvent.date;
+
+              const isActionableReq = Boolean(detailedEvent.id && (isLeave || isOvertime || isFieldWork));
+
+              return (
+                <>
+                  <DialogHeader className="p-5 border-b border-slate-100 bg-slate-50/70">
+                    <div className="flex items-center justify-between gap-2 pr-6">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold border tracking-wide uppercase ${badgeClass}`}>
+                        {badgeLabel}
+                      </span>
+                      {detailedEvent.id && (
+                        <span className="text-[11px] font-mono text-slate-400 font-semibold">
+                          REQ-{detailedEvent.id}
+                        </span>
+                      )}
+                    </div>
+                    <DialogTitle className="text-xl font-bold text-slate-900 mt-2 text-left leading-snug">
+                      {detailedEvent.name || detailedEvent.details}
+                    </DialogTitle>
+                    <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium mt-1">
+                      <CalendarTodayIcon sx={{ fontSize: 14 }} className="text-slate-400" />
+                      <span>{formattedDate}</span>
+                      {detailedEvent.endDate && detailedEvent.endDate !== detailedEvent.date && (
+                        <span> → {new Date(detailedEvent.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
+                      )}
+                    </div>
+                  </DialogHeader>
+
+                  <div className="p-5 overflow-y-auto space-y-4 text-xs custom-scrollbar">
+                    {detailedEventLoading && (
+                      <div className="space-y-2 py-4">
+                        <Skeleton className="h-4 w-3/4" />
+                        <Skeleton className="h-4 w-1/2" />
+                      </div>
+                    )}
+
+                    {/* Actionable Request (Leave / Overtime / Field Work) details */}
+                    {isActionableReq && (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Subject</span>
+                            <span className="text-sm font-bold text-slate-800">{detailedEvent.name || detailedEventData?.userName || "—"}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Status</span>
+                            <span className="text-xs font-bold text-emerald-600">
+                              {detailedEventData?.status || "Approved"}
+                            </span>
+                            {detailedEventData?.date_Filed && (
+                              <span className="text-[10px] text-slate-400 block">
+                                Filed: {new Date(detailedEventData.date_Filed).toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {isLeave && (
+                          <div className="grid grid-cols-3 gap-2 p-3 bg-green-50/60 rounded-xl border border-green-100 text-center">
+                            <div>
+                              <span className="text-[9px] font-bold text-green-700 uppercase tracking-wider block">Duration</span>
+                              <span className="text-xs font-bold text-slate-800">
+                                {detailedEvent.hours || detailedEventData?.VL_NoDays || detailedEventData?.SL_NoDays || 1} Day(s)
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[9px] font-bold text-green-700 uppercase tracking-wider block">Type</span>
+                              <span className="text-xs font-bold text-slate-800">
+                                {detailedEventData?.VL_withPayName || detailedEventData?.SL_withPayName || detailedEventData?.EL_withPayName || "With Pay"}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[9px] font-bold text-green-700 uppercase tracking-wider block">Pay Credit</span>
+                              <span className="text-xs font-bold text-green-700">100% Paid</span>
+                            </div>
+                          </div>
+                        )}
+
+                        {isOvertime && (
+                          <div className="grid grid-cols-2 gap-3 p-3 bg-blue-50/60 rounded-xl border border-blue-100">
+                            <div>
+                              <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider block">Recorded Hours</span>
+                              <span className="text-sm font-black text-slate-800">
+                                {detailedEvent.hours || detailedEventData?.Total_Hrs || "—"} Hours
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider block">Scheduled Window</span>
+                              <span className="text-xs font-medium text-slate-700">
+                                {detailedEventData?.HrFrom && detailedEventData?.HrTo 
+                                  ? `${detailedEventData.HrFrom} - ${detailedEventData.HrTo}` 
+                                  : (detailedEvent.details || "Standard Overtime")}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        {isFieldWork && (
+                          <div className="grid grid-cols-2 gap-3 p-3 bg-orange-50/60 rounded-xl border border-orange-100">
+                            <div>
+                              <span className="text-[10px] font-bold text-orange-700 uppercase tracking-wider block">Auto-Credited Duty</span>
+                              <span className="text-sm font-black text-slate-800">
+                                {detailedEvent.hours || detailedEventData?.OW_NoHrs || 8} Hours (100% Paid)
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] font-bold text-orange-700 uppercase tracking-wider block">Destination</span>
+                              <span className="text-xs font-medium text-slate-700">
+                                {detailedEventData?.destination || detailedEvent.details || "Client Site"}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        {(detailedEventData?.remarks || detailedEvent.details) && (
+                          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                              Reason / Purpose / Remarks
+                            </span>
+                            <p className="text-xs text-slate-700 leading-relaxed">
+                              {detailedEventData?.remarks || detailedEvent.details}
+                            </p>
+                          </div>
+                        )}
+
+                        {detailedEventData?.approverName && (
+                          <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
+                            <span>Approved by: <strong className="text-slate-700">{detailedEventData.approverName}</strong></span>
+                            {detailedEventData.date_Processed && (
+                              <span>Processed: {new Date(detailedEventData.date_Processed).toLocaleDateString()}</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Holiday Details */}
+                    {isHoliday && (
+                      <div className="space-y-3">
+                        <div className={`p-4 rounded-xl border ${isSpecialHoliday ? "bg-purple-50/60 border-purple-100" : "bg-red-50/60 border-red-100"}`}>
+                          <span className={`text-[10px] font-bold uppercase tracking-wider block ${isSpecialHoliday ? "text-purple-700" : "text-red-700"}`}>
+                            {isSpecialHoliday ? "Special Non-Working Day" : "Regular Philippine Holiday"}
+                          </span>
+                          <span className="text-base font-bold text-slate-900 mt-1 block">{detailedEvent.name}</span>
+                          <p className="text-xs text-slate-600 mt-2 leading-relaxed">
+                            {detailedEvent.details || (isSpecialHoliday ? "Special Non-Working Holiday declared in the Philippines." : "Nationwide regular holiday. Covered employees are entitled to 100% daily regular pay if unworked, or 200% premium pay if worked.")}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Due Date Details */}
+                    {isDueDate && (
+                      <div className="space-y-3">
+                        <div className="p-4 bg-teal-50/60 rounded-xl border border-teal-100">
+                          <span className="text-[10px] font-bold text-teal-700 uppercase tracking-wider block">Operational Due Date</span>
+                          <span className="text-base font-bold text-slate-900 mt-1 block">{detailedEvent.name}</span>
+                          <p className="text-xs text-slate-600 mt-2 leading-relaxed">
+                            {detailedEvent.details || "Compliance or operational cutoff deadline."}
+                          </p>
+                        </div>
+                        {detailedEvent.priority && (
+                          <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+                            <span className="text-slate-500 font-medium">Priority</span>
+                            <span className="font-bold text-slate-800">{detailedEvent.priority}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <DialogFooter className="p-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between sm:justify-between gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setDetailedEvent(null)}
+                      className="text-xs text-slate-600 border-slate-200"
+                    >
+                      Close
+                    </Button>
+
+                    {isActionableReq && (
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          const reqId = detailedEvent.id;
+                          setDetailedEvent(null);
+                          navigate(`/requests?tab=history&requestId=${reqId}`, { state: { selectedReqId: reqId } });
+                        }}
+                        className="bg-brand-primary text-white hover:bg-brand-primary-hover text-xs gap-1.5 shadow-xs"
+                      >
+                        <OpenInNewIcon sx={{ fontSize: 14 }} />
+                        <span>Inspect in Requests</span>
+                      </Button>
+                    )}
+                  </DialogFooter>
+                </>
+              );
+            })()}
+          </DialogContent>
         </Dialog>
 
         {/* Global styling for custom scrollbars */}

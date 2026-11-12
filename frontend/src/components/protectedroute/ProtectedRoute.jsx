@@ -79,11 +79,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     const canAccessAsEmployee = isEmployeeMode && allowedRoles.includes(3);
 
     if (!hasRoleAccess && !canAccessAsEmployee) {
-      if (userRole === 3) {
-        return <Navigate to="/profile" replace />;
-      }
-      
-      const fallback = (userRole === 3) ? "/profile" : "/";
+      const fallback = (userRole === 3) ? "/employeeHome" : "/";
       if (window.location.pathname === fallback) {
          return <Navigate to="/login" replace />;
       }

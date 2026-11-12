@@ -223,12 +223,8 @@ function App() {
         />
 
         <Route
-          path="/loanManagement"
-          element={
-            <ProtectedRoute allowedRoles={[1, 4]}>
-              <LoanManagement />
-            </ProtectedRoute>
-          }
+          path="/loanmanagement"
+          element={<Navigate to="/loanManagement" replace />}
         />
 
         <Route

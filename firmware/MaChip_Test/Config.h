@@ -86,11 +86,16 @@ const byte MIFARE_ACCESS_BITS[4] = { 0xFF, 0x07, 0x80, 0x69 }; // Transport defa
 
 // ── TIMERS & BUZZER ACOUSTIC PROFILES ─────────────────────────────
 #define BUZZER_IS_ACTIVE   false // User confirmed: PASSIVE buzzer (requires PWM oscillation)
-#define BUZZER_FREQ        2730  // Optimal acoustic resonant peak (standard 2.73kHz)
+#define BUZZER_FREQ        2093  // Modern, pleasant musical tone (C7 note, non-piercing)
 #define BUZZER_RES         8
 #define DEFAULT_SOLENOID_DURATION  3000
 #define SOLENOID_DURATION          3000
 #define TIMEOUT_2FA                15000
+#define MAX_SOLENOID_CEILING_MS    15000 // 15s Hard ceiling to prevent coil burnout & permanent wedging
+#define RETRIGGER_EXTEND_MS        2000  // +2.0s per continuous exit tap
+#define BRUTE_FORCE_FAIL_LIMIT     3     // 3 consecutive fails trigger penalty
+#define BRUTE_FORCE_WINDOW_MS      5000  // within 5 seconds window
+#define BRUTE_FORCE_LOCKOUT_MS     10000 // 10 second hardware lockout penalty
 
 // ── ENUMS & DATA STRUCTURES ──────────────────────────────────────
 enum LedMode { LED_OFF, LED_SLOW_BLINK, LED_FAST_BLINK, LED_STEADY_GREEN, LED_STEADY_RED };
@@ -185,6 +190,13 @@ extern bool frontStatusResetActive;
 extern bool backStatusResetActive;
 extern String activeUnlockTerminal;
 extern uint16_t solenoidHoldDurationMs;
+extern unsigned long solenoidFirstTriggerTime;
+extern uint8_t consecutiveFailsBack;
+extern unsigned long lastFailTimeBack;
+extern unsigned long lockoutUntilBack;
+extern uint8_t consecutiveFailsFront;
+extern unsigned long lastFailTimeFront;
+extern unsigned long lockoutUntilFront;
 extern BuzzerStep buzzerQueue[MAX_BUZZER_STEPS];
 extern int buzzerStepCount;
 extern int currentBuzzerStepIndex;

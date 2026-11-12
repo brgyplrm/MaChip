@@ -60,6 +60,7 @@ export default function HardwareDiagnostics() {
     try {
       const res = await fetchWithAuth("/api/esp/telemetry", {
         method: "POST",
+        skipAuthRedirect: true,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           tempC: 44.5,

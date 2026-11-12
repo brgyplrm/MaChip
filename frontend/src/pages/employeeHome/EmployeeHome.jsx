@@ -698,7 +698,7 @@ const EmployeeHome = () => {
 
               {/* Border Top Widget Cards (Match Admin Style) */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
-                <Link to="/logs" className="block outline-none hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
+                <Link to="/accessLogs" className="block outline-none hover:-translate-y-1 hover:shadow-lg transition-all duration-200">
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Card className="bg-gradient-to-t from-brand-primary to-brand-primary-hover shadow-sm py-0 h-[140px] relative overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-lg block outline-none cursor-help">
@@ -782,7 +782,7 @@ const EmployeeHome = () => {
                     </Card>
                   </TooltipTrigger>
                   <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
-                    Take-home pay for the most recent cutoff period (excluding government deductions).
+                    Take-home pay for the most recent cutoff period after statutory and loan deductions.
                   </TooltipContent>
                 </Tooltip>
                 </Link>
@@ -818,8 +818,8 @@ const EmployeeHome = () => {
                               <CircularProgressbar 
                                 value={att.onTime || 0} 
                                 maxValue={totalTrackedDays} 
-                                text={`${att.onTime || 0}`} 
-                                styles={buildStyles({ pathColor: `#22c55e`, textColor: 'var(--color-brand-primary)', trailColor: '#e2e8f0', textSize: '24px' })} 
+                                text={`${att.onTime || 0}/${totalDays}`} 
+                                styles={buildStyles({ pathColor: `#22c55e`, textColor: 'var(--color-brand-primary)', trailColor: '#e2e8f0', textSize: '18px' })} 
                               />
                             </div>
                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">On-Time</span>
@@ -837,8 +837,8 @@ const EmployeeHome = () => {
                               <CircularProgressbar 
                                 value={att.late || 0} 
                                 maxValue={totalTrackedDays} 
-                                text={`${att.late || 0}`} 
-                                styles={buildStyles({ pathColor: `#f59e0b`, textColor: 'var(--color-brand-primary)', trailColor: '#e2e8f0', textSize: '24px' })} 
+                                text={`${att.late || 0}/${totalDays}`} 
+                                styles={buildStyles({ pathColor: `#f59e0b`, textColor: 'var(--color-brand-primary)', trailColor: '#e2e8f0', textSize: '18px' })} 
                               />
                             </div>
                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Late</span>
@@ -856,8 +856,8 @@ const EmployeeHome = () => {
                               <CircularProgressbar 
                                 value={att.absent || 0} 
                                 maxValue={totalTrackedDays} 
-                                text={`${att.absent || 0}`} 
-                                styles={buildStyles({ pathColor: `#ef4444`, textColor: 'var(--color-brand-primary)', trailColor: '#e2e8f0', textSize: '24px' })} 
+                                text={`${att.absent || 0}/${totalDays}`} 
+                                styles={buildStyles({ pathColor: `#ef4444`, textColor: 'var(--color-brand-primary)', trailColor: '#e2e8f0', textSize: '18px' })} 
                               />
                             </div>
                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Absent</span>
@@ -951,6 +951,30 @@ const EmployeeHome = () => {
                         )}
                       </div>
 
+                      {/* Multi-Segment Chart Dot Legend */}
+                      <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 py-0.5 text-[10px] font-medium text-slate-600">
+                        <div className="flex items-center gap-1">
+                          <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+                          <span>On-Time</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                          <span>Late</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                          <span>Half-Day</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="w-2 h-2 rounded-full bg-purple-500 shrink-0" />
+                          <span>Leave</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+                          <span>Absent</span>
+                        </div>
+                      </div>
+
                       {/* Ratio Metric Legend Cards */}
                       <div className="grid grid-cols-3 gap-2 pt-0.5 text-center">
                         <div className="bg-green-50/70 p-2 rounded-lg border border-green-100">
@@ -996,12 +1020,15 @@ const EmployeeHome = () => {
                               : "";
 
                             return (
-                              <div
+                              <Link
                                 key={req.emp_reqId}
-                                className={`flex items-center gap-3 p-2 rounded-lg hover:bg-[#F8FFF2] transition-colors border-l-4 ${config.borderClass} bg-slate-50/70 min-w-0`}
+                                to={`/requests?tab=history&requestId=${req.emp_reqId}`}
+                                state={{ selectedReqId: req.emp_reqId }}
+                                className={`flex items-center gap-3 p-2 rounded-lg hover:bg-[#F8FFF2] transition-colors border-l-4 ${config.borderClass} bg-slate-50/70 min-w-0 cursor-pointer group`}
+                                title={`Click to view details for request #${req.emp_reqId}`}
                               >
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-bold text-slate-800 truncate">{req.reqTypeName}</p>
+                                  <p className="text-sm font-bold text-slate-800 truncate group-hover:text-brand-primary group-hover:underline">{req.reqTypeName}</p>
                                   <p className="text-[11px] text-gray-500 truncate">
                                     {req.remarks ? `${req.remarks}${formattedDate ? ` • ${formattedDate}` : ""}` : (formattedDate || "No description provided")}
                                   </p>
@@ -1009,7 +1036,7 @@ const EmployeeHome = () => {
                                 <Badge className={`shrink-0 text-[9px] uppercase px-2 py-0 border-0 ${config.badgeClass}`}>
                                   {config.label}
                                 </Badge>
-                              </div>
+                              </Link>
                             );
                           })}
                         </div>
@@ -1363,7 +1390,7 @@ const EmployeeHome = () => {
 
                 {/* Detailed Leave Balances */}
                 <Card className="shadow-sm border-0 border-t-4 border-accent-green bg-white flex flex-col h-[420px]">
-                  <CardHeader className="pb-0 border-b border-slate-50 shrink-0">
+                  <CardHeader className="pb-3 border-b border-slate-50 shrink-0">
                     <CardTitle className="text-accent-green text-base font-bold uppercase tracking-wider flex items-center justify-between w-full">
                       <div className="flex items-center gap-2">
                         <FileText className="h-5 w-5" />
@@ -1373,35 +1400,105 @@ const EmployeeHome = () => {
                             <HelpOutlinedIcon className="text-slate-400 hover:text-accent-green cursor-pointer !text-[16px] transition-colors" />
                           </TooltipTrigger>
                           <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal normal-case">
-                            Your remaining and used Vacation Leave (VL) and Sick Leave (SL) credits for the calendar year.
+                            Your remaining and used Vacation (VL), Sick (SL), and Statutory Leave credits (Maternity, Paternity, Solo Parent, VAWC, Magna Carta).
                           </TooltipContent>
                         </Tooltip>
                       </div>
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="py-0 flex-1 flex flex-col justify-center gap-6">
+                  <CardContent className="p-4 flex-1 overflow-y-auto custom-scrollbar space-y-3 max-h-[350px]">
                     {[
-                      { label: "Vacation Leave (VL)", bal: balance.VL_balance, total: balance.VL_total, color: "bg-[#8DB552]", light: "bg-[#8DB552]/20" },
-                      { label: "Sick Leave (SL)", bal: balance.SL_balance, total: balance.SL_total, color: "bg-[#C0E990]", light: "bg-[#C0E990]/30" },
-                      ...(isSoloParent && balance.SoloParent_balance !== undefined ? [{
-                        label: "Solo Parent Leave (SP)",
-                        bal: balance.SoloParent_balance,
-                        total: balance.SoloParent_total || ((parseFloat(balance.SoloParent_used || 0) + parseFloat(balance.SoloParent_balance || 0)) || 7),
-                        color: "bg-amber-500",
-                        light: "bg-amber-100"
-                      }] : [])
+                      { 
+                        label: "Vacation Leave (VL)", 
+                        bal: balance.VL_balance ?? 7, 
+                        total: balance.VL_total || 7, 
+                        used: (balance.VL_total || 7) - (balance.VL_balance ?? 7),
+                        color: "bg-[#8DB552]", 
+                        light: "bg-[#8DB552]/20",
+                        tag: "Company Policy"
+                      },
+                      { 
+                        label: "Sick Leave (SL)", 
+                        bal: balance.SL_balance ?? 7, 
+                        total: balance.SL_total || 7, 
+                        used: (balance.SL_total || 7) - (balance.SL_balance ?? 7),
+                        color: "bg-[#C0E990]", 
+                        light: "bg-[#C0E990]/30",
+                        tag: "Company Policy"
+                      },
+                      { 
+                        label: "Solo Parent Leave (SP)", 
+                        bal: isSoloParent ? (balance.SoloParent_balance ?? 7) : (balance.SoloParent_balance || 0), 
+                        total: isSoloParent ? (balance.SoloParent_total || 7) : 7, 
+                        used: parseFloat(balance.SoloParent_used || 0),
+                        color: "bg-amber-500", 
+                        light: "bg-amber-100",
+                        tag: "RA 8972"
+                      },
+                      { 
+                        label: "Maternity Leave", 
+                        bal: Math.max(0, (isSoloParent ? 120 : 105) - (recentRequests || []).filter(r => Number(r.emp_reqTypeId) === 8 && (Number(r.emp_reqStatusId) === 2 || (r.status || "").toLowerCase().includes("approve"))).reduce((sum, r) => sum + (parseFloat(r.NoDays || 1)), 0)), 
+                        total: isSoloParent ? 120 : 105, 
+                        used: (recentRequests || []).filter(r => Number(r.emp_reqTypeId) === 8 && (Number(r.emp_reqStatusId) === 2 || (r.status || "").toLowerCase().includes("approve"))).reduce((sum, r) => sum + (parseFloat(r.NoDays || 1)), 0),
+                        color: "bg-pink-500", 
+                        light: "bg-pink-100",
+                        tag: "RA 11210"
+                      },
+                      { 
+                        label: "Paternity Leave", 
+                        bal: Math.max(0, 7 - (recentRequests || []).filter(r => Number(r.emp_reqTypeId) === 9 && (Number(r.emp_reqStatusId) === 2 || (r.status || "").toLowerCase().includes("approve"))).reduce((sum, r) => sum + (parseFloat(r.NoDays || 1)), 0)), 
+                        total: 7, 
+                        used: (recentRequests || []).filter(r => Number(r.emp_reqTypeId) === 9 && (Number(r.emp_reqStatusId) === 2 || (r.status || "").toLowerCase().includes("approve"))).reduce((sum, r) => sum + (parseFloat(r.NoDays || 1)), 0),
+                        color: "bg-cyan-500", 
+                        light: "bg-cyan-100",
+                        tag: "RA 8187"
+                      },
+                      { 
+                        label: "VAWC Leave", 
+                        bal: Math.max(0, 10 - (recentRequests || []).filter(r => Number(r.emp_reqTypeId) === 11 && (Number(r.emp_reqStatusId) === 2 || (r.status || "").toLowerCase().includes("approve"))).reduce((sum, r) => sum + (parseFloat(r.NoDays || 1)), 0)), 
+                        total: 10, 
+                        used: (recentRequests || []).filter(r => Number(r.emp_reqTypeId) === 11 && (Number(r.emp_reqStatusId) === 2 || (r.status || "").toLowerCase().includes("approve"))).reduce((sum, r) => sum + (parseFloat(r.NoDays || 1)), 0),
+                        color: "bg-purple-500", 
+                        light: "bg-purple-100",
+                        tag: "RA 9262"
+                      },
+                      { 
+                        label: "Special Leave for Women", 
+                        bal: Math.max(0, 60 - (recentRequests || []).filter(r => Number(r.emp_reqTypeId) === 12 && (Number(r.emp_reqStatusId) === 2 || (r.status || "").toLowerCase().includes("approve"))).reduce((sum, r) => sum + (parseFloat(r.NoDays || 1)), 0)), 
+                        total: 60, 
+                        used: (recentRequests || []).filter(r => Number(r.emp_reqTypeId) === 12 && (Number(r.emp_reqStatusId) === 2 || (r.status || "").toLowerCase().includes("approve"))).reduce((sum, r) => sum + (parseFloat(r.NoDays || 1)), 0),
+                        color: "bg-rose-500", 
+                        light: "bg-rose-100",
+                        tag: "RA 9710"
+                      },
+                      { 
+                        label: "Emergency Leave", 
+                        bal: Math.max(0, 3 - (recentRequests || []).filter(r => Number(r.emp_reqTypeId) === 6 && (Number(r.emp_reqStatusId) === 2 || (r.status || "").toLowerCase().includes("approve"))).reduce((sum, r) => sum + (parseFloat(r.NoDays || 1)), 0)), 
+                        total: 3, 
+                        used: (recentRequests || []).filter(r => Number(r.emp_reqTypeId) === 6 && (Number(r.emp_reqStatusId) === 2 || (r.status || "").toLowerCase().includes("approve"))).reduce((sum, r) => sum + (parseFloat(r.NoDays || 1)), 0),
+                        color: "bg-orange-500", 
+                        light: "bg-orange-100",
+                        tag: "Company Policy"
+                      }
                     ].map((item, i) => (
-                      <div key={i} className="bg-slate-50 p-5 rounded-xl border border-slate-100">
-                        <div className="flex justify-between items-end mb-3">
-                          <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">{item.label}</span>
-                          <span className="text-2xl font-black text-slate-800">{item.bal} <span className="text-sm font-semibold text-slate-400">/ {item.total}</span></span>
+                      <div key={i} className="bg-slate-50 p-3 rounded-xl border border-slate-100 hover:border-slate-200 transition-colors">
+                        <div className="flex justify-between items-center mb-1.5">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="text-xs font-bold text-slate-700 truncate">{item.label}</span>
+                            <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-slate-200 text-slate-500 font-medium shrink-0">
+                              {item.tag}
+                            </Badge>
+                          </div>
+                          <span className="text-xs font-black text-slate-800 shrink-0">
+                            {item.bal} <span className="text-[10px] font-normal text-slate-400">/ {item.total}d</span>
+                          </span>
                         </div>
-                        <div className={`h-3 ${item.light} rounded-full overflow-hidden`}>
-                          <div className={`h-full ${item.color} rounded-full transition-all duration-1000`} style={{ width: `${(item.bal / (item.total || 1)) * 100}%` }}></div>
+                        <div className={`h-2 ${item.light} rounded-full overflow-hidden`}>
+                          <div className={`h-full ${item.color} rounded-full transition-all duration-1000`} style={{ width: `${Math.min(100, (item.bal / (item.total || 1)) * 100)}%` }}></div>
                         </div>
-                        <div className="flex justify-between items-center text-[10px] text-slate-400 mt-2 font-medium">
+                        <div className="flex justify-between items-center text-[10px] text-slate-400 mt-1 font-medium">
                           <span>{item.bal} days remaining</span>
-                          <span>{item.total - item.bal} used</span>
+                          <span>{item.used} used</span>
                         </div>
                       </div>
                     ))}

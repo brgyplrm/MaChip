@@ -475,6 +475,9 @@ inline void drawBackClockOutApprovedUI() {
   delayMicroseconds(50);
   digitalWrite(TFT_CS_INSIDE, LOW);
   drawRLEBitmap(tftBack, 0, 0, epd_bitmap_ATT6, sizeof(epd_bitmap_ATT6), 320, 240, ST77XX_WHITE, ST77XX_BLACK);
+  // High-visibility green accent border to confirm instantaneous tap capture
+  tftBack.drawRect(0, 0, 320, 240, ST77XX_GREEN);
+  tftBack.drawRect(1, 1, 318, 238, ST77XX_GREEN);
   digitalWrite(TFT_CS_INSIDE, HIGH);
   clearSpiBusPins();
   isBackDisplayInReady = false;

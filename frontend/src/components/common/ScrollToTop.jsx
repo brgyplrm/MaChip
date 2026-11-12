@@ -1,8 +1,25 @@
 import React, { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 
 const ScrollToTop = () => {
   const [isVisible, setIsVisible] = useState(false);
+  const location = useLocation();
+
+  // Reset scroll to top on every route change
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+
+    // Also reset nested scroll containers used by layout or dashboards
+    const scrollables = document.querySelectorAll(
+      '.overflow-y-auto, [data-sidebar="inset"], main, .app'
+    );
+    scrollables.forEach((el) => {
+      el.scrollTop = 0;
+    });
+  }, [location.pathname]);
 
   useEffect(() => {
     const handleScroll = () => {

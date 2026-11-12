@@ -655,16 +655,6 @@ const CalendarManagement = () => {
             {isAdmin && (
               <>
                 <Button 
-                  variant="outline"
-                  disabled={isSyncing}
-                  className="w-full sm:w-auto border-slate-200 text-slate-700 hover:bg-slate-50 font-medium"
-                  onClick={handleSyncHolidays}
-                  title="Synchronize Philippine holidays from Official Gazette"
-                >
-                  <SyncIcon className={`mr-1.5 h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
-                  {isSyncing ? "Syncing..." : "Sync Holidays"}
-                </Button>
-                <Button 
                   className="w-full sm:w-auto bg-brand-primary hover:bg-brand-primary-hover text-white"
                   onClick={() => {
                     setModalType('addEvent');

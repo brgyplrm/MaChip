@@ -45,8 +45,16 @@ router.get("/fingerprint/download/:uid", espValidator, rfidController.getFingerp
 router.post("/visitor-access", authMiddleware, requireRole(1, 4, "Admin Manager", "Admin Accountant"), rfidController.triggerVisitorAccess);
 router.post("/visitor-access/confirm", espValidator, rfidController.confirmVisitorAccess);
 
-// Telemetry Endpoint
-router.post("/telemetry", espValidator, rfidController.receiveTelemetry);
+// Telemetry Endpoint: Accepts ESP32 hardware with HMAC or authenticated Admin for simulation
+router.post("/telemetry", (req, res, next) => {
+  if (req.headers["x-esp32-key"]) {
+    return espValidator(req, res, next);
+  }
+  return authMiddleware(req, res, (err) => {
+    if (err) return next(err);
+    requireRole(1, 4, "Admin Manager", "Admin Accountant")(req, res, next);
+  });
+}, rfidController.receiveTelemetry);
 
 module.exports = router;
 

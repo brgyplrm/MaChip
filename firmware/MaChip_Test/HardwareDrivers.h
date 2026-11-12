@@ -59,10 +59,11 @@ inline void provideFeedback(FeedbackType type) {
   switch (type) {
     case SUCCESS_OK: {
       setLED(LED_STEADY_GREEN, LED_OFF);
+      // Modern, pleasant musical ascending chime: 1760 Hz (A6) -> 2349 Hz (D7)
       BuzzerStep steps[] = {
-        { 2730, 80 },
-        { 0, 30 },
-        { 4000, 100 }
+        { 1760, 35 },
+        { 0, 15 },
+        { 2349, 45 }
       };
       startBuzzerPattern(steps, 3);
       break;
@@ -70,19 +71,20 @@ inline void provideFeedback(FeedbackType type) {
 
     case ERROR_FAIL: {
       setLED(LED_OFF, LED_STEADY_RED);
-      // Dual-Pip Staccato Reject: Short 2200Hz pip, 30ms silence, 1600Hz confirmation pip (120ms total)
+      // Discrete, low-pitch double-pip reject (988Hz B5 -> 880Hz A5, non-piercing)
       BuzzerStep steps[] = {
-        { 2200, 40 },
-        { 0, 30 },
-        { 1600, 50 }
+        { 988, 35 },
+        { 0, 20 },
+        { 880, 40 }
       };
       startBuzzerPattern(steps, 3);
       break;
     }
 
     case RFID_TAP: {
+      // Subtle high-frequency micro-pip for instant tactile acoustic feedback
       BuzzerStep steps[] = {
-        { 2730, 70 }
+        { 2093, 20 }
       };
       startBuzzerPattern(steps, 1);
       break;
@@ -93,11 +95,11 @@ inline void provideFeedback(FeedbackType type) {
       break;
 
     case SYSTEM_READY: {
-      // Crisp, gentle ascending dual-pip boot chime (170ms total, zero harsh tone)
+      // Gentle ascending boot chime
       BuzzerStep steps[] = {
-        { 1760, 60 },
-        { 0, 30 },
-        { 2637, 80 }
+        { 1568, 45 },
+        { 0, 20 },
+        { 2093, 55 }
       };
       startBuzzerPattern(steps, 3);
       break;
@@ -122,15 +124,28 @@ inline void updateLEDs() {
 
 // ── SOLENOID CONTROL ──────────────────────────────────────────────
 inline void solenoidUnlock(String sourceTerminal = "FRONT") {
+  unsigned long now = millis();
   if (!solenoidActive) {
     activeUnlockTerminal = sourceTerminal;
     clearSpiBusPins();
     delay(20); // Ensure all in-flight SPI transmissions to both TFTs are 100% finished before relay draws current
     digitalWrite(SOLENOID_PIN, HIGH); // Drive HIGH: Q2 NPN turns ON, pulling J8 IN to GND to trigger Relay
     solenoidActive = true;
-    solenoidStartTime = millis();
+    solenoidStartTime = now;
+    solenoidFirstTriggerTime = now;
     sysLog("[SOLENOID] UNLOCKED (Relay triggered) via " + sourceTerminal);
   } else {
+    // Keep-Alive Re-trigger with Hard 15-second Cumulative Ceiling
+    if (now - solenoidFirstTriggerTime < MAX_SOLENOID_CEILING_MS) {
+      unsigned long remainingCeiling = MAX_SOLENOID_CEILING_MS - (now - solenoidFirstTriggerTime);
+      unsigned long extension = (RETRIGGER_EXTEND_MS < remainingCeiling) ? RETRIGGER_EXTEND_MS : remainingCeiling;
+      // Smoothly reset hold window to extension duration from now
+      solenoidStartTime = now;
+      solenoidHoldDurationMs = (uint16_t)extension;
+      sysLog("[SOLENOID] EXTENDED (Keep-Alive +" + String(extension) + "ms) via " + sourceTerminal);
+    } else {
+      sysLog(F("[SOLENOID] CEILING REACHED (15s max continuous hold). Forcing relock cycle."));
+    }
     if (activeUnlockTerminal != sourceTerminal) {
       activeUnlockTerminal = "ALL";
     }
@@ -142,6 +157,7 @@ inline void solenoidLock() {
     clearSpiBusPins();
     digitalWrite(SOLENOID_PIN, LOW); // Drive LOW: Q2 NPN turns OFF, returning Relay to normal rest
     solenoidActive = false;
+    solenoidHoldDurationMs = DEFAULT_SOLENOID_DURATION;
     sysLog(F("[SOLENOID] LOCKED (Rest position)"));
   }
 }
@@ -162,8 +178,9 @@ inline void updateSolenoid() {
     }
     if (activeUnlockTerminal == "BACK" || activeUnlockTerminal == "ALL") {
       backStatusResetActive = false;
-      isBackDisplayInReady = false;
-      updateBackDisplay("READY", "Scan Card Out");
+      if (!isBackDisplayInReady) {
+        updateBackDisplay("READY", "Scan Card Out");
+      }
     }
     activeUnlockTerminal = "FRONT";
   }
