@@ -30,6 +30,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useUnsavedChanges } from "../../hooks/useUnsavedChanges";
+import UnsavedChangesModal from "../../components/UnsavedChangesModal";
 
 
 const Settings = () => {
@@ -58,6 +60,7 @@ const Settings = () => {
   const [realTime, setRealTime] = useState(new Date());
   const [activeSettingsTab, setActiveSettingsTab] = useState("simulation");
   const [isEditingSystem, setIsEditingSystem] = useState(false);
+  const { showPrompt, confirmNavigation, cancelNavigation } = useUnsavedChanges(isEditingSystem);
 
   // --- Retained States: Existing Configurations ---
   const [useMockTime, setUseMockTime] = useState(false);
@@ -705,6 +708,12 @@ const Settings = () => {
           setStorageRootPath(path);
           setShowPicker(false);
         }}
+      />
+
+      <UnsavedChangesModal
+        isOpen={showPrompt}
+        onConfirm={confirmNavigation}
+        onCancel={cancelNavigation}
       />
     </Sidebar>
   );

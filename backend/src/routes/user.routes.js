@@ -27,7 +27,8 @@ router.delete("/clear-fingerprint-session", requireAdmin, rfidController.clearFi
 router.delete("/clear-rfid-session", requireAdmin, rfidController.clearFingerprintSession);
 router.delete("/clear-hardware-session", requireAdmin, rfidController.clearFingerprintSession);
 
-// This creates the URL: http://localhost:4000/api/users/all
+// Routes for fetching all users
+router.get("/", requireStaff, userController.viewAllUsers);
 router.get("/all", requireStaff, userController.viewAllUsers);
 
 // GET archived users (soft-deleted)

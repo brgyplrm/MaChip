@@ -183,7 +183,7 @@ const Notifications = () => {
 
   // --- PAGINATION STATE ---
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(8);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const effectiveViewMode = isManagement ? (viewMode || "management") : "employee";
 

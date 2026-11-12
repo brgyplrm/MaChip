@@ -15,6 +15,7 @@ import { fetchWithAuth } from "../../utils/api";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import AssessmentIcon  from "@mui/icons-material/Assessment";
 import EditIcon from "@mui/icons-material/Edit";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -631,7 +632,7 @@ const AdminRequests = () => {
               to="/adminReports" 
               state={{ activeTab: "requests" }}
             >
-            <AssessmentIcon className="mr-2 h-4 w-4" /> View Request Report
+            <AssessmentIcon className="mr-2 h-4 w-4" /> View Requests Summary
             </Link>
           </Button>
           
@@ -772,7 +773,7 @@ const AdminRequests = () => {
               <p className="text-sm font-bold">History Baseline Notice</p>
               <p className="text-xs leading-relaxed opacity-90">
                 The listing below is limited to the <b>current and previous month</b> (approx. 4 payroll periods) to ensure optimal system performance. 
-                For comprehensive historical data, please refer to the <Link to="/adminReports" state={{ activeTab: "requests" }} className="underline font-bold hover:text-blue-900 transition-colors">Request Reports</Link>.
+                For comprehensive historical data, please refer to the <Link to="/adminReports" state={{ activeTab: "requests" }} className="underline font-bold hover:text-blue-900 transition-colors">Requests Summary</Link>.
               </p>
             </div>
             {/* Close Button */}
@@ -918,10 +919,15 @@ const AdminRequests = () => {
           <Card className="w-full lg:w-1/3 flex flex-col shadow-sm border-0 bg-white h-full overflow-hidden py-0">
             <div className="flex border-b border-slate-100 bg-slate-50/50">
               <button
-                className={`flex-1 py-4 font-semibold text-sm transition-colors ${activeTab === "pending" ? "text-brand-primary border-b-2 border-brand-primary bg-white" : "text-slate-500 hover:bg-slate-100"}`}
+                className={`flex-1 py-4 font-semibold text-sm transition-colors flex items-center justify-center gap-1.5 ${activeTab === "pending" ? "text-brand-primary border-b-2 border-brand-primary bg-white" : "text-slate-500 hover:bg-slate-100"}`}
                 onClick={() => handleTabChange("pending")}
               >
-                Pending
+                <span>Pending</span>
+                {(pendingCount > 0 || returnedCount > 0) && (
+                  <span className="inline-flex items-center justify-center px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-100 text-amber-800">
+                    {pendingCount + returnedCount}
+                  </span>
+                )}
               </button>
               <button
                 className={`flex-1 py-4 font-semibold text-sm transition-colors ${activeTab === "completed" ? "text-brand-primary border-b-2 border-brand-primary bg-white" : "text-slate-500 hover:bg-slate-100"}`}
@@ -938,13 +944,16 @@ const AdminRequests = () => {
                   <TooltipTrigger asChild>
                     <button
                       onClick={() => handleSubTabChange("pending")}
-                      className={`flex-1 py-1.5 text-[11px] font-bold uppercase rounded-md transition-all ${
+                      className={`flex-1 py-1.5 text-[11px] font-bold uppercase rounded-md transition-all flex items-center justify-center gap-1.5 ${
                         pendingSubTab === "pending"
                           ? "bg-white text-brand-primary shadow-sm"
                           : "text-slate-500 hover:bg-white/50"
                       }`}
                     >
-                      Pending ({pendingCount})
+                      <span>Pending</span>
+                      <span className={`px-1.5 py-0.2 text-[10px] font-bold rounded-full ${pendingSubTab === "pending" ? "bg-brand-primary/10 text-brand-primary" : "bg-slate-200 text-slate-600"}`}>
+                        {pendingCount}
+                      </span>
                     </button>
                   </TooltipTrigger>
                   <TooltipContent className="bg-slate-900 text-white text-xs font-normal">
@@ -956,13 +965,16 @@ const AdminRequests = () => {
                   <TooltipTrigger asChild>
                     <button
                       onClick={() => handleSubTabChange("returned")}
-                      className={`flex-1 py-1.5 text-[11px] font-bold uppercase rounded-md transition-all ${
+                      className={`flex-1 py-1.5 text-[11px] font-bold uppercase rounded-md transition-all flex items-center justify-center gap-1.5 ${
                         pendingSubTab === "returned"
                           ? "bg-white text-amber-700 shadow-xs border border-amber-200/60"
                           : "text-slate-500 hover:bg-white/50"
                       }`}
                     >
-                      Returned ({returnedCount})
+                      <span>Returned</span>
+                      <span className={`px-1.5 py-0.2 text-[10px] font-bold rounded-full ${pendingSubTab === "returned" ? "bg-amber-100 text-amber-800" : "bg-slate-200 text-slate-600"}`}>
+                        {returnedCount}
+                      </span>
                     </button>
                   </TooltipTrigger>
                   <TooltipContent className="bg-slate-900 text-white text-xs font-normal">
@@ -1076,6 +1088,19 @@ const AdminRequests = () => {
                     
                     {/* Right Side Grouping Wrapper */}
                     <div className="flex flex-row items-center gap-2 ml-auto md:ml-0 shrink-0">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        asChild
+                        className="h-9 px-3 text-xs font-semibold gap-1.5 border-slate-200 text-slate-700 hover:text-brand-primary hover:border-brand-primary"
+                      >
+                        <Link 
+                          to={`/requests/${current.emp_reqId}`} 
+                          state={{ from: `/adminRequests?tab=${activeTab}&subTab=${pendingSubTab}&requestId=${current.emp_reqId}` }}
+                        >
+                          <OpenInNewIcon className="h-3.5 w-3.5" /> Full Details
+                        </Link>
+                      </Button>
                       
                       <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto items-center">
                         {/* Pending / Returnable Requests Action Hub */}

@@ -1,10 +1,12 @@
 import Sidebar from "../../components/Sidebar";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import Toast from "../../components/toast/Toast";
 import { formatUserId } from "../../utils/formatUserId";
 import { fetchWithAuth } from "../../utils/api";
 import { Link } from "react-router-dom";
+import { useUnsavedChanges } from "../../hooks/useUnsavedChanges";
+import UnsavedChangesModal from "../../components/UnsavedChangesModal";
 
 // shadcn/ui custom structural primitives
 import { Card, CardContent } from "@/components/ui/card";
@@ -42,6 +44,21 @@ const EditAttendance = () => {
     userName: "",
   });
 
+  const initialDataRef = useRef(null);
+
+  const isDirty = useMemo(() => {
+    if (!initialDataRef.current) return false;
+    const trackedKeys = ["morning_In", "morning_Out", "afternoon_In", "afternoon_Out", "ot_In", "ot_Out", "attendance_StatusId"];
+    return trackedKeys.some(
+      (key) => String(formData[key] ?? "") !== String(initialDataRef.current[key] ?? "")
+    );
+  }, [formData]);
+
+  const { showPrompt, confirmNavigation, cancelNavigation } = useUnsavedChanges(
+    isDirty,
+    "You have unsaved changes to this attendance record. If you leave or exit to another page, all modifications will be discarded. Do you wish to proceed?"
+  );
+
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ message: "", type: "success" });
 
@@ -74,7 +91,7 @@ const EditAttendance = () => {
         const response = await fetchWithAuth(`/api/attendance/record/${userId}/${date}`);
         if (response.ok) {
           const data = await response.json();
-          setFormData({
+          const initialValues = {
             ...data,
             morning_In: data.morning_In === "—" ? "" : data.morning_In,
             morning_Out: data.morning_Out === "—" ? "" : data.morning_Out,
@@ -83,7 +100,9 @@ const EditAttendance = () => {
             ot_In: data.ot_In === "—" ? "" : data.ot_In,
             ot_Out: data.ot_Out === "—" ? "" : data.ot_Out,
             attendance_StatusId: data.attendance_StatusId || 1,
-          });
+          };
+          setFormData(initialValues);
+          initialDataRef.current = initialValues;
         } else {
           setToast({ message: "Failed to fetch attendance data.", type: "error" });
         }
@@ -111,6 +130,7 @@ const EditAttendance = () => {
       });
 
       if (response.ok) {
+        initialDataRef.current = { ...formData };
         setToast({ message: "Attendance record updated successfully!", type: "success" });
         setTimeout(() => navigate(backPath), 1500);
       } else {
@@ -322,6 +342,14 @@ const EditAttendance = () => {
           </Card>
         </div>
       </Sidebar>
+
+      <UnsavedChangesModal
+        isOpen={showPrompt}
+        onConfirm={confirmNavigation}
+        onCancel={cancelNavigation}
+        title="Unsaved Attendance Changes"
+        description="You have unsaved changes to this attendance record. If you leave or exit to another page, all modifications will be discarded. Do you wish to proceed?"
+      />
     </div>
   );
 };

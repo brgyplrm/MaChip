@@ -11,6 +11,7 @@ import GppBadIcon from "@mui/icons-material/GppBad";
 import LanguageIcon from "@mui/icons-material/Language";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import PersonIcon from "@mui/icons-material/Person";
+import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import { formatUserId } from "../../utils/formatUserId";
 import { fetchWithAuth } from "../../utils/api";
 import { exportToCSV } from "../../utils/csvExport";
@@ -36,6 +37,9 @@ const TransactionLog = () => {
   const [usersMap, setUsersMap] = useState({});
   const [searchTerm, setSearchTerm] = useState("");
   const [actionFilter, setActionFilter] = useState("All Actions");
+  const [dateFilter, setDateFilter] = useState("all");
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customEndDate, setCustomEndDate] = useState("");
   const [loading, setLoading] = useState(true);
   const [selectedLog, setSelectedLog] = useState(null);
 
@@ -69,6 +73,73 @@ const TransactionLog = () => {
     return () => clearTimeout(handler);
   }, [searchTerm]);
 
+  const calculateDateRange = useCallback((preset, customStart, customEnd) => {
+    const now = new Date();
+    const manilaNowStr = now.toLocaleString("en-US", { timeZone: "Asia/Manila" });
+    const manilaToday = new Date(manilaNowStr);
+
+    const formatLocalDate = (d) => {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    };
+
+    const todayStr = formatLocalDate(manilaToday);
+
+    if (preset === "today") {
+      return {
+        startDate: `${todayStr}T00:00:00`,
+        endDate: `${todayStr}T23:59:59.999`
+      };
+    }
+
+    if (preset === "yesterday") {
+      const yesterday = new Date(manilaToday);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yestStr = formatLocalDate(yesterday);
+      return {
+        startDate: `${yestStr}T00:00:00`,
+        endDate: `${yestStr}T23:59:59.999`
+      };
+    }
+
+    if (preset === "last_7_days") {
+      const past7 = new Date(manilaToday);
+      past7.setDate(past7.getDate() - 6);
+      return {
+        startDate: `${formatLocalDate(past7)}T00:00:00`,
+        endDate: `${todayStr}T23:59:59.999`
+      };
+    }
+
+    if (preset === "last_30_days") {
+      const past30 = new Date(manilaToday);
+      past30.setDate(past30.getDate() - 29);
+      return {
+        startDate: `${formatLocalDate(past30)}T00:00:00`,
+        endDate: `${todayStr}T23:59:59.999`
+      };
+    }
+
+    if (preset === "this_month") {
+      const firstDay = new Date(manilaToday.getFullYear(), manilaToday.getMonth(), 1);
+      return {
+        startDate: `${formatLocalDate(firstDay)}T00:00:00`,
+        endDate: `${todayStr}T23:59:59.999`
+      };
+    }
+
+    if (preset === "custom") {
+      return {
+        startDate: customStart ? `${customStart}T00:00:00` : null,
+        endDate: customEnd ? `${customEnd}T23:59:59.999` : null
+      };
+    }
+
+    return { startDate: null, endDate: null };
+  }, []);
+
   const fetchTransactions = useCallback(async () => {
     setLoading(true);
     try {
@@ -79,9 +150,13 @@ const TransactionLog = () => {
       if (debouncedSearch.trim()) params.append("search", debouncedSearch.trim());
       if (actionFilter && actionFilter !== "All Actions") params.append("action", actionFilter);
 
+      const { startDate, endDate } = calculateDateRange(dateFilter, customStartDate, customEndDate);
+      if (startDate) params.append("startDate", startDate);
+      if (endDate) params.append("endDate", endDate);
+
       const [transRes, usersRes] = await Promise.allSettled([
         fetchWithAuth(`/api/system/transaction-logs?${params.toString()}`),
-        Object.keys(usersMap).length === 0 ? fetchWithAuth("/api/users") : Promise.resolve(null)
+        Object.keys(usersMap).length === 0 ? fetchWithAuth("/api/users/all") : Promise.resolve(null)
       ]);
 
       if (transRes.status === "fulfilled" && transRes.value.ok) {
@@ -122,7 +197,7 @@ const TransactionLog = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, itemsPerPage, debouncedSearch, actionFilter]);
+  }, [currentPage, itemsPerPage, debouncedSearch, actionFilter, dateFilter, customStartDate, customEndDate, calculateDateRange]);
 
   useEffect(() => {
     fetchTransactions();
@@ -132,10 +207,13 @@ const TransactionLog = () => {
     setSearchTerm("");
     setDebouncedSearch("");
     setActionFilter("All Actions");
+    setDateFilter("all");
+    setCustomStartDate("");
+    setCustomEndDate("");
     setCurrentPage(1);
   };
 
-  const isFiltering = searchTerm !== "" || actionFilter !== "All Actions";
+  const isFiltering = searchTerm !== "" || actionFilter !== "All Actions" || dateFilter !== "all" || customStartDate !== "" || customEndDate !== "";
 
   const getEventLabel = (type) => {
     const labels = {
@@ -153,7 +231,9 @@ const TransactionLog = () => {
   };
 
   const getFriendlyEvent = (t) => {
-    const targetUser = t.user_Id && usersMap[t.user_Id] ? usersMap[t.user_Id] : null;
+    const targetUser = t.emp_FirstName
+      ? { name: `${t.emp_FirstName} ${t.emp_LastName}`, formattedId: formatUserId(t.user_Id) }
+      : (t.user_Id && usersMap[t.user_Id] ? usersMap[t.user_Id] : null);
     const initiatorUser = t.initiated_By && usersMap[t.initiated_By] ? usersMap[t.initiated_By] : null;
 
     const actorName = t.admin_FirstName 
@@ -172,9 +252,11 @@ const TransactionLog = () => {
 
     const targetLabel = targetUser 
       ? `${targetUser.name} (${targetUser.formattedId})`
-      : t.user_Id 
-        ? `Employee #${formatUserId(t.user_Id)}` 
-        : "System Core";
+      : (t.user_Id && t.user_Id >= 1004 && t.user_Id <= 1033)
+        ? `Participant ${t.user_Id - 1003} (${formatUserId(t.user_Id)})`
+        : t.user_Id 
+          ? `Employee #${formatUserId(t.user_Id)}` 
+          : "System Core";
 
     const type = (t.event_Type || "").toUpperCase();
 
@@ -204,16 +286,56 @@ const TransactionLog = () => {
       };
     }
 
-    if (type === "UNAUTHORIZED_SCAN" || type === "UNRECOGNIZED_SCAN") {
+    if (type === "UNAUTHORIZED_SCAN") {
       return {
-        badge: "Unknown Badge",
+        badge: "Unauthorized Scan",
         badgeColor: "bg-rose-100 text-rose-800 border-rose-200",
-        headline: "Hardware reader scanned unknown RFID / Card",
-        narrative: t.description || "An unregistered badge or card was tapped on the terminal.",
+        headline: t.description || "Unauthorized hardware scan attempt",
+        narrative: t.description || "An unauthorized scan was detected on access terminal.",
         actor: "Physical Terminal",
         actorId: t.ip_Address || "READER",
-        target: "Terminal Access Gate",
-        explanation: "A card UID was scanned by the MFRC522 reader that does not match any enrolled employee profile in the database."
+        target: targetLabel !== "System Core" ? targetLabel : "Terminal Access Gate",
+        explanation: "Hardware reader detected a scan attempt that failed authentication or security clearance."
+      };
+    }
+
+    if (type === "UNRECOGNIZED_SCAN") {
+      return {
+        badge: "Unrecognized Card",
+        badgeColor: "bg-amber-100 text-amber-800 border-amber-200",
+        headline: t.description || "Unrecognized card or scan detected",
+        narrative: t.description || "An unrecognized card or badge was presented to the reader.",
+        actor: "Physical Terminal",
+        actorId: t.ip_Address || "READER",
+        target: targetLabel !== "System Core" ? targetLabel : "Terminal Access Gate",
+        explanation: "A card UID was scanned by the MFRC522 reader that does not match any enrolled employee profile."
+      };
+    }
+
+    if (type === "ACCESS_DENIED") {
+      return {
+        badge: "Access Denied",
+        badgeColor: "bg-red-100 text-red-800 border-red-200",
+        headline: t.description || "Terminal access denied",
+        narrative: t.description || "Passback violation or access policy denied.",
+        actor: actorName !== "System Automated" ? actorName : "Physical Terminal",
+        actorId,
+        target: targetLabel,
+        explanation: "Terminal denied entry/exit due to passback policy enforcement (e.g. attempting to clock in twice without clocking out)."
+      };
+    }
+
+    if (type === "RFID_SCAN") {
+      const isClockIn = (t.description || "").toLowerCase().includes("in");
+      return {
+        badge: isClockIn ? "Clock In" : "Clock Out",
+        badgeColor: isClockIn ? "bg-emerald-100 text-emerald-800 border-emerald-200" : "bg-blue-100 text-blue-800 border-blue-200",
+        headline: t.description || (isClockIn ? "Clock In via RFID" : "Clock Out via RFID"),
+        narrative: t.description || `Verified employee badge on hardware terminal.`,
+        actor: targetLabel,
+        actorId: actorId !== "SYS-000" ? actorId : (t.user_Id ? formatUserId(t.user_Id) : "MACJ-000"),
+        target: targetLabel,
+        explanation: "Physical RFID card badge scanned at MFRC522 terminal and logged to attendance DTR."
       };
     }
 
@@ -336,6 +458,10 @@ const TransactionLog = () => {
       const params = new URLSearchParams({ export: "true" });
       if (debouncedSearch.trim()) params.append("search", debouncedSearch.trim());
       if (actionFilter && actionFilter !== "All Actions") params.append("action", actionFilter);
+
+      const { startDate, endDate } = calculateDateRange(dateFilter, customStartDate, customEndDate);
+      if (startDate) params.append("startDate", startDate);
+      if (endDate) params.append("endDate", endDate);
 
       const res = await fetchWithAuth(`/api/system/transaction-logs?${params.toString()}`);
       if (!res.ok) return;
@@ -588,41 +714,89 @@ const TransactionLog = () => {
 
             {/* Filters Card */}
             <Card className="shadow-sm border-0 bg-white py-0">
-              <CardContent className="p-4 sm:p-5 flex flex-col xl:flex-row gap-4 items-center justify-between">
-                <div className="relative w-full xl:max-w-md">
-                  <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                  <Input
-                    type="text"
-                    placeholder="Search User, User Number (MACJ-001), IP Address, Event..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 border-slate-200 focus-visible:ring-brand-primary w-full text-xs"
-                  />
-                </div>
-                
-                <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <FilterListIcon className="text-slate-400 h-5 w-5 hidden sm:block" />
-                    <Select value={actionFilter} onValueChange={setActionFilter}>
-                      <SelectTrigger className="w-full sm:w-[220px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors text-xs">
-                        <SelectValue placeholder="All Actions" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {uniqueActions.map(a => <SelectItem key={a} value={a} className="text-xs">{a.replace(/_/g, " ")}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+              <CardContent className="p-4 sm:p-5 flex flex-col gap-3">
+                <div className="flex flex-col xl:flex-row gap-4 items-center justify-between w-full">
+                  <div className="relative w-full xl:max-w-md">
+                    <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                    <Input
+                      type="text"
+                      placeholder="Search User, User Number (MACJ-001), IP Address, Event..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10 border-slate-200 focus-visible:ring-brand-primary w-full text-xs"
+                    />
                   </div>
+                  
+                  <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto flex-wrap">
+                    {/* Action Filter */}
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                      <FilterListIcon className="text-slate-400 h-5 w-5 hidden sm:block" />
+                      <Select value={actionFilter} onValueChange={setActionFilter}>
+                        <SelectTrigger className="w-full sm:w-[220px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors text-xs">
+                          <SelectValue placeholder="All Actions" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {uniqueActions.map(a => <SelectItem key={a} value={a} className="text-xs">{a.replace(/_/g, " ")}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                  {isFiltering && (
-                    <Button 
-                      variant="ghost" 
-                      onClick={handleClearFilters}
-                      className="w-full sm:w-auto text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors font-semibold text-xs"
-                    >
-                      <CloseIcon className="h-4 w-4 mr-1" /> Clear
-                    </Button>
-                  )}
+                    {/* Date Filter Dropdown */}
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                      <CalendarTodayIcon className="text-slate-400 h-4 w-4 hidden sm:block" />
+                      <Select value={dateFilter} onValueChange={setDateFilter}>
+                        <SelectTrigger className="w-full sm:w-[160px] border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors text-xs">
+                          <SelectValue placeholder="All Time" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all" className="text-xs">All Time</SelectItem>
+                          <SelectItem value="today" className="text-xs">Today</SelectItem>
+                          <SelectItem value="yesterday" className="text-xs">Yesterday</SelectItem>
+                          <SelectItem value="last_7_days" className="text-xs">Last 7 Days</SelectItem>
+                          <SelectItem value="last_30_days" className="text-xs">Last 30 Days</SelectItem>
+                          <SelectItem value="this_month" className="text-xs">This Month</SelectItem>
+                          <SelectItem value="custom" className="text-xs">Custom Range...</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {isFiltering && (
+                      <Button 
+                        variant="ghost" 
+                        onClick={handleClearFilters}
+                        className="w-full sm:w-auto text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors font-semibold text-xs"
+                      >
+                        <CloseIcon className="h-4 w-4 mr-1" /> Clear
+                      </Button>
+                    )}
+                  </div>
                 </div>
+
+                {/* Sub-row: Custom Range Pickers when "custom" is selected */}
+                {dateFilter === "custom" && (
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 pt-3 border-t border-slate-100 text-xs w-full">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0">
+                      Custom Date Window:
+                    </span>
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                      <Input
+                        type="date"
+                        value={customStartDate}
+                        onChange={(e) => setCustomStartDate(e.target.value)}
+                        className="h-8 w-full sm:w-[150px] border-slate-200 bg-slate-50 text-xs cursor-pointer"
+                        placeholder="Start Date"
+                      />
+                      <span className="text-slate-400 font-bold text-xs">to</span>
+                      <Input
+                        type="date"
+                        value={customEndDate}
+                        onChange={(e) => setCustomEndDate(e.target.value)}
+                        className="h-8 w-full sm:w-[150px] border-slate-200 bg-slate-50 text-xs cursor-pointer"
+                        placeholder="End Date"
+                      />
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 

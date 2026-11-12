@@ -564,9 +564,11 @@ exports.getAuditLogs = async (req, res) => {
       const logs = await sequelize.query(
         `SELECT
            a.*,
-           u."user_FirstName", u."user_LastName", u."user_Email", u."user_RoleId"
+           u."user_FirstName", u."user_LastName", u."user_Email", u."user_RoleId",
+           tu."user_FirstName" AS "target_FirstName", tu."user_LastName" AS "target_LastName", tu."department" AS "target_Department"
          FROM "Audit_Log" a
          LEFT JOIN "User" u ON u."user_Id" = a."user_Id"
+         LEFT JOIN "User" tu ON tu."user_Id" = a."target_Id"
          ORDER BY a."createdAt" DESC`,
         { type: QueryTypes.SELECT }
       );
@@ -617,7 +619,7 @@ exports.getAuditLogs = async (req, res) => {
 
     if (endDate) {
       whereConditions.push('a."createdAt" <= :endDate');
-      replacements.endDate = endDate;
+      replacements.endDate = String(endDate).length === 10 ? `${endDate} 23:59:59.999` : endDate;
     }
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
@@ -648,9 +650,11 @@ exports.getAuditLogs = async (req, res) => {
       const exportLogs = await sequelize.query(
         `SELECT
            a.*,
-           u."user_FirstName", u."user_LastName", u."user_Email", u."user_RoleId"
+           u."user_FirstName", u."user_LastName", u."user_Email", u."user_RoleId",
+           tu."user_FirstName" AS "target_FirstName", tu."user_LastName" AS "target_LastName", tu."department" AS "target_Department"
          FROM "Audit_Log" a
          LEFT JOIN "User" u ON u."user_Id" = a."user_Id"
+         LEFT JOIN "User" tu ON tu."user_Id" = a."target_Id"
          ${whereClause}
          ORDER BY a."createdAt" DESC
          LIMIT 5000`,
@@ -683,9 +687,11 @@ exports.getAuditLogs = async (req, res) => {
     const pageLogs = await sequelize.query(
       `SELECT
          a.*,
-         u."user_FirstName", u."user_LastName", u."user_Email", u."user_RoleId"
+         u."user_FirstName", u."user_LastName", u."user_Email", u."user_RoleId",
+         tu."user_FirstName" AS "target_FirstName", tu."user_LastName" AS "target_LastName", tu."department" AS "target_Department"
        FROM "Audit_Log" a
        LEFT JOIN "User" u ON u."user_Id" = a."user_Id"
+       LEFT JOIN "User" tu ON tu."user_Id" = a."target_Id"
        ${whereClause}
        ORDER BY a."createdAt" DESC
        LIMIT :limit OFFSET :offset`,
@@ -781,10 +787,12 @@ exports.getTransactionLogs = async (req, res) => {
     const limitParam = req.query.limit;
     const search = req.query.search ? String(req.query.search).trim() : '';
     const action = req.query.action && req.query.action !== 'All Actions' ? String(req.query.action).trim() : '';
+    const startDate = req.query.startDate;
+    const endDate = req.query.endDate;
     const isExport = req.query.export === 'true';
 
     // Legacy fallback: return flat array when called with no pagination, search, action, or export
-    const isLegacyCall = pageParam === undefined && limitParam === undefined && !search && !action && !isExport;
+    const isLegacyCall = pageParam === undefined && limitParam === undefined && !search && !action && !startDate && !endDate && !isExport;
 
     if (isLegacyCall) {
       const logs = await sequelize.query(
@@ -822,6 +830,16 @@ exports.getTransactionLogs = async (req, res) => {
     if (action) {
       whereConditions.push('t."event_Type" = :action');
       replacements.action = action;
+    }
+
+    if (startDate) {
+      whereConditions.push('t."createdAt" >= :startDate');
+      replacements.startDate = startDate;
+    }
+
+    if (endDate) {
+      whereConditions.push('t."createdAt" <= :endDate');
+      replacements.endDate = String(endDate).length === 10 ? `${endDate} 23:59:59.999` : endDate;
     }
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';

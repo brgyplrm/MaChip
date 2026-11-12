@@ -324,6 +324,13 @@ exports.UpdateUserRequest = async (req, res) => {
     const effectiveReason = reason || remarks || request.remarks || "";
     const effectiveWithPay = WithPayID ? parseInt(WithPayID) : 1;
 
+    let newProofFile = null;
+    if (req.files && req.files['proofFile'] && req.files['proofFile'].length > 0) {
+      newProofFile = req.files['proofFile'].map(f => `requestsFiles/${f.filename}`).join(',');
+    } else if (req.file) {
+      newProofFile = `requestsFiles/${req.file.filename}`;
+    }
+
     // Overlap validation for modified leave requests (excluding current request)
     const isLeave = [3, 4, 6, 7, 8, 9, 10, 11, 12].includes(typeId);
     if (isLeave) {
@@ -406,13 +413,14 @@ exports.UpdateUserRequest = async (req, res) => {
       );
     } else if (typeId === 2) {
       await sequelize.query(
-        `UPDATE "Onfield_Work" SET "DateonField" = :DateonField, "NoHrs" = :NoHrs, "destination" = :destination, "reason" = :reason WHERE "emp_reqId" = :requestId`,
+        `UPDATE "Onfield_Work" SET "DateonField" = :DateonField, "NoHrs" = :NoHrs, "destination" = :destination, "reason" = :reason, "proof_File" = COALESCE(:proof_File, "proof_File") WHERE "emp_reqId" = :requestId`,
         { 
           replacements: { 
             DateonField: DateonField || request.DateonField || null, 
             NoHrs: NoHrs || request.NoHrs || 0, 
             destination: destination || request.destination || "", 
             reason: effectiveReason, 
+            proof_File: newProofFile,
             requestId 
           }, 
           transaction: t 
@@ -435,7 +443,7 @@ exports.UpdateUserRequest = async (req, res) => {
       );
     } else if (typeId === 4) {
       await sequelize.query(
-        `UPDATE "Sick_Leave" SET "StartDate" = :StartDate, "EndDate" = :EndDate, "NoDays" = :NoDays, "reason" = :reason, "WithPayID" = :WithPayID WHERE "emp_reqId" = :requestId`,
+        `UPDATE "Sick_Leave" SET "StartDate" = :StartDate, "EndDate" = :EndDate, "NoDays" = :NoDays, "reason" = :reason, "WithPayID" = :WithPayID, "proof_File" = COALESCE(:proof_File, "proof_File") WHERE "emp_reqId" = :requestId`,
         { 
           replacements: { 
             StartDate: StartDate || request.StartDate || null, 
@@ -443,6 +451,7 @@ exports.UpdateUserRequest = async (req, res) => {
             NoDays: NoDays || request.NoDays || 1, 
             reason: effectiveReason, 
             WithPayID: effectiveWithPay, 
+            proof_File: newProofFile,
             requestId 
           }, 
           transaction: t 
@@ -454,7 +463,7 @@ exports.UpdateUserRequest = async (req, res) => {
         { 
           replacements: { 
             StartDate: StartDate || request.StartDate || request.DateOfLeave || null, 
-            NoDays: NoDays || request.NoDays || 1,
+            NoDays: NoDays || request.NoDays || 1, 
             reason: effectiveReason, 
             WithPayID: effectiveWithPay, 
             requestId 
@@ -478,13 +487,14 @@ exports.UpdateUserRequest = async (req, res) => {
       );
     } else if (typeId === 5) {
       await sequelize.query(
-        `UPDATE "LogCorrection_Request" SET "logDate" = :logDate, "claimedIn" = :claimedIn, "claimedOut" = :claimedOut, "reason" = :reason WHERE "emp_reqId" = :requestId`,
+        `UPDATE "LogCorrection_Request" SET "logDate" = :logDate, "claimedIn" = :claimedIn, "claimedOut" = :claimedOut, "reason" = :reason, "proof_File" = COALESCE(:proof_File, "proof_File") WHERE "emp_reqId" = :requestId`,
         { 
           replacements: { 
             logDate: req.body.logDate || request.logDate || null, 
             claimedIn: req.body.claimedIn || request.claimedIn || null, 
             claimedOut: req.body.claimedOut || request.claimedOut || null, 
             reason: effectiveReason, 
+            proof_File: newProofFile,
             requestId 
           }, 
           transaction: t 
@@ -492,7 +502,7 @@ exports.UpdateUserRequest = async (req, res) => {
       );
     } else if ([8, 9, 10, 11, 12].includes(typeId)) {
       await sequelize.query(
-        `UPDATE "Statutory_Leave" SET "StartDate" = :StartDate, "EndDate" = :EndDate, "NoDays" = :NoDays, "reason" = :reason, "WithPayID" = :WithPayID WHERE "emp_reqId" = :requestId`,
+        `UPDATE "Statutory_Leave" SET "StartDate" = :StartDate, "EndDate" = :EndDate, "NoDays" = :NoDays, "reason" = :reason, "WithPayID" = :WithPayID, "proof_File" = COALESCE(:proof_File, "proof_File") WHERE "emp_reqId" = :requestId`,
         { 
           replacements: { 
             StartDate: StartDate || request.StartDate || null, 
@@ -500,6 +510,7 @@ exports.UpdateUserRequest = async (req, res) => {
             NoDays: NoDays || request.NoDays || 1, 
             reason: effectiveReason, 
             WithPayID: effectiveWithPay, 
+            proof_File: newProofFile,
             requestId 
           }, 
           transaction: t 
@@ -554,6 +565,7 @@ exports.UpdateUserRequest = async (req, res) => {
           "calamityArea" = :calamityArea,
           "pagibigTAV" = :pagibigTAV,
           "deductionFrequency" = :deductionFrequency,
+          "proof_File" = COALESCE(:proof_File, "proof_File"),
           "updatedAt" = :now 
         WHERE "emp_reqId" = :requestId`,
         { 
@@ -570,6 +582,7 @@ exports.UpdateUserRequest = async (req, res) => {
             calamityArea: calamityArea || null,
             pagibigTAV: pagibigTAV || null,
             deductionFrequency: deductionFrequency || request.deductionFrequency || 'semi-monthly',
+            proof_File: newProofFile,
             now: nowStr, 
             requestId 
           }, 
@@ -578,33 +591,54 @@ exports.UpdateUserRequest = async (req, res) => {
       );
     }
 
-    // ── Notify Employee ──────────────────────────────────────────────────────
-    const notifyMsg = `Your ${request.reqTypeName} request (#${requestId}) has been modified by the admin.${modificationReason ? ` Reason: ${modificationReason}` : ""}`;
-    await Notification.create({
-      user_Id: request.user_Id,
-      title: "Request Modified",
-      message: notifyMsg,
-      isRead: false
-    }, { transaction: t });
+    // ── Notifications & Updates ──────────────────────────────────────────────
+    if (isOwner && !isStaffOrAdmin) {
+      // Regular employee updating / resubmitting their returned or pending request
+      const approvers = await sequelize.query(
+        `SELECT "user_Id", "user_Email", "user_FirstName" FROM "User" WHERE "user_RoleId" IN (1, 2) AND "deletedAt" IS NULL`,
+        { type: QueryTypes.SELECT, transaction: t }
+      );
+      const empName = `${request.user_FirstName || "Employee"} ${request.user_LastName || ""}`.trim();
+      const notifyMsg = `${empName} has updated and resubmitted their ${request.reqTypeName} request (#${requestId}).${modificationReason ? ` Note: "${modificationReason}"` : ""}`;
+      for (const approver of approvers) {
+        await Notification.create({
+          user_Id: approver.user_Id,
+          title: "Request Resubmitted",
+          message: notifyMsg,
+          targetId: parseInt(requestId, 10),
+          isRead: false
+        }, { transaction: t });
+      }
+    } else {
+      // Admin / Supervisor modifying an employee request
+      const notifyMsg = `Your ${request.reqTypeName} request (#${requestId}) has been modified by the admin.${modificationReason ? ` Reason: ${modificationReason}` : ""}`;
+      await Notification.create({
+        user_Id: request.user_Id,
+        title: "Request Modified",
+        message: notifyMsg,
+        targetId: parseInt(requestId, 10),
+        isRead: false
+      }, { transaction: t });
 
-    // Send Email
-    if (request.user_Email) {
-      const dateStr = StartDate ? (EndDate ? `${StartDate} to ${EndDate}` : StartDate) : 
-                      OT_DateOf ? OT_DateOf : 
-                      logDate ? logDate : 
-                      DateonField || "N/A";
-      
-      const [wp] = await sequelize.query(`SELECT "withPayName" FROM "withPay" WHERE "withPayId" = :WithPayID`, { replacements: { WithPayID }, type: QueryTypes.SELECT, transaction: t });
+      // Send Email
+      if (request.user_Email) {
+        const dateStr = StartDate ? (EndDate ? `${StartDate} to ${EndDate}` : StartDate) : 
+                        OT_DateOf ? OT_DateOf : 
+                        logDate ? logDate : 
+                        DateonField || "N/A";
+        
+        const [wp] = await sequelize.query(`SELECT "withPayName" FROM "withPay" WHERE "withPayId" = :WithPayID`, { replacements: { WithPayID }, type: QueryTypes.SELECT, transaction: t });
 
-      sendRequestStatusEmail({
-        email: request.user_Email,
-        name: `${request.user_FirstName} ${request.user_LastName}`,
-        requestType: request.reqTypeName,
-        status: "Modified by Admin",
-        dateStr,
-        reason: modificationReason,
-        withPayName: wp?.withPayName
-      }).catch(err => console.error("[MOD STATUS EMAIL FAILED]:", err.message));
+        sendRequestStatusEmail({
+          email: request.user_Email,
+          name: `${request.user_FirstName} ${request.user_LastName}`,
+          requestType: request.reqTypeName,
+          status: "Modified by Admin",
+          dateStr,
+          reason: modificationReason,
+          withPayName: wp?.withPayName
+        }).catch(err => console.error("[MOD STATUS EMAIL FAILED]:", err.message));
+      }
     }
 
     await t.commit();

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Sidebar from "../../components/Sidebar";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -11,6 +11,8 @@ import { fetchWithAuth } from "../../utils/api";
 import { getStoredUser, setStoredUser } from "../../utils/authStorage";
 import { ChevronLeft } from "lucide-react";
 import VpnKeyOutlinedIcon from '@mui/icons-material/VpnKeyOutlined';
+import { useUnsavedChanges } from "../../hooks/useUnsavedChanges";
+import UnsavedChangesModal from "../../components/UnsavedChangesModal";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -203,27 +205,33 @@ const Edit = () => {
   const [showMachipId, setShowMachipId] = useState(false);
   const [isPasswordFocused, setIsPasswordFocused] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [isDirty, setIsDirty] = useState(false);
-  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const initialDataRef = useRef(null);
+
+  const isFormDirty = useMemo(() => {
+    if (file !== null) return true;
+    if (!initialDataRef.current) return false;
+    return Object.keys(initialDataRef.current).some((key) => {
+      // Ignore user_Password if not filled (since it starts empty)
+      if (key === "user_Password" && !formData[key]) return false;
+      return String(formData[key] ?? "") !== String(initialDataRef.current[key] ?? "");
+    });
+  }, [formData, file]);
+
+  const { showPrompt, confirmNavigation, cancelNavigation } = useUnsavedChanges(
+    isFormDirty,
+    "You have unsaved form entries. If you leave or exit to another page, all modifications will be discarded. Do you wish to proceed?",
+    () => {
+      setFile(null);
+    }
+  );
+
   const [positions, setPositions] = useState([]);
   const [toast, setToast] = useState({ message: "", type: "success" });
   const [loadingGovt, setLoadingGovt] = useState(false);
   const [userData, setUserData] = useState(null);
   const [enableNightShift, setEnableNightShift] = useState(false);
-  
   const [originalRole, setOriginalRole] = useState("");
   const isTargetAdminManager = Number(formData.user_RoleId) === 1 || formData.user_Role === "Admin Manager" || Number(userData?.user_RoleId) === 1 || originalRole === "Admin Manager";
-
-  useEffect(() => {
-    const handleBeforeUnload = (e) => {
-      if (isDirty) {
-        e.preventDefault();
-        e.returnValue = "";
-      }
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [isDirty]);
 
   useEffect(() => {
     fetchWithAuth("/api/system/settings")
@@ -444,7 +452,7 @@ const Edit = () => {
         const response = await fetchWithAuth(`/api/users/${userId}`);
         if (response.ok) {
           const userData = await response.json();
-          setFormData({
+          const initialFormValues = {
             user_FirstName: userData.user_FirstName || "",
             user_MiddleName: userData.user_MiddleName || "",
             user_LastName: userData.user_LastName || "",
@@ -485,7 +493,9 @@ const Edit = () => {
             account_Number: userData.account_Number || "",
             bank_Company: userData.bank_Company || "UnionBank of the Philippines",
             bank_AccountName: userData.bank_AccountName || ""
-          });
+          };
+          setFormData(initialFormValues);
+          initialDataRef.current = initialFormValues;
           setUserData(userData);
           setExistingAvatar(userData.user_ProfilePic || "");
           setOriginalRole(userData.user_Role);
@@ -510,14 +520,12 @@ const Edit = () => {
     }
 
     setFormData((prev) => ({ ...prev, [name]: value }));
-    setIsDirty(true);
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
     }
   };
 
   const handleSelectChange = (name, value) => {
-    setIsDirty(true);
     setFormData((prev) => {
       const updated = { ...prev, [name]: value };
       
@@ -642,7 +650,8 @@ const Edit = () => {
       });
 
       if (response.ok) {
-        setIsDirty(false);
+        initialDataRef.current = { ...formData };
+        setFile(null);
         const result = await response.json();
         
         // If the updated user is the current logged-in user, update session and local storage
@@ -725,8 +734,9 @@ const Edit = () => {
                         variant="ghost" 
                         size="icon" 
                         onClick={() => {
-                          if (isDirty) {
-                            setShowLeaveConfirm(true);
+                          if (isFormDirty) {
+                            window.__machip_unsaved?.setPending(`/users/${userId}`);
+                            window.__machip_unsaved?.promptFn();
                           } else {
                             navigate(-1);
                           }
@@ -1403,31 +1413,13 @@ const Edit = () => {
       />
 
       {/* Unsaved Changes Confirmation Dialog */}
-      <Dialog open={showLeaveConfirm} onOpenChange={setShowLeaveConfirm}>
-        <DialogContent className="sm:max-w-md bg-white border-0 shadow-2xl rounded-xl">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-bold text-slate-800">Unsaved Changes</DialogTitle>
-            <DialogDescription className="text-slate-500 mt-2">
-              You have unsaved form entries. Are you sure you want to discard your changes and return to User Details?
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="flex sm:justify-end gap-2 mt-4">
-            <Button variant="outline" onClick={() => setShowLeaveConfirm(false)}>
-              Stay on Page
-            </Button>
-            <Button 
-              variant="destructive" 
-              onClick={() => { 
-                setIsDirty(false); 
-                setShowLeaveConfirm(false); 
-                navigate(`/users/${userId}`); 
-              }}
-            >
-              Discard & Leave
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <UnsavedChangesModal
+        isOpen={showPrompt}
+        onConfirm={confirmNavigation}
+        onCancel={cancelNavigation}
+        title="Unsaved User Changes"
+        description="You have unsaved form entries. If you leave or exit to another page, all modifications will be discarded. Do you wish to proceed?"
+      />
 
       </Sidebar>
     </div>

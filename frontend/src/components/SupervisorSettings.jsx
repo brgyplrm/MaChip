@@ -12,6 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { useUnsavedChanges } from "../hooks/useUnsavedChanges";
+import UnsavedChangesModal from "./UnsavedChangesModal";
 
 // Icons
 import {
@@ -28,7 +30,10 @@ import {
   CheckCircle2,
   ExternalLink,
   Layers,
-  ArrowRight
+  ArrowRight,
+  Edit3,
+  Save,
+  X
 } from "lucide-react";
 
 export default function SupervisorSettings() {
@@ -36,6 +41,8 @@ export default function SupervisorSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const { showPrompt, confirmNavigation, cancelNavigation } = useUnsavedChanges(isEditing);
 
   // 1. Team & Shift States
   const [minimumStaffingThreshold, setMinimumStaffingThreshold] = useState(25);
@@ -189,13 +196,38 @@ export default function SupervisorSettings() {
               <CheckCircle2 className="w-4 h-4 text-emerald-300" /> Settings Saved!
             </span>
           )}
-          <Button
-            onClick={() => handleSavePreferences()}
-            disabled={saving}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm h-10 px-5 shadow-sm rounded-lg transition-all cursor-pointer disabled:opacity-50"
-          >
-            {saving ? "Saving..." : "Save Settings"}
-          </Button>
+          {isEditing ? (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  loadPreferences();
+                  setIsEditing(false);
+                }}
+                disabled={saving}
+                className="bg-white/10 hover:bg-white/20 text-white border-white/20 font-semibold text-xs h-9 px-3.5 shadow-sm rounded-lg transition-all cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5 mr-1" /> Cancel
+              </Button>
+              <Button
+                onClick={async () => {
+                  await handleSavePreferences();
+                  setIsEditing(false);
+                }}
+                disabled={saving}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 px-4 shadow-sm rounded-lg transition-all cursor-pointer disabled:opacity-50"
+              >
+                <Save className="w-3.5 h-3.5 mr-1" /> {saving ? "Saving..." : "Save Settings"}
+              </Button>
+            </div>
+          ) : (
+            <Button
+              onClick={() => setIsEditing(true)}
+              className="bg-[#FF6B00] hover:bg-[#e66000] text-white font-semibold text-xs h-9 px-4 shadow-sm rounded-lg transition-all cursor-pointer"
+            >
+              <Edit3 className="w-3.5 h-3.5 mr-1" /> Edit Preferences
+            </Button>
+          )}
         </div>
       </div>
 
@@ -243,8 +275,9 @@ export default function SupervisorSettings() {
                 max="50"
                 step="5"
                 value={minimumStaffingThreshold}
+                disabled={!isEditing}
                 onChange={(e) => setMinimumStaffingThreshold(parseInt(e.target.value, 10))}
-                className="w-full accent-[#1058c7] cursor-pointer"
+                className="w-full accent-[#1058c7] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               />
               <span className="text-xs text-slate-400 font-bold">50%</span>
             </div>
@@ -270,7 +303,7 @@ export default function SupervisorSettings() {
                 </p>
               </div>
             </div>
-            <Switch checked={irregularitiesFirst} onCheckedChange={setIrregularitiesFirst} />
+            <Switch checked={irregularitiesFirst} onCheckedChange={setIrregularitiesFirst} disabled={!isEditing} />
           </div>
 
           {/* Department Shift Rules (Dynamic Sync) */}
@@ -349,8 +382,8 @@ export default function SupervisorSettings() {
             <Label className="font-bold text-slate-900 text-sm">Subordinate Request Notification Delivery Mode</Label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
               <div
-                onClick={() => setNotificationMode("instant")}
-                className={`p-4 rounded-xl cursor-pointer transition-all space-y-1.5 ${
+                onClick={() => { if (isEditing) setNotificationMode("instant"); }}
+                className={`p-4 rounded-xl transition-all space-y-1.5 ${!isEditing ? "opacity-75 cursor-default" : "cursor-pointer"} ${
                   notificationMode === "instant"
                     ? "border-2 border-brand-primary bg-brand-primary-light/30 shadow-xs"
                     : "border border-slate-200/80 bg-white hover:bg-slate-50/80"
@@ -368,8 +401,8 @@ export default function SupervisorSettings() {
               </div>
 
               <div
-                onClick={() => setNotificationMode("digest")}
-                className={`p-4 rounded-xl cursor-pointer transition-all space-y-1.5 ${
+                onClick={() => { if (isEditing) setNotificationMode("digest"); }}
+                className={`p-4 rounded-xl transition-all space-y-1.5 ${!isEditing ? "opacity-75 cursor-default" : "cursor-pointer"} ${
                   notificationMode === "digest"
                     ? "border-2 border-brand-primary bg-brand-primary-light/30 shadow-xs"
                     : "border border-slate-200/80 bg-white hover:bg-slate-50/80"
@@ -405,7 +438,7 @@ export default function SupervisorSettings() {
                 </p>
               </div>
             </div>
-            <Switch checked={escalationWarning48h} onCheckedChange={setEscalationWarning48h} />
+            <Switch checked={escalationWarning48h} onCheckedChange={setEscalationWarning48h} disabled={!isEditing} />
           </div>
 
           <div className="p-4 bg-white rounded-xl border border-slate-200/80 hover:bg-slate-50/50 transition-colors flex items-center justify-between gap-4">
@@ -420,7 +453,7 @@ export default function SupervisorSettings() {
                 </p>
               </div>
             </div>
-            <Switch checked={safeQuickEndorse} onCheckedChange={setSafeQuickEndorse} />
+            <Switch checked={safeQuickEndorse} onCheckedChange={setSafeQuickEndorse} disabled={!isEditing} />
           </div>
 
         </CardContent>
@@ -462,9 +495,9 @@ export default function SupervisorSettings() {
             </div>
             <Switch
               checked={privacyShield}
+              disabled={!isEditing}
               onCheckedChange={(val) => {
                 setPrivacyShield(val);
-                handleSavePreferences({ privacyShield: val });
               }}
             />
           </div>
@@ -496,6 +529,11 @@ export default function SupervisorSettings() {
 
         </CardContent>
       </Card>
+      <UnsavedChangesModal
+        isOpen={showPrompt}
+        onConfirm={confirmNavigation}
+        onCancel={cancelNavigation}
+      />
     </div>
   );
 }

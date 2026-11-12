@@ -69,7 +69,7 @@ router.get("/balance/:userId", (req, res, next) => {
 router.get("/details/:requestId", authMiddleware, GetRequestDetails);
 router.get("/:userId", requireSelfOrStaff("userId"), GetUserRequests);
 router.put("/update-status", requireOps, UpdateStatusRequest);
-router.put("/update/:requestId", authMiddleware, UpdateUserRequest);
+router.put("/update/:requestId", authMiddleware, uploadFields, UpdateUserRequest);
 router.post("/notify-supervisor/:requestId", authMiddleware, notifySupervisor);
 router.post("/ping-approver/:requestId", requireStaff, pingApprover);
 router.post("/:requestId/ping-approver", requireStaff, pingApprover);

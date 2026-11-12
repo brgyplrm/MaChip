@@ -1,5 +1,5 @@
 import Sidebar from "../../components/Sidebar";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import Toast from "../../components/toast/Toast";
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -16,6 +16,8 @@ import { fetchWithAuth } from "../../utils/api";
 import { Link } from "react-router-dom";
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useUnsavedChanges } from "../../hooks/useUnsavedChanges";
+import UnsavedChangesModal from "../../components/UnsavedChangesModal";
 
 // shadcn/ui components
 import { Button } from "@/components/ui/button";
@@ -124,8 +126,36 @@ const New = ({ inputs = [], title }) => {
   });
 
   const [showMachipId, setShowMachipId] = useState(false);
-  const [isDirty, setIsDirty] = useState(false);
-  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+
+  const isFormDirty = useMemo(() => {
+    if (file !== null) return true;
+    const trackedKeys = [
+      "user_FirstName", "user_LastName", "user_MiddleName", "user_Phone",
+      "user_Address", "user_DOB", "user_Gender", "user_Email", "department",
+      "position", "position_id", "dailyRate", "user_Password", "user_MachipId",
+      "user_FingerprintId", "user_FingerprintTemplate", "account_Number",
+      "bank_AccountName"
+    ];
+    const hasAnyTrackedInput = trackedKeys.some(
+      (key) => String(formData[key] ?? "").trim() !== ""
+    );
+    const hasNonDefaultStatus = 
+      formData.civil_status !== "Single" ||
+      formData.is_solo_parent === true ||
+      formData.user_EmploymentStatus !== "Regular" ||
+      formData.user_Role !== "Employee" ||
+      formData.is_attendance_exempt === true;
+
+    return hasAnyTrackedInput || hasNonDefaultStatus;
+  }, [formData, file]);
+
+  const { showPrompt, confirmNavigation, cancelNavigation } = useUnsavedChanges(
+    isFormDirty,
+    "You have unsaved form entries. If you leave or exit to another page, all modifications will be discarded. Do you wish to proceed?",
+    () => {
+      setFile(null);
+    }
+  );
 
   // Batch Upload State
   const [batchLoading, setBatchLoading] = useState(false);
@@ -234,23 +264,10 @@ const New = ({ inputs = [], title }) => {
       return updated;
     });
 
-    setIsDirty(true);
-
     if (errors[id]) {
       setErrors((prev) => ({ ...prev, [id]: "" }));
     }
   };
-
-  useEffect(() => {
-    const handleBeforeUnload = (e) => {
-      if (isDirty) {
-        e.preventDefault();
-        e.returnValue = "";
-      }
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [isDirty]);
 
   const handleIdBlur = () => {
     if (displayId) {
@@ -901,8 +918,9 @@ const New = ({ inputs = [], title }) => {
                       size="icon" 
                       className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-brand-primary cursor-pointer"
                       onClick={() => {
-                        if (isDirty) {
-                          setShowLeaveConfirm(true);
+                        if (isFormDirty) {
+                          window.__machip_unsaved?.setPending("/users");
+                          window.__machip_unsaved?.promptFn();
                         } else {
                           navigate("/users");
                         }
@@ -1521,31 +1539,13 @@ const New = ({ inputs = [], title }) => {
           </div>
         )}
         {/* Unsaved Changes Confirmation Dialog */}
-        <Dialog open={showLeaveConfirm} onOpenChange={setShowLeaveConfirm}>
-          <DialogContent className="sm:max-w-md bg-white border-0 shadow-2xl rounded-xl">
-            <DialogHeader>
-              <DialogTitle className="text-xl font-bold text-slate-800">Unsaved Changes</DialogTitle>
-              <DialogDescription className="text-slate-500 mt-2">
-                You have unsaved form entries. Are you sure you want to discard your changes and return to User Management?
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter className="flex sm:justify-end gap-2 mt-4">
-              <Button variant="outline" onClick={() => setShowLeaveConfirm(false)}>
-                Stay on Page
-              </Button>
-              <Button 
-                variant="destructive" 
-                onClick={() => { 
-                  setIsDirty(false); 
-                  setShowLeaveConfirm(false); 
-                  navigate("/users"); 
-                }}
-              >
-                Discard & Leave
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <UnsavedChangesModal
+          isOpen={showPrompt}
+          onConfirm={confirmNavigation}
+          onCancel={cancelNavigation}
+          title="Unsaved Form Changes"
+          description="You have unsaved form entries. If you leave or exit to another page, all modifications will be discarded. Do you wish to proceed?"
+        />
       </div>
       </TooltipProvider>
       </Sidebar>

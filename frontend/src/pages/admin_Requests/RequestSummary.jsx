@@ -39,7 +39,7 @@ const RequestSummary = () => {
   // RBAC Guard: Restrict page to Admin Manager (1), Supervisor (2), and Admin Accountant (4)
   useEffect(() => {
     if (!userData?.user_Id || ![1, 2, 4].includes(userRoleId)) {
-      navigate("/userRequests", { replace: true });
+      navigate("/requests", { replace: true });
     }
   }, [navigate, userRoleId, userData?.user_Id]);
 

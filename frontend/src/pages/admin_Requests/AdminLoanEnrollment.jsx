@@ -316,7 +316,7 @@ const AdminLoanEnrollment = () => {
                 to="/adminReports" 
                 state={{ activeTab: "requests" }}
               >
-                <AssessmentIcon className="mr-2 h-4 w-4" /> View Request Report
+                <AssessmentIcon className="mr-2 h-4 w-4" /> View Requests Summary
               </Link>
             </Button>
           </div>

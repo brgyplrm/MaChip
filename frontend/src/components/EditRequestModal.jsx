@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { fetchWithAuth } from "../utils/api";
+import { getStoredUser } from "../utils/authStorage";
 import CloseIcon from "@mui/icons-material/Close";
 import StaticTimePickerLandscape from "./StaticTimePickerLandscape";
 
@@ -26,14 +27,24 @@ const calculateAmortizationStart = (dateStr, agency, loanType) => {
   return `${yyyy}-${mm}`;
 };
 
-const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
+const EditRequestModal = ({ isOpen, onClose, request, onUpdate, onDirtyChange }) => {
   const [formData, setFormData] = useState({});
   const [loading, setLoading] = useState(false);
   const [modificationReason, setModificationReason] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [replacementFile, setReplacementFile] = useState(null);
+  const initialSnapshotRef = useRef(null);
+
+  const currentUser = getStoredUser();
+  const isOwner = currentUser?.user_Id === request?.user_Id;
+  const isEmployee = isOwner || request?.emp_reqStatusId === 5;
+  const existingAttachment = request?.proof_File || request?.ST_proof_File || request?.SL_proof_File || request?.OW_proof_File || request?.LC_proof_File || request?.LR_proof_File;
 
   useEffect(() => {
-    if (request) {
+    if (request && isOpen) {
+      setReplacementFile(null);
+      setModificationReason("");
+      setErrorMessage("");
       // Find the existing payment status from any of the potential fields
       const initialWithPayID = request.VL_WithPayID || request.SL_WithPayID || request.EL_WithPayID || request.HD_WithPayID || request.ST_WithPayID || 1;
       const approvalDate = request.LR_approvalDate || "";
@@ -44,7 +55,7 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
         startMonth = calculateAmortizationStart(approvalDate, agency, loanType);
       }
       
-      setFormData({
+      const initialValues = {
         emp_reqTypeId: request.emp_reqTypeId,
         remarks: request.remarks || "",
         // OT fields
@@ -80,9 +91,34 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
         amortizationStartMonth: startMonth,
         calamityArea: request.LR_calamityArea || "",
         deductionFrequency: request.LR_deductionFrequency || "semi-monthly",
-      });
+      };
+      setFormData(initialValues);
+      initialSnapshotRef.current = initialValues;
     }
-  }, [request]);
+  }, [request, isOpen]);
+
+  const isDirty = useMemo(() => {
+    if (!isOpen || !request) return false;
+    if (modificationReason.trim() !== "" || replacementFile !== null) return true;
+    if (!initialSnapshotRef.current) return false;
+    return Object.keys(initialSnapshotRef.current).some(
+      (key) => String(formData[key] ?? "") !== String(initialSnapshotRef.current[key] ?? "")
+    );
+  }, [isOpen, request, modificationReason, replacementFile, formData]);
+
+  useEffect(() => {
+    if (typeof onDirtyChange === "function") {
+      onDirtyChange(isDirty);
+    }
+  }, [isDirty, onDirtyChange]);
+
+  useEffect(() => {
+    return () => {
+      if (typeof onDirtyChange === "function") {
+        onDirtyChange(false);
+      }
+    };
+  }, [onDirtyChange]);
 
   if (!isOpen || !request) return null;
 
@@ -172,24 +208,35 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
     e.preventDefault();
     setLoading(true);
     try {
-      // Ensure WithPayID is sent as integer for the backend and reason/remarks are mapped
-      const payload = { 
-        ...formData, 
-        reason: formData.remarks || "",
-        remarks: formData.remarks || "",
-        WithPayID: parseInt(formData.WithPayID) || 1,
-        modificationReason 
-      };
+      const payload = new FormData();
+      Object.keys(formData).forEach((key) => {
+        if (formData[key] !== undefined && formData[key] !== null) {
+          payload.append(key, formData[key]);
+        }
+      });
+      payload.append("reason", formData.remarks || "");
+      payload.append("remarks", formData.remarks || "");
+      payload.append("WithPayID", parseInt(formData.WithPayID) || 1);
+      payload.append("modificationReason", modificationReason);
+      if (request.emp_reqStatusId === 5) {
+        payload.append("resend", "true");
+      }
+      if (replacementFile) {
+        payload.append("proofFile", replacementFile);
+      }
       
       const response = await fetchWithAuth(`/api/request/update/${request.emp_reqId}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: payload,
       });
       if (response.ok) {
+        if (typeof onDirtyChange === "function") {
+          onDirtyChange(false);
+        }
         onUpdate();
         onClose();
         setModificationReason(""); 
+        setReplacementFile(null);
         setErrorMessage("");
       } else {
         const error = await response.json().catch(() => ({}));
@@ -203,6 +250,18 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
     }
   };
 
+  const handleCloseAttempt = () => {
+    if (isDirty) {
+      if (!window.confirm("You have unsaved changes in this modal. Are you sure you want to discard them and exit?")) {
+        return;
+      }
+    }
+    if (typeof onDirtyChange === "function") {
+      onDirtyChange(false);
+    }
+    onClose();
+  };
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -211,7 +270,7 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
             <h2 className="text-xl font-bold text-brand-primary">Edit Request #REQ-{request.emp_reqId}</h2>
             <p className="text-sm text-slate-500">{request.reqTypeName} for {request.userName}</p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
+          <button onClick={handleCloseAttempt} className="p-2 hover:bg-slate-200 rounded-full transition-colors cursor-pointer">
             <CloseIcon />
           </button>
         </div>
@@ -254,6 +313,23 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
                     ]}
                     onChange={handleInputChange}
                   />
+                </div>
+              </>
+            )}
+
+            {typeId === 2 && (
+              <>
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-slate-700">Date on Field</label>
+                  <Input type="date" name="DateonField" value={formData.DateonField || ""} onChange={handleInputChange} required />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-slate-700">Total Hours</label>
+                  <Input type="number" name="NoHrs" value={formData.NoHrs || ""} onChange={handleInputChange} step="0.5" required />
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <label className="text-sm font-bold text-slate-700">Destination / Location</label>
+                  <Input type="text" name="destination" value={formData.destination || ""} onChange={handleInputChange} placeholder="Client name or site location" required />
                 </div>
               </>
             )}
@@ -557,25 +633,67 @@ const EditRequestModal = ({ isOpen, onClose, request, onUpdate }) => {
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-400 uppercase tracking-tight">Employee Remarks / Reason (Read Only)</label>
-            <Textarea name="remarks" value={formData.remarks} readOnly className="h-20 bg-slate-50 text-slate-500 cursor-not-allowed border-slate-200 resize-none" />
+            <label className="text-sm font-bold text-slate-700">Request Reason / Remarks</label>
+            <Textarea 
+              name="remarks" 
+              value={formData.remarks || ""} 
+              onChange={handleInputChange} 
+              placeholder="Reason or details for this request..."
+              className="h-20 bg-white text-slate-800 border-slate-200 resize-none focus-visible:ring-indigo-500" 
+            />
           </div>
 
-          <div className="space-y-2 p-4 bg-amber-50 rounded-xl border border-amber-100 shadow-inner">
-            <label className="text-sm font-bold text-amber-800 flex items-center gap-2">
-               Modification Reason (Sent to Employee)
+          {([2, 4, 5, 8, 9, 10, 11, 12, 13, 14].includes(typeId) || existingAttachment) && (
+            <div className="space-y-2 p-4 bg-slate-50 rounded-xl border border-slate-200">
+              <label className="text-sm font-bold text-slate-700 flex items-center justify-between">
+                <span>Supporting Attachment / Document</span>
+                {replacementFile && (
+                  <span className="text-xs text-emerald-600 font-semibold">New file selected</span>
+                )}
+              </label>
+              {existingAttachment && !replacementFile && (
+                <div className="flex items-center gap-2 text-xs text-slate-600 bg-white p-2.5 rounded-lg border border-slate-200">
+                  <span className="font-semibold text-slate-500">Current File:</span>
+                  <span className="font-mono truncate max-w-xs">{existingAttachment.split("/").pop()}</span>
+                  <span className="text-[11px] text-slate-400 italic">(Upload below to replace)</span>
+                </div>
+              )}
+              <Input
+                type="file"
+                accept=".pdf,.png,.jpg,.jpeg"
+                onChange={(e) => setReplacementFile(e.target.files[0] || null)}
+                className="bg-white file:mr-3 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-brand-primary file:text-white hover:file:bg-brand-primary-hover cursor-pointer"
+              />
+              {replacementFile && (
+                <p className="text-xs text-slate-500 flex items-center justify-between">
+                  <span>Replacement: <b>{replacementFile.name}</b> ({(replacementFile.size / 1024).toFixed(1)} KB)</span>
+                  <button 
+                    type="button" 
+                    onClick={() => setReplacementFile(null)} 
+                    className="text-rose-600 hover:underline font-bold text-xs"
+                  >
+                    Clear Replacement
+                  </button>
+                </p>
+              )}
+            </div>
+          )}
+
+          <div className={`space-y-2 p-4 rounded-xl border shadow-inner ${isEmployee ? "bg-indigo-50/70 border-indigo-100" : "bg-amber-50 border-amber-100"}`}>
+            <label className={`text-sm font-bold flex items-center gap-2 ${isEmployee ? "text-indigo-900" : "text-amber-800"}`}>
+               {isEmployee ? "Reason for Resubmission (Sent to Approver / Supervisor)" : "Modification Reason (Sent to Employee)"}
             </label>
             <Textarea 
               value={modificationReason} 
               onChange={(e) => setModificationReason(e.target.value)} 
-              placeholder="Explain why you are modifying this request..." 
+              placeholder={isEmployee ? "Explain what changes or corrections you made for resubmission..." : "Explain why you are modifying this request..."} 
               required
-              className="bg-white border-amber-200 focus-visible:ring-amber-500 h-20 shadow-sm"
+              className={`bg-white h-20 shadow-sm ${isEmployee ? "border-indigo-200 focus-visible:ring-indigo-500" : "border-amber-200 focus-visible:ring-amber-500"}`}
             />
           </div>
 
           <div className="pt-4 border-t flex justify-end gap-3">
-            <Button type="button" variant="outline" onClick={onClose} disabled={loading} className="px-6 border-slate-300">Cancel</Button>
+            <Button type="button" variant="outline" onClick={handleCloseAttempt} disabled={loading} className="px-6 border-slate-300">Cancel</Button>
             <Button type="submit" className="bg-brand-primary text-white hover:bg-brand-primary-hover px-8 shadow-md" disabled={loading}>
               {loading ? "Updating..." : "Save Changes"}
             </Button>

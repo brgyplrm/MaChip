@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, Link } from "react-router-dom";
 import Sidebar from "../../components/Sidebar";
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
@@ -9,6 +9,7 @@ import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import HistoryIcon from '@mui/icons-material/History';
 import AssessmentIcon  from "@mui/icons-material/Assessment";
 import EditIcon from "@mui/icons-material/Edit";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import ReplyIcon from "@mui/icons-material/Reply";
 import EditRequestModal from "../../components/EditRequestModal";
 import StaticTimePickerLandscape from "../../components/StaticTimePickerLandscape";
@@ -35,6 +36,8 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { TablePagination } from "@/components/ui/table-pagination";
+import { useUnsavedChanges } from "../../hooks/useUnsavedChanges";
+import UnsavedChangesModal from "../../components/UnsavedChangesModal";
 
 const isSaturday = (dateStr) => {
   if (!dateStr) return false;
@@ -47,8 +50,15 @@ const UserRequests = () => {
   const location = useLocation();
   const { systemToday } = useSystemTime();
   const [userData, setUserData] = useState(() => getStoredUser() || {});
-  const [activeTab, setActiveTab] = useState("submit"); // "submit" or "history"
-  const [historyTab, setHistoryTab] = useState("pending"); // "pending", "returned", "past"
+  const [activeTab, setActiveTab] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("tab") || "submit";
+  });
+  const [historyTab, setHistoryTab] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("subTab") || "pending";
+  });
+  const handledDeepLinkRef = useRef(null);
   const [historySearchQuery, setHistorySearchQuery] = useState("");
   const [historyTypeFilter, setHistoryTypeFilter] = useState("All Types");
   const [toast, setToast] = useState({ message: "", type: "success" });
@@ -88,6 +98,12 @@ const UserRequests = () => {
   // Edit Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedRequestToEdit, setSelectedRequestToEdit] = useState(null);
+  const [isEditModalDirty, setIsEditModalDirty] = useState(false);
+
+  const handleEditReturned = useCallback((req) => {
+    setSelectedRequestToEdit(req);
+    setIsEditModalOpen(true);
+  }, []);
 
   // Pagination & History States
   const [currentPage, setCurrentPage] = useState(1);
@@ -237,6 +253,87 @@ const UserRequests = () => {
     deductionFrequency: "semi-monthly",
   });
 
+  const isSubmitFormDirty = activeTab === "submit" && Boolean(
+    (formData.emp_reqTypeId && formData.emp_reqTypeId !== "") ||
+    (formData.remarks && formData.remarks.trim() !== "") ||
+    formData.leaveStartDate ||
+    formData.leaveEndDate ||
+    formData.otDate ||
+    formData.hrFrom ||
+    formData.hrTo ||
+    formData.logCorrDate ||
+    formData.currentIn ||
+    formData.currentOut ||
+    formData.claimedIn ||
+    formData.claimedOut ||
+    formData.correctionCategory ||
+    formData.period ||
+    formData.agency ||
+    formData.loanType ||
+    formData.amountRequested ||
+    formData.monthsToPay ||
+    formData.loanReferenceNo ||
+    formData.loanApprovalDate ||
+    formData.proofFile
+  );
+
+  const isDirty = isSubmitFormDirty || (isEditModalOpen && isEditModalDirty);
+
+  const handleResetDirty = useCallback(() => {
+    setIsEditModalOpen(false);
+    setIsEditModalDirty(false);
+    setFormData(prev => ({
+      ...prev,
+      emp_reqTypeId: "",
+      remarks: "",
+      leaveStartDate: "",
+      leaveEndDate: "",
+      noDays: 0,
+      otDate: "",
+      hrFrom: "",
+      hrTo: "",
+      totalHrs: 0,
+      proofFile: null,
+      logCorrDate: "",
+      currentIn: "",
+      currentOut: "",
+      claimedIn: "",
+      claimedOut: "",
+      correctionCategory: "",
+      period: "",
+      agency: "",
+      loanType: "",
+      amountRequested: "",
+      monthsToPay: "",
+      loanReferenceNo: "",
+      loanApprovalDate: "",
+      monthlyAmortization: "",
+      totalLoanTerm: "",
+      amortizationStartMonth: "",
+      totalOutstandingBalance: "",
+      pagibigTAV: "",
+      consoDP: "",
+      mscCount: "",
+      avgMSC: "",
+    }));
+  }, []);
+
+  const { showPrompt, confirmNavigation, cancelNavigation } = useUnsavedChanges(
+    isDirty,
+    "You have unsaved changes on this form. If you leave or exit to another page, all modifications will be discarded. Do you wish to proceed?",
+    handleResetDirty
+  );
+
+  const handleTabToggle = (tab) => {
+    if (tab === "history" && isSubmitFormDirty) {
+      if (!window.confirm("You have an unsaved request drafted. Are you sure you want to discard your input and switch to History?")) {
+        return;
+      }
+      handleResetDirty();
+    }
+    setActiveTab(tab);
+  };
+
   // Sync profile details (gender, civil_status, is_solo_parent) from database
   useEffect(() => {
     const syncProfile = async () => {
@@ -263,9 +360,38 @@ const UserRequests = () => {
     syncProfile();
   }, []);
 
-  // Handle incoming redirect navigation for Cash Advance / Loan requests
+  // Handle incoming redirect navigation for deep links (tab, subTab, requestId, action) and Cash Advance / Loan requests
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
+    const tabParam = searchParams.get("tab") || location.state?.tab;
+    const subTabParam = searchParams.get("subTab") || location.state?.subTab;
+    const reqIdParam = searchParams.get("requestId") || location.state?.selectedReqId;
+    const actionParam = searchParams.get("action") || location.state?.action;
+
+    if (tabParam === "history") {
+      setActiveTab("history");
+    } else if (tabParam === "submit") {
+      setActiveTab("submit");
+    }
+
+    if (subTabParam && ["pending", "returned", "past"].includes(subTabParam)) {
+      setHistoryTab(subTabParam);
+    }
+
+    if (reqIdParam && historyRequests.length > 0) {
+      const targetId = parseInt(reqIdParam, 10);
+      if (handledDeepLinkRef.current !== targetId) {
+        const found = historyRequests.find(r => r.emp_reqId === targetId);
+        if (found) {
+          setSelectedReqId(targetId);
+          handledDeepLinkRef.current = targetId;
+          if (actionParam === "edit" && found.emp_reqStatusId === 5) {
+            handleEditReturned(found);
+          }
+        }
+      }
+    }
+
     const isCashAdvance =
       location.state?.openCashAdvance ||
       location.state?.requestType === "cash_advance" ||
@@ -310,7 +436,7 @@ const UserRequests = () => {
         window.history.replaceState({}, document.title);
       }
     }
-  }, [location.state, location.search]);
+  }, [location.state, location.search, historyRequests, handleEditReturned]);
 
   // Demographic eligibility helpers for statutory leave benefits
   const userGender = (userData?.user_Gender || "").toLowerCase().trim();
@@ -514,11 +640,6 @@ const UserRequests = () => {
     } finally {
       if (!isBackground) setLoading(false);
     }
-  };
-
-  const handleEditReturned = (req) => {
-    setSelectedRequestToEdit(req);
-    setIsEditModalOpen(true);
   };
 
   const handleUpdateSuccess = () => {
@@ -1843,7 +1964,7 @@ const UserRequests = () => {
                 <TooltipTrigger asChild>
                   <button
                     className={`flex-1 py-4 font-semibold text-sm transition-colors ${activeTab === "submit" ? "text-brand-primary border-b-2 border-brand-primary bg-white" : "text-slate-500 hover:bg-slate-100"}`}
-                    onClick={() => setActiveTab("submit")}
+                    onClick={() => handleTabToggle("submit")}
                   >
                     <AddCircleOutlineIcon className="h-4 w-4 mr-1 mb-0.5" /> Submit Request
                   </button>
@@ -1855,10 +1976,16 @@ const UserRequests = () => {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
-                    className={`flex-1 py-4 font-semibold text-sm transition-colors ${activeTab === "history" ? "text-brand-primary border-b-2 border-brand-primary bg-white" : "text-slate-500 hover:bg-slate-100"}`}
-                    onClick={() => setActiveTab("history")}
+                    className={`flex-1 py-4 font-semibold text-sm transition-colors flex items-center justify-center gap-1.5 ${activeTab === "history" ? "text-brand-primary border-b-2 border-brand-primary bg-white" : "text-slate-500 hover:bg-slate-100"}`}
+                    onClick={() => handleTabToggle("history")}
                   >
-                    <HistoryIcon className="h-4 w-4 mr-1 mb-0.5" /> History
+                    <HistoryIcon className="h-4 w-4 mb-0.5" /> 
+                    <span>History</span>
+                    {((stats?.pending || 0) > 0 || (stats?.returned || 0) > 0) && (
+                      <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-amber-100 text-amber-800">
+                        {(stats?.pending || 0) + (stats?.returned || 0)}
+                      </span>
+                    )}
                   </button>
                 </TooltipTrigger>
                 <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
@@ -1910,14 +2037,22 @@ const UserRequests = () => {
                        if (tabName === "past") return "Completed, approved, or rejected requests";
                        return "";
                      };
+                     const count = t === "pending" ? (stats?.pending || 0) : t === "returned" ? (stats?.returned || 0) : ((stats?.approved || 0) + (stats?.rejected || 0));
                      return (
                        <Tooltip key={t}>
                          <TooltipTrigger asChild>
                            <button
                              onClick={() => { setHistoryTab(t); setCurrentPage(1); setSelectedReqId(null); }}
-                             className={`flex-1 py-1.5 text-[11px] font-bold uppercase rounded-md transition-all ${historyTab === t ? "bg-white text-brand-primary shadow-sm" : "text-slate-500 hover:bg-white/50"}`}
+                             className={`flex-1 py-1.5 text-[11px] font-bold uppercase rounded-md transition-all flex items-center justify-center gap-1.5 ${historyTab === t ? "bg-white text-brand-primary shadow-sm" : "text-slate-500 hover:bg-white/50"}`}
                            >
-                             {t}
+                             <span>{t}</span>
+                             <span className={`px-1.5 py-0.2 text-[10px] font-bold rounded-full ${
+                               historyTab === t 
+                                 ? (t === "returned" ? "bg-amber-100 text-amber-800" : "bg-brand-primary/10 text-brand-primary") 
+                                 : "bg-slate-200 text-slate-600"
+                             }`}>
+                               {count}
+                             </span>
                            </button>
                          </TooltipTrigger>
                          <TooltipContent className="bg-slate-900 text-white border-slate-800 text-xs font-normal">
@@ -3076,7 +3211,20 @@ const UserRequests = () => {
                         <h3 className="text-xl md:text-2xl font-bold text-brand-primary">Review {currentReq.reqTypeName}</h3>
                         <p className="text-sm text-slate-500 mt-1">Submitted on {currentReq.date_Filed ? new Date(currentReq.date_Filed).toLocaleDateString() : ""}</p>
                       </div>
-                      <div className="flex flex-col sm:flex-row items-end gap-3">
+                      <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          asChild 
+                          className="h-9 px-3 text-xs font-semibold gap-1.5 border-slate-200 text-slate-700 hover:text-brand-primary hover:border-brand-primary bg-white shadow-2xs"
+                        >
+                          <Link 
+                            to={`/requests/${currentReq.emp_reqId}`} 
+                            state={{ from: `/requests?tab=history&subTab=${historyTab}&requestId=${currentReq.emp_reqId}` }}
+                          >
+                            <OpenInNewIcon className="h-3.5 w-3.5" /> Full Details
+                          </Link>
+                        </Button>
                         {currentReq.emp_reqStatusId === 5 && (
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -3374,9 +3522,19 @@ const UserRequests = () => {
 
       <EditRequestModal 
         isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setIsEditModalDirty(false);
+        }}
         request={selectedRequestToEdit}
         onUpdate={handleUpdateSuccess}
+        onDirtyChange={setIsEditModalDirty}
+      />
+
+      <UnsavedChangesModal
+        isOpen={showPrompt}
+        onConfirm={confirmNavigation}
+        onCancel={cancelNavigation}
       />
     </div>
   );

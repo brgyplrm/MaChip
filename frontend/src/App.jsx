@@ -156,6 +156,14 @@ function App() {
           }
         />
         <Route
+          path="/userRequests"
+          element={
+            <ProtectedRoute allowedRoles={[1, 2, 3, 4]}>
+              <Navigate to="/requests" replace />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/accessLogs"
           element={
             <ProtectedRoute allowedRoles={[1, 2, 3, 4]}>

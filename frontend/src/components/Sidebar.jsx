@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
@@ -115,6 +115,15 @@ const getUserInitials = (user) => {
 const Sidebar = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
+
+  const safeNavigate = useCallback((to, options) => {
+    if (window.__machip_unsaved?.isDirty) {
+      window.__machip_unsaved.setPending(to);
+      window.__machip_unsaved.promptFn();
+      return;
+    }
+    navigate(to, options);
+  }, [navigate]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(() => 
     location.pathname.startsWith("/auditLogs") || 
     location.pathname.startsWith("/transactionLog") || 
@@ -276,6 +285,11 @@ const Sidebar = ({ children }) => {
 
   const toggleViewMode = () => {
     const newMode = viewMode === "management" ? "employee" : "management";
+    if (window.__machip_unsaved?.isDirty) {
+      window.__machip_unsaved.setPending(newMode === "employee" ? "/employeeHome" : "/");
+      window.__machip_unsaved.promptFn();
+      return;
+    }
     setStoredViewMode(newMode);
     setViewMode(newMode);
     navigate(newMode === "employee" ? "/employeeHome" : "/");
@@ -341,22 +355,22 @@ const Sidebar = ({ children }) => {
       titleLower.includes("unauthorized") ||
       titleLower.includes("suspicious")
     ) {
-      navigate("/transactionLog");
+      safeNavigate("/transactionLog");
     } else if (notif.title === "Password Reset Request" && notif.targetId) {
-      navigate(`/users/edit/${notif.targetId}`);
+      safeNavigate(`/users/edit/${notif.targetId}`);
     } else if (targetReqId) {
       const userRole = Number(userData?.user_RoleId);
       if (userRole === 1 || userRole === 2 || userRole === 4) {
-        navigate(`/adminRequests?requestId=${targetReqId}`, {
+        safeNavigate(`/adminRequests?requestId=${targetReqId}`, {
           state: { selectedReqId: parseInt(targetReqId, 10) }
         });
       } else {
-        navigate(`/requests/${targetReqId}`);
+        safeNavigate(`/requests/${targetReqId}`);
       }
     } else if (notif.title === "New Request for Review") {
-      navigate("/adminRequests");
+      safeNavigate("/adminRequests");
     } else if (userData?.user_RoleId === 3) {
-      navigate("/userRequests");
+      safeNavigate("/requests");
     }
   };
 

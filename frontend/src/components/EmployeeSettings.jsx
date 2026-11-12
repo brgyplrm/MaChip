@@ -13,6 +13,8 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { useUnsavedChanges } from "../hooks/useUnsavedChanges";
+import UnsavedChangesModal from "./UnsavedChangesModal";
 
 // Icons
 import {
@@ -29,7 +31,10 @@ import {
   FileText,
   Clock,
   Sparkles,
-  ExternalLink
+  ExternalLink,
+  Edit3,
+  Save,
+  X
 } from "lucide-react";
 
 export default function EmployeeSettings() {
@@ -37,6 +42,8 @@ export default function EmployeeSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const { showPrompt, confirmNavigation, cancelNavigation } = useUnsavedChanges(isEditing);
 
   // Preference States
   const [privacyShield, setPrivacyShield] = useState(false);
@@ -218,13 +225,38 @@ export default function EmployeeSettings() {
               <CheckCircle2 className="w-4 h-4 text-emerald-300" /> Preferences Saved!
             </span>
           )}
-          <Button
-            onClick={() => handleSavePreferences()}
-            disabled={saving}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm h-10 px-5 shadow-sm rounded-lg transition-all cursor-pointer disabled:opacity-50"
-          >
-            {saving ? "Saving..." : "Save Preferences"}
-          </Button>
+          {isEditing ? (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  loadPreferences();
+                  setIsEditing(false);
+                }}
+                disabled={saving}
+                className="bg-white/10 hover:bg-white/20 text-white border-white/20 font-semibold text-xs h-9 px-3.5 shadow-sm rounded-lg transition-all cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5 mr-1" /> Cancel
+              </Button>
+              <Button
+                onClick={async () => {
+                  await handleSavePreferences();
+                  setIsEditing(false);
+                }}
+                disabled={saving}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 px-4 shadow-sm rounded-lg transition-all cursor-pointer disabled:opacity-50"
+              >
+                <Save className="w-3.5 h-3.5 mr-1" /> {saving ? "Saving..." : "Save Preferences"}
+              </Button>
+            </div>
+          ) : (
+            <Button
+              onClick={() => setIsEditing(true)}
+              className="bg-[#FF6B00] hover:bg-[#e66000] text-white font-semibold text-xs h-9 px-4 shadow-sm rounded-lg transition-all cursor-pointer"
+            >
+              <Edit3 className="w-3.5 h-3.5 mr-1" /> Edit Preferences
+            </Button>
+          )}
         </div>
       </div>
 
@@ -246,9 +278,9 @@ export default function EmployeeSettings() {
           </div>
           <Switch
             checked={privacyShield}
+            disabled={!isEditing}
             onCheckedChange={(val) => {
               setPrivacyShield(val);
-              handleSavePreferences({ privacyShield: val });
             }}
           />
         </CardHeader>
@@ -364,7 +396,7 @@ export default function EmployeeSettings() {
                 Receive an immediate popup alert the moment the accounting cutoff transitions your payslip to Released.
               </p>
             </div>
-            <Switch checked={notifyPayslipRelease} onCheckedChange={setNotifyPayslipRelease} />
+            <Switch checked={notifyPayslipRelease} onCheckedChange={setNotifyPayslipRelease} disabled={!isEditing} />
           </div>
 
           <div className="p-4 bg-white rounded-xl border border-slate-200/80 hover:bg-slate-50/50 transition-colors flex items-center justify-between gap-4">
@@ -374,7 +406,7 @@ export default function EmployeeSettings() {
                 Pings you if your daily record shows a missing punch-out, allowing you to file a Time Adjustment immediately.
               </p>
             </div>
-            <Switch checked={notifyAttendanceAnomaly} onCheckedChange={setNotifyAttendanceAnomaly} />
+            <Switch checked={notifyAttendanceAnomaly} onCheckedChange={setNotifyAttendanceAnomaly} disabled={!isEditing} />
           </div>
 
           <div className="p-4 bg-white rounded-xl border border-slate-200/80 hover:bg-slate-50/50 transition-colors flex items-center justify-between gap-4">
@@ -384,7 +416,7 @@ export default function EmployeeSettings() {
                 Notifies you when Leave, Overtime, or Cash Advance requests are approved, endorsed, or returned with feedback.
               </p>
             </div>
-            <Switch checked={notifyRequestLifecycle} onCheckedChange={setNotifyRequestLifecycle} />
+            <Switch checked={notifyRequestLifecycle} onCheckedChange={setNotifyRequestLifecycle} disabled={!isEditing} />
           </div>
 
           <div className="p-4 bg-white rounded-xl border border-slate-200/80 hover:bg-slate-50/50 transition-colors flex items-center justify-between gap-4">
@@ -394,7 +426,7 @@ export default function EmployeeSettings() {
                 Sends a 3-day preview of scheduled loan amortizations (SSS, Pag-IBIG, Cash Advances) ahead of payout day.
               </p>
             </div>
-            <Switch checked={notifyLoanPreview} onCheckedChange={setNotifyLoanPreview} />
+            <Switch checked={notifyLoanPreview} onCheckedChange={setNotifyLoanPreview} disabled={!isEditing} />
           </div>
 
         </CardContent>
@@ -540,6 +572,8 @@ export default function EmployeeSettings() {
         </DialogContent>
       </Dialog>
 
+
+
       {/* Re-Scan Modal */}
       <Dialog open={showRescanModal} onOpenChange={setShowRescanModal}>
         <DialogContent className="max-w-md">
@@ -577,6 +611,13 @@ export default function EmployeeSettings() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+
+      <UnsavedChangesModal
+        isOpen={showPrompt}
+        onConfirm={confirmNavigation}
+        onCancel={cancelNavigation}
+      />
     </div>
   );
 }

@@ -539,12 +539,12 @@ const sortedAndFilteredDayLogs = useMemo(() => {
 
       const isSingleUserScope = selectedUser !== "all" || (searchQuery.trim() !== "" && distinctUsers === 1);
 
-      // 1. Avg Punches / Employee (Physical scans benchmarked against 4.0 punches/day)
+      // 1. Avg Punches / Employee (Physical scans benchmarked against 4 punches/day)
       const avgPunches = totalPunches > 0 
         ? (isSingleUserScope 
-            ? (totalPunches / distinctWorkDays).toFixed(1) 
-            : (totalPunches / distinctEmployeePunchDays).toFixed(1))
-        : "0.0";
+            ? Math.round(totalPunches / distinctWorkDays).toString() 
+            : Math.round(totalPunches / distinctEmployeePunchDays).toString())
+        : "0";
       const card1Subtitle = totalPunches === 0 
         ? (data.length > 0 ? `0 scans recorded (${data.length} auto-marks)` : "No event scans recorded") 
         : (isSingleUserScope
@@ -656,7 +656,7 @@ const sortedAndFilteredDayLogs = useMemo(() => {
         }
       });
 
-      const avgPunches = totalDays > 0 ? (totalPunches / totalDays).toFixed(1) : "0.0";
+      const avgPunches = totalDays > 0 ? Math.round(totalPunches / totalDays).toString() : "0";
       const card1Subtitle = totalDays === 0
         ? "No day records in this period"
         : (isSingleUserScope
@@ -724,7 +724,7 @@ const toggleMachipVisibility = (rowId) => {
               className="w-full sm:w-auto border-brand-primary/30 text-brand-primary/80 hover:text-brand-primary font-semibold"
             >
               <Link to="/adminReports" state={{ activeTab: "attendance" }}>
-                <AssessmentIcon className="mr-2 h-4 w-4" /> View Detailed Reports
+                <AssessmentIcon className="mr-2 h-4 w-4" /> View Logs Summary
               </Link>
             </Button>
            
@@ -766,14 +766,14 @@ const toggleMachipVisibility = (rowId) => {
                         </TooltipTrigger>
                         <TooltipContent className="bg-slate-900 text-white border-slate-800 font-normal normal-case">
                           {viewMode === "raw" 
-                            ? "Average daily card/biometric punches per active employee across worked days in this period (standard policy expects 4.0 punches/day)." 
+                            ? "Average daily card/biometric punches per active employee across worked days in this period (standard policy expects 4 punches/day)." 
                             : "Average punches per scheduled employee-day across morning and afternoon shifts, including absent days (standard policy expects 4 punches: In/Out for AM & PM)."}
                         </TooltipContent>
                       </Tooltip>
                     </div>
                     <div className="flex items-baseline gap-1.5">
                       <span className="text-4xl font-bold text-brand-primary">{kpiStats.avgPunches}</span>
-                      <span className="text-sm font-semibold text-brand-primary/60">/ 4.0</span>
+                      <span className="text-sm font-semibold text-brand-primary/60">/ 4</span>
                     </div>
                   </div>
                   <p className="text-xs text-brand-primary/70 italic mt-4">

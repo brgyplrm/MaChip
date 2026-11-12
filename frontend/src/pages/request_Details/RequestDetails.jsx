@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Sidebar from "../../components/Sidebar";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, History, CheckCircle2, XCircle, RotateCcw, Clock } from "lucide-react";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
 import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
@@ -9,7 +9,7 @@ import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import PersonIcon from "@mui/icons-material/Person";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import AttachmentIcon from "@mui/icons-material/Attachment";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { fetchWithAuth } from "../../utils/api";
 import { formatUserId } from "../../utils/formatUserId";
 import { formatDateTime, calculateDays } from "../../utils/formatTime";
@@ -22,6 +22,7 @@ import FileViewerModal from "../../components/FileViewerModal";
 
 const RequestDetails = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { requestId } = useParams();
   const userData = JSON.parse(localStorage.getItem("userData") || "{}");
   const userRoleId = Number(userData?.user_RoleId);
@@ -29,6 +30,28 @@ const RequestDetails = () => {
   const [request, setRequest] = useState(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
+
+  const handleBack = () => {
+    if (location.state?.from) {
+      const fromPath = typeof location.state.from === "string" 
+        ? location.state.from.replace("/userRequests", "/requests")
+        : location.state.from;
+      navigate(fromPath);
+      return;
+    }
+    if ([1, 2, 4].includes(userRoleId)) {
+      if (request?.emp_reqTypeId === 14) {
+        navigate(`/adminLoanEnrollment?requestId=${request.emp_reqId}`);
+      } else {
+        const subTab = request?.emp_reqStatusId === 5 ? "returned" : (request?.emp_reqStatusId === 1 ? "pending" : "completed");
+        const mainTab = [1, 5].includes(request?.emp_reqStatusId) ? "pending" : "completed";
+        navigate(`/adminRequests?tab=${mainTab}&subTab=${subTab}&requestId=${request.emp_reqId}`);
+      }
+    } else {
+      const subTab = request?.emp_reqStatusId === 5 ? "returned" : (request?.emp_reqStatusId === 1 ? "pending" : "past");
+      navigate(`/requests?tab=history&subTab=${subTab}&requestId=${request.emp_reqId}`);
+    }
+  };
 
   // File Viewer State
   const [isFileViewerOpen, setIsFileViewerOpen] = useState(false);
@@ -114,8 +137,8 @@ const RequestDetails = () => {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div className="flex items-center gap-4">
             <button 
-              onClick={() => navigate(-1)} 
-              className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-brand-primary-light text-brand-primary transition-colors shrink-0"
+              onClick={handleBack} 
+              className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-brand-primary-light text-brand-primary transition-colors shrink-0 cursor-pointer"
             >
               <ChevronLeft className="h-6 w-6" />
             </button>
@@ -129,6 +152,7 @@ const RequestDetails = () => {
               className={`px-4 py-2 text-sm justify-center shadow-sm w-full sm:w-auto ${
                 isApproved ? "bg-green-500 hover:bg-green-600 text-white" :
                 isRejected ? "bg-red-500 hover:bg-red-600 text-white" :
+                request.emp_reqStatusId === 5 ? "bg-orange-500 hover:bg-orange-600 text-white" :
                 "bg-amber-500 hover:bg-amber-600 text-white"
               }`}
             >
@@ -138,18 +162,28 @@ const RequestDetails = () => {
               {request.status}
             </Badge>
 
-            {[1, 2].includes(userRoleId) && (request.emp_reqStatusId === 1 || request.emp_reqStatusId === 4) && (
+            {[1, 2].includes(userRoleId) && (request.emp_reqStatusId === 1 || request.emp_reqStatusId === 4 || request.emp_reqStatusId === 5) && (
               <Button
                 onClick={() => {
                   if (request.emp_reqTypeId === 14) {
-                    navigate("/adminLoanEnrollment");
+                    navigate(`/adminLoanEnrollment?requestId=${request.emp_reqId}`);
                   } else {
-                    navigate(`/adminRequests?requestId=${request.emp_reqId}`);
+                    const subTab = request.emp_reqStatusId === 5 ? "returned" : "pending";
+                    navigate(`/adminRequests?tab=pending&subTab=${subTab}&requestId=${request.emp_reqId}`);
                   }
                 }}
-                className="bg-brand-primary text-white hover:bg-brand-primary-hover shadow-sm w-full sm:w-auto font-medium"
+                className="bg-brand-primary text-white hover:bg-brand-primary-hover shadow-sm w-full sm:w-auto font-medium cursor-pointer"
               >
                 Process in Approvals Queue
+              </Button>
+            )}
+
+            {userRoleId === 3 && request.emp_reqStatusId === 5 && (
+              <Button
+                onClick={() => navigate(`/requests?tab=history&subTab=returned&requestId=${request.emp_reqId}&action=edit`)}
+                className="bg-brand-primary text-white hover:bg-brand-primary-hover shadow-sm w-full sm:w-auto font-medium cursor-pointer"
+              >
+                Edit & Resubmit in History
               </Button>
             )}
           </div>
@@ -362,6 +396,102 @@ const RequestDetails = () => {
               </CardContent>
             </Card>
           )}
+
+          {/* Lifecycle & Action Audit Timeline */}
+          <Card className="border-0 shadow-sm bg-white overflow-hidden">
+            <CardHeader className="border-b border-slate-50 pb-3">
+              <CardTitle className="text-base font-bold flex items-center gap-2 text-slate-800">
+                <History className="text-brand-primary h-5 w-5" /> Request Lifecycle & Action Trail
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <div className="relative pl-6 sm:pl-8 border-l-2 border-slate-200 space-y-6">
+                
+                {/* 1. Request Filed */}
+                <div className="relative">
+                  <div className="absolute -left-[31px] sm:-left-[39px] top-0.5 w-6 h-6 rounded-full bg-emerald-100 border-2 border-emerald-500 flex items-center justify-center text-emerald-700">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                      <p className="text-sm font-bold text-slate-800">Request Filed & Logged</p>
+                      <span className="text-xs text-slate-400 font-mono">{formatDateTime(request.date_Filed)}</span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">Submitted by <span className="font-semibold text-slate-700">{request.userName}</span></p>
+                    {request.remarks && (
+                      <p className="text-xs italic text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-100 mt-2">
+                        "{request.remarks}"
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* 2. Returned for Clarification (if status === 5 or admin_remarks) */}
+                {(request.emp_reqStatusId === 5 || request.admin_remarks) && (
+                  <div className="relative">
+                    <div className="absolute -left-[31px] sm:-left-[39px] top-0.5 w-6 h-6 rounded-full bg-amber-100 border-2 border-amber-500 flex items-center justify-center text-amber-700">
+                      <RotateCcw className="w-3.5 h-3.5" />
+                    </div>
+                    <div>
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                        <p className="text-sm font-bold text-amber-900">Returned for Revision / Clarification</p>
+                        {request.date_Processed && request.emp_reqStatusId === 5 && (
+                          <span className="text-xs text-amber-700 font-mono">{formatDateTime(request.date_Processed)}</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-amber-700 mt-0.5">Administrative review requested revisions or clarifications from employee</p>
+                      {(request.admin_remarks || request.system_remarks) && (
+                        <div className="text-xs text-slate-800 bg-amber-50 p-3 rounded-lg border border-amber-200 mt-2">
+                          <p className="font-bold text-amber-800 text-[11px] uppercase mb-1">Supervisor / Management Note:</p>
+                          <p className="italic">"{request.admin_remarks || request.system_remarks}"</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. Recommended by Supervisor (if recommendedBy) */}
+                {request.recommendedBy && (
+                  <div className="relative">
+                    <div className="absolute -left-[31px] sm:-left-[39px] top-0.5 w-6 h-6 rounded-full bg-blue-100 border-2 border-blue-500 flex items-center justify-center text-blue-700">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                    </div>
+                    <div>
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                        <p className="text-sm font-bold text-blue-900">Recommended by Operational Supervisor</p>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">Endorsed by <span className="font-semibold text-slate-700">{request.recommenderName || `Supervisor #${request.recommendedBy}`}</span></p>
+                    </div>
+                  </div>
+                )}
+
+                {/* 4. Final Determination */}
+                <div className="relative">
+                  <div className={`absolute -left-[31px] sm:-left-[39px] top-0.5 w-6 h-6 rounded-full flex items-center justify-center ${
+                    isApproved ? "bg-emerald-100 border-2 border-emerald-600 text-emerald-700" :
+                    isRejected ? "bg-rose-100 border-2 border-rose-600 text-rose-700" :
+                    "bg-slate-100 border-2 border-slate-400 text-slate-500"
+                  }`}>
+                    {isApproved ? <CheckCircle2 className="w-3.5 h-3.5" /> : isRejected ? <XCircle className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
+                  </div>
+                  <div>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                      <p className={`text-sm font-bold ${isApproved ? "text-emerald-900" : isRejected ? "text-rose-900" : "text-slate-700"}`}>
+                        {isApproved ? "Approved by Administration" : isRejected ? "Rejected by Administration" : "Pending Administrative Review"}
+                      </p>
+                      {request.date_Processed && (
+                        <span className="text-xs text-slate-400 font-mono">{formatDateTime(request.date_Processed)}</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {request.approverName ? `Actioned by ${request.approverName}` : isApproved || isRejected ? "Action completed" : "Awaiting review in queue"}
+                    </p>
+                  </div>
+                </div>
+
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Remarks Section */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -13,10 +13,11 @@ import { formatTime12h } from "../../utils/formatTime";
 import { Link, useSearchParams } from "react-router-dom";
 import { fetchWithAuth } from "../../utils/api";
 import { getStoredUser, setStoredUser } from "../../utils/authStorage";
+import { exportToPDF } from "../../utils/pdfExport";
 
 // UI Components
 import { Input } from "@/components/ui/input";
-import { Search, X, Shield, History, Calendar, Eye, Sparkles, CheckCircle, AlertCircle, Info, Lock, UserCheck } from "lucide-react";
+import { Search, X, Shield, History, Calendar, Eye, Sparkles, CheckCircle, AlertCircle, Info, Lock, UserCheck, Download } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -324,6 +325,81 @@ const Profile = () => {
     if (s?.includes("absent")) return "destructive";
     if (s?.includes("late")) return "warning";
     return "secondary";
+  };
+
+  const handleExportTransparencyPDF = () => {
+    if (transparencySubTab === "admin") {
+      const logs = transparencyData.transparencyTrail || [];
+      if (logs.length === 0) {
+        alert("No administrative log records available to export.");
+        return;
+      }
+      const headers = ["Date & Time", "Administrator", "Role", "Action", "Summary", "Module / Target"];
+      const rows = logs.map((log) => {
+        const dt = new Date(log.createdAt).toLocaleString("en-US", {
+          timeZone: "Asia/Manila",
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit"
+        });
+        const adminName = log.admin_FirstName ? `${log.admin_FirstName} ${log.admin_LastName}` : "System Automated";
+        const adminRole = log.admin_Role || "Administrator";
+        const action = (log.action || "").replace(/_/g, " ");
+
+        let headline = "Updated account details";
+        const act = (log.action || "").toUpperCase();
+        if (act.includes("RATE")) headline = "Adjusted daily wage rate";
+        else if (act.includes("DEDUCT")) headline = "Updated statutory / loan deductions";
+        else if (act.includes("DELETE") || act.includes("DEACT")) headline = "Deactivated employee profile access";
+        else if (act.includes("RESTORE")) headline = "Restored employee profile access";
+        else if (act.includes("CREATE")) headline = "Registered initial employee account";
+
+        const target = `${log.module || "System"} • ${log.target_Table || "Profile"}`;
+        return [dt, adminName, adminRole, action, headline, target];
+      });
+
+      const empName = user?.first_Name ? `${user.first_Name} ${user.last_Name}` : "Employee";
+      exportToPDF(
+        `Administrative Transparency Audit Trail - ${empName}`,
+        headers,
+        rows,
+        `admin_transparency_trail_${user?.emp_Id || "user"}.pdf`,
+        { orientation: "landscape" }
+      );
+    } else {
+      const logs = transparencyData.personalActivity || [];
+      if (logs.length === 0) {
+        alert("No personal activity log records available to export.");
+        return;
+      }
+      const headers = ["Date & Time", "Event Type", "Operational Description", "Device / Source", "IP Address"];
+      const rows = logs.map((t) => {
+        const dt = new Date(t.createdAt).toLocaleString("en-US", {
+          timeZone: "Asia/Manila",
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit"
+        });
+        const eventType = (t.event_Type || "").replace(/_/g, " ");
+        const desc = t.event_Description || "-";
+        const device = t.device_Source || "WEB";
+        const ip = t.ip_Address || "Internal";
+        return [dt, eventType, desc, device, ip];
+      });
+
+      const empName = user?.first_Name ? `${user.first_Name} ${user.last_Name}` : "Employee";
+      exportToPDF(
+        `Personal System & Hardware History - ${empName}`,
+        headers,
+        rows,
+        `personal_activity_history_${user?.emp_Id || "user"}.pdf`,
+        { orientation: "landscape" }
+      );
+    }
   };
 
   return (
@@ -697,39 +773,51 @@ const Profile = () => {
                 </CardContent>
               </Card>
 
-              {/* Sub-Tabs: Admin Access Trail vs. Personal System Activity */}
-              <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-2">
-                <button
-                  type="button"
-                  onClick={() => setTransparencySubTab("admin")}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    transparencySubTab === "admin"
-                      ? "bg-brand-primary text-white shadow-xs"
-                      : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
-                  }`}
-                >
-                  <UserCheck className="w-3.5 h-3.5" />
-                  Admin Access & Changes
-                  <Badge variant="secondary" className={`ml-1 text-[10px] ${transparencySubTab === "admin" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"}`}>
-                    {transparencyData.transparencyTrail?.length || 0}
-                  </Badge>
-                </button>
+              {/* Sub-Tabs: Admin Access Trail vs. Personal System Activity & Export PDF */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-b border-slate-200 pb-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTransparencySubTab("admin")}
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      transparencySubTab === "admin"
+                        ? "bg-brand-primary text-white shadow-xs"
+                        : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                    }`}
+                  >
+                    <UserCheck className="w-3.5 h-3.5" />
+                    Admin Access & Changes
+                    <Badge variant="secondary" className={`ml-1 text-[10px] ${transparencySubTab === "admin" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"}`}>
+                      {transparencyData.transparencyTrail?.length || 0}
+                    </Badge>
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => setTransparencySubTab("personal")}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    transparencySubTab === "personal"
-                      ? "bg-slate-900 text-white shadow-xs"
-                      : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
-                  }`}
+                  <button
+                    type="button"
+                    onClick={() => setTransparencySubTab("personal")}
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      transparencySubTab === "personal"
+                        ? "bg-slate-900 text-white shadow-xs"
+                        : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                    }`}
+                  >
+                    <History className="w-3.5 h-3.5 text-amber-400" />
+                    My System & Hardware History
+                    <Badge variant="secondary" className={`ml-1 text-[10px] ${transparencySubTab === "personal" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"}`}>
+                      {transparencyData.personalActivity?.length || 0}
+                    </Badge>
+                  </button>
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportTransparencyPDF}
+                  className="h-8.5 px-3 text-xs font-semibold gap-1.5 border-slate-300 text-slate-700 hover:text-brand-primary hover:border-brand-primary bg-white shadow-2xs self-end sm:self-auto cursor-pointer"
                 >
-                  <History className="w-3.5 h-3.5 text-amber-400" />
-                  My System & Hardware History
-                  <Badge variant="secondary" className={`ml-1 text-[10px] ${transparencySubTab === "personal" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"}`}>
-                    {transparencyData.personalActivity?.length || 0}
-                  </Badge>
-                </button>
+                  <Download className="w-3.5 h-3.5 text-brand-primary" />
+                  Export PDF
+                </Button>
               </div>
 
               {/* Sub-Panel 1: Admin Access & Changes Table */}
