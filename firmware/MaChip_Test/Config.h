@@ -91,7 +91,7 @@ const byte MIFARE_ACCESS_BITS[4] = { 0xFF, 0x07, 0x80, 0x69 }; // Transport defa
 #define DEFAULT_SOLENOID_DURATION  3000
 #define SOLENOID_DURATION          3000
 #define TIMEOUT_2FA                15000
-#define MAX_SOLENOID_CEILING_MS    15000 // 15s Hard ceiling to prevent coil burnout & permanent wedging
+#define MAX_SOLENOID_CEILING_MS    30000 // 30s Safety ceiling to support busy continuous exit queues without burnout
 #define RETRIGGER_EXTEND_MS        2000  // +2.0s per continuous exit tap
 #define BRUTE_FORCE_FAIL_LIMIT     3     // 3 consecutive fails trigger penalty
 #define BRUTE_FORCE_WINDOW_MS      5000  // within 5 seconds window
@@ -290,3 +290,7 @@ inline void clearSpiBusPins() {
   digitalWrite(TFT_CS_INSIDE, HIGH);
 #endif
 }
+
+void reinitRfidReaders();
+extern bool pendingVisitorConfirm;
+void setFpLed(bool on, uint8_t auraColor = FINGERPRINT_LED_BLUE);

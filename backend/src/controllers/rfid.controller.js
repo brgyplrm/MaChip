@@ -837,6 +837,7 @@ exports.scanRFID = async (req, res) => {
       if (hasTemplate) {
         const fullName = `${user.user_FirstName || ''} ${user.user_LastName || ''}`.trim() || user.user_FirstName || "Employee";
         console.log(`[2FA] Requesting Biometric Verification for ${fullName}`);
+        const solenoidHoldSec = settings?.doorRelayHoldDurationSec || 3;
         return res.status(200).json({
           success: true,
           mode: "WAITING_FOR_FINGERPRINT_2FA",
@@ -846,7 +847,8 @@ exports.scanRFID = async (req, res) => {
           employeeName: fullName,
           name: fullName,
           expectedFingerId: parseInt(hardware.user_FingerprintId),
-          expectedFingerId2: hardware.user_FingerprintId2 ? parseInt(hardware.user_FingerprintId2) : null
+          expectedFingerId2: hardware.user_FingerprintId2 ? parseInt(hardware.user_FingerprintId2) : null,
+          solenoidDuration: solenoidHoldSec * 1000
         });
       } else {
         console.log(`[2FA REJECT] ${user.user_FirstName} has no enrolled fingerprint in database.`);

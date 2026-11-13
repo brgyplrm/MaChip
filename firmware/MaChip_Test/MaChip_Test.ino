@@ -36,6 +36,7 @@ unsigned long solenoidStartTime = 0;
 unsigned long solenoidFirstTriggerTime = 0;
 uint16_t solenoidHoldDurationMs = DEFAULT_SOLENOID_DURATION;
 String activeUnlockTerminal = "FRONT";
+bool pendingVisitorConfirm = false;
 
 uint8_t consecutiveFailsBack = 0;
 unsigned long lastFailTimeBack = 0;
@@ -113,6 +114,7 @@ inline void updateStatusReset() {
       clearSpiBusPins();
       setLED(LED_SLOW_BLINK, LED_OFF);
       updateFrontDisplay("READY", "Scan RFID Card to Login", ST77XX_GREEN);
+      reinitRfidReaders();
     }
   }
   // Back reader recovery timer is completely decoupled from solenoid state to enable rapid queue throughput
@@ -121,6 +123,7 @@ inline void updateStatusReset() {
       backStatusResetActive = false;
       clearSpiBusPins();
       updateBackDisplay("READY", "Scan Card Out");
+      reinitRfidReaders();
     }
   }
 }
@@ -251,6 +254,7 @@ void setup() {
   // 7. Init R307 Optical Fingerprint Sensor (UART2)
   fpSerial.begin(57600, SERIAL_8N1, FP_RX, FP_TX);
   bool fpOk = finger.verifyPassword();
+  setFpLed(false); // Ensure optical sensor LED ring is commanded OFF via legacy 0x51 and Aura 0x35 on boot!
 
   // 8. Visual & Audio Startup Feedback
   updateFrontDisplay("BOOTING", "Running Hardware Self-Test...", ST77XX_YELLOW);
@@ -266,7 +270,7 @@ void setup() {
   stopBuzzer();
 
   // 9. Wi-Fi & Web Console Initialization
-  if (autoConnectWiFi()) {
+  if (autoConnectWiFi(true)) {
     setupOTA();
     setupWebConsole();
   }
@@ -322,6 +326,13 @@ void loop() {
 
   // ── LIVE REAL-TIME CLOCK OVERLAY (NTP UTC+8 MANILA) ─────────────
   if (!enrollmentMode && pendingUID == "") {
+    // Standby power management: keep R307 optical sensor LED ring OFF during idle state
+    static unsigned long lastFpLedStandbyCheck = 0;
+    if (millis() - lastFpLedStandbyCheck > 2000) {
+      lastFpLedStandbyCheck = millis();
+      setFpLed(false);
+    }
+
     static unsigned long lastClockTick = 0;
     static int lastClockSec = -1;
     if (millis() - lastClockTick >= 200) {
@@ -353,12 +364,16 @@ void loop() {
 
   if (WiFi.status() != WL_CONNECTED) {
     static unsigned long lastWiFiCheck = 0;
-    if (millis() - lastWiFiCheck > 20000) {
-      if (autoConnectWiFi()) {
+    if (millis() - lastWiFiCheck > 10000) {
+      lastWiFiCheck = millis();
+      // Silent background retry without hijacking or flickering user displays!
+      if (autoConnectWiFi(false)) {
         setupOTA();
         setupWebConsole();
+        updateFrontDisplay("READY", "Scan RFID Card to Login", ST77XX_GREEN);
+        updateBackDisplay("READY", "Scan Card Out");
+        reinitRfidReaders();
       }
-      lastWiFiCheck = millis();
     }
   }
 
@@ -442,34 +457,24 @@ void loop() {
           sysLog(F("[VISITOR] REMOTE UNLOCK TRIGGERED"));
           if (doc["solenoidDuration"].is<uint16_t>()) {
             uint16_t dur = doc["solenoidDuration"].as<uint16_t>();
-            if (dur >= 1000 && dur <= 15000) solenoidHoldDurationMs = dur;
+            if (dur >= 1000 && dur <= 30000) solenoidHoldDurationMs = dur;
           }
-          updateFrontDisplay("VISITOR ACCESS", "Authorized Remote Open\nWelcome!", ST77XX_CYAN);
-          updateBackDisplay("VISITOR", "Remote Authorized");
-          
-          provideFeedback(SUCCESS_OK);
-          clearSpiBusPins();
-          delay(20);
+          // 1. Immediately energize solenoid relay at ms 0 (zero perceived latency!)
+          pendingVisitorConfirm = true;
           solenoidUnlock("ALL");
-          
-          // Wait for solenoid duration + small buffer
-          delay(solenoidHoldDurationMs + 500);
-          
-          // Notify backend that door is closed/completed
-          HTTPClient confirmHttp;
-          confirmHttp.begin(currentFpUrl + "/visitor-access/confirm");
-          signHttpRequest(confirmHttp, "{}");
-          confirmHttp.POST("{}"); 
-          confirmHttp.end();
 
-          // Clear session explicitly
+          // 2. Clear backend session right away so subsequent polls do not re-trigger
           HTTPClient clearHttp;
           clearHttp.begin(currentFpUrl + "/session/clear");
           signHttpRequest(clearHttp, "");
-          clearHttp.GET(); clearHttp.end();
+          clearHttp.GET(); 
+          clearHttp.end();
 
-          updateFrontDisplay("READY", "Scan RFID Card to Login", ST77XX_GREEN);
-          updateBackDisplay("READY", "Scan Card Out");
+          // 3. Audio & screen feedback while door is ALREADY unlocked
+          provideFeedback(SUCCESS_OK);
+          updateFrontDisplay("VISITOR ACCESS", "Authorized Remote Open\nWelcome!", ST77XX_CYAN);
+          updateBackDisplay("VISITOR", "Remote Authorized");
+          reinitRfidReaders();
         }
         else if (type == "DELETE_SLOT") {
           int targetSlot = doc["slotId"] | 0;
@@ -491,7 +496,7 @@ void loop() {
         }
         else if (type == "RESET_SCREEN") {
           sysLog(F("[SCREEN-RESET] Resetting TFT screen to default clock-in state..."));
-          finger.LEDcontrol(false);
+          setFpLed(false);
           enrollmentMode = false;
           fpEnrollStage = 0;
           pendingUID = "";
@@ -529,7 +534,7 @@ void loop() {
             updateBackDisplay("LOCKED", "Admin Management");
             reinitRfidReaders();
           } else {
-            finger.LEDcontrol(true); // Command optical sensor LED ring ON at ms 0!
+            setFpLed(true, FINGERPRINT_LED_PURPLE); // Command optical sensor LED ring ON at ms 0!
             drawFrontFpEnrollStage1UI(30);
             updateBackDisplay("LOCKED", "Admin Management");
           }
@@ -660,7 +665,7 @@ void loop() {
         bool active = cDoc["active"] | false;
         String cType = cDoc["type"] | "";
         if (!active || cType == "DELETE_SLOT") {
-          finger.LEDcontrol(false);
+          setFpLed(false);
           sysLog("[FP-CANCEL] Session cancelled by web application. Aborting enrollment for Slot " + String(enrollmentSlotId));
           if (cType == "DELETE_SLOT" || !active) {
             int targetSlot = cDoc["slotId"] | enrollmentSlotId;
@@ -759,7 +764,7 @@ void loop() {
               sysLog("[FP-AUTOHEAL] [SUCCESS] Orphaned Slot " + String(conflictingSlot) + " pruned. Proceeding with enrollment!");
               // Fall through seamlessly to Scan 1 success and advance to Stage 2
             } else {
-              finger.LEDcontrol(false);
+              setFpLed(false);
               String errLog = "[FP-ERROR] DUPLICATE DETECTED: Finger matches existing Slot " + String(conflictingSlot);
               if (employeeName.length() > 0) {
                 errLog += " (" + employeeName + ")";
@@ -787,7 +792,7 @@ void loop() {
       }
       
       if (millis() - fpEnrollStart > 30000) {
-        finger.LEDcontrol(false);
+        setFpLed(false);
         sysLog("[FP-ERROR] Stage 1 timeout (30s). Aborting enrollment.");
         uploadEnrollment(enrollmentSlotId, false, enrollmentUserId, "");
         provideFeedback(ERROR_FAIL);
@@ -811,7 +816,7 @@ void loop() {
         fpEnrollStart = millis();
         fpEnrollStage = 3;
       } else if (millis() - fpEnrollStart > 10000) {
-        finger.LEDcontrol(false);
+        setFpLed(false);
         sysLog("[FP-ERROR] Stage 2 timeout waiting for finger release. Aborting.");
         uploadEnrollment(enrollmentSlotId, false, enrollmentUserId, "");
         provideFeedback(ERROR_FAIL);
@@ -842,20 +847,20 @@ void loop() {
           if (finger.createModel() == FINGERPRINT_OK) {
             sysLog("[FP-STAGE-3] [SUCCESS] Scan 1 & Scan 2 templates MATCHED!");
             if (finger.storeModel(enrollmentSlotId) == FINGERPRINT_OK) {
-              finger.LEDcontrol(false);
+              setFpLed(false);
               String templateHex = downloadTemplate();
               sysLog("[FP-SUCCESS] Slot " + String(enrollmentSlotId) + " written to R307 flash memory & uploaded.");
               uploadEnrollment(enrollmentSlotId, true, enrollmentUserId, templateHex);
               provideFeedback(SUCCESS_OK);
               drawFrontFpSuccessUI();
             } else {
-              finger.LEDcontrol(false);
+              setFpLed(false);
               sysLog("[FP-ERROR] Failed to store model into Slot " + String(enrollmentSlotId));
               uploadEnrollment(enrollmentSlotId, false, enrollmentUserId, "");
               provideFeedback(ERROR_FAIL);
             }
           } else {
-            finger.LEDcontrol(false);
+            setFpLed(false);
             sysLog("[FP-ERROR] Templates DO NOT MATCH! Scan 1 != Scan 2");
             provideFeedback(ERROR_FAIL);
             drawFrontFpMismatchUI();
@@ -870,7 +875,7 @@ void loop() {
       }
       
       if (millis() - fpEnrollStart > 30000) {
-        finger.LEDcontrol(false);
+        setFpLed(false);
         sysLog("[FP-ERROR] Stage 3 timeout (30s). Aborting enrollment.");
         uploadEnrollment(enrollmentSlotId, false, enrollmentUserId, "");
         provideFeedback(ERROR_FAIL);
@@ -887,7 +892,7 @@ void loop() {
   // ── ACCESS ENGINE (RUNS WHEN PROVISIONING SESSIONS ARE QUIET) ────
   if (!enrollmentMode) {
     static unsigned long lastReaderInit = 0;
-    if (millis() - lastReaderInit > 10000) {
+    if (millis() - lastReaderInit > 1000) {
       reinitRfidReaders();
       lastReaderInit = millis();
     }
@@ -976,7 +981,7 @@ void loop() {
                   pendingStart = millis();
                   last2FACountdownSec = TIMEOUT_2FA / 1000;
                   pendingFpAttempts = 3;
-                  finger.LEDcontrol(true); // Command optical sensor LED ON immediately for 2FA!
+                  setFpLed(true, FINGERPRINT_LED_BLUE); // Command optical sensor LED ON immediately for 2FA!
                   draw2FAChallengeUI(pendingName, last2FACountdownSec);
                   provideFeedback(WAITING_SCAN);
                 } else {
@@ -988,6 +993,7 @@ void loop() {
                   delay(20);
                   solenoidUnlock("FRONT");
                   triggerFrontStatusReset(1500);
+                  reinitRfidReaders();
                 }
               } else {
                 // Brute-force rate limiting evaluation on Front
@@ -1109,7 +1115,7 @@ void loop() {
                   if (remainingTimeSec < 1) remainingTimeSec = 1;
                   draw2FAChallengeUI(pendingName, remainingTimeSec);
                 } else {
-                  finger.LEDcontrol(false);
+                  setFpLed(false);
                   drawFrontTokenMismatchUI();
                   queueTransaction(pendingUID + "|" + String(finger.fingerID), "suspicious_biometric_fail", "FRONT");
                   pendingUID = ""; pendingName = ""; last2FACountdownSec = -1;
@@ -1117,7 +1123,7 @@ void loop() {
                   triggerFrontStatusReset(1500);
                 }
               } else {
-                finger.LEDcontrol(false);
+                setFpLed(false);
                 provideFeedback(SUCCESS_OK);
                 drawFrontAccessGrantedUI();
                 clearSpiBusPins();
@@ -1149,7 +1155,7 @@ void loop() {
                 if (remainingTimeSec < 1) remainingTimeSec = 1;
                 draw2FAChallengeUI(pendingName, remainingTimeSec);
               } else {
-                finger.LEDcontrol(false);
+                setFpLed(false);
                 drawFrontUnknownFingerprintUI();
                 queueTransaction(pendingUID, "suspicious_biometric_fail", "FRONT");
                 pendingUID = ""; pendingName = ""; last2FACountdownSec = -1;
@@ -1160,7 +1166,7 @@ void loop() {
           }
         }
       } else {
-        finger.LEDcontrol(false);
+        setFpLed(false);
         provideFeedback(ERROR_FAIL);
         drawFrontTimeoutUI();
         queueTransaction(pendingUID, "unenrolled_card_attempt", "FRONT");
@@ -1230,6 +1236,7 @@ void loop() {
               delay(20);
               solenoidUnlock("BACK");
               triggerBackStatusReset(800); // 800ms fast recovery for high-throughput exits!
+              reinitRfidReaders(); // Instantly resync SPI bus after TFT draw so next card can scan immediately!
             } else {
               // Brute-force rate limiting evaluation on Back reader
               unsigned long nowFail = millis();

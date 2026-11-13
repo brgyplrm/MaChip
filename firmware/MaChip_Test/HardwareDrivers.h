@@ -4,7 +4,12 @@
 
 // ── FEEDBACK ENGINE (NON-BLOCKING RESONANT ACOUSTIC PEAK) ─────────
 inline void stopBuzzer() {
+#if !BUZZER_IS_ACTIVE
+  ledcWrite(BUZZER, 0); // Hard cut PWM duty cycle to 0% for true dead silence
   ledcWriteTone(BUZZER, 0);
+#else
+  digitalWrite(BUZZER, LOW);
+#endif
   buzzerPlaying = false;
   buzzerStepCount = 0;
   currentBuzzerStepIndex = 0;
@@ -19,7 +24,11 @@ inline void startBuzzerPattern(const BuzzerStep *steps, int count) {
   currentBuzzerStepIndex = 0;
   currentBuzzerStepStart = millis();
   buzzerPlaying = true;
-  ledcWriteTone(BUZZER, buzzerQueue[0].freq);
+  if (buzzerQueue[0].freq > 0) {
+    ledcWriteTone(BUZZER, buzzerQueue[0].freq);
+  } else {
+    ledcWrite(BUZZER, 0);
+  }
 }
 
 inline void updateBuzzer() {
@@ -29,7 +38,11 @@ inline void updateBuzzer() {
     currentBuzzerStepIndex++;
     if (currentBuzzerStepIndex < buzzerStepCount) {
       currentBuzzerStepStart = millis();
-      ledcWriteTone(BUZZER, buzzerQueue[currentBuzzerStepIndex].freq);
+      if (buzzerQueue[currentBuzzerStepIndex].freq > 0) {
+        ledcWriteTone(BUZZER, buzzerQueue[currentBuzzerStepIndex].freq);
+      } else {
+        ledcWrite(BUZZER, 0); // Hard cut PWM duty cycle to 0% for true dead silence!
+      }
     } else {
       stopBuzzer();
     }
@@ -55,15 +68,25 @@ inline void setLED(LedMode gMode, LedMode rMode) {
   if (rMode == LED_STEADY_RED) { digitalWrite(RED_LED, HIGH); redState = true; }
 }
 
+inline void setFpLed(bool on, uint8_t auraColor) {
+  if (on) {
+    finger.LEDcontrol(true);
+    finger.LEDcontrol(FINGERPRINT_LED_ON, 0, auraColor, 0);
+  } else {
+    finger.LEDcontrol(false);
+    finger.LEDcontrol(FINGERPRINT_LED_OFF, 0, FINGERPRINT_LED_RED, 0);
+  }
+}
+
 inline void provideFeedback(FeedbackType type) {
   switch (type) {
     case SUCCESS_OK: {
       setLED(LED_STEADY_GREEN, LED_OFF);
-      // Modern, pleasant musical ascending chime: 1760 Hz (A6) -> 2349 Hz (D7)
+      // Crisp, pleasant, ascending two-tone chime ("Ding-Ding!" - High -> Higher)
       BuzzerStep steps[] = {
-        { 1760, 35 },
-        { 0, 15 },
-        { 2349, 45 }
+        { 1760, 60 }, // Note A6
+        { 0,    50 }, // Clean silence gap
+        { 2637, 80 }  // Note E7
       };
       startBuzzerPattern(steps, 3);
       break;
@@ -71,20 +94,20 @@ inline void provideFeedback(FeedbackType type) {
 
     case ERROR_FAIL: {
       setLED(LED_OFF, LED_STEADY_RED);
-      // Discrete, low-pitch double-pip reject (988Hz B5 -> 880Hz A5, non-piercing)
+      // Distinct, low-frequency descending two-tone warning ("Buzz-Buzz" - Low -> Lower)
       BuzzerStep steps[] = {
-        { 988, 35 },
-        { 0, 20 },
-        { 880, 40 }
+        { 784, 90 },  // Note G5
+        { 0,   60 },  // Clean silence gap
+        { 523, 120 }  // Note C5
       };
       startBuzzerPattern(steps, 3);
       break;
     }
 
     case RFID_TAP: {
-      // Subtle high-frequency micro-pip for instant tactile acoustic feedback
+      // Subtle high-frequency micro-click for instant tactile acoustic feedback
       BuzzerStep steps[] = {
-        { 2093, 20 }
+        { 2093, 25 } // Note C7
       };
       startBuzzerPattern(steps, 1);
       break;
@@ -95,13 +118,15 @@ inline void provideFeedback(FeedbackType type) {
       break;
 
     case SYSTEM_READY: {
-      // Gentle ascending boot chime
+      // Smooth ascending triple boot chime
       BuzzerStep steps[] = {
-        { 1568, 45 },
-        { 0, 20 },
-        { 2093, 55 }
+        { 1318, 50 }, // E6
+        { 0,    25 },
+        { 1760, 50 }, // A6
+        { 0,    25 },
+        { 2637, 70 }  // E7
       };
-      startBuzzerPattern(steps, 3);
+      startBuzzerPattern(steps, 5);
       break;
     }
   }
@@ -135,16 +160,18 @@ inline void solenoidUnlock(String sourceTerminal = "FRONT") {
     solenoidFirstTriggerTime = now;
     sysLog("[SOLENOID] UNLOCKED (Relay triggered) via " + sourceTerminal);
   } else {
-    // Keep-Alive Re-trigger with Hard 15-second Cumulative Ceiling
+    // Keep-Alive Re-trigger with Hard 30-second Cumulative Safety Ceiling
     if (now - solenoidFirstTriggerTime < MAX_SOLENOID_CEILING_MS) {
       unsigned long remainingCeiling = MAX_SOLENOID_CEILING_MS - (now - solenoidFirstTriggerTime);
-      unsigned long extension = (RETRIGGER_EXTEND_MS < remainingCeiling) ? RETRIGGER_EXTEND_MS : remainingCeiling;
-      // Smoothly reset hold window to extension duration from now
+      unsigned long elapsedSinceStart = now - solenoidStartTime;
+      unsigned long currentRemaining = (elapsedSinceStart < solenoidHoldDurationMs) ? (solenoidHoldDurationMs - elapsedSinceStart) : 0;
+      unsigned long desiredHold = currentRemaining + RETRIGGER_EXTEND_MS;
+      if (desiredHold > remainingCeiling) desiredHold = remainingCeiling;
       solenoidStartTime = now;
-      solenoidHoldDurationMs = (uint16_t)extension;
-      sysLog("[SOLENOID] EXTENDED (Keep-Alive +" + String(extension) + "ms) via " + sourceTerminal);
+      solenoidHoldDurationMs = (uint16_t)desiredHold;
+      sysLog("[SOLENOID] EXTENDED (Keep-Alive +" + String(desiredHold) + "ms remaining) via " + sourceTerminal);
     } else {
-      sysLog(F("[SOLENOID] CEILING REACHED (15s max continuous hold). Forcing relock cycle."));
+      sysLog(F("[SOLENOID] CEILING REACHED (30s max continuous hold). Forcing relock cycle."));
     }
     if (activeUnlockTerminal != sourceTerminal) {
       activeUnlockTerminal = "ALL";
@@ -169,6 +196,16 @@ inline void updateSolenoid() {
     delay(40);
     clearSpiBusPins();
 
+    if (pendingVisitorConfirm) {
+      pendingVisitorConfirm = false;
+      HTTPClient confirmHttp;
+      confirmHttp.begin(currentFpUrl + "/visitor-access/confirm");
+      signHttpRequest(confirmHttp, "{}");
+      confirmHttp.POST("{}"); 
+      confirmHttp.end();
+      sysLog(F("[VISITOR] Door closed confirmation reported to backend."));
+    }
+
     // Cleanly redraw without calling tft.init() / SWRESET to eliminate white flash
     if (activeUnlockTerminal == "FRONT" || activeUnlockTerminal == "ALL") {
       frontStatusResetActive = false;
@@ -182,6 +219,7 @@ inline void updateSolenoid() {
         updateBackDisplay("READY", "Scan Card Out");
       }
     }
+    reinitRfidReaders();
     activeUnlockTerminal = "FRONT";
   }
 }

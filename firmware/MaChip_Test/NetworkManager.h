@@ -192,7 +192,7 @@ inline void handleCancelEnrollment() {
     if (prevType == "RFID") {
       drawFrontRfidCancelUI();
     } else {
-      finger.LEDcontrol(false);
+      setFpLed(false);
       drawFrontFpCancelUI();
     }
     delay(1500);
@@ -340,15 +340,23 @@ inline void setupWebConsole() {
 }
 
 // ── FAST WIFI CONNECTION ENGINE (SCAN & MATCH) ───────────────────
-inline bool autoConnectWiFi() {
+inline bool autoConnectWiFi(bool showScreens = true) {
   if (WiFi.status() == WL_CONNECTED) return true;
   
-  sysLog(F("[WIFI] Scanning for nearby configured networks..."));
-  updateFrontDisplay("NET CONFIG", "Scanning Wi-Fi...", ST77XX_YELLOW);
-  updateBackDisplay("WIFI LINK", "Scanning...");
+  if (showScreens) {
+    sysLog(F("[WIFI] Scanning for nearby configured networks..."));
+    updateFrontDisplay("NET CONFIG", "Scanning Wi-Fi...", ST77XX_YELLOW);
+    updateBackDisplay("WIFI LINK", "Scanning...");
+  }
+
+  // Flush stale Wi-Fi radio association & DHCP cache to prevent station state deadlock
+  WiFi.disconnect(true, false);
+  delay(50);
 
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(false); // Max power / zero sleep latency for fastest link
+  WiFi.setAutoReconnect(true);
+  WiFi.persistent(true);
   
   // Fast asynchronous scan (takes ~500ms)
   int n = WiFi.scanNetworks(false, false, false, 150);
@@ -364,8 +372,10 @@ inline bool autoConnectWiFi() {
       
       if (scannedSSID == networks[i].ssid) {
         sysLog("[WIFI] Visible AP detected: [" + networks[i].ssid + "] (" + String(scannedRSSI) + " dBm). Connecting...");
-        updateFrontDisplay("WIFI CONNECT", "Joining " + networks[i].ssid, ST77XX_YELLOW);
-        updateBackDisplay("WIFI CONNECT", networks[i].ssid);
+        if (showScreens) {
+          updateFrontDisplay("WIFI CONNECT", "Joining " + networks[i].ssid, ST77XX_YELLOW);
+          updateBackDisplay("WIFI CONNECT", networks[i].ssid);
+        }
         
         WiFi.begin(networks[i].ssid.c_str(), networks[i].pass.c_str());
         
@@ -417,8 +427,10 @@ inline bool autoConnectWiFi() {
           }
           testHttp.end();
 
-          updateFrontDisplay("ONLINE", "IP: " + WiFi.localIP().toString(), ST77XX_GREEN);
-          updateBackDisplay("ONLINE", WiFi.localIP().toString());
+          if (showScreens) {
+            updateFrontDisplay("ONLINE", "IP: " + WiFi.localIP().toString(), ST77XX_GREEN);
+            updateBackDisplay("ONLINE", WiFi.localIP().toString());
+          }
           return true;
         }
       }
@@ -446,15 +458,19 @@ inline bool autoConnectWiFi() {
       sysLog("[WIFI] [CONNECTED] Fallback linked to [" + networks[i].ssid + "]");
       discoverServer(2500);
       sysLog("[NET] Target Backend Server: " + currentServerUrl);
-      updateFrontDisplay("ONLINE", "IP: " + WiFi.localIP().toString(), ST77XX_GREEN);
-      updateBackDisplay("ONLINE", WiFi.localIP().toString());
+      if (showScreens) {
+        updateFrontDisplay("ONLINE", "IP: " + WiFi.localIP().toString(), ST77XX_GREEN);
+        updateBackDisplay("ONLINE", WiFi.localIP().toString());
+      }
       return true;
     }
   }
 
   sysLog(F("[WIFI] All network connection attempts failed. Entering offline mode."));
-  updateFrontDisplay("OFFLINE", "LAN Local Database Mode", ST77XX_RED);
-  updateBackDisplay("OFFLINE", "Local Base Mode");
+  if (showScreens) {
+    updateFrontDisplay("OFFLINE", "LAN Local Database Mode", ST77XX_RED);
+    updateBackDisplay("OFFLINE", "Local Base Mode");
+  }
   return false;
 }
 
